@@ -1,0 +1,42 @@
+<!-- AUTO-GENERATED FILE - DO NOT EDIT -->
+<!-- Source: docs/es/ -->
+
+# Libraries in Use (Raspberry Pi and Teensy)
+
+This document summarizes **the libraries that the current code actually uses** and what they are used for.
+
+## Raspberry Pi (Python)
+
+| Library | Purpose | File |
+|---|---|---|
+| `opencv-python` (`cv2`) | Image capture and processing, masks, segmentation, line detection, visualization. In rescue, the MOSSE tracker is also used. | `rpi/final_rpi/Main.py`
+| `numpy` | Matrix operations, masks, and fast calculations on pixels. | `rpi/final_rpi/Main.py`
+| `pyserial` (`serial`) | Serial communication with the Teensy (`/dev/serial0`, 115200). | `rpi/final_rpi/Main.py`
+| `camthreader` (custom) | Camera capture thread with better performance than `cv2.VideoCapture`. | `rpi/final_rpi/camthreader.py`
+| `ultralytics` (YOLO) | Object detection in rescue mode. An ONNX model is used. | `rpi/final_rpi/Main.py`
+| `onnxruntime` | Execution backend for `.onnx` models on ARM. | `rpi/final_rpi/Main.py`
+| `threading`, `queue` | Threads and queues to separate capture, inference, and control. | `rpi/final_rpi/Main.py`
+| `math`, `time`, `os`, `sys` | Calculations, timing, thread and system configuration. | `rpi/final_rpi/Main.py`
+
+Important notes:
+- The MOSSE tracker requires **OpenCV contrib** (`opencv-contrib-python`).
+- The rescue model is loaded from `MODEL_PATH = /home/iita/Desktop/zonasdepositoalta.onnx`.
+- The Raspberry sends commands to the Teensy in a byte protocol described in `rpi/Communication between the raspberry and the teensy.md`.
+
+## Teensy 4.1 (C++/Arduino)
+
+| Library | Purpose | File |
+|---|---|---|
+| `Arduino.h`, `Wire.h` | Base Arduino and I2C. | `src/main.cpp`
+| `drivebase.h` | Motor control and robot kinematics (custom from the team). | `src/main.cpp`
+| `PID.h` | PID control in movement. | `src/main.cpp`
+| `elapsedMillis.h` | Timers without `delay`. | `src/main.cpp`
+| `Adafruit_BNO055` and `Adafruit_Sensor` | IMU for yaw/pitch and turn corrections. | `src/main.cpp`
+| `Adafruit_APDS9960` | Color sensor. | `src/main.cpp`
+| `NewPing` | Ultrasonic sensors (left, front, right). | `src/main.cpp`
+| `VL53L0X` | Side ToF sensors. | `src/main.cpp`
+| `Servo` | Control of the claw servos. | `src/main.cpp`
+| `claw.h` | Logic of the claw mechanism (custom from the team). | `src/main.cpp`
+| `Adafruit_I2CDevice` | I2C support for Adafruit devices. | `src/main.cpp`
+
+If we add or remove libraries, this file must be updated along with the code to avoid becoming outdated.

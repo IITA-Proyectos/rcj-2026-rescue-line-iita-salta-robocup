@@ -1,0 +1,180 @@
+<!-- AUTO-GENERATED FILE - DO NOT EDIT -->
+<!-- Source: docs/es/ -->
+
+# Raspberry + YOLO (rescue)
+
+This document explains how vision works on the Raspberry Pi, how YOLO is integrated, and why ONNX Runtime was chosen on ARM. It is based on:
+- `rpi/final_rpi/Main.py`
+- Models in `rpi/AI/`
+
+## Objective
+
+- Follow a line in real-time (classic vision).
+- In rescue, detect balls and areas with YOLO.
+- Send commands to the Teensy via serial (see `rpi/Communication between the raspberry and the teensy.md`).
+
+## Hardware
+
+- Raspberry Pi 4 Model B 8GB
+- USB Camera 2MP WIDE 140°
+
+## Program States (Main.py)
+
+- `waiting`: waits for byte `0xF9` from the Teensy to start.
+- `line`: line following and detection of green/red/silver.
+- `rescue`: YOLO + tracking for balls.
+- `deposit`: YOLO for deposit areas.
+- `deposit green`: sub-state for the green area.
+
+## Regulation 2026 - Rescue Zone (operational summary)
+
+Summary based on regulation 2026:
+- The **evacuation zone** measures **120 cm x 90 cm** and has walls at least 10 cm high.
+- The entrance has a **reflective silver tape** (25 mm x 250 mm).
+- The exit has a **black tape** (25 mm x 250 mm).
+- The **black line ends** at the entrance and **starts again** at the exit.
+- There are **two high evacuation zones**: one **red** (dead victim) and one **green** (living victims).
+- The zones are **right triangles of 30 cm x 30 cm** with **6 cm** walls and a hollow center.
+- The zones can be in any corner that is not the entrance/exit.
+- There may be **obstacles or speed bumps** within the zone, but they **do not count for points**.
+- There may be **white LED lights** at the top of the walls.
+- The victims are spheres of 4-5 cm, with off-center mass (max 80 g):
+  - **Living**: silver, reflective, and conductive.
+  - **Dead**: black, non-conductive.
+- **Fake victims** can be placed, and the robot must ignore them.
+
+## Line Vision Pipeline
+
+1. Capture with `camthreader` and rotate 180 degrees.
+2. Resize to `160x120`.
+3. Masks:
+   - Black (BGR) for the line.
+   - Green (LAB) for squares.
+   - Red (HSV) for the red line.
+   - Silver (HSV) for the rescue line.
+4. Angle is calculated by centroids and sent:
+   - `speed`, `angle`, `green_state`, `silver_line`.
+
+## Rescue Pipeline (YOLO)
+
+- ONNX model loaded with `ultralytics`.
+- Input image: `IMGSZ = 256`.
+- Inference every `DETECT_EVERY` frames.
+- Threads:
+  - `capture_thread` (camera)
+  - `infer_thread` (YOLO)
+  - `serial_monitor_local`
+- Tracking:
+  - MOSSE if available in OpenCV contrib.
+  - If not, fallback with `CentroidTracker`.
+
+## Model Classes
+
+In rescue, 4 classes are used:
+- `0`: black (black ball)
+- `1`: silver (silver ball)
+- `2`: high red (red zone)
+- `3`: high green (green zone)
+
+## Models and Versions (folder `rpi/AI`)
+
+| Date | File | Notes |
+|---|---|---|
+| 11-09 | `roboliga.onnx` | First rescue tests. |
+| 11-09 | `Roboliga 2025.v5-rescue.yolov8.zip` | Exported YOLOv8 Dataset Version. |
+| 20-11 | `depositohigh.onnx` | Zone tests. |
+| 20-11 | `Roboliga 2025.v12-high-zones.yolov8.zip` | Exported YOLOv8 Dataset Version. |
+| 23-11 | `highdepositzones.onnx` | Model used in `Main.py`. |
+| 23-11 | `Roboliga 2025.v15-no-boxes-low.yolov8.zip` | Exported YOLOv8 Dataset Version. |
+
+## Dependencies (Raspberry Pi)
+
+- `opencv-python` + `opencv-contrib-python`
+- `numpy`
+- `pyserial`
+- `ultralytics`
+- `onnxruntime` (backend for ONNX on ARM)
+
+## Why ONNX Runtime on ARM
+
+Several options were tested (tflite, yolov8n, yolov8_ncnn, FOMO) and **ONNX Runtime provided the best FPS on our Raspberry**. Therefore, the final model is exported to `.onnx` and runs with `ultralytics` + `onnxruntime`.
+
+### Precision and Quantization
+
+- The current **ONNX models are in FP32** (not INT8).
+- Quantization (INT8) was attempted in an environment very similar to the real one, but **precision worsened** and the results were unreliable.
+- At this stage, **robustness and precision** were prioritized over FPS.
+
+#### Quantization
+
+Quantization reduces computation and memory costs by changing the data type:
+- **FP32**: 32 bits, more precision, more cost.
+- **FP16/INT8**: fewer bits, more speed and less memory, but may lose precision.
+
+In vision, quantization can affect:
+- Edges and fine details.
+- Confidence of detections.
+- Calibration of thresholds.
+
+That is why it was kept in FP32 until a reliable calibration set and stable behavior on the track were achieved.
+
+### CPU-only (no accelerator)
+
+No AI accelerator is used (no NPU, no TPU, no GPU). **Everything runs on the CPU** of the Raspberry Pi.  
+This limits the maximum FPS and forces optimization of the pipeline.
+
+### Optimization and Multithreading
+
+To achieve the maximum possible speed, the program was optimized and multithreading was used:
+- **Camera capture** thread.
+- **Inference** (YOLO) thread.
+- **Serial** thread (state and synchronization with Teensy).
+
+This allows for parallel processing and **keeps states synchronized** without losing frames, improving overall stability and performance.
+
+## External Benchmarks (reference)
+
+Below are external graphs comparing runtimes on Raspberry Pi 4B. They are not our models but serve as a reference for the relative performance between ONNX Runtime, TFLite, and other runtimes on ARM.
+
+### Paper: Performance Characterization of using Quantization for DNN Inference on Edge Devices (Raspberry Pi 4B)
+
+![Raspberry Pi 4B - Single-stream latency](imagenes/benchmarks/rpi4b_mobilenetv2_single_stream_latency.png)
+
+![Raspberry Pi 4B - Multi-stream latency](imagenes/benchmarks/rpi4b_mobilenetv2_multistream_latency.png)
+
+![Raspberry Pi 4B - Offline images/sec](imagenes/benchmarks/rpi4b_mobilenetv2_offline_ips.png)
+
+### Other Public Data (quick reference)
+
+| Method | Reference | Approximate Data |
+|---|---|---|
+| YOLOv8n (NCNN) | Qengineering (Raspberry Pi 4 1950MHz) | ~3.1 FPS (YOLOv8n 640) |
+| FOMO | Edge Impulse (Raspberry Pi 4) | ~60 FPS (160x160, MobileNetV2 0.1) |
+
+> Note: these values **are not comparable 1:1** because models, resolutions, datasets, and configurations change. They are used only as external reference.
+
+## How to run the Raspberry main
+
+1. Copy the ONNX model to the Raspberry (e.g., `/home/iita/Desktop/highdepositzones.onnx`).
+2. Install Python dependencies.
+3. Run `Main.py`.
+
+## Quick Performance Tuning
+
+- `IMGSZ`: lowering resolution increases FPS but reduces precision.
+- `DETECT_EVERY`: inferring every N frames reduces load.
+- `OMP_NUM_THREADS`: limit CPU threads.
+- `HEADLESS = True`: disables windows and increases FPS.
+
+## Checklist when changing model
+
+- Update `MODEL_PATH` in `Main.py`.
+- Confirm `CLASS_NAMES` and class mapping.
+- Adjust thresholds by class.
+- Update this document.
+
+## Sources
+
+- https://ar5iv.labs.arxiv.org/html/2303.05016
+- https://github.com/Qengineering/YoloV8-ncnn-Raspberry-Pi-4
+- https://docs.edgeimpulse.com/docs/tutorials/end-to-end/object-detection-with-fomo
