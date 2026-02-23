@@ -1,5 +1,10 @@
 # 🤖 IITA Salta – RCJ 2026 Rescue Line
 
+> [!CAUTION]
+> ### 🚨 PLAN DE ACCIÓN DE AUDITORÍA (URGENTE)
+> Se han detectado **Bugs Críticos P0** que pueden comprometer la integridad del robot. 
+> **Revisar inmediatamente el [AUDIT-ACTION-PLAN.md](AUDIT-ACTION-PLAN.md)** para conocer las tareas de resolución prioritaria.
+
 **Repositorio de ingeniería del equipo IITA Salta para RoboCup Junior 2026 – Rescue Line**
 
 [![ICRS](https://img.shields.io/badge/ICRS-v1.1%20L2-blue)]() [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
