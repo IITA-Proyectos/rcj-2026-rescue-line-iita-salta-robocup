@@ -15,6 +15,7 @@ This document summarizes **the libraries that the current code actually uses** a
 |---|---|---|
 | `opencv-python` (`cv2`) | Image capture and processing, masks, segmentation, line detection, visualization. In rescue, the MOSSE tracker is also used. | `rpi/final_rpi/Main.py`
 | `numpy` | Matrix operations, masks, and fast calculations on pixels. | `rpi/final_rpi/Main.py`
+| `opencv-python` (`cv2`) | Image capture and processing, masks, segmentation, line detection, visualization. The MOSSE tracker is also used in rescue. | `rpi/final_rpi/Main.py`
 | `numpy` | Operations with matrices, masks, and fast calculations on pixels. | `rpi/final_rpi/Main.py`
 | `pyserial` (`serial`) | Serial communication with the Teensy (`/dev/serial0`, 115200). | `rpi/final_rpi/Main.py`
 | `camthreader` (custom) | Camera capture thread with better performance than `cv2.VideoCapture`. | `rpi/final_rpi/camthreader.py`
@@ -26,7 +27,7 @@ This document summarizes **the libraries that the current code actually uses** a
 Important notes:
 - The MOSSE tracker requires **OpenCV contrib** (`opencv-contrib-python`).
 - The rescue model is loaded from `MODEL_PATH = /home/iita/Desktop/zonasdepositoalta.onnx`.
-- The Raspberry sends commands to the Teensy in a byte protocol described in `rpi/Communication between the raspberry and the teensy.md`.
+- The Raspberry sends commands to the Teensy in a byte protocol described in `rpi/Comunicacion de la raspberry y la teensy.md`.
 
 ## Teensy 4.1 (C++/Arduino)
 
@@ -50,4 +51,4 @@ Important notes:
 | `claw.h` | Logic of the claw mechanism (custom to the team). | `src/main.cpp`
 | `Adafruit_I2CDevice` | I2C support for Adafruit devices. | `src/main.cpp`
 
-If we add or remove libraries, this file must be updated along with the code to avoid becoming outdated.
+If we add or remove libraries, this file must be updated along with the code to avoid being outdated.
