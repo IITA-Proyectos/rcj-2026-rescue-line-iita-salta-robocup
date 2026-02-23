@@ -1,67 +1,53 @@
-name: Translate docs (es -> en)
+name: Auto Translate Spanish Docs to English (L2)
 
 on:
   push:
     paths:
       - 'docs/es/**'
-    branches:
-      - main
 
 permissions:
   contents: write
   pull-requests: write
 
+concurrency:
+  group: translate-docs-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   translate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install openai
+        run: |
+          python -m pip install --upgrade pip
+          pip install openai
 
-      - name: Translate changed docs
+      - name: Translate docs (ES -> EN)
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          python3 << 'PYEOF'
-          import os, glob
-          from openai import OpenAI
-          client = OpenAI()
-          HEADER = "<!-- AUTO-GENERATED FILE - DO NOT EDIT -->\n<!-- Source: docs/es/ -->\n\n"
-          os.makedirs("docs/en", exist_ok=True)
-          for md_file in glob.glob("docs/es/*.md"):
-              if os.path.basename(md_file) == ".gitkeep": continue
-              with open(md_file) as f: content = f.read()
-              if not content.strip(): continue
-              print(f"Translating {md_file}...")
-              r = client.chat.completions.create(
-                  model="gpt-4o-mini",
-                  messages=[
-                      {"role": "system", "content": "Translate this Markdown from Spanish to English. Preserve formatting, code, links."},
-                      {"role": "user", "content": content}
-                  ], temperature=0.1)
-              out = os.path.join("docs/en", os.path.basename(md_file))
-              with open(out, "w") as f: f.write(HEADER + r.choices[0].message.content)
-          PYEOF
+          python scripts/translate_docs.py
 
-      - name: Create PR with translations
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          BRANCH="auto/translate-docs-$(date +%Y%m%d-%H%M%S)"
-          git checkout -b "$BRANCH"
-          git add docs/en/
-          if git diff --cached --quiet; then echo "No changes"; exit 0; fi
-          git commit -m "docs(en): auto-translate from docs/es"
-          git push origin "$BRANCH"
-          gh pr create --title "docs(en): Auto-translated documentation" \
-            --body "Auto-generated English translations from docs/es." \
-            --base main --head "$BRANCH"
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Create Pull Request with translations
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: "docs(en): auto-translation from docs/es"
+          title: "docs(en): auto-translation update"
+          body: |
+            Automated translation from docs/es to docs/en.
+            - Source of truth: docs/es
+            - docs/en is AUTO-GENERATED (do not edit manually)
+          branch: bot/translate-docs
+          base: main
+          labels: |
+            type/docs

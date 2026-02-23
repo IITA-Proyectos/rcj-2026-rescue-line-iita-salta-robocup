@@ -13,3 +13,6 @@ La comunicación entre ambos procesadores se realiza por puerto serial a 115200 
 ## Objetivo
 
 Si este archivo aparece traducido en `docs/en/test-traduccion.md`, el workflow está funcionando correctamente. 🎉
+
+---
+*Última actualización: test trigger v2 con workflow corregido*
