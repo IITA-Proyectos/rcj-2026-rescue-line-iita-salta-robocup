@@ -1,0 +1,5 @@
+# CODEOWNERS – IITA RCJ 2026 Rescue Line
+software/teensy/ @laureano-monteros
+software/raspberry/ @lucio-saucedo @benjamin-villagran
+hardware/ @benjamin-villagran
+docs/ @gviollaz
