@@ -33,8 +33,8 @@ According to the README and `AI-INSTRUCTIONS.md`, the documentation is organized
 
 - `docs/es/`: source documentation in Spanish (truth).
 - `docs/en/`: auto-generated mirror in English (**do not edit**).
-- Suggested convention for file names: **kebab-case** in lowercase (e.g., `yolo-raspberry.md`).
-- Change process: **every change should originate from an Issue** and come through PR (see `CONTRIBUTING.md` and `AI-INSTRUCTIONS.md`).
+- Suggested convention for file names: **kebab-case** in lowercase (e.g.: `yolo-raspberry.md`).
+- Change process: **every change should originate from an Issue** and enter via PR (see `CONTRIBUTING.md` and `AI-INSTRUCTIONS.md`).
 
 **Recommended name and location for this report:**
 - ✅ `docs/es/informe-coaching-repo.md` (this file)
@@ -47,7 +47,7 @@ According to the README and `AI-INSTRUCTIONS.md`, the documentation is organized
 1. **Repository with clear ICRS structure** (software/hardware/docs/testing/journal/research/competition/project).  
 2. **Well-defined dual processor architecture**: Teensy (real-time) + Raspberry Pi (vision/AI).  
 3. **Useful existing technical documentation** (RPi↔Teensy communications, YOLO on Raspberry, firmware libraries).  
-4. **Industry-style contribution rules** (Conventional Commits, PR with evidence, AI usage declaration).
+4. **Industry-style contribution rules** (Conventional Commits, PR with evidence, declaration of AI usage).
 
 ### Areas for Improvement (what often separates “doing” from “winning”)
 1. **Work traceability**: the repo shows 0 Issues → lacks a “playable” backlog (tasks, responsibilities, dates, risks).  
@@ -86,7 +86,7 @@ Code with relevant signals:
 
 **What the repo says should be done (very well):**
 - All work originates from an **Issue**.
-- Changes come through PR with **testing evidence**.
+- Changes enter via PR with **testing evidence**.
 - AI usage is declared.
 
 **What is currently observed:**
@@ -94,11 +94,11 @@ Code with relevant signals:
 
 **Concrete recommendation (action):**
 - Activate a minimum flow:
-  - 1 Issue per feature (e.g., “Fix ToF units”, “Non-blocking FSM”, “Testing gaps table”).
+  - 1 Issue per feature (e.g.: “Fix ToF units”, “Non-blocking FSM”, “Testing gaps table”).
   - labels: `bug`, `enhancement`, `docs`, `hardware`, `testing`, `competition`.
   - milestones: “Roboliga / Regional / National / World”.
 
-> Winning teams are not differentiated by “ideas”: they are differentiated by having a system that makes ideas reach the field and remain stable.
+> Winning teams are not differentiated by “ideas”: they are differentiated by having a system that makes ideas reach the track and remain stable.
 
 ---
 
@@ -110,7 +110,7 @@ Code with relevant signals:
 - **Dependencies** and libraries listed (reduces judge questions).
 
 #### 2.2 What is missing (or not visible/1 click away)
-For TDP and typical rubrics, it is necessary to consolidate in one place:
+For TDP and typical rubrics, it is missing to consolidate in one place:
 
 **Hardware**
 - Block diagram of the robot (high level).
@@ -126,8 +126,8 @@ For TDP and typical rubrics, it is necessary to consolidate in one place:
 
 **Testing**
 - Test table + results (success %, time, failure modes).
-- Videos/internal links per feature.
-- Logs (even CSV) per run to compare improvements.
+- Videos/internal links by feature.
+- Logs (even if CSV) by run to compare improvements.
 
 ---
 
@@ -149,9 +149,9 @@ In C/C++, this compares **pointers**, not content. It is a classic bug that may 
 ✅ Recommendation:
 - replace with `strcmp(id, "FL")==0` or, better, use `enum MotorID`.
 
-**(B) mm vs cm units**
+**(B) Units mm vs cm**
 In `src/main.cpp`, readings `readRangeContinuousMillimeters()` (mm) are used, but constants commented in cm.
-If units are mixed, control becomes erratic (over-correction or sluggishness).
+If units are mixed, control becomes erratic (over-correction or slowness).
 
 ✅ Recommendation:
 - Define a single unit (mm recommended) and normalize everything in `config.h`.
@@ -174,7 +174,7 @@ If units are mixed, control becomes erratic (over-correction or sluggishness).
 Measure and record, as if it were Formula 1 telemetry:
 - Real FPS (average and percentiles).
 - Inference latency (ms).
-- Correct detection rate (by class) on real track.
+- Correct detection rate (by class) in real track.
 - Robustness to lighting (cold/warm, shadows, reflections, dirty camera).
 
 Without numbers, AI often feels “magical” until the competition day when it stops being so.
@@ -183,9 +183,9 @@ Without numbers, AI often feels “magical” until the competition day when it 
 
 ## 5) Testing and Evidence
 
-**Current state:**
+**Current status:**
 - The repo structure includes `testing/`, but no `testing/README.md` was found to act as an index.
-- In `CONTRIBUTING.md`, evidence is required in PR (very good).
+- In `CONTRIBUTING.md`, evidence in PR is required (very good).
 
 **Minimum recommendation (high return):**
 Create `testing/README.md` with a simple table:
@@ -194,7 +194,7 @@ Create `testing/README.md` with a simple table:
 |---|---|---|---|---|---|
 
 And within `testing/`:
-- `videos/` (short mp4s per feature)
+- `videos/` (short mp4s by feature)
 - `logs/` (CSV)
 - `photos/` (setup)
 
@@ -208,7 +208,7 @@ And within `testing/`:
 - [ ] Block diagram of the system (Teensy/RPi/sensors/actuators).
 - [ ] Electrical diagram / power tree.
 - [ ] Schematic (PDF + source).
-- [ ] PCB (if it exists) + revisions (`rev-a`, `rev-b`).
+- [ ] PCB (if exists) + revisions (`rev-a`, `rev-b`).
 - [ ] Photos of the robot (4 views) + dimensions.
 - [ ] Sensor locations (photo + drawing + distances).
 - [ ] Complete BOM (in official template) + suppliers + costs.
@@ -223,7 +223,7 @@ And within `testing/`:
 ### Validation Section
 - [ ] Test plan (feature vs conditions matrix).
 - [ ] Quantitative results (success %, times).
-- [ ] Videos per feature.
+- [ ] Videos by feature.
 - [ ] Change log: “change → measured improvement”.
 
 ---
@@ -232,11 +232,11 @@ And within `testing/`:
 
 ### Sprint 1 — Stability (avoid losing rounds due to bugs)
 - Fix strings / units / non-blocking FSM.
-- Watchdog for RPi↔Teensy communication.
+- RPi↔Teensy communication watchdog.
 - Minimum logging (build + parameters + result).
 
 ### Sprint 2 — Track Coverage (rules)
-- Gaps, greens, obstacles, ramps/seesaw (according to availability).
+- Gaps, greens, obstacles, ramps/seesaw (as available).
 - Test table with metrics.
 
 ### Sprint 3 — Repeatable Rescue
@@ -272,5 +272,5 @@ To upload this document correctly according to the repo rules:
 - RoboCupJunior Rescue Line (general page):  
   https://junior.robocup.org/rcj-rescue-line/
 
-- (Context) Draft Rules 2026 (subject to change):  
+- (Context) Draft Rules 2026 (may change):  
   https://junior.robocup.org/wp-content/uploads/2026/01/RCJRescueLine2026-draft.pdf
