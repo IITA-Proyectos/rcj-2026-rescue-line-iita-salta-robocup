@@ -53,6 +53,7 @@ mode_label = "CON warm-up" if ENABLE_WARMUP else "SIN warm-up"
 warmup_ms = (t2 - t1) * 1000.0 if ENABLE_WARMUP else 0.0
 print(f"[{mode_label}] LOAD={(t1 - t0) * 1000:.1f} ms | WARMUP={warmup_ms:.1f} ms")
 pred_times_ms = []
+load_ms = (t1 - t0) * 1000.0
 last_target_box = None
 CENTER_TOLERANCE_PX = 10
 STOP_WIDTH_RATIO = 0.20        # si bbox_width / frame_width >= esto => consid. cerca (ajustar)
@@ -468,8 +469,17 @@ finally:
     if pred_times_ms:
         arr = np.array(pred_times_ms, dtype=np.float32)
         mode_label = "CON warm-up" if ENABLE_WARMUP else "SIN warm-up"
+        pred0_ms = float(arr[0]) if len(arr) > 0 else float("nan")
+        avg_ms = float(arr.mean())
+        p95_ms = float(np.percentile(arr, 95))
+        max_ms = float(arr.max())
         print(
-            f"[{mode_label}] INFER STATS | n={len(arr)} avg={float(arr.mean()):.1f} ms "
-            f"p95={float(np.percentile(arr, 95)):.1f} ms min={float(arr.min()):.1f} ms "
-            f"max={float(arr.max()):.1f} ms"
+            f"[{mode_label}] INFER STATS | n={len(arr)} avg={avg_ms:.1f} ms "
+            f"p95={p95_ms:.1f} ms min={float(arr.min()):.1f} ms max={max_ms:.1f} ms"
         )
+        print(
+            f"{mode_label}: LOAD={load_ms:.1f} ms, PRED[0]={pred0_ms:.1f} ms, "
+            f"avg={avg_ms:.1f} ms, p95={p95_ms:.1f} ms, max={max_ms:.1f} ms, n={len(arr)}"
+        )
+    else:
+        print("INFER STATS | no hubo inferencias registradas")
