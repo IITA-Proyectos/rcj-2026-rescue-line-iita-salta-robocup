@@ -5,6 +5,7 @@ import math
 import time
 import serial
 import sys
+from ultralytics import YOLO
 
 
 debugOriginal = False
@@ -33,6 +34,9 @@ lower_red = np.array([1, 147,159])
 upper_red = np.array([7, 205, 216])
 last_angles = []
 
+MODEL_PATH = "/home/iita/Desktop/zonasdepositoalta.onnx"
+YOLO_IMGSZ = 256
+
 test_frame = vs.read()
 
 width, height = 160, 120
@@ -57,6 +61,11 @@ for i in range(height):
     for j in range(width):
         x_com[i][j] = (j - cam_x) / (width / 2)   # [-1, 1]
         y_com[i][j] = (cam_y - i) / height        # [0, 1]
+
+model = YOLO(MODEL_PATH, task='detect')
+imagen_negra = np.zeros((YOLO_IMGSZ, YOLO_IMGSZ, 3), dtype=np.uint8)
+model.predict(imagen_negra, imgsz=YOLO_IMGSZ, conf=0.25, iou=0.45, stream=False, verbose=False)
+
 def modo_rescate():
     global last_target_box
     last_target_box = None  
@@ -82,23 +91,17 @@ def modo_rescate():
     import threading
     import queue
     import numpy as np
-    from ultralytics import YOLO
     import math
 
     # ---- CONFIG ----
-    MODEL_PATH = "/home/iita/Desktop/zonasdepositoalta.onnx"
     CLASS_NAMES = ['negro', 'plateado', 'rojo alto', 'verde_alto']
     SCORE_THRESHOLD = 0.45
-    IMGSZ = 256
+    IMGSZ = YOLO_IMGSZ
     DETECT_EVERY = 1
     MAX_QUEUE = 2
     DRAW_EVERY = 1
     HEADLESS = False
 
-    # ---- cargar modelo ----
-    print("Loading model:", MODEL_PATH)
-    model = YOLO(MODEL_PATH, task='detect')
-    print("Modelo cargado.")
     last_target_box = None
     CENTER_TOLERANCE_PX = 10
     STOP_WIDTH_RATIO = 0.20
@@ -288,7 +291,6 @@ def modo_rescate():
 
             if estado == 'rescate':
                 for d in boxes:
-                    # bolas: 0 roja, 1 verde
                     if d['cls'] in (0, 1):
                         targets.append(d)
 
