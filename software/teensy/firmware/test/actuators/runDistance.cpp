@@ -51,19 +51,24 @@ void reset_enconder(){
     br.resetPulseCount();
     fr.resetPulseCount();
 }
+
 void runDistance(int speed, int dir, int Distance) {
+    runTime(30,BACKWARD,0,20);
+    runTime(30,FORWARD,0,20);
     reset_enconder();
-    int encoder = 25*Distance;
-    //25 pulsaciones es igual a 1cm
+    int32_t  encoder = 25*Distance;
     
     if (dir == FORWARD) {
-        while (fr.pulseCount <= encoder && fl.pulseCount <= encoder) {
+        while (true) {
+            int32_t frCount = fr.pulseCount;
+            int32_t flCount = fl.pulseCount;
+            if (frCount >= encoder || flCount >= encoder) break;
+
             robot.steer(speed, dir, 0);
-            Serial.print("FL: ");
-            Serial.print(fl.pulseCount); // Imprime el valor de pulseCount
+            Serial.print(flCount);
             Serial.print(" | ");
-            Serial.print("FR: ");
-            Serial.println(fr.pulseCount);
+            Serial.print(frCount);
+            //Serial.println(fr.pulseCount);
             digitalWrite(13, HIGH);
             delay(10);
             
@@ -78,30 +83,18 @@ void runDistance(int speed, int dir, int Distance) {
             }
         }
     }else{
-        while (fr.pulseCount >= -encoder && fl.pulseCount >= -encoder)
+         while (true) 
         {
+            int32_t frCount = fr.pulseCount;
+            int32_t flCount = fl.pulseCount;
+
+            if (frCount <= -encoder || flCount <= -encoder) break;
             robot.steer(speed, dir, 0);
-            Serial.print("FL: ");
-            Serial.print(fl.pulseCount); // Imprime el valor de pulseCount
+            Serial.print(flCount);
             Serial.print(" | ");
-            Serial.print("FR: ");
-            Serial.println(fr.pulseCount);
+            Serial.print(frCount);
+            //Serial.println(fr.pulseCount);
             delay(10);
-        }
-        
-        
-    }
-    /*
-    if (dir == BACKWARD) {
-        while (fr.pulseCount >= encoder && fl.pulseCount >= encoder) {
-            robot.steer(speed, dir, 0);
-            Serial.print("FL: ");
-            Serial.print(fl.pulseCount); // Imprime el valor de pulseCount
-            Serial.print(" | ");
-            Serial.print("FR: ");
-            Serial.println(fr.pulseCount);
-            digitalWrite(13, HIGH);
-            
             if (Serial5.available() > 0) {
                 int lecturas = Serial5.read();
                 Serial.print(lecturas);
@@ -112,8 +105,9 @@ void runDistance(int speed, int dir, int Distance) {
                 break;
             }
         }
-    } 
-    */
+        
+        
+    }
 }
 void setup() {
     robot.steer (0,0,0);
