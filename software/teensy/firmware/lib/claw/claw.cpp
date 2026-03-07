@@ -27,6 +27,9 @@ Claw::Claw(DFServo *liftDFServo, DFServo *leftDFServo, DFServo *rightDFServo, DF
     this->_sortDFServo = sortDFServo;
     this->_depositDFServo = depositDFServo;
     this-> reset();
+    this->_state = CL_IDLE;
+    this->_stateStartedAt = 0;
+    this->_concurrentRequested = false;
 }
 
 bool Claw::available()
@@ -96,25 +99,105 @@ void Claw::reset(bool concurrent = false)
     this->open();
     if (!concurrent) _lastAction = millis();
 }
-
+// Non-blocking pickup: start sequences and advance via update()
 void Claw::pickupLeft(bool concurrent = false)
 {
-    this->close();
-    delay(500);
-    this->sortLeft();
-    this->lift();
-    delay(500);
-    this->open();
-    if (!concurrent) _lastAction = millis();
+    if (_state == CL_IDLE)
+    {
+        _concurrentRequested = concurrent;
+        _state = CL_PICKUP_LEFT_STEP1;
+        _stateStartedAt = millis();
+    }
 }
 
 void Claw::pickupRight(bool concurrent = false)
 {
-    this->close();
-    delay(500);
-    this->sortRight();
-    this->lift();
-    delay(500);
-    this->open();
-    if (!concurrent) _lastAction = millis();
+    if (_state == CL_IDLE)
+    {
+        _concurrentRequested = concurrent;
+        _state = CL_PICKUP_RIGHT_STEP1;
+        _stateStartedAt = millis();
+    }
+}
+
+bool Claw::busy()
+{
+    return _state != CL_IDLE;
+}
+
+void Claw::update()
+{
+    const unsigned long STEP_DELAY = 500; // ms between steps
+    unsigned long now = millis();
+
+    switch (_state)
+    {
+    case CL_IDLE:
+        // nothing to do
+        break;
+    case CL_PICKUP_LEFT_STEP1:
+        // step1: close
+        this->close();
+        _state = CL_PICKUP_LEFT_STEP2;
+        _stateStartedAt = now;
+        break;
+    case CL_PICKUP_LEFT_STEP2:
+        if (now - _stateStartedAt >= STEP_DELAY)
+        {
+            // step2: sort left + lift
+            this->sortLeft();
+            this->lift();
+            _state = CL_PICKUP_LEFT_STEP3;
+            _stateStartedAt = now;
+        }
+        break;
+    case CL_PICKUP_LEFT_STEP3:
+        if (now - _stateStartedAt >= STEP_DELAY)
+        {
+            // step3: open
+            this->open();
+            _state = CL_PICKUP_LEFT_STEP4;
+            _stateStartedAt = now;
+        }
+        break;
+    case CL_PICKUP_LEFT_STEP4:
+        // finish
+        if (now - _stateStartedAt >= 0)
+        {
+            _state = CL_IDLE;
+            if (!_concurrentRequested)
+                _lastAction = now;
+        }
+        break;
+    case CL_PICKUP_RIGHT_STEP1:
+        this->close();
+        _state = CL_PICKUP_RIGHT_STEP2;
+        _stateStartedAt = now;
+        break;
+    case CL_PICKUP_RIGHT_STEP2:
+        if (now - _stateStartedAt >= STEP_DELAY)
+        {
+            this->sortRight();
+            this->lift();
+            _state = CL_PICKUP_RIGHT_STEP3;
+            _stateStartedAt = now;
+        }
+        break;
+    case CL_PICKUP_RIGHT_STEP3:
+        if (now - _stateStartedAt >= STEP_DELAY)
+        {
+            this->open();
+            _state = CL_PICKUP_RIGHT_STEP4;
+            _stateStartedAt = now;
+        }
+        break;
+    case CL_PICKUP_RIGHT_STEP4:
+        if (now - _stateStartedAt >= 0)
+        {
+            _state = CL_IDLE;
+            if (!_concurrentRequested)
+                _lastAction = now;
+        }
+        break;
+    }
 }

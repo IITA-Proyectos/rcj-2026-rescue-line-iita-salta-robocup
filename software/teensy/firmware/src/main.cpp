@@ -600,6 +600,8 @@ void setup()
 
 void loop()
 {
+    // Advance non-blocking claw state machine each loop
+    claw.update();
     if (digitalRead(32) == 1)
     {                               // switch is off
         robot.steer(0, FORWARD, 0); // stop moving

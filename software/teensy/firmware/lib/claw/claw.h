@@ -32,8 +32,13 @@ public:
     void depositRight(bool concurrent = false);
     void depositCenter(bool concurrent = false);
     void reset(bool concurrent = false);
+    // Start non-blocking pickup sequences (state machine)
     void pickupLeft(bool concurrent = false);
     void pickupRight(bool concurrent = false);
+    // Call periodically from main loop to advance claw state
+    void update();
+    // Returns true if claw is performing a sequence
+    bool busy();
 
 private:
     DFServo *_liftDFServo,
@@ -42,6 +47,21 @@ private:
         *_sortDFServo,
         *_depositDFServo;
     unsigned long long _lastAction;
+    // State machine for non-blocking sequences
+    enum ClawState {
+        CL_IDLE = 0,
+        CL_PICKUP_LEFT_STEP1,
+        CL_PICKUP_LEFT_STEP2,
+        CL_PICKUP_LEFT_STEP3,
+        CL_PICKUP_LEFT_STEP4,
+        CL_PICKUP_RIGHT_STEP1,
+        CL_PICKUP_RIGHT_STEP2,
+        CL_PICKUP_RIGHT_STEP3,
+        CL_PICKUP_RIGHT_STEP4
+    };
+    ClawState _state;
+    unsigned long _stateStartedAt;
+    bool _concurrentRequested;
 };
 
 #endif
