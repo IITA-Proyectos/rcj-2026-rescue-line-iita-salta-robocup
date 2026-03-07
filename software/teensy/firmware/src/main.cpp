@@ -81,6 +81,177 @@ bool alineado=false;
 bool depositando=false;
 int veces_deposit=2;
 int ball_counter=2;
+
+// Máquina de Estados para Rescate (No Bloqueante)
+enum RescateState {
+    RESCATE_IDLE = 0,          // Estado inactivo
+    RESCATE_NEGRA_STEP1,       // Baja garra
+    RESCATE_NEGRA_STEP2,       // Posiciona depósito centro
+    RESCATE_NEGRA_STEP3,       // Clasifica derecha
+    RESCATE_NEGRA_STEP4,       // Avanza distancia
+    RESCATE_NEGRA_STEP5,       // Cierra garra
+    RESCATE_NEGRA_STEP6,       // Levanta garra
+    RESCATE_NEGRA_STEP7,       // Abre garra
+    RESCATE_NEGRA_STEP8,       // Retrocede un poco
+    RESCATE_PLATEADA_STEP1,    // Baja garra
+    RESCATE_PLATEADA_STEP2,    // Clasifica izquierda
+    RESCATE_PLATEADA_STEP3,    // Posiciona depósito centro
+    RESCATE_PLATEADA_STEP4,    // Avanza distancia
+    RESCATE_PLATEADA_STEP5,    // Cierra garra
+    RESCATE_PLATEADA_STEP6,    // Levanta garra
+    RESCATE_PLATEADA_STEP7,    // Abre garra
+    RESCATE_PLATEADA_STEP8     // Retrocede un poco
+};
+RescateState rescateState = RESCATE_IDLE;  // Estado actual de la máquina de rescate
+unsigned long rescateLastTime = 0;         // Timestamp del último paso
+const unsigned long RESCATE_STEP_DELAY = 1000;  // Delay entre pasos en ms
+
+// Función para iniciar recolección de pelota negra
+void iniciarRecoleccionNegra() {
+    if (rescateState == RESCATE_IDLE) {
+        rescateState = RESCATE_NEGRA_STEP1;
+        rescateLastTime = millis();
+    }
+}
+
+// Función para iniciar recolección de pelota plateada
+void iniciarRecoleccionPlateada() {
+    if (rescateState == RESCATE_IDLE) {
+        rescateState = RESCATE_PLATEADA_STEP1;
+        rescateLastTime = millis();
+    }
+}
+
+// Función para actualizar la máquina de estados de rescate (llamar en loop())
+void actualizarRescate() {
+    unsigned long now = millis();
+    switch (rescateState) {
+        case RESCATE_IDLE:
+            // Nada que hacer
+            break;
+        case RESCATE_NEGRA_STEP1:
+            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
+                claw.lower();
+                rescateState = RESCATE_NEGRA_STEP2;
+                rescateLastTime = now;
+            }
+            break;
+        case RESCATE_NEGRA_STEP2:
+            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
+                claw.depositCenter();
+                rescateState = RESCATE_NEGRA_STEP3;
+                rescateLastTime = now;
+            }
+            break;
+        case RESCATE_NEGRA_STEP3:
+            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
+                claw.sortRight();
+                rescateState = RESCATE_NEGRA_STEP4;
+                rescateLastTime = now;
+            }
+            break;
+        case RESCATE_NEGRA_STEP4:
+            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
+                runDistance(30, FORWARD, 8);
+                rescateState = RESCATE_NEGRA_STEP5;
+                rescateLastTime = now;
+            }
+            break;
+        case RESCATE_NEGRA_STEP5:
+            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
+                claw.close();
+                digitalWrite(BUZZER, HIGH);
+                delay(100);  // Pequeño delay para buzzer, considerar no-bloqueante si necesario
+                digitalWrite(BUZZER, LOW);
+                rescateState = RESCATE_NEGRA_STEP6;
+                rescateLastTime = now;
+            }
+            break;
+        case RESCATE_NEGRA_STEP6:
+            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
+                claw.lift();
+                rescateState = RESCATE_NEGRA_STEP7;
+                rescateLastTime = now;
+            }
+            break;
+        case RESCATE_NEGRA_STEP7:
+            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
+                claw.open();
+                rescateState = RESCATE_NEGRA_STEP8;
+                rescateLastTime = now;
+            }
+            break;
+        case RESCATE_NEGRA_STEP8:
+            if (now - rescateLastTime >= 200) {  // Menor delay para retroceso
+                runTime(30, FORWARD, 0, 200);
+                runTime(30, BACKWARD, 0, 200);
+                ball_counter++;
+                rescateState = RESCATE_IDLE;
+            }
+            break;
+        // Estados para pelota plateada (análogos)
+        case RESCATE_PLATEADA_STEP1:
+            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
+                claw.lower();
+                rescateState = RESCATE_PLATEADA_STEP2;
+                rescateLastTime = now;
+            }
+            break;
+        case RESCATE_PLATEADA_STEP2:
+            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
+                claw.sortLeft();
+                rescateState = RESCATE_PLATEADA_STEP3;
+                rescateLastTime = now;
+            }
+            break;
+        case RESCATE_PLATEADA_STEP3:
+            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
+                claw.depositCenter();
+                rescateState = RESCATE_PLATEADA_STEP4;
+                rescateLastTime = now;
+            }
+            break;
+        case RESCATE_PLATEADA_STEP4:
+            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
+                runDistance(20, FORWARD, 8);
+                rescateState = RESCATE_PLATEADA_STEP5;
+                rescateLastTime = now;
+            }
+            break;
+        case RESCATE_PLATEADA_STEP5:
+            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
+                claw.close();
+                digitalWrite(BUZZER, HIGH);
+                delay(100);
+                digitalWrite(BUZZER, LOW);
+                rescateState = RESCATE_PLATEADA_STEP6;
+                rescateLastTime = now;
+            }
+            break;
+        case RESCATE_PLATEADA_STEP6:
+            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
+                claw.lift();
+                rescateState = RESCATE_PLATEADA_STEP7;
+                rescateLastTime = now;
+            }
+            break;
+        case RESCATE_PLATEADA_STEP7:
+            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
+                claw.open();
+                rescateState = RESCATE_PLATEADA_STEP8;
+                rescateLastTime = now;
+            }
+            break;
+        case RESCATE_PLATEADA_STEP8:
+            if (now - rescateLastTime >= 200) {
+                runTime(30, FORWARD, 0, 200);
+                runTime(30, BACKWARD, 0, 200);
+                ball_counter++;
+                rescateState = RESCATE_IDLE;
+            }
+            break;
+    }
+}
 #define SONAR_NUM 3      // Number of sensors.
 #define MAX_DISTANCE 150 // Maximum distance (in cm) to ping.
 
@@ -602,6 +773,8 @@ void loop()
 {
     // Advance non-blocking claw state machine each loop
     claw.update();
+    // Actualizar máquina de estados de rescate no-bloqueante
+    actualizarRescate();
     if (digitalRead(32) == 1)
     {                               // switch is off
         robot.steer(0, FORWARD, 0); // stop moving
