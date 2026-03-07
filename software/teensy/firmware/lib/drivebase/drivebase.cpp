@@ -2,6 +2,7 @@
   drivebase.cpp - Library for controlling motors.
 */
 #include <Arduino.h>
+#include <string.h>
 #include "drivebase.h"
 #include "PID.h"
 Moto::Moto(int pwmPin, int dirPin, int encPin, const char* id)
@@ -64,7 +65,7 @@ void Moto::updatePulse()
     _rpmlist[2] = _rpmlist[3];
     _rpmlist[3] = _end - _begin;
     if (_dir== 0){
-        if (this->id == "FL" || this->id == "BL" ){
+        if (this->id != NULL && (strcmp(this->id, "FL") == 0 || strcmp(this->id, "BL") == 0)){
             pulseCount ++;
         }
         else{
@@ -73,7 +74,7 @@ void Moto::updatePulse()
        
     }
     if (_dir == 1){
-        if (this->id == "FL" || this->id == "BL" ){
+        if (this->id != NULL && (strcmp(this->id, "FL") == 0 || strcmp(this->id, "BL") == 0)){
             pulseCount --;
         }
         else{
