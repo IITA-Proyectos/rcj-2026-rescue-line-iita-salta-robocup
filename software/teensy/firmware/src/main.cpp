@@ -539,7 +539,7 @@ void setup()
 {
 
     robot.steer(0, 0, 0);
-    claw.lift();
+    // claw.lift();  // Moved to begin()
     angulo_rescate = fmod(20, 360.0);
     //Serial.println(angulo_rescate);
     attachInterrupt(digitalPinToInterrupt(27), ISR1, CHANGE);
@@ -594,6 +594,9 @@ void setup()
     right_tof.init();
     right_tof.setTimeout(500);
     right_tof.startContinuous();
+
+    // Inicializar la garra después de setup
+    claw.begin();
 }
 
 
@@ -772,6 +775,7 @@ void loop()
                     delay(100);
                     digitalWrite(BUZZER, LOW);
                     rutina="rescate";
+                    digitalWrite(RELAY,HIGH);
                     ball_counter=0;
                     veces_deposit = 0;
                     alineado=false;
@@ -922,6 +926,7 @@ void loop()
         }
         while (rutina == "rescate" && digitalRead(32) == 0)
         {
+            digitalWrite(RELAY, HIGH);
            digitalWrite(LED_BUILTIN, LOW);
             serialEvent5();
             robot.steer(speed, FORWARD, steer);
@@ -929,6 +934,7 @@ void loop()
 
             if (green_state == 6) // Recoleccion Pelota negra
             {
+                digitalWrite(RELAY, HIGH);
                 runTime(0,FORWARD,0,1000);
                 claw.lower();
                 delay(1000);
@@ -936,7 +942,7 @@ void loop()
                 delay(1000);
                 claw.sortRight();
                 delay(1000);
-                runDistance(30,FORWARD,8);
+                runDistance(30,FORWARD,7);
                 runTime(0,FORWARD,0,1000);
                 claw.close();
                 delay(1000);
@@ -952,14 +958,15 @@ void loop()
                 runTime(30,BACKWARD,0,200);
                  ball_counter++;
             }
-            if (green_state == 7)            { // Recoleccion Pelota plateada
+            if (green_state == 7)            { // Recoleccion Pelota platea
+                digitalWrite(RELAY, HIGH);
                 runTime(0,FORWARD,0,1000);
                 claw.lower();
                 claw.sortLeft();
                 delay(1000);
                 claw.depositCenter();
                 delay(1000);
-                runDistance(20,FORWARD,8);
+                runDistance(20,FORWARD,7);
                 runTime(0,FORWARD,0,1000);
                 claw.close();
                 delay(1000);
@@ -978,6 +985,7 @@ void loop()
 
             if (ball_counter>= 3 && depositando==false)
             {
+                digitalWrite(RELAY, HIGH);
                 Serial5.write(248);
                 depositando=true;
                 serialEvent5();
@@ -985,6 +993,7 @@ void loop()
             }
             if(green_state == 9)
                 {
+                    digitalWrite(RELAY, HIGH);
                     runAngle(20,FORWARD,180);
                     runTime(10,BACKWARD,0,2000);
                     claw.depositRight();
@@ -998,6 +1007,7 @@ void loop()
                 }
             if (green_state == 8)//rojo
                 {
+                    digitalWrite(RELAY, HIGH);
                     runAngle(20,FORWARD,180);
                     runTime(10,BACKWARD,0,2000);
                     claw.depositLeft();
@@ -1013,6 +1023,7 @@ void loop()
             
             if (veces_deposit == 2)
             {
+                digitalWrite(RELAY, HIGH);
                 runTime(0,BACKWARD,0,3000);
                 claw.close();
                 runTime(0,FORWARD,0,1000);
@@ -1023,17 +1034,20 @@ void loop()
                     robot.steer(25, FORWARD, 0); 
 
                     if(!alineado && front_distance < 12){
+                        digitalWrite(RELAY, HIGH);
                         runTime(0, FORWARD, 0, 1000); 
                         if(pared == "left"){
-                           
+                           digitalWrite(RELAY, HIGH);
                             runAngle(25, FORWARD, 90);
                         }
                         if(pared == "right"){
+                            digitalWrite(RELAY, HIGH);
                             runAngle(25, FORWARD, -90);
                         }
                         alineado = true; 
                     }
                     if(alineado){
+                        digitalWrite(RELAY, HIGH);
                         leer_ultrasonidos();
                         robot.steer(25,FORWARD,0);
                         if(front_distance<12){
@@ -1041,13 +1055,13 @@ void loop()
                             runTime(20,FORWARD,0,200);
                             if(left_distance < right_distance)
                             {
-
+                                digitalWrite(RELAY, HIGH);
                                     
                                 runAngle(25,FORWARD,-90);
                             }
                             else if(right_distance<left_distance)
                             {
-
+                                    digitalWrite(RELAY, HIGH);
                                     runAngle(25,FORWARD,-90);
                             }
                         }
