@@ -8,6 +8,7 @@ class DFServo
 {
 public:
     DFServo(int pin, double minMicroseconds, double maxMicroseconds, double angularRange);
+    void begin();  // Attach servo after global initialization
     void setAngle(double angle);
     double getAngle();
 
@@ -21,6 +22,7 @@ class Claw
 {
 public:
     Claw(DFServo *liftDFServo, DFServo *leftDFServo, DFServo *rightDFServo, DFServo *sortDFServo, DFServo *depositDFServo);
+    void begin();  // Initialize claw after setup
     bool available();
     void open(bool concurrent = false);
     void close(bool concurrent = false);
