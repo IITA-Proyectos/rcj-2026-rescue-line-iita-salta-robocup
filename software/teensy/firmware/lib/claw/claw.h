@@ -50,17 +50,24 @@ private:
         *_depositDFServo;
     unsigned long long _lastAction;
     // State machine for non-blocking sequences
-    enum ClawState {
-        CL_IDLE = 0,
-        CL_PICKUP_LEFT_STEP1,
-        CL_PICKUP_LEFT_STEP2,
-        CL_PICKUP_LEFT_STEP3,
-        CL_PICKUP_LEFT_STEP4,
-        CL_PICKUP_RIGHT_STEP1,
-        CL_PICKUP_RIGHT_STEP2,
-        CL_PICKUP_RIGHT_STEP3,
-        CL_PICKUP_RIGHT_STEP4
-    };
+    // ClawState enumerates the named steps of the non-blocking pickup sequences.
+    // Usage summary:
+    //  - Call `pickupLeft()` or `pickupRight()` to "fire" the sequence (sets `_state` to STEP1).
+    //  - `update()` is called frequently from `loop()`; it checks `_state` and `millis()`
+    //    to perform the current step (move servos) and advance to the next step.
+    //  - `busy()` returns true while `_state` is not `CL_IDLE` (sequence in progress).
+    //  - This replaces blocking `delay()` calls so the MCU keeps processing Serial and motors.
+  enum ClawState {
+    CL_IDLE = 0,                // 0: pinza en reposo (no hay secuencia)
+    CL_PICKUP_LEFT_STEP1,       // paso 1 de recogida izquierda (disparado por pickupLeft())
+    CL_PICKUP_LEFT_STEP2,       // paso 2 de recogida izquierda (espera -> sort+lift)
+    CL_PICKUP_LEFT_STEP3,       // paso 3 de recogida izquierda (abrir)
+    CL_PICKUP_LEFT_STEP4,       // paso 4 de recogida izquierda (finalizar, vuelta a CL_IDLE)
+    CL_PICKUP_RIGHT_STEP1,      // igual que arriba, para recogida derecha
+    CL_PICKUP_RIGHT_STEP2,
+    CL_PICKUP_RIGHT_STEP3,
+    CL_PICKUP_RIGHT_STEP4
+};
     ClawState _state;
     unsigned long _stateStartedAt;
     bool _concurrentRequested;

@@ -417,8 +417,17 @@ void runDistance(int speed, int dir, int Distance) {
     }
 }
 
-
-
+// non-blocking delay that keeps processing serial and claw state
+void nonBlockingDelay(unsigned long ms)
+{
+    unsigned long start = millis();
+    while (millis() - start < ms)
+    {
+        claw.update();
+        if (Serial5.available() > 0)
+            serialEvent5();
+    }
+}
 #define TARGET_DISTANCE 70.0 // distancia deseada en cm
 #define KP_DISTANCE 0.05     // constante proporcional para la distancia
 #define KP_ANGLE 0.05        // constante proporcional para el ángulo de rotación
@@ -957,23 +966,23 @@ void loop()
                 digitalWrite(RELAY, HIGH);
                 runTime(0,FORWARD,0,1000);
                 claw.lower();
-                delay(1000);
+                nonBlockingDelay(1000);
                 claw.depositCenter();
-                delay(1000);
+                nonBlockingDelay(1000);
                 claw.sortRight();
-                delay(1000);
-                runDistance(30,FORWARD,7);
+                nonBlockingDelay(1000);
+                runDistance(30,FORWARD,8);
                 runTime(0,FORWARD,0,1000);
                 claw.close();
-                delay(1000);
+                nonBlockingDelay(1000);
                 digitalWrite(BUZZER, HIGH);
                 delay(100); 
                 digitalWrite(BUZZER, LOW);
                 runTime(0,FORWARD,0,1000);
                 claw.lift();
-                delay(1000);
+                nonBlockingDelay(1000);
                 claw.open();
-                delay(1000);
+                nonBlockingDelay(1000);
                 runTime(30,FORWARD,0,200);
                 runTime(30,BACKWARD,0,200);
                  ball_counter++;
@@ -983,21 +992,21 @@ void loop()
                 runTime(0,FORWARD,0,1000);
                 claw.lower();
                 claw.sortLeft();
-                delay(1000);
+                nonBlockingDelay(1000);
                 claw.depositCenter();
-                delay(1000);
-                runDistance(20,FORWARD,7);
+                nonBlockingDelay(1000);
+                runDistance(20,FORWARD,8);
                 runTime(0,FORWARD,0,1000);
                 claw.close();
-                delay(1000);
+                nonBlockingDelay(1000);
                 digitalWrite(BUZZER, HIGH);
                 delay(100); 
                 digitalWrite(BUZZER, LOW);
                 runTime(0,FORWARD,0,1000);
                 claw.lift();
-                delay(1000);
+                nonBlockingDelay(1000);
                 claw.open();
-                delay(1000);
+                nonBlockingDelay(1000);
                 runTime(30,FORWARD,0,200);
                 runTime(30,BACKWARD,0,200);
                 ball_counter++;
@@ -1017,7 +1026,7 @@ void loop()
                     runAngle(20,FORWARD,180);
                     runTime(10,BACKWARD,0,2000);
                     claw.depositRight();
-                    delay(2000);
+                    nonBlockingDelay(2000);
                     claw.depositCenter();
                     runTime(0,FORWARD,0,500);
                     runTime(30,BACKWARD,0,500);
@@ -1031,7 +1040,7 @@ void loop()
                     runAngle(20,FORWARD,180);
                     runTime(10,BACKWARD,0,2000);
                     claw.depositLeft();
-                    delay(2000);
+                    nonBlockingDelay(2000);
                     claw.depositCenter();
                     runTime(0,FORWARD,0,500);
                     runTime(30,BACKWARD,0,500);

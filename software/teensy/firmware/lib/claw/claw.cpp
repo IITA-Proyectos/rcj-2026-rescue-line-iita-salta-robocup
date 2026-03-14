@@ -32,12 +32,10 @@ Claw::Claw(DFServo *liftDFServo, DFServo *leftDFServo, DFServo *rightDFServo, DF
     this->_rightDFServo = rightDFServo;
     this->_sortDFServo = sortDFServo;
     this->_depositDFServo = depositDFServo;
-
-    
+    this-> reset();
     this->_state = CL_IDLE;
     this->_stateStartedAt = 0;
     this->_concurrentRequested = false;
-
 }
 
 void Claw::begin()
