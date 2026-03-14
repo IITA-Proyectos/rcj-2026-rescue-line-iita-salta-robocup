@@ -5,10 +5,16 @@
 DFServo::DFServo(int pin, double minMicroseconds, double maxMicroseconds, double angularRange)
 {
     _pin = pin;
-    _servo.attach(_pin);
+    // Do not attach here to avoid global initialization issues
+    // _servo.attach(_pin);
     _minMicroseconds = minMicroseconds;
     _maxMicroseconds = maxMicroseconds;
     _angularRange = angularRange;
+}
+
+void DFServo::begin()
+{
+    _servo.attach(_pin);
 }
 
 void DFServo::setAngle(double angle)
@@ -32,6 +38,19 @@ Claw::Claw(DFServo *liftDFServo, DFServo *leftDFServo, DFServo *rightDFServo, DF
     this->_concurrentRequested = false;
 }
 
+void Claw::begin()
+{
+    // Attach all servos first
+    _liftDFServo->begin();
+    _leftDFServo->begin();
+    _rightDFServo->begin();
+    _sortDFServo->begin();
+    _depositDFServo->begin();
+    
+    reset();  // Initialize claw positions after setup
+
+}
+
 bool Claw::available()
 {
     return (millis() - _lastAction) > 1000;
@@ -47,7 +66,7 @@ void Claw::open(bool concurrent = false)
 void Claw::close(bool concurrent = false)
 {
     _leftDFServo->setAngle(210);
-    _rightDFServo->setAngle(90);
+    _rightDFServo->setAngle(85);
     if (!concurrent) _lastAction = millis();
 }
 
@@ -59,7 +78,7 @@ void Claw::lift(bool concurrent = false)
 
 void Claw::lower(bool concurrent = false)
 {
-    _liftDFServo->setAngle(75);
+    _liftDFServo->setAngle(85);
     if (!concurrent) _lastAction = millis();
 }
 
