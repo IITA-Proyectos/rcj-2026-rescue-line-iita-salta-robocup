@@ -70,6 +70,7 @@ pip install -r software/raspberry/requirements.txt
 ## Compilar firmware Teensy
 
 Requiere [PlatformIO](https://platformio.org/).
+requiere descargar https://www.pjrc.com/teensy/loader_win10.html
 
 ```bash
 cd software/teensy/firmware
