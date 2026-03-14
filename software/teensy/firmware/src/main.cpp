@@ -260,6 +260,31 @@ void runTime(int speed, int dir, double steer, unsigned long long time)
 
     digitalWrite(13, LOW);
 }
+
+// Función timeout
+bool timeout(unsigned long startTime, unsigned long limit){
+    return (millis() - startTime) > limit;
+}
+
+// Función para reencontrar la línea
+void reencontrarLinea(){
+    robot.steer(0, FORWARD, 0);
+    // retrocede un poco
+    runDistance(40, BACKWARD, 8);
+    // gira un poco
+    runAngle(25, FORWARD, 45);
+    unsigned long start = millis();
+    // avanzar buscando línea
+    while(!timeout(start,1000)){
+        robot.steer(25, FORWARD, 0);
+        if(green_state != 0){
+            return; // encontró línea
+        }
+    }
+    // si no encontró intenta al otro lado
+    runAngle(25, FORWARD, -90);
+}
+
 void runAngle(int speed, int dir, double angle)
 {
     sensors_event_t event;
@@ -272,8 +297,14 @@ void runAngle(int speed, int dir, double angle)
     if (targetAngle < 0)
         targetAngle += 360;
 
+    unsigned long start = millis();
+
     while (true)
     {
+        if(timeout(start,4000)){
+            break; // watchdog seguridad
+        }
+
         bno.getEvent(&event);
         float currentAngle = event.orientation.x;
         if (digitalRead(32) == 1)
@@ -366,7 +397,11 @@ void runDistance(int speed, int dir, int Distance) {
     int encoder = 25*Distance;
     
     if (dir == FORWARD) {
+        unsigned long start = millis();
         while (fr.pulseCount <= encoder && fl.pulseCount <= encoder) {
+            if(timeout(start,3000)){
+                break;
+            }
             robot.steer(speed, dir, 0);
             Serial.print("FL: ");
             Serial.print(fl.pulseCount); // Imprime el valor de pulseCount
@@ -387,8 +422,12 @@ void runDistance(int speed, int dir, int Distance) {
             }
         }
     }else{
+        unsigned long start = millis();
         while (fr.pulseCount >= -encoder && fl.pulseCount >= -encoder)
         {
+            if(timeout(start,3000)){
+                break;
+            }
             robot.steer(speed, dir, 0);
             Serial.print("FL: ");
             Serial.print(fl.pulseCount); // Imprime el valor de pulseCount
@@ -853,22 +892,26 @@ void loop()
                         runAngle(25, FORWARD, 60);
                     }
                     break;
-                case 7: // linetrack
-                
-                    {int velocidadAjustada = ajustarVelocidadPorPendiente(25);
+               case 7:
+{
+    static unsigned long tiempoSinLinea = millis();
 
-                     if (steer < -0.7 || steer > 0.7)
-                    {
-                            robot.steer(55, FORWARD, steer);
-                    }
+    int velocidadAjustada = ajustarVelocidadPorPendiente(25);
 
-                    else
-                    {
-                        robot.steer(velocidadAjustada, FORWARD, steer);
-                    }
-                
-                    break;
-                    }
+    if (green_state != 0) {
+        tiempoSinLinea = millis();
+    } 
+    else {
+        if (timeout(tiempoSinLinea,3000)){
+            reencontrarLinea();
+            tiempoSinLinea = millis();
+        }
+    }
+
+    robot.steer(velocidadAjustada, FORWARD, steer);
+
+    break;
+}
 
                 case 12:
                     {
