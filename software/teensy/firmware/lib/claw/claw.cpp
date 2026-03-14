@@ -66,7 +66,7 @@ void Claw::open(bool concurrent = false)
 void Claw::close(bool concurrent = false)
 {
     _leftDFServo->setAngle(210);
-    _rightDFServo->setAngle(90);
+    _rightDFServo->setAngle(85);
     if (!concurrent) _lastAction = millis();
 }
 
@@ -78,7 +78,7 @@ void Claw::lift(bool concurrent = false)
 
 void Claw::lower(bool concurrent = false)
 {
-    _liftDFServo->setAngle(75);
+    _liftDFServo->setAngle(85);
     if (!concurrent) _lastAction = millis();
 }
 

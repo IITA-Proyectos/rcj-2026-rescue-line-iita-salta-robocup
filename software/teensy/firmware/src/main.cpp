@@ -968,10 +968,10 @@ void loop()
                 claw.lower();
                 nonBlockingDelay(1000);
                 claw.depositCenter();
-                nonBlockingDelay(1000);
+                nonBlockingDelay(1400);
                 claw.sortRight();
                 nonBlockingDelay(1000);
-                runDistance(30,FORWARD,8);
+                runDistance(30,FORWARD,5);
                 runTime(0,FORWARD,0,1000);
                 claw.close();
                 nonBlockingDelay(1000);
@@ -992,10 +992,10 @@ void loop()
                 runTime(0,FORWARD,0,1000);
                 claw.lower();
                 claw.sortLeft();
-                nonBlockingDelay(1000);
+                nonBlockingDelay(1400);
                 claw.depositCenter();
                 nonBlockingDelay(1000);
-                runDistance(20,FORWARD,8);
+                runDistance(20,FORWARD,5);
                 runTime(0,FORWARD,0,1000);
                 claw.close();
                 nonBlockingDelay(1000);
@@ -1020,7 +1020,7 @@ void loop()
                 serialEvent5();
                 robot.steer(speed, FORWARD, steer);   
             }
-            if(green_state == 9)
+            if(green_state == 9)//verde
                 {
                     digitalWrite(RELAY, HIGH);
                     runAngle(20,FORWARD,180);
@@ -1028,8 +1028,6 @@ void loop()
                     claw.depositRight();
                     nonBlockingDelay(2000);
                     claw.depositCenter();
-                    runTime(0,FORWARD,0,500);
-                    runTime(30,BACKWARD,0,500);
                     runTime(0,FORWARD,0,500);
                     runDistance(30,FORWARD,4+60);
                     veces_deposit++;
@@ -1042,8 +1040,6 @@ void loop()
                     claw.depositLeft();
                     nonBlockingDelay(2000);
                     claw.depositCenter();
-                    runTime(0,FORWARD,0,500);
-                    runTime(30,BACKWARD,0,500);
                     runTime(0,FORWARD,0,500);
                     runDistance(30,FORWARD,40);
                     veces_deposit++;
