@@ -92,6 +92,63 @@ void runTime(int speed, int dir, double steer, unsigned long long time) {
     digitalWrite(13, LOW);
 }
 
+void runDistance(int speed, int dir, int Distance) {
+    runTime(30,BACKWARD,0,20);
+    runTime(30,FORWARD,0,20);
+    reset_enconder();
+    int32_t  encoder = 25*Distance;
+    
+    if (dir == FORWARD) {
+        while (true) {
+            int32_t frCount = fr.pulseCount;
+            int32_t flCount = fl.pulseCount;
+            if (frCount >= encoder || flCount >= encoder) break;
+
+            robot.steer(speed, dir, 0);
+            Serial.print(flCount);
+            Serial.print(" | ");
+            Serial.print(frCount);
+            //Serial.println(fr.pulseCount);
+            digitalWrite(13, HIGH);
+            delay(10);
+            
+            if (Serial5.available() > 0) {
+                int lecturas = Serial5.read();
+                Serial.print(lecturas);
+            }
+            
+            if (digitalRead(32) == 1) { // switch is off
+                Serial5.write(255);
+                break;
+            }
+        }
+    }else{
+         while (true) 
+        {
+            int32_t frCount = fr.pulseCount;
+            int32_t flCount = fl.pulseCount;
+
+            if (frCount <= -encoder || flCount <= -encoder) break;
+            robot.steer(speed, dir, 0);
+            Serial.print(flCount);
+            Serial.print(" | ");
+            Serial.print(frCount);
+            //Serial.println(fr.pulseCount);
+            delay(10);
+            if (Serial5.available() > 0) {
+                int lecturas = Serial5.read();
+                Serial.print(lecturas);
+            }
+            
+            if (digitalRead(32) == 1) { // switch is off
+                Serial5.write(255);
+                break;
+            }
+        }
+        
+        
+    }
+}
 void runAngle(int speed, int dir, double angle) {
     sensors_event_t event;
     bno.getEvent(&event);

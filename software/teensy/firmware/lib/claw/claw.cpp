@@ -5,10 +5,16 @@
 DFServo::DFServo(int pin, double minMicroseconds, double maxMicroseconds, double angularRange)
 {
     _pin = pin;
-    _servo.attach(_pin);
+    // Do not attach here to avoid global initialization issues
+    // _servo.attach(_pin);
     _minMicroseconds = minMicroseconds;
     _maxMicroseconds = maxMicroseconds;
     _angularRange = angularRange;
+}
+
+void DFServo::begin()
+{
+    _servo.attach(_pin);
 }
 
 void DFServo::setAngle(double angle)
@@ -26,7 +32,20 @@ Claw::Claw(DFServo *liftDFServo, DFServo *leftDFServo, DFServo *rightDFServo, DF
     this->_rightDFServo = rightDFServo;
     this->_sortDFServo = sortDFServo;
     this->_depositDFServo = depositDFServo;
-    this-> reset();
+    // Do not call reset() in constructor to avoid global initialization issues
+    // this->reset();  // Moved to begin()
+}
+
+void Claw::begin()
+{
+    // Attach all servos first
+    _liftDFServo->begin();
+    _leftDFServo->begin();
+    _rightDFServo->begin();
+    _sortDFServo->begin();
+    _depositDFServo->begin();
+    
+    reset();  // Initialize claw positions after setup
 }
 
 bool Claw::available()
