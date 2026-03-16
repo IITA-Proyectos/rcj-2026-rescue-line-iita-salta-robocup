@@ -1,3 +1,9 @@
+// ##################################################
+//
+// ### IMPORTACION DE LIBRERIAS
+//
+// ##################################################
+
 #include <Wire.h>
 #include <Arduino.h>
 #include <drivebase.h>
@@ -41,6 +47,20 @@ void ISR2() { fl.updatePulse(); }
 void ISR3() { br.updatePulse(); }
 void ISR4() { fr.updatePulse(); }
 void reset_enconder(){
+    /*
+    Technical description.
+
+    Reset encoder pulse counters for all drive motors.
+
+    Parameters:
+    None
+
+    Returns:
+    void
+
+    Side effects:
+    - Clears accumulated pulse counts.
+    */
     bl.resetPulseCount();
     fl.resetPulseCount();
     br.resetPulseCount();
@@ -48,6 +68,20 @@ void reset_enconder(){
 }
 // Read Data from Raspberry by Serial TX-RX
 void serialEvent5() {
+    /*
+    Technical description.
+
+    Parse incoming serial packets to update speed, steer, and task codes.
+
+    Parameters:
+    None
+
+    Returns:
+    void
+
+    Side effects:
+    - Reads Serial5 and modifies control globals.
+    */
     if (Serial5.available() > 0) {
         int data = Serial5.read(); // read serial code
         Serial.println(data);
@@ -74,6 +108,24 @@ void serialEvent5() {
 
 // Do a predefined move by time
 void runTime(int speed, int dir, double steer, unsigned long long time) {
+    /*
+    Technical description.
+
+    Drive robot at fixed steering and speed for a defined duration.
+
+    Parameters:
+    speed (int): motor speed.
+    dir (int): direction flag.
+    steer (double): steering ratio [-1,1].
+    time (unsigned long long): duration in milliseconds.
+
+    Returns:
+    void
+
+    Side effects:
+    - Commands motors and toggles LED.
+    - Reads Serial5 for interrupts.
+    */
     unsigned long long startTime = millis();
     while ((millis() - startTime) < time) {
         robot.steer(speed, dir, steer);
@@ -93,6 +145,23 @@ void runTime(int speed, int dir, double steer, unsigned long long time) {
 }
 
 void runDistance(int speed, int dir, int Distance) {
+    /*
+    Technical description.
+
+    Move robot for a target encoder distance forward or backward.
+
+    Parameters:
+    speed (int): motor speed.
+    dir (int): direction flag.
+    Distance (int): distance units mapped to encoder counts.
+
+    Returns:
+    void
+
+    Side effects:
+    - Resets encoders and commands motors until threshold reached.
+    - Reads Serial5 for stop conditions.
+    */
     runTime(30,BACKWARD,0,20);
     runTime(30,FORWARD,0,20);
     reset_enconder();
@@ -150,6 +219,23 @@ void runDistance(int speed, int dir, int Distance) {
     }
 }
 void runAngle(int speed, int dir, double angle) {
+    /*
+    Technical description.
+
+    Rotate robot by a specified angle using IMU feedback.
+
+    Parameters:
+    speed (int): motor speed.
+    dir (int): direction flag.
+    angle (double): desired rotation in degrees.
+
+    Returns:
+    void
+
+    Side effects:
+    - Reads IMU continuously.
+    - Drives motors until angle error is within tolerance.
+    */
     sensors_event_t event;
     bno.getEvent(&event);
     float initialAngle = event.orientation.x;
@@ -221,6 +307,20 @@ void runAngle(int speed, int dir, double angle) {
 }
 
 void setup() {
+    /*
+    Technical description.
+
+    Initialize drivebase, interrupts, pins, serial ports, and IMU.
+
+    Parameters:
+    None
+
+    Returns:
+    void
+
+    Side effects:
+    - Configures hardware peripherals and sensors.
+    */
     robot.steer (0,0,0);
     attachInterrupt(digitalPinToInterrupt(27), ISR1, CHANGE);
     attachInterrupt(digitalPinToInterrupt(5), ISR2, CHANGE);
@@ -242,6 +342,23 @@ void setup() {
 }
 
 void loop() {
+    // Main system loop.
+    // Executes continuous real-time processing.
+    /*
+    Technical description.
+
+    Handle safety switch, startup routine, and motor motion test sequences.
+
+    Parameters:
+    None
+
+    Returns:
+    void
+
+    Side effects:
+    - Drives motors, LEDs, buzzer.
+    - Communicates over Serial5.
+    */
     if (digitalRead(32) == 1) { // switch is off
         robot.steer(0, FORWARD, 0); // stop moving
         action = 7;

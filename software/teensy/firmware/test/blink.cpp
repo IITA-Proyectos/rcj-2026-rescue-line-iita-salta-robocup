@@ -1,13 +1,27 @@
+// ##################################################
+//
+// ### IMPORTACION DE LIBRERIAS
+//
+// ##################################################
+
 #include <Arduino.h>
+
+// ##################################################
+//
+// ### PROCESAMIENTO PRINCIPAL
+//
+// ##################################################
 
 void setup()
 {
-  // put your setup code here, to run once:
+  // Configure built-in LED pin for output.
   pinMode(13, OUTPUT);
 }
 
 void loop()
 {
+  // Main system loop.
+  // Executes continuous real-time processing.
   digitalWrite(13, HIGH);
   delay(1000);
   digitalWrite(13, LOW);

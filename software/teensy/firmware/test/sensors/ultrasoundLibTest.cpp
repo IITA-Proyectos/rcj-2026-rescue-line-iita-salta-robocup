@@ -1,3 +1,9 @@
+// ##################################################
+//
+// ### IMPORTACION DE LIBRERIAS
+//
+// ##################################################
+
 #include <Arduino.h>
 #include <NewPing.h>
 #define SONAR_NUM 3
@@ -16,12 +22,40 @@ uint8_t currentSonar = 0;
 
 void ISR5()
 { // If ping echo, set distance to array.
+    /*
+    Technical description.
+
+    Interrupt callback to capture echo time and store distance.
+
+    Parameters:
+    None
+
+    Returns:
+    void
+
+    Side effects:
+    - Updates cm[currentSonar] with measured distance.
+    */
     if (sonar[currentSonar].check_timer())
         cm[currentSonar] = sonar[currentSonar].ping_result / US_ROUNDTRIP_CM;
 }
 
 void oneSensorCycle()
 { // Do something with the results.
+    /*
+    Technical description.
+
+    Print distances from all sonar sensors after a full cycle.
+
+    Parameters:
+    None
+
+    Returns:
+    void
+
+    Side effects:
+    - Writes measurement data to Serial.
+    */
     for (uint8_t i = 0; i < SONAR_NUM; i++)
     {
         Serial.print(i);
@@ -34,6 +68,21 @@ void oneSensorCycle()
 
 void setup()
 {
+    /*
+    Technical description.
+
+    Initialize Serial and schedule initial ping times for each sonar.
+
+    Parameters:
+    None
+
+    Returns:
+    void
+
+    Side effects:
+    - Starts Serial at 115200.
+    - Seeds ping timers for non-blocking sequence.
+    */
     Serial.begin(115200); // Open serial monitor at 115200 baud to see ping results.
     pingTimer[0] = millis() + 75;
     for (uint8_t i = 1; i < SONAR_NUM; i++)
@@ -42,6 +91,22 @@ void setup()
 
 void loop()
 {
+    // Main system loop.
+    // Executes continuous real-time processing.
+    /*
+    Technical description.
+
+    Iterate sonar sensors, schedule non-blocking pings, and trigger reporting.
+
+    Parameters:
+    None
+
+    Returns:
+    void
+
+    Side effects:
+    - Controls sonar ping scheduling and serial output.
+    */
     for (uint8_t i = 0; i < SONAR_NUM; i++)
     {
         if (millis() >= pingTimer[i])

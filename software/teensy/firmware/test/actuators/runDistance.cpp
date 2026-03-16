@@ -1,3 +1,9 @@
+// ##################################################
+//
+// ### IMPORTACION DE LIBRERIAS
+//
+// ##################################################
+
 #include <Wire.h>
 #include <Arduino.h>
 #include <SPI.h>
@@ -46,6 +52,20 @@ void ISR3() { br.updatePulse(); }
 void ISR4() { fr.updatePulse(); }
 
 void reset_enconder(){
+    /*
+    Technical description.
+
+    Reset encoder pulse counters for all drive motors.
+
+    Parameters:
+    None
+
+    Returns:
+    void
+
+    Side effects:
+    - Clears pulse count accumulators.
+    */
     bl.resetPulseCount();
     fl.resetPulseCount();
     br.resetPulseCount();
@@ -53,6 +73,23 @@ void reset_enconder(){
 }
 
 void runDistance(int speed, int dir, int Distance) {
+    /*
+    Technical description.
+
+    Move robot forward or backward for a specified encoder distance.
+
+    Parameters:
+    speed (int): motor speed command.
+    dir (int): direction flag.
+    Distance (int): distance units mapped to encoder counts.
+
+    Returns:
+    void
+
+    Side effects:
+    - Calls runTime helper and drives motors until encoders reach target.
+    - Reads Serial5 for interrupt conditions.
+    */
     runTime(30,BACKWARD,0,20);
     runTime(30,FORWARD,0,20);
     reset_enconder();
@@ -110,6 +147,20 @@ void runDistance(int speed, int dir, int Distance) {
     }
 }
 void setup() {
+    /*
+    Technical description.
+
+    Initialize drivebase, interrupts, pin modes, and serial ports.
+
+    Parameters:
+    None
+
+    Returns:
+    void
+
+    Side effects:
+    - Configures hardware peripherals and sensors.
+    */
     robot.steer (0,0,0);
     attachInterrupt(digitalPinToInterrupt(27), ISR1, CHANGE);
     attachInterrupt(digitalPinToInterrupt(5), ISR2, CHANGE);
@@ -124,6 +175,22 @@ void setup() {
     Serial.begin(115200);  // displays ultrasound ping result
 }
 void loop() {
+    // Main system loop.
+    // Executes continuous real-time processing.
+    /*
+    Technical description.
+
+    Handle safety switch state and repeatedly test runDistance forward and backward.
+
+    Parameters:
+    None
+
+    Returns:
+    void
+
+    Side effects:
+    - Drives motors and serial communication.
+    */
     if (digitalRead(32) == 1) { // switch is off
         robot.steer(0, FORWARD, 0); // stop moving
         action = 7;

@@ -1,3 +1,9 @@
+// ##################################################
+//
+// ### IMPORTACION DE LIBRERIAS
+//
+// ##################################################
+
 #include <Wire.h>
 #include <Arduino.h>
 #include <drivebase.h>
@@ -16,6 +22,12 @@
 
 
 
+// ##################################################
+//
+// ### CONFIGURACION GLOBAL
+//
+// ##################################################
+
 // SERVOS
 DFServo sort(12, 540, 2390, 274);
 DFServo left(14, 540, 2390, 274);
@@ -24,13 +36,22 @@ DFServo lift(22, 540, 2390, 274);
 DFServo deposit(23, 540, 2390, 274);
 Claw claw(&lift, &left, &right, &sort, &deposit);
 
+// ##################################################
+//
+// ### PROCESAMIENTO PRINCIPAL
+//
+// ##################################################
+
 void setup()
 {
-    // put your setup code here, to run once:Serial.begin(115200);
+    // Initialize serial monitor if needed for diagnostics.
+    // Serial.begin(115200);
 }
 
 void loop()
 {
+    // Main system loop.
+    // Executes continuous real-time processing.
     claw.lower();
     delay(1000);
 
