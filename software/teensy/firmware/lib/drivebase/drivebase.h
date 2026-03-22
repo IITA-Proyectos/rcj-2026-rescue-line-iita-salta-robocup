@@ -2,6 +2,18 @@
   drivebase.h - Library for controlling motors.
   Created by Heng Tenge, Jan 2, 2022.
   Extended: Pybricks-inspired API para Teensy 4.1
+
+  FIXES aplicados:
+    1. turn() fallback a encoders si no hay IMU
+    2. drive() inicializa _motion_start_ms y _last_update_us
+    3. curve() unidades consistentes (grados, no mm/s²)
+    4. getHeadingDegFromEncoders() fórmula corregida
+    5. Signo rotación curve() corregido
+    6. Signo corrección heading en straight() corregido
+    + setDistancePID/setTurnPID conectados
+    + stop(BRAKE/HOLD) documentado
+    + startCurve(radius≈0) limpia estado
+    + getTelemetry() corregido para MT_DRIVE
 */
 #include <Arduino.h>
 #include "PID.h"
@@ -27,19 +39,19 @@ public:
     const char* id;
 
 public:
-    volatile long pulseCount;               // long, igual que original
+    volatile long pulseCount;
     int    _pwmPin, _dirPin, _encPin;
     int    _nAvg;
     int    _dir;
     double _rpm, _pwmVal, _realrpm, _begin, _end, _now;
     double _rpmlist[4] = {111111, 111111, 111111, 111111};
-    double _kp = 0, _ki = 22, _kd = 0;     // gains originales
+    double _kp = 0, _ki = 22, _kd = 0;
     PID    _motoPID = PID(&_realrpm, &_pwmVal, &_rpm,
                           _kp, _ki, _kd, DIRECT);
 };
 
 // ════════════════════════════════════════════════════════════
-// ENUMS Y STRUCTS NUEVOS — no rompen nada existente
+// ENUMS Y STRUCTS
 // ════════════════════════════════════════════════════════════
 enum StopMode    { COAST, BRAKE, HOLD };
 enum MotionState { MS_IDLE, MS_RUNNING, MS_FINISHED,
@@ -72,52 +84,82 @@ public:
     void steer(double speed, int direction, double rotation);
     void reset();
 
-    // ── CONFIGURACIÓN NUEVA ──────────────────────────────────
-    // ticks_per_rev: usar 540 con CHANGE (6×45:1×2 flancos)
+    // ── CONFIGURACIÓN ────────────────────────────────────────
+    // ticks_per_rev: 540 con CHANGE (6×45:1×2 flancos)
     void setKinematics(float wheel_diameter_mm,
                        float axle_track_mm,
                        int   ticks_per_rev);
+
+    // IMU opcional.
+    // - straight(): usa IMU si disponible, encoders si no
+    // - turn():     usa IMU si disponible, encoders si no
+    // Siempre llamar setIMU(&bno) en setup() para mejor precisión
     void setIMU(Adafruit_BNO055* imu);
-    void setMaxSpeed(float speed_mm_s);
-    void setMaxAccel(float accel_mm_s2);
-    void setMaxTurnRate(float deg_s);
-    void setMaxTurnAccel(float deg_s2);
+
+    void setMaxSpeed(float speed_mm_s);       // default 200 mm/s
+    void setMaxAccel(float accel_mm_s2);      // default 400 mm/s²
+    void setMaxTurnRate(float deg_s);         // default 180 deg/s
+    void setMaxTurnAccel(float deg_s2);       // default 360 deg/s²
+
+    // PID heading: corrección lateral en straight()
     void setHeadingPID(float kp, float ki, float kd);
+
+    // PID distancia: corrección de distancia en straight()
+    // kp/ki/kd afectan la corrección proporcional del perfil
     void setDistancePID(float kp, float ki, float kd);
+
+    // PID turn: corrección angular en turn()
+    // kp/ki/kd afectan la ganancia del controlador de ángulo
     void setTurnPID(float kp, float ki, float kd);
+
+    // Detección de traba: mínimo ticks_threshold ticks
+    // en time_ms ms para no considerarse stalled
     void setStallThreshold(float ticks_threshold, float time_ms);
 
-    // ── ODOMETRÍA NUEVA ──────────────────────────────────────
+    // ── ODOMETRÍA ────────────────────────────────────────────
     void    resetEncoders();
     long    getLeftTicks();
     long    getRightTicks();
     float   getDistanceMm();
+
+    // Heading incremental por diferencia de ticks FL/FR
+    // FIX #4: fórmula corregida dθ = diff_mm / axle_track
     float   getHeadingDegFromEncoders();
 
-    // ── MOVIMIENTOS BLOQUEANTES (igual que Pybricks) ──────────
-    // Signos: distancia+/velocidad+ = adelante
-    //         angulo+ = derecha (CW desde arriba)
-    //         angulo- = izquierda
+    // ── MOVIMIENTOS BLOQUEANTES ───────────────────────────────
+    // Convenio de signos (igual que Pybricks):
+    //   distancia+ = adelante,  distancia- = atrás
+    //   ángulo+    = derecha (CW desde arriba)
+    //   ángulo-    = izquierda
+    //   radio+     = arco a la derecha
+    //   radio-     = arco a la izquierda
     void straight(float distance_mm,    float speed_mm_s = -1);
     void turn(float angle_deg,          float turn_rate_deg_s = -1);
     void curve(float radius_mm, float angle_deg,
                float speed_mm_s = -1);
+
+    // drive() continuo — no termina solo, llamar stop()
+    // FIX #2: ahora inicializa timers correctamente
     void drive(float speed_mm_s, float turn_rate_deg_s);
+
+    // stop() — COAST: rueda libre
+    //          BRAKE: freno activo (steer(0,0,0))
+    //          HOLD:  mismo que BRAKE (hardware no soporta hold)
     void stop(StopMode mode = COAST);
 
     // ── MOVIMIENTOS NO BLOQUEANTES ────────────────────────────
-    // Ejemplo de uso:
+    // Uso:
     //   robot.startStraight(500);
     //   while (robot.isBusy()) {
-    //       serialEvent5();       // serial vivo
-    //       leer_ultrasonidos();  // sensores vivos
+    //       serialEvent5();
+    //       leer_ultrasonidos();
     //       if (cond) robot.cancelMotion();
     //   }
     void startStraight(float distance_mm, float speed_mm_s = -1);
     void startTurn(float angle_deg,       float turn_rate_deg_s = -1);
     void startCurve(float radius_mm, float angle_deg,
                     float speed_mm_s = -1);
-    void update();        // llamar en CADA loop() — sin costo si IDLE
+    void update();
     bool isBusy();
     void cancelMotion();
 
@@ -129,7 +171,6 @@ public:
 
 public:
     // ── MEMBER VARIABLES ORIGINALES — SIN CAMBIOS ────────────
-    // Mantenidas public para compatibilidad con código existente
     Moto*  _fl;
     Moto*  _fr;
     Moto*  _bl;
@@ -139,31 +180,33 @@ public:
     int    _direction;
 
 private:
-    // ── NUEVAS — solo para el nuevo API ──────────────────────
+    // ── NUEVAS ───────────────────────────────────────────────
     Adafruit_BNO055* _imu = nullptr;
-    float _readIMU();
 
-    // Cinemática (setKinematics() las sobreescribe)
-    // π × 60mm / 540 ticks = 0.349 mm/tick
-    float _mm_per_tick   = 0.349f;
+    // FIX #1: dos fuentes de heading con fallback
+    float _readIMU();                    // retorna yaw IMU, -1 si no hay
+    float _readHeading();                // IMU si disponible, encoders si no
+    float _headingAtMotionStart = 0;     // snapshot inicio movimiento
+
+    // Cinemática
+    float _mm_per_tick   = 0.349f;       // π×60/540
     float _axle_track_mm = 172.5f;
     int   _ticks_per_rev = 540;
 
-    // Límites de movimiento
-    float _max_speed      = 200.0f;   // mm/s
-    float _max_accel      = 400.0f;   // mm/s²
-    float _max_turn_rate  = 180.0f;   // deg/s
-    float _max_turn_accel = 360.0f;   // deg/s²
+    // Límites
+    float _max_speed      = 200.0f;
+    float _max_accel      = 400.0f;
+    float _max_turn_rate  = 180.0f;
+    float _max_turn_accel = 360.0f;
 
-    // PID gains para funciones nuevas
-    float _kp_head = 0.03f,  _ki_head = 0.0f,  _kd_head = 0.003f;
-    float _kp_dist = 2.0f,   _ki_dist = 0.0f,  _kd_dist = 0.05f;
-    float _kp_turn = 3.0f,   _ki_turn = 0.0f,  _kd_turn = 0.08f;
+    // PID gains — todos conectados a su función
+    float _kp_head = 0.03f,  _ki_head = 0.0f, _kd_head = 0.003f;
+    float _kp_dist = 1.0f,   _ki_dist = 0.0f, _kd_dist = 0.05f;
+    float _kp_turn = 3.0f,   _ki_turn = 0.0f, _kd_turn = 0.08f;
 
     // Máquina de estados
     MotionState _state     = MS_IDLE;
     MotionType  _type      = MT_NONE;
-    StopMode    _stop_mode = COAST;
 
     // Parámetros del movimiento activo
     float _target_dist   = 0;
@@ -173,18 +216,19 @@ private:
     float _cmd_turn_rate = 0;
 
     // Perfil trapezoidal
-    float         _profile_vel      = 0;
-    unsigned long _last_update_us   = 0;
-    unsigned long _motion_start_ms  = 0;
+    float         _profile_vel       = 0;
+    unsigned long _last_update_us    = 0;
+    unsigned long _motion_start_ms   = 0;
     unsigned long _motion_timeout_ms = 12000;
 
-    // Snapshot al inicio del movimiento
+    // Snapshot inicio movimiento
     long  _ticks_left_0  = 0;
     long  _ticks_right_0 = 0;
     float _heading_0     = 0;
 
     // PID acumuladores
     float _head_integral = 0, _head_prev_err = 0;
+    float _dist_integral = 0, _dist_prev_err = 0;
     float _turn_integral = 0, _turn_prev_err = 0;
 
     // Stall detection
