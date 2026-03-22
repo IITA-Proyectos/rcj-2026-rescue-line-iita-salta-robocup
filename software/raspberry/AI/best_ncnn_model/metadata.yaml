@@ -1,0 +1,22 @@
+description: Ultralytics best model trained on dataset/data.yaml
+author: Ultralytics
+date: '2026-03-22T13:30:55.468411'
+version: 8.4.24
+license: AGPL-3.0 License (https://ultralytics.com/license)
+docs: https://docs.ultralytics.com
+stride: 32
+task: detect
+batch: 1
+imgsz:
+- 256
+- 256
+names:
+  0: negro
+  1: plateado
+  2: rojo_alto
+  3: verde_alto
+args:
+  batch: 1
+  half: false
+channels: 3
+end2end: false
