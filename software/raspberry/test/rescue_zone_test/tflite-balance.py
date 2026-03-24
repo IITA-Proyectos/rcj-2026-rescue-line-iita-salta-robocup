@@ -88,6 +88,7 @@ def agcwd(img_bgr, w=0.5):
     hsv[:, :, 2] = cv2.LUT(v, lut)
     return cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
 
+
 # ---- inicializar Zero-DCE si hace falta ----
 if USE_ZERODCE:
     sys.path.insert(0, '/home/pi/Downloads/AI_enhance')
@@ -104,9 +105,53 @@ def enhance(img_bgr, use_zerodce=False):
     else:
         return agcwd(img_bgr)
 
-# -----------------------------------------------
+
+# ---- Inicializar TFLite global + warmup ----
+try:
+    from tflite_runtime.interpreter import Interpreter as TFLiteInterpreter
+    print("Usando tflite_runtime.interpreter")
+except Exception:
+    import tensorflow as tf
+    TFLiteInterpreter = tf.lite.Interpreter
+    print("Usando tensorflow.lite.Interpreter (fallback)")
+
+TFLITE_MODEL_PATH = "/home/pi/Downloads/best_float32 (1).tflite"
+NUM_THREADS = 2
+try:
+    interpreter = TFLiteInterpreter(model_path=TFLITE_MODEL_PATH, num_threads=NUM_THREADS)
+except TypeError:
+    interpreter = TFLiteInterpreter(model_path=TFLITE_MODEL_PATH)
+    try:
+        interpreter.set_num_threads(NUM_THREADS)
+    except Exception:
+        pass
+
+interpreter.allocate_tensors()
+_input_details  = interpreter.get_input_details()[0]
+_output_details = interpreter.get_output_details()[0]
+print("TFLite input:", _input_details)
+print("TFLite output:", _output_details)
+
+# Warmup: igual que el model.predict() de warmup en el main con YOLO
+print("Realizando warmup del modelo TFLite...")
+_dummy = np.zeros((YOLO_IMGSZ, YOLO_IMGSZ, 3), dtype=np.uint8)
+if np.issubdtype(_input_details['dtype'], np.floating):
+    _dummy_inp = (_dummy.astype(np.float32) / 255.0)[np.newaxis, ...].astype(_input_details['dtype'])
+else:
+    _dummy_inp = _dummy[np.newaxis, ...].astype(_input_details['dtype'])
+interpreter.set_tensor(_input_details['index'], _dummy_inp)
+interpreter.invoke()
+_ = interpreter.get_tensor(_output_details['index'])
+print("Warmup completado.")
+# -------------------------------------------
+
+
 def modo_rescate():
     global last_target_box, is_stopped, estado, ser
+
+    # Usar el intérprete y detalles ya inicializados globalmente
+    input_details  = _input_details
+    output_details = _output_details
 
     last_target_box = None
     stop_rescate    = False
@@ -151,31 +196,6 @@ def modo_rescate():
         2: (0, 100, 255),
         3: (0, 255, 100)
     }
-
-    # ---- TFLite interpreter ----
-    try:
-        from tflite_runtime.interpreter import Interpreter as TFLiteInterpreter
-        print("Usando tflite_runtime.interpreter")
-    except Exception:
-        import tensorflow as tf
-        TFLiteInterpreter = tf.lite.Interpreter
-        print("Usando tensorflow.lite.Interpreter (fallback)")
-
-    TFLITE_MODEL_PATH = "/home/pi/Downloads/best_float32 (1).tflite"
-    NUM_THREADS = 2
-    try:
-        interpreter = TFLiteInterpreter(model_path=TFLITE_MODEL_PATH, num_threads=NUM_THREADS)
-    except TypeError:
-        interpreter = TFLiteInterpreter(model_path=TFLITE_MODEL_PATH)
-        try:
-            interpreter.set_num_threads(NUM_THREADS)
-        except Exception:
-            pass
-    interpreter.allocate_tensors()
-    input_details  = interpreter.get_input_details()[0]
-    output_details = interpreter.get_output_details()[0]
-    print("TFLite input:", input_details)
-    print("TFLite output:", output_details)
 
     def make_mosse():
         return None
@@ -302,10 +322,8 @@ def modo_rescate():
             small = cv2.resize(frame, (IMGSZ, IMGSZ))
 
             if frame_idx % DETECT_EVERY == 0:
-                # mejora de imagen en frames de detección
                 small = enhance(small, use_zerodce=USE_ZERODCE)
             else:
-                # AGCWD gratis en frames intermedios
                 small = agcwd(small)
 
             enhanced_frame = cv2.resize(small, (w, h))
@@ -537,6 +555,7 @@ def modo_rescate():
         tcap.join(timeout=1)
         tinf.join(timeout=1)
         t_serial_mon.join(timeout=0.5)
+
 
 # -----------------------------------------------
 # LOOP PRINCIPAL
