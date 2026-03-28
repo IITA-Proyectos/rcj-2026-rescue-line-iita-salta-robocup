@@ -411,6 +411,11 @@ def modo_rescate():
                     if data == b'\xf8' and estado == "rescate":
                         print("Llego 248 -> terminar rescate y cambiar a depositar")
                         estado = 'depositar'
+                    if data == b'\xf7' and estado == "depositar":
+                        print("Llego 247 -> iniciar evacuacion")
+                        estado = 'evacuacion'
+                        stop_rescate = True   
+                        break
             except Exception as e:
                 print("serial_monitor_local error:", e)
             time.sleep(0.01)
@@ -573,7 +578,13 @@ while True:
 
     while estado == 'rescate':
         modo_rescate()
+    while estado == 'evacuacion':
 
+        if ser.in_waiting > 0:
+            data = ser.read()
+            if data == b'\xff':
+                estado = 'esperando'
+                print("cambiando estado")
     while estado == 'linea':
         frame = vs.read()
         frame = cv2.rotate(frame, cv2.ROTATE_180)

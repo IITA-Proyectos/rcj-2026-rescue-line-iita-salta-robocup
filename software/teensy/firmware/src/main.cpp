@@ -1042,50 +1042,10 @@ void loop()
             if (veces_deposit == 2)
             {
                 digitalWrite(RELAY, HIGH);
-                runTime(0,BACKWARD,0,3000);
-                claw.close();
-                runTime(0,FORWARD,0,1000);
-                float diferencia = calcularDiferenciaAngulo(leer_yaw(), angulo_rescate);
-                runAngle(30, FORWARD, diferencia);
-                while(digitalRead(32) == 0){
-                    leer_ultrasonidos();
-                    robot.steer(25, FORWARD, 0); 
-
-                    if(!alineado && front_distance < 12){
-                        digitalWrite(RELAY, HIGH);
-                        runTime(0, FORWARD, 0, 1000); 
-                        if(pared == "left"){
-                           digitalWrite(RELAY, HIGH);
-                            runAngle(25, FORWARD, 90);
-                        }
-                        if(pared == "right"){
-                            digitalWrite(RELAY, HIGH);
-                            runAngle(25, FORWARD, -90);
-                        }
-                        alineado = true; 
-                    }
-                    if(alineado){
-                        digitalWrite(RELAY, HIGH);
-                        leer_ultrasonidos();
-                        robot.steer(25,FORWARD,0);
-                        if(front_distance<12){
-                            leer_ultrasonidos();
-                            runTime(20,FORWARD,0,200);
-                            if(left_distance < right_distance)
-                            {
-                                digitalWrite(RELAY, HIGH);
-                                    
-                                runAngle(25,FORWARD,-90);
-                            }
-                            else if(right_distance<left_distance)
-                            {
-                                    digitalWrite(RELAY, HIGH);
-                                    runAngle(25,FORWARD,-90);
-                            }
-                        }
-                    }
-                } // end inner while
+                Serial5.write(247);
+                rutina = "evacuacion";
             }
+
             /*if(green_state == 10)
                 { 
                     estado == "salida"
@@ -1094,5 +1054,107 @@ void loop()
                 }*/
             
         } // end while (rutina == "rescate" && digitalRead(32) == 0)
+        while (rutina == "evacuacion" && digitalRead(32) == 0)
+        {
+            digitalWrite(RELAY, LOW);
+
+            // PASO 1: leer ultrasonidos y girar 45° hacia pared más cercana
+            leer_ultrasonidos();
+            float drift_evac;
+            if (left_distance != 0 && right_distance != 0) {
+                if (left_distance < right_distance) {
+                    runAngle(25, FORWARD, -45);
+                    drift_evac = -0.06;
+                } else {
+                    runAngle(25, FORWARD, 45);
+                    drift_evac = 0.06;
+                }
+            } else {
+                runAngle(25, FORWARD, 45);
+                drift_evac = 0.06;
+            }
+
+            // PASO 2: avanzar siguiendo pared hasta apertura real
+            int lecturas_apertura = 0;
+            int lateral_anterior  = 0;
+            bool apertura = false;
+
+            while (digitalRead(32) == 0 && !apertura)
+            {
+                leer_ultrasonidos();
+                serialEvent5();
+
+                // Pared al frente: parar, girar 45°, resetear contador
+                if (front_distance != 0 && front_distance < 18)
+                {
+                    runTime(0, FORWARD, 0, 300);
+                    if (left_distance == 0 || left_distance > right_distance)
+                        runAngle(25, FORWARD, -45);
+                    else
+                        runAngle(25, FORWARD, 45);
+                    lateral_anterior  = 0;
+                    lecturas_apertura = 0;
+                    continue;
+                }
+
+                // Detección de apertura real: 4+ lecturas estables >60cm
+                // (los triángulos solo dan 1-3 lecturas altas irregulares)
+                int lateral_actual = (drift_evac > 0) ? right_distance : left_distance;
+
+                if (lateral_actual > 60) {
+                    lecturas_apertura++;
+                } else {
+                    lecturas_apertura = 0; // reset si baja aunque sea una vez
+                }
+
+                if (lecturas_apertura >= 4)
+                    apertura = true;
+
+                lateral_anterior = lateral_actual;
+
+                // Avanzar con drift leve hacia la pared elegida
+                robot.steer(25, FORWARD, drift_evac);
+                delay(30);
+            }
+
+            // PASO 3: parar y esperar validación de Raspberry
+            robot.steer(0, FORWARD, 0);
+            delay(500);
+
+            // Esperar green_state 20 o 21, timeout 3 segundos
+            unsigned long t_espera = millis();
+            int respuesta_evac = 0;
+            while (digitalRead(32) == 0 && millis() - t_espera < 3000)
+            {
+                serialEvent5();
+                if (green_state == 20 || green_state == 21)
+                {
+                    respuesta_evac = green_state;
+                    break;
+                }
+                delay(20);
+            }
+
+            // PASO 4: actuar según respuesta
+            if (respuesta_evac == 20)
+            {
+                // Negra = salida confirmada
+                runTime(40, FORWARD, 0, 2500);
+                robot.steer(0, FORWARD, 0);
+                digitalWrite(RELAY, LOW);
+                rutina = "linea";
+                Serial5.write(255);
+                break;
+            }
+            else
+            {
+                // Plateada = era la entrada, girar 180° y cambiar lado
+                runAngle(25, FORWARD, 180);
+                drift_evac = (drift_evac > 0) ? -0.06 : 0.06;
+                // El while externo repite con el nuevo drift
+                // La próxima apertura es la salida garantizada
+            }
+
+        }  // end while (rutina == "evacuacion" && digitalRead(32) == 0)
     } // end else (principal del loop)
 } // end loop()
