@@ -31,6 +31,25 @@ Claw claw(&lift, &left, &right, &sort, &deposit);
 #define BUZZER 35         // Definicion de PIN BUZZER
 #define LED_ROJO 34       // Definicion de PIN LED_ROJO
 #define SWITCH 32         // Definicion de PIN SWITCH
+
+// ---- HEARTBEAT / WATCHDOG ----
+// Protocolo:
+//   0xFA (250) RPi -> Teensy: "lista, podes arrancar"
+//   0xAA (170) Teensy -> RPi: ACK por cada trama recibida
+//
+// Timeouts (ms):
+//   - Modo LINEA  : 150 ms  (3x el intervalo de envio de la RPi ~50 ms)
+//   - Modo RESCATE: 500 ms  (funciones bloqueantes pueden tardar mas)
+//   - Dentro de runTime/runAngle/runDistance: watchdog SUSPENDIDO
+//     para evitar falsos positivos durante movimientos bloqueantes.
+#define HEARTBEAT_BYTE     0xFA  // RPi -> Teensy: "lista"
+#define ACK_BYTE           0xAA  // Teensy -> RPi: "recibi"
+#define WD_TIMEOUT_LINEA   150  // ms
+#define WD_TIMEOUT_RESCATE 500  // ms
+
+elapsedMillis watchdogTimer;          // ms desde ultima trama valida
+bool          watchdogActive = false; // false hasta que el robot arranca
+// ------------------------------
 elapsedMillis steertimer; // Cuenta el tiempo transcurrido
 bool contador = false;    // Para saber si estamos contando el tiempo o no
 bool retroceder = false;  // Para saber si debe retroceder
@@ -81,6 +100,177 @@ bool alineado=false;
 bool depositando=false;
 int veces_deposit=2;
 int ball_counter=2;
+
+// Máquina de Estados para Rescate (No Bloqueante)
+enum RescateState {
+    RESCATE_IDLE = 0,          // Estado inactivo
+    RESCATE_NEGRA_STEP1,       // Baja garra
+    RESCATE_NEGRA_STEP2,       // Posiciona depósito centro
+    RESCATE_NEGRA_STEP3,       // Clasifica derecha
+    RESCATE_NEGRA_STEP4,       // Avanza distancia
+    RESCATE_NEGRA_STEP5,       // Cierra garra
+    RESCATE_NEGRA_STEP6,       // Levanta garra
+    RESCATE_NEGRA_STEP7,       // Abre garra
+    RESCATE_NEGRA_STEP8,       // Retrocede un poco
+    RESCATE_PLATEADA_STEP1,    // Baja garra
+    RESCATE_PLATEADA_STEP2,    // Clasifica izquierda
+    RESCATE_PLATEADA_STEP3,    // Posiciona depósito centro
+    RESCATE_PLATEADA_STEP4,    // Avanza distancia
+    RESCATE_PLATEADA_STEP5,    // Cierra garra
+    RESCATE_PLATEADA_STEP6,    // Levanta garra
+    RESCATE_PLATEADA_STEP7,    // Abre garra
+    RESCATE_PLATEADA_STEP8     // Retrocede un poco
+};
+RescateState rescateState = RESCATE_IDLE;  // Estado actual de la máquina de rescate
+unsigned long rescateLastTime = 0;         // Timestamp del último paso
+const unsigned long RESCATE_STEP_DELAY = 1000;  // Delay entre pasos en ms
+
+// Función para iniciar recolección de pelota negra
+void iniciarRecoleccionNegra() {
+    if (rescateState == RESCATE_IDLE) {
+        rescateState = RESCATE_NEGRA_STEP1;
+        rescateLastTime = millis();
+    }
+}
+
+// Función para iniciar recolección de pelota plateada
+void iniciarRecoleccionPlateada() {
+    if (rescateState == RESCATE_IDLE) {
+        rescateState = RESCATE_PLATEADA_STEP1;
+        rescateLastTime = millis();
+    }
+}
+
+// Función para actualizar la máquina de estados de rescate (llamar en loop())
+void actualizarRescate() {
+    unsigned long now = millis();
+    switch (rescateState) {
+        case RESCATE_IDLE:
+            // Nada que hacer
+            break;
+        case RESCATE_NEGRA_STEP1:
+            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
+                claw.lower();
+                rescateState = RESCATE_NEGRA_STEP2;
+                rescateLastTime = now;
+            }
+            break;
+        case RESCATE_NEGRA_STEP2:
+            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
+                claw.depositCenter();
+                rescateState = RESCATE_NEGRA_STEP3;
+                rescateLastTime = now;
+            }
+            break;
+        case RESCATE_NEGRA_STEP3:
+            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
+                claw.sortRight();
+                rescateState = RESCATE_NEGRA_STEP4;
+                rescateLastTime = now;
+            }
+            break;
+        case RESCATE_NEGRA_STEP4:
+            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
+                runDistance(30, FORWARD, 8);
+                rescateState = RESCATE_NEGRA_STEP5;
+                rescateLastTime = now;
+            }
+            break;
+        case RESCATE_NEGRA_STEP5:
+            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
+                claw.close();
+                digitalWrite(BUZZER, HIGH);
+                delay(100);  // Pequeño delay para buzzer, considerar no-bloqueante si necesario
+                digitalWrite(BUZZER, LOW);
+                rescateState = RESCATE_NEGRA_STEP6;
+                rescateLastTime = now;
+            }
+            break;
+        case RESCATE_NEGRA_STEP6:
+            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
+                claw.lift();
+                rescateState = RESCATE_NEGRA_STEP7;
+                rescateLastTime = now;
+            }
+            break;
+        case RESCATE_NEGRA_STEP7:
+            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
+                claw.open();
+                rescateState = RESCATE_NEGRA_STEP8;
+                rescateLastTime = now;
+            }
+            break;
+        case RESCATE_NEGRA_STEP8:
+            if (now - rescateLastTime >= 200) {  // Menor delay para retroceso
+                runTime(30, FORWARD, 0, 200);
+                runTime(30, BACKWARD, 0, 200);
+                ball_counter++;
+                rescateState = RESCATE_IDLE;
+            }
+            break;
+        // Estados para pelota plateada (análogos)
+        case RESCATE_PLATEADA_STEP1:
+            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
+                claw.lower();
+                rescateState = RESCATE_PLATEADA_STEP2;
+                rescateLastTime = now;
+            }
+            break;
+        case RESCATE_PLATEADA_STEP2:
+            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
+                claw.sortLeft();
+                rescateState = RESCATE_PLATEADA_STEP3;
+                rescateLastTime = now;
+            }
+            break;
+        case RESCATE_PLATEADA_STEP3:
+            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
+                claw.depositCenter();
+                rescateState = RESCATE_PLATEADA_STEP4;
+                rescateLastTime = now;
+            }
+            break;
+        case RESCATE_PLATEADA_STEP4:
+            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
+                runDistance(20, FORWARD, 8);
+                rescateState = RESCATE_PLATEADA_STEP5;
+                rescateLastTime = now;
+            }
+            break;
+        case RESCATE_PLATEADA_STEP5:
+            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
+                claw.close();
+                digitalWrite(BUZZER, HIGH);
+                delay(100);
+                digitalWrite(BUZZER, LOW);
+                rescateState = RESCATE_PLATEADA_STEP6;
+                rescateLastTime = now;
+            }
+            break;
+        case RESCATE_PLATEADA_STEP6:
+            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
+                claw.lift();
+                rescateState = RESCATE_PLATEADA_STEP7;
+                rescateLastTime = now;
+            }
+            break;
+        case RESCATE_PLATEADA_STEP7:
+            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
+                claw.open();
+                rescateState = RESCATE_PLATEADA_STEP8;
+                rescateLastTime = now;
+            }
+            break;
+        case RESCATE_PLATEADA_STEP8:
+            if (now - rescateLastTime >= 200) {
+                runTime(30, FORWARD, 0, 200);
+                runTime(30, BACKWARD, 0, 200);
+                ball_counter++;
+                rescateState = RESCATE_IDLE;
+            }
+            break;
+    }
+}
 #define SONAR_NUM 3      // Number of sensors.
 #define MAX_DISTANCE 150 // Maximum distance (in cm) to ping.
 
@@ -216,7 +406,14 @@ void serialEvent5()
         int data = Serial5.read(); // read serial code
          
         if (data == 255) // speed incoming
+        {
             serial5state = 0;
+            if (watchdogActive)
+            {
+                watchdogTimer = 0;
+                Serial5.write(ACK_BYTE);
+            }
+        }
         else if (data == 254) // steer incoming
             serial5state = 1;
         else if (data == 253) // task incoming
@@ -234,11 +431,42 @@ void serialEvent5()
     }
 }
 
+// ---- watchdogCheck ----
+// Llama esto en el loop principal. Si el Teensy no recibio ninguna trama
+// dentro del timeout, para los motores y parpadea el LED rojo.
+// El parpadeo es NO bloqueante gracias a elapsedMillis.
+void watchdogCheck()
+{
+    if (!watchdogActive) return;
+
+    unsigned long timeout = (rutina == "linea") ? WD_TIMEOUT_LINEA : WD_TIMEOUT_RESCATE;
+
+    if (watchdogTimer > timeout)
+    {
+        // Detener motores
+        robot.steer(0, FORWARD, 0);
+
+        // Parpadeo no-bloqueante del LED rojo (100 ms on/off)
+        static elapsedMillis blinkTimer;
+        static bool ledState = false;
+        if (blinkTimer > 100)
+        {
+            ledState = !ledState;
+            digitalWrite(LED_ROJO, ledState);
+            blinkTimer = 0;
+        }
+    }
+}
+
 // HELPER FUNCTIONS //
 
-// Do a predefined move by time
-void runTime(int speed, int dir, double steer, unsigned long long time)
+// runTimeInternal - version base opcionalmente sin tocar watchdog.
+// Se usa para movimientos cortos dentro de otras funciones bloqueantes.
+void runTimeInternal(int speed, int dir, double steer, unsigned long long time, bool manageWatchdog)
 {
+    if (manageWatchdog) watchdogActive = false; // suspender watchdog
+
+    bool watchdogAbort = false;
     unsigned long long startTime = millis();
     while ((millis() - startTime) < time)
     {
@@ -248,41 +476,81 @@ void runTime(int speed, int dir, double steer, unsigned long long time)
         {
             int lecturas = Serial5.read();
             Serial.print(lecturas);
+            if (lecturas == 255)
+            {
+                watchdogTimer = 0;
+                if (startUp) Serial5.write(ACK_BYTE);
+            }
         }
 
-        if (digitalRead(32) == 1)
+        if (digitalRead(SWITCH) == 1)
         { // switch is off
             Serial5.clear();
             Serial5.write(255);
             break;
         }
+
+        if (startUp)
+        {
+            unsigned long timeout = (rutina == "linea") ? WD_TIMEOUT_LINEA : WD_TIMEOUT_RESCATE;
+            if (watchdogTimer > timeout)
+            {
+                robot.steer(0, FORWARD, 0);
+                watchdogAbort = true;
+                break;
+            }
+        }
     }
 
     digitalWrite(13, LOW);
+
+    if (manageWatchdog)
+    {
+        if (!watchdogAbort) watchdogTimer = 0;
+        watchdogActive = startUp; // reactivar solo si ya arrancamos
+    }
+}
+
+// runTime - watchdog SUSPENDIDO durante la ejecucion para evitar
+// falsos positivos mientras el robot ejecuta movimientos bloqueantes.
+void runTime(int speed, int dir, double steer, unsigned long long time)
+{
+    runTimeInternal(speed, dir, steer, time, true);
 }
 void runAngle(int speed, int dir, double angle)
 {
+    watchdogActive = false;                    // suspender watchdog
     sensors_event_t event;
     bno.getEvent(&event);
     float initialAngle = event.orientation.x;
     float targetAngle = initialAngle + angle;
 
-    // Normalizar el ángulo objetivo al rango 0-360
+    // Normalizar el angulo objetivo al rango 0-360
     targetAngle = fmod(targetAngle, 360.0);
     if (targetAngle < 0)
         targetAngle += 360;
 
+    bool watchdogAbort = false;
     while (true)
     {
         bno.getEvent(&event);
         float currentAngle = event.orientation.x;
-        if (digitalRead(32) == 1)
+        if (Serial5.available() > 0)
+        {
+            int lecturas = Serial5.read();
+            if (lecturas == 255)
+            {
+                watchdogTimer = 0;
+                if (startUp) Serial5.write(ACK_BYTE);
+            }
+        }
+        if (digitalRead(SWITCH) == 1)
         { // switch is off
             Serial5.clear();
             Serial5.write(255);
             break;
         }
-        // Calcular la diferencia más corta entre los ángulos
+        // Calcular la diferencia mas corta entre los angulos
         float error = targetAngle - currentAngle;
         if (error > 180)
             error -= 360;
@@ -292,7 +560,7 @@ void runAngle(int speed, int dir, double angle)
         //Serial.println(fabs(error));
         if (fabs(error) <= 1.0)
             break;
-        // Lógica para manejar los 5 valores de ángulo específicos
+        // Logica para manejar los 5 valores de angulo especificos
         if (angle == 180)
         {
             // Girar 180 grados (media vuelta)
@@ -354,16 +622,31 @@ void runAngle(int speed, int dir, double angle)
         {
             robot.steer(speed, dir, 1);
         }
+
+        if (startUp)
+        {
+            unsigned long timeout = (rutina == "linea") ? WD_TIMEOUT_LINEA : WD_TIMEOUT_RESCATE;
+            if (watchdogTimer > timeout)
+            {
+                robot.steer(0, FORWARD, 0);
+                watchdogAbort = true;
+                break;
+            }
+        }
     }
     robot.steer(0, FORWARD, 0);
+    if (!watchdogAbort) watchdogTimer = 0;     // resetear al salir
+    watchdogActive = startUp;                  // reactivar
 }
 
-
 void runDistance(int speed, int dir, int Distance) {
-    runTime(30,BACKWARD,0,20);
-    runTime(30,FORWARD,0,20);
+    watchdogActive = false;                    // suspender watchdog
+    runTimeInternal(30, BACKWARD, 0, 20, false);
+    runTimeInternal(30, FORWARD,  0, 20, false);
     reset_enconder();
     int32_t  encoder = 25*Distance;
+
+    bool watchdogAbort = false;
     
     if (dir == FORWARD) {
         while (true) {
@@ -382,11 +665,26 @@ void runDistance(int speed, int dir, int Distance) {
             if (Serial5.available() > 0) {
                 int lecturas = Serial5.read();
                 Serial.print(lecturas);
+                if (lecturas == 255)
+                {
+                    watchdogTimer = 0;
+                    if (startUp) Serial5.write(ACK_BYTE);
+                }
             }
             
-            if (digitalRead(32) == 1) { // switch is off
+            if (digitalRead(SWITCH) == 1) { // switch is off
                 Serial5.write(255);
                 break;
+            }
+            if (startUp)
+            {
+                unsigned long timeout = (rutina == "linea") ? WD_TIMEOUT_LINEA : WD_TIMEOUT_RESCATE;
+                if (watchdogTimer > timeout)
+                {
+                    robot.steer(0, FORWARD, 0);
+                    watchdogAbort = true;
+                    break;
+                }
             }
         }
     }else{
@@ -405,20 +703,47 @@ void runDistance(int speed, int dir, int Distance) {
             if (Serial5.available() > 0) {
                 int lecturas = Serial5.read();
                 Serial.print(lecturas);
+                if (lecturas == 255)
+                {
+                    watchdogTimer = 0;
+                    if (startUp) Serial5.write(ACK_BYTE);
+                }
             }
             
-            if (digitalRead(32) == 1) { // switch is off
+            if (digitalRead(SWITCH) == 1) { // switch is off
                 Serial5.write(255);
                 break;
+            }
+            if (startUp)
+            {
+                unsigned long timeout = (rutina == "linea") ? WD_TIMEOUT_LINEA : WD_TIMEOUT_RESCATE;
+                if (watchdogTimer > timeout)
+                {
+                    robot.steer(0, FORWARD, 0);
+                    watchdogAbort = true;
+                    break;
+                }
             }
         }
         
         
     }
+    if (!watchdogAbort) watchdogTimer = 0;     // resetear al salir
+    watchdogActive = startUp;                  // reactivar
 }
 
-
-
+// non-blocking delay that keeps processing serial and claw state
+void nonBlockingDelay(unsigned long ms)
+{
+    unsigned long start = millis();
+    while (millis() - start < ms)
+    {
+        claw.update();
+        if (Serial5.available() > 0)
+            serialEvent5();
+        watchdogCheck();
+    }
+}
 #define TARGET_DISTANCE 70.0 // distancia deseada en cm
 #define KP_DISTANCE 0.05     // constante proporcional para la distancia
 #define KP_ANGLE 0.05        // constante proporcional para el ángulo de rotación
@@ -621,6 +946,10 @@ void setup()
 
 void loop()
 {
+    // Advance non-blocking claw state machine each loop
+    claw.update();
+    // Actualizar máquina de estados de rescate no-bloqueante
+    actualizarRescate();
     if (digitalRead(32) == 1)
     {                               // switch is off
         robot.steer(0, FORWARD, 0); // stop moving
@@ -635,6 +964,7 @@ void loop()
         action = 7;
         startUp = false;
         taskDone = true;
+        watchdogActive = false;
         Serial5.write(255);
         while (true)
         {
@@ -667,11 +997,36 @@ void loop()
         digitalWrite(LED_BUILTIN, LOW);
         digitalWrite(BUZZER, LOW);
         digitalWrite(LED_ROJO, LOW);
+        // Esperar heartbeat 0xFA de la RPi antes de arrancar
+        elapsedMillis blinkStartup;
+        bool ledState = false;
+        while (true)
+        {
+            if (blinkStartup > 200)
+            {
+                ledState = !ledState;
+                digitalWrite(LED_BUILTIN, ledState);
+                blinkStartup = 0;
+            }
+            if (Serial5.available() > 0)
+            {
+                int data = Serial5.read();
+                if (data == HEARTBEAT_BYTE)
+                {
+                    digitalWrite(LED_BUILTIN, LOW);
+                    break;
+                }
+            }
+            if (digitalRead(SWITCH) == 1) return;
+        }
+
         runTime(20, BACKWARD, 0, 300);
         runTime(20, FORWARD, 0, 300);
         // Serial5.write(254);
         startUp = true;
         rutina = "linea";
+        watchdogActive = true;
+        watchdogTimer = 0;
         claw.lift();
         claw.depositCenter();
         action = 7;
@@ -699,7 +1054,8 @@ void loop()
         */
         while (rutina == "linea" && digitalRead(32) == 0)
         {
-
+            serialEvent5();
+            watchdogCheck();
             color_detected = get_color();
             leer_tof();
             leer_ultrasonidos();
@@ -947,6 +1303,7 @@ void loop()
             digitalWrite(RELAY, HIGH);
            digitalWrite(LED_BUILTIN, LOW);
             serialEvent5();
+            watchdogCheck();
             robot.steer(speed, FORWARD, steer);
             digitalWrite(0,LOW);
 
@@ -955,23 +1312,23 @@ void loop()
                 digitalWrite(RELAY, HIGH);
                 runTime(0,FORWARD,0,1000);
                 claw.lower();
-                delay(1000);
+                nonBlockingDelay(1000);
                 claw.depositCenter();
-                delay(1000);
+                nonBlockingDelay(1400);
                 claw.sortRight();
-                delay(1000);
-                runDistance(30,FORWARD,7);
+                nonBlockingDelay(1000);
+                runDistance(30,FORWARD,5);
                 runTime(0,FORWARD,0,1000);
                 claw.close();
-                delay(1000);
+                nonBlockingDelay(1000);
                 digitalWrite(BUZZER, HIGH);
                 delay(100); 
                 digitalWrite(BUZZER, LOW);
                 runTime(0,FORWARD,0,1000);
                 claw.lift();
-                delay(1000);
+                nonBlockingDelay(1000);
                 claw.open();
-                delay(1000);
+                nonBlockingDelay(1000);
                 runTime(30,FORWARD,0,200);
                 runTime(30,BACKWARD,0,200);
                  ball_counter++;
@@ -981,21 +1338,21 @@ void loop()
                 runTime(0,FORWARD,0,1000);
                 claw.lower();
                 claw.sortLeft();
-                delay(1000);
+                nonBlockingDelay(1400);
                 claw.depositCenter();
-                delay(1000);
-                runDistance(20,FORWARD,7);
+                nonBlockingDelay(1000);
+                runDistance(20,FORWARD,5);
                 runTime(0,FORWARD,0,1000);
                 claw.close();
-                delay(1000);
+                nonBlockingDelay(1000);
                 digitalWrite(BUZZER, HIGH);
                 delay(100); 
                 digitalWrite(BUZZER, LOW);
                 runTime(0,FORWARD,0,1000);
                 claw.lift();
-                delay(1000);
+                nonBlockingDelay(1000);
                 claw.open();
-                delay(1000);
+                nonBlockingDelay(1000);
                 runTime(30,FORWARD,0,200);
                 runTime(30,BACKWARD,0,200);
                 ball_counter++;
@@ -1009,16 +1366,14 @@ void loop()
                 serialEvent5();
                 robot.steer(speed, FORWARD, steer);   
             }
-            if(green_state == 9)
+            if(green_state == 9)//verde
                 {
                     digitalWrite(RELAY, HIGH);
                     runAngle(20,FORWARD,180);
                     runTime(10,BACKWARD,0,2000);
                     claw.depositRight();
-                    delay(2000);
+                    nonBlockingDelay(2000);
                     claw.depositCenter();
-                    runTime(0,FORWARD,0,500);
-                    runTime(30,BACKWARD,0,500);
                     runTime(0,FORWARD,0,500);
                     runDistance(30,FORWARD,4+60);
                     veces_deposit++;
@@ -1029,10 +1384,8 @@ void loop()
                     runAngle(20,FORWARD,180);
                     runTime(10,BACKWARD,0,2000);
                     claw.depositLeft();
-                    delay(2000);
+                    nonBlockingDelay(2000);
                     claw.depositCenter();
-                    runTime(0,FORWARD,0,500);
-                    runTime(30,BACKWARD,0,500);
                     runTime(0,FORWARD,0,500);
                     runDistance(30,FORWARD,40);
                     veces_deposit++;
@@ -1042,10 +1395,50 @@ void loop()
             if (veces_deposit == 2)
             {
                 digitalWrite(RELAY, HIGH);
-                Serial5.write(247);
-                rutina = "evacuacion";
-            }
+                runTime(0,BACKWARD,0,3000);
+                claw.close();
+                runTime(0,FORWARD,0,1000);
+                float diferencia = calcularDiferenciaAngulo(leer_yaw(), angulo_rescate);
+                runAngle(30, FORWARD, diferencia);
+                while(digitalRead(32) == 0){
+                    leer_ultrasonidos();
+                    robot.steer(25, FORWARD, 0); 
 
+                    if(!alineado && front_distance < 12){
+                        digitalWrite(RELAY, HIGH);
+                        runTime(0, FORWARD, 0, 1000); 
+                        if(pared == "left"){
+                           digitalWrite(RELAY, HIGH);
+                            runAngle(25, FORWARD, 90);
+                        }
+                        if(pared == "right"){
+                            digitalWrite(RELAY, HIGH);
+                            runAngle(25, FORWARD, -90);
+                        }
+                        alineado = true; 
+                    }
+                    if(alineado){
+                        digitalWrite(RELAY, HIGH);
+                        leer_ultrasonidos();
+                        robot.steer(25,FORWARD,0);
+                        if(front_distance<12){
+                            leer_ultrasonidos();
+                            runTime(20,FORWARD,0,200);
+                            if(left_distance < right_distance)
+                            {
+                                digitalWrite(RELAY, HIGH);
+                                    
+                                runAngle(25,FORWARD,-90);
+                            }
+                            else if(right_distance<left_distance)
+                            {
+                                    digitalWrite(RELAY, HIGH);
+                                    runAngle(25,FORWARD,-90);
+                            }
+                        }
+                    }
+                } // end inner while
+            }
             /*if(green_state == 10)
                 { 
                     estado == "salida"
@@ -1054,107 +1447,5 @@ void loop()
                 }*/
             
         } // end while (rutina == "rescate" && digitalRead(32) == 0)
-        while (rutina == "evacuacion" && digitalRead(32) == 0)
-        {
-            digitalWrite(RELAY, LOW);
-
-            // PASO 1: leer ultrasonidos y girar 45° hacia pared más cercana
-            leer_ultrasonidos();
-            float drift_evac;
-            if (left_distance != 0 && right_distance != 0) {
-                if (left_distance < right_distance) {
-                    runAngle(25, FORWARD, -45);
-                    drift_evac = -0.06;
-                } else {
-                    runAngle(25, FORWARD, 45);
-                    drift_evac = 0.06;
-                }
-            } else {
-                runAngle(25, FORWARD, 45);
-                drift_evac = 0.06;
-            }
-
-            // PASO 2: avanzar siguiendo pared hasta apertura real
-            int lecturas_apertura = 0;
-            int lateral_anterior  = 0;
-            bool apertura = false;
-
-            while (digitalRead(32) == 0 && !apertura)
-            {
-                leer_ultrasonidos();
-                serialEvent5();
-
-                // Pared al frente: parar, girar 45°, resetear contador
-                if (front_distance != 0 && front_distance < 18)
-                {
-                    runTime(0, FORWARD, 0, 300);
-                    if (left_distance == 0 || left_distance > right_distance)
-                        runAngle(25, FORWARD, -45);
-                    else
-                        runAngle(25, FORWARD, 45);
-                    lateral_anterior  = 0;
-                    lecturas_apertura = 0;
-                    continue;
-                }
-
-                // Detección de apertura real: 4+ lecturas estables >60cm
-                // (los triángulos solo dan 1-3 lecturas altas irregulares)
-                int lateral_actual = (drift_evac > 0) ? right_distance : left_distance;
-
-                if (lateral_actual > 60) {
-                    lecturas_apertura++;
-                } else {
-                    lecturas_apertura = 0; // reset si baja aunque sea una vez
-                }
-
-                if (lecturas_apertura >= 4)
-                    apertura = true;
-
-                lateral_anterior = lateral_actual;
-
-                // Avanzar con drift leve hacia la pared elegida
-                robot.steer(25, FORWARD, drift_evac);
-                delay(30);
-            }
-
-            // PASO 3: parar y esperar validación de Raspberry
-            robot.steer(0, FORWARD, 0);
-            delay(500);
-
-            // Esperar green_state 20 o 21, timeout 3 segundos
-            unsigned long t_espera = millis();
-            int respuesta_evac = 0;
-            while (digitalRead(32) == 0 && millis() - t_espera < 3000)
-            {
-                serialEvent5();
-                if (green_state == 20 || green_state == 21)
-                {
-                    respuesta_evac = green_state;
-                    break;
-                }
-                delay(20);
-            }
-
-            // PASO 4: actuar según respuesta
-            if (respuesta_evac == 20)
-            {
-                // Negra = salida confirmada
-                runTime(40, FORWARD, 0, 2500);
-                robot.steer(0, FORWARD, 0);
-                digitalWrite(RELAY, LOW);
-                rutina = "linea";
-                Serial5.write(255);
-                break;
-            }
-            else
-            {
-                // Plateada = era la entrada, girar 180° y cambiar lado
-                runAngle(25, FORWARD, 180);
-                drift_evac = (drift_evac > 0) ? -0.06 : 0.06;
-                // El while externo repite con el nuevo drift
-                // La próxima apertura es la salida garantizada
-            }
-
-        }  // end while (rutina == "evacuacion" && digitalRead(32) == 0)
     } // end else (principal del loop)
 } // end loop()

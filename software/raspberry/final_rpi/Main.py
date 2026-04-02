@@ -10,12 +10,20 @@ import threading
 import queue
 
 # ---- SWITCH PRINCIPAL ----
-# True  → Zero-DCE en det + AGCWD en intermedios  (Pi 5,  ~20 FPS)
-# False → AGCWD en todos los frames               (Pi 4B, ~35 FPS)
+# True  -> Zero-DCE en det + AGCWD en intermedios  (Pi 5,  ~20 FPS)
+# False -> AGCWD en todos los frames               (Pi 4B, ~35 FPS)
 USE_ZERODCE  = False
 ZERODCE_PATH = "/home/pi/Downloads/AI_enhance/dcenet_int8.tflite"
 ZERODCE_GAIN = 1.65
 # --------------------------
+
+
+# ---- HEARTBEAT / WATCHDOG CONFIG ----
+HEARTBEAT_BYTE   = 0xFA   # RPi -> Teensy: "Estoy lista, arranca"
+ACK_BYTE         = 0xAA   # Teensy -> RPi: "Recibi el comando"
+WATCHDOG_TIMEOUT = 1.0    # segundos sin ACK antes de loguear advertencia
+# -------------------------------------
+
 
 debugOriginal = False
 debugBlack = True
@@ -132,7 +140,6 @@ _output_details = interpreter.get_output_details()[0]
 print("TFLite input:", _input_details)
 print("TFLite output:", _output_details)
 
-# Warmup: igual que el model.predict() de warmup en el main con YOLO
 print("Realizando warmup del modelo TFLite...")
 _dummy = np.zeros((YOLO_IMGSZ, YOLO_IMGSZ, 3), dtype=np.uint8)
 if np.issubdtype(_input_details['dtype'], np.floating):
@@ -143,13 +150,57 @@ interpreter.set_tensor(_input_details['index'], _dummy_inp)
 interpreter.invoke()
 _ = interpreter.get_tensor(_output_details['index'])
 print("Warmup completado.")
+
+# -----------------------------------------------
+# HEARTBEAT: avisar al Teensy que estamos listos
+# Se envía DESPUÉS del warmup, para que el Teensy
+# no arranque antes de que todo esté inicializado.
+# -----------------------------------------------
+print("[HEARTBEAT] Sistema listo. Enviando 0xFA al Teensy...")
+try:
+    ser.reset_input_buffer()
+    ser.write(bytes([HEARTBEAT_BYTE]))
+    print("[HEARTBEAT] 0xFA enviado. Teensy puede arrancar.")
+except serial.SerialException as e:
+    print(f"[HEARTBEAT ERROR] No se pudo enviar heartbeat inicial: {e}")
+
+# Estado del watchdog (compartido entre loops)
+_last_ack_time   = time.time()   # última vez que llegó un ACK del Teensy
+_watchdog_lock   = threading.Lock()
+
+def _actualizar_ack():
+    """Llamar cada vez que llega 0xAA desde el Teensy."""
+    global _last_ack_time
+    with _watchdog_lock:
+        _last_ack_time = time.time()
+
+def _enviar_con_ack(output_bytes):
+    """
+    Envia una trama al Teensy con try/except.
+    El ACK se procesa solo en los loops que leen el puerto serial.
+    Retorna True si el envio fue exitoso.
+    """
+    global _last_ack_time
+    try:
+        ser.write(output_bytes)
+    except serial.SerialException as e:
+        print(f"[SERIAL ERROR] Fallo al enviar trama: {e}")
+        return False
+
+    # Advertencia si pasa demasiado tiempo sin ACK
+    with _watchdog_lock:
+        elapsed = time.time() - _last_ack_time
+    if elapsed > WATCHDOG_TIMEOUT:
+        print(f"[WATCHDOG WARNING] Sin ACK del Teensy hace {elapsed:.1f}s — "
+              f"posible desconexión serial")
+
+    return True
 # -------------------------------------------
 
 
 def modo_rescate():
     global last_target_box, is_stopped, estado, ser
 
-    # Usar el intérprete y detalles ya inicializados globalmente
     input_details  = _input_details
     output_details = _output_details
 
@@ -403,19 +454,17 @@ def modo_rescate():
             try:
                 if ser.in_waiting > 0:
                     data = ser.read()
-                    if data == b'\xff':
-                        print("serial monitor")
+                    if data == bytes([ACK_BYTE]):
+                        # ACK del Teensy: actualizar timestamp del watchdog
+                        _actualizar_ack()
+                    elif data == b'\xff':
+                        print("serial monitor: switch apagado")
                         stop_rescate = True
                         estado = 'esperando'
                         break
-                    if data == b'\xf8' and estado == "rescate":
+                    elif data == b'\xf8' and estado == "rescate":
                         print("Llego 248 -> terminar rescate y cambiar a depositar")
                         estado = 'depositar'
-                    if data == b'\xf7' and estado == "depositar":
-                        print("Llego 247 -> iniciar evacuacion")
-                        estado = 'evacuacion'
-                        stop_rescate = True   
-                        break
             except Exception as e:
                 print("serial_monitor_local error:", e)
             time.sleep(0.01)
@@ -525,8 +574,9 @@ def modo_rescate():
                 angle       = 90
                 green_state = 0
 
+            # ---- Envío con ACK ----
             output = [255, speed, 254, angle + 90, 253, green_state, 252, 0]
-            ser.write(output)
+            _enviar_con_ack(bytes(output))
             print(output)
 
             processed += 1
@@ -574,17 +624,13 @@ while True:
             data = ser.read()
             if data == b'\xf9':
                 estado = 'linea'
+            elif data == bytes([ACK_BYTE]):
+                _actualizar_ack()   # mantener watchdog actualizado en espera
             ser.reset_input_buffer()
 
     while estado == 'rescate':
         modo_rescate()
-    while estado == 'evacuacion':
 
-        if ser.in_waiting > 0:
-            data = ser.read()
-            if data == b'\xff':
-                estado = 'esperando'
-                print("cambiando estado")
     while estado == 'linea':
         frame = vs.read()
         frame = cv2.rotate(frame, cv2.ROTATE_180)
@@ -677,7 +723,8 @@ while True:
                   253, green_state,
                   252, int(silver_line)]
 
-        ser.write(output)
+        # ---- Envío con ACK ----
+        _enviar_con_ack(bytes(output))
 
         if silver_line:
             estado = 'rescate'
@@ -687,6 +734,8 @@ while True:
             if data == b'\xff':
                 estado = 'esperando'
                 print("cambiando estado")
+            elif data == bytes([ACK_BYTE]):
+                _actualizar_ack()
 
         if debugOriginal:
             cv2.imshow('Original', frame_resized)
