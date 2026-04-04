@@ -103,7 +103,11 @@ bool alineado=false;
 bool depositando=false;
 int veces_deposit=2;
 int ball_counter=2;
-
+void runDistance(int speed, int dir, int Distance);
+void runTime(int speed, int dir, double steer, unsigned long long time);
+void runAngle(int speed, int dir, double angle);
+void runTimeInternal(int speed, int dir, double steer, unsigned long long time, bool manageWatchdog);
+// -------------------------------------------------------------------
 // Máquina de Estados para Rescate (No Bloqueante)
 enum RescateState {
     RESCATE_IDLE = 0,          // Estado inactivo
