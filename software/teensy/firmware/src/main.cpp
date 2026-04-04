@@ -42,6 +42,9 @@ Claw claw(&lift, &left, &right, &sort, &deposit);
 //   - Modo RESCATE: 500 ms  (funciones bloqueantes pueden tardar mas)
 //   - Dentro de runTime/runAngle/runDistance: watchdog SUSPENDIDO
 //     para evitar falsos positivos durante movimientos bloqueantes.
+//   - Al salir de cualquier funcion bloqueante, watchdogTimer se resetea
+//     SIEMPRE (incondicionalmente) para evitar falsos positivos por tiempo
+//     acumulado durante la suspension.
 #define HEARTBEAT_BYTE     0xFA  // RPi -> Teensy: "lista"
 #define ACK_BYTE           0xAA  // Teensy -> RPi: "recibi"
 #define WD_TIMEOUT_LINEA   150  // ms
@@ -377,18 +380,6 @@ String get_color()
         }
     }
 
-    // Imprimir los valores de R, G, B y Clear
-    /*
-    Serial.print("red: ");
-    Serial.print(r);
-    Serial.print(" green: ");
-    Serial.print(g);
-    Serial.print(" blue: ");
-    Serial.print(b);
-    Serial.print(" clear: ");
-    //Serial.println(c);
-    */
-
     return closest_color;
 }
 
@@ -401,7 +392,7 @@ void ISR4() { fr.updatePulse(); }
 // Read Data from Raspberry by Serial TX-RX
 void serialEvent5()
 {
-    if (Serial5.available() > 0)
+    while (Serial5.available())
     {
         int data = Serial5.read(); // read serial code
          
@@ -466,13 +457,12 @@ void runTimeInternal(int speed, int dir, double steer, unsigned long long time, 
 {
     if (manageWatchdog) watchdogActive = false; // suspender watchdog
 
-    bool watchdogAbort = false;
     unsigned long long startTime = millis();
     while ((millis() - startTime) < time)
     {
         robot.steer(speed, dir, steer);
         digitalWrite(13, HIGH);
-        if (Serial5.available() > 0)
+        while (Serial5.available())
         {
             int lecturas = Serial5.read();
             Serial.print(lecturas);
@@ -489,24 +479,19 @@ void runTimeInternal(int speed, int dir, double steer, unsigned long long time, 
             Serial5.write(255);
             break;
         }
-
-        if (startUp)
-        {
-            unsigned long timeout = (rutina == "linea") ? WD_TIMEOUT_LINEA : WD_TIMEOUT_RESCATE;
-            if (watchdogTimer > timeout)
-            {
-                robot.steer(0, FORWARD, 0);
-                watchdogAbort = true;
-                break;
-            }
-        }
+        // ELIMINADO: bloque interno if (startUp) { watchdogTimer > timeout }
+        // El watchdog esta suspendido (watchdogActive=false) durante esta funcion.
+        // El chequeo interno era contradictorio y abortaba movimientos legitimos.
     }
 
     digitalWrite(13, LOW);
 
     if (manageWatchdog)
     {
-        if (!watchdogAbort) watchdogTimer = 0;
+        // Reset SIEMPRE al salir, sin condicion.
+        // elapsedMillis acumula tiempo aunque el watchdog este suspendido,
+        // por lo que al reactivarlo el timer ya supero el timeout.
+        watchdogTimer = 0;
         watchdogActive = startUp; // reactivar solo si ya arrancamos
     }
 }
@@ -517,6 +502,7 @@ void runTime(int speed, int dir, double steer, unsigned long long time)
 {
     runTimeInternal(speed, dir, steer, time, true);
 }
+
 void runAngle(int speed, int dir, double angle)
 {
     watchdogActive = false;                    // suspender watchdog
@@ -530,12 +516,11 @@ void runAngle(int speed, int dir, double angle)
     if (targetAngle < 0)
         targetAngle += 360;
 
-    bool watchdogAbort = false;
     while (true)
     {
         bno.getEvent(&event);
         float currentAngle = event.orientation.x;
-        if (Serial5.available() > 0)
+        while (Serial5.available())
         {
             int lecturas = Serial5.read();
             if (lecturas == 255)
@@ -557,62 +542,40 @@ void runAngle(int speed, int dir, double angle)
         if (error < -180)
             error += 360;
         Serial.print("Error actual: ");
-        //Serial.println(fabs(error));
         if (fabs(error) <= 1.0)
             break;
         // Logica para manejar los 5 valores de angulo especificos
         if (angle == 180)
         {
-            // Girar 180 grados (media vuelta)
-            robot.steer(speed, dir, 1); // Girar a la derecha
+            robot.steer(speed, dir, 1);
         }
         else if (angle == 90 || angle == -270)
         {
-            // Girar 90 grados a la derecha
             if (error > 0 && error <= 180)
-            {
                 robot.steer(speed, dir, -1);
-            }
             else
-            {
                 robot.steer(speed, dir, 1);
-            }
         }
         else if (angle == -90 || angle == 270)
         {
-            // Girar 90 grados a la izquierda
             if (error < 0 && error >= -180)
-            {
                 robot.steer(speed, dir, 1);
-            }
             else
-            {
                 robot.steer(speed, dir, -1);
-            }
         }
         else if (angle == 45 || angle == -315)
         {
-            // Girar 45 grados a la derecha
             if (error > 0 && error <= 180)
-            {
                 robot.steer(speed, dir, -1);
-            }
             else
-            {
                 robot.steer(speed, dir, 1);
-            }
         }
         else if (angle == -45 || angle == 315)
         {
-            // Girar 45 grados a la izquierda
             if (error < 0 && error >= -180)
-            {
                 robot.steer(speed, dir, 1);
-            }
             else
-            {
                 robot.steer(speed, dir, -1);
-            }
         }
         else if (angle > 0)
         {
@@ -622,20 +585,13 @@ void runAngle(int speed, int dir, double angle)
         {
             robot.steer(speed, dir, 1);
         }
-
-        if (startUp)
-        {
-            unsigned long timeout = (rutina == "linea") ? WD_TIMEOUT_LINEA : WD_TIMEOUT_RESCATE;
-            if (watchdogTimer > timeout)
-            {
-                robot.steer(0, FORWARD, 0);
-                watchdogAbort = true;
-                break;
-            }
-        }
+        // ELIMINADO: bloque interno if (startUp) { watchdogTimer > timeout }
+        // El watchdog esta suspendido durante runAngle. El chequeo interno
+        // abortaba giros que duran mas de 500ms, que es practicamente todos.
     }
     robot.steer(0, FORWARD, 0);
-    if (!watchdogAbort) watchdogTimer = 0;     // resetear al salir
+    // Reset SIEMPRE al salir, sin condicion.
+    watchdogTimer = 0;
     watchdogActive = startUp;                  // reactivar
 }
 
@@ -644,10 +600,8 @@ void runDistance(int speed, int dir, int Distance) {
     runTimeInternal(30, BACKWARD, 0, 20, false);
     runTimeInternal(30, FORWARD,  0, 20, false);
     reset_enconder();
-    int32_t  encoder = 25*Distance;
+    int32_t encoder = 25 * Distance;
 
-    bool watchdogAbort = false;
-    
     if (dir == FORWARD) {
         while (true) {
             int32_t frCount = fr.pulseCount;
@@ -658,11 +612,10 @@ void runDistance(int speed, int dir, int Distance) {
             Serial.print(flCount);
             Serial.print(" | ");
             Serial.print(frCount);
-            //Serial.println(fr.pulseCount);
             digitalWrite(13, HIGH);
             delay(10);
             
-            if (Serial5.available() > 0) {
+            while (Serial5.available()) {
                 int lecturas = Serial5.read();
                 Serial.print(lecturas);
                 if (lecturas == 255)
@@ -672,23 +625,15 @@ void runDistance(int speed, int dir, int Distance) {
                 }
             }
             
-            if (digitalRead(SWITCH) == 1) { // switch is off
+            if (digitalRead(SWITCH) == 1) {
                 Serial5.write(255);
                 break;
             }
-            if (startUp)
-            {
-                unsigned long timeout = (rutina == "linea") ? WD_TIMEOUT_LINEA : WD_TIMEOUT_RESCATE;
-                if (watchdogTimer > timeout)
-                {
-                    robot.steer(0, FORWARD, 0);
-                    watchdogAbort = true;
-                    break;
-                }
-            }
+            // ELIMINADO: bloque interno if (startUp) { watchdogTimer > timeout }
+            // El watchdog esta suspendido durante runDistance.
         }
-    }else{
-         while (true) 
+    } else {
+        while (true) 
         {
             int32_t frCount = fr.pulseCount;
             int32_t flCount = fl.pulseCount;
@@ -698,9 +643,8 @@ void runDistance(int speed, int dir, int Distance) {
             Serial.print(flCount);
             Serial.print(" | ");
             Serial.print(frCount);
-            //Serial.println(fr.pulseCount);
             delay(10);
-            if (Serial5.available() > 0) {
+            while (Serial5.available()) {
                 int lecturas = Serial5.read();
                 Serial.print(lecturas);
                 if (lecturas == 255)
@@ -710,25 +654,16 @@ void runDistance(int speed, int dir, int Distance) {
                 }
             }
             
-            if (digitalRead(SWITCH) == 1) { // switch is off
+            if (digitalRead(SWITCH) == 1) {
                 Serial5.write(255);
                 break;
             }
-            if (startUp)
-            {
-                unsigned long timeout = (rutina == "linea") ? WD_TIMEOUT_LINEA : WD_TIMEOUT_RESCATE;
-                if (watchdogTimer > timeout)
-                {
-                    robot.steer(0, FORWARD, 0);
-                    watchdogAbort = true;
-                    break;
-                }
-            }
+            // ELIMINADO: bloque interno if (startUp) { watchdogTimer > timeout }
+            // El watchdog esta suspendido durante runDistance.
         }
-        
-        
     }
-    if (!watchdogAbort) watchdogTimer = 0;     // resetear al salir
+    // Reset SIEMPRE al salir, sin condicion.
+    watchdogTimer = 0;
     watchdogActive = startUp;                  // reactivar
 }
 
@@ -739,8 +674,15 @@ void nonBlockingDelay(unsigned long ms)
     while (millis() - start < ms)
     {
         claw.update();
-        if (Serial5.available() > 0)
-            serialEvent5();
+        while (Serial5.available())
+        {
+            int data = Serial5.read();
+            if (data == 255)
+            {
+                watchdogTimer = 0;
+                if (startUp) Serial5.write(ACK_BYTE);
+            }
+        }
         watchdogCheck();
     }
 }
@@ -756,19 +698,18 @@ float leer_yaw()
 {
     sensors_event_t event;
     bno.getEvent(&event);
-    float yaw = event.orientation.x; // Yaw es el ángulo de rotación (en grados)
+    float yaw = event.orientation.x;
     return yaw;
 }
 void leer_pitch()
 {
     sensors_event_t event;
     bno.getEvent(&event);
-    pitch = event.orientation.y; // Yaw es el ángulo de rotación (en grados)
+    pitch = event.orientation.y;
 }
 void imprimir_yaw()
 {
     Serial.print("Yaw: ");
-    //Serial.println(yaw);
 }
 int ajustarVelocidadPorPendiente(int velocidadBase)
 {
@@ -784,12 +725,10 @@ int ajustarVelocidadPorPendiente(int velocidadBase)
     }
     return velocidadAjustada;
 }
-// Función para calcular la diferencia de ángulo en un rango circular de 0 a 360 grados
 float calcularDiferenciaAngulo(float anguloActual, float anguloObjetivo)
 {
     float error = anguloObjetivo - anguloActual;
 
-    // Ajustar la diferencia para que esté en el rango [-180, 180]
     if (error > 180)
     {
         error -= 360;
@@ -819,45 +758,31 @@ void avance_recto(String pared)
     leer_yaw();
     leer_tof();
     imprimir_tof();
-    // Calcular el error de ángulo correctamente con la función circular
-    float angle_error = calcularDiferenciaAngulo(yaw, TARGET_ANGLE); // Diferencia angular ajustada
+    float angle_error = calcularDiferenciaAngulo(yaw, TARGET_ANGLE);
 
-    // Si el ángulo de giro es mayor que el umbral, ignorar el ultrasonido y corregir el ángulo
     if (abs(angle_error - TARGET_ANGLE) > ANGLE_THRESHOLD)
     {
-        steer = KP_ANGLE * (-angle_error); // Invertir el signo del error angular
-        // Limitar el valor de steer entre [-MAX_STEER, MAX_STEER]
+        steer = KP_ANGLE * (-angle_error);
         if (steer > MAX_STEER)
             steer = MAX_STEER;
         if (steer < -MAX_STEER)
             steer = -MAX_STEER;
 
-        // Mover el robot con la corrección de ángulo
         robot.steer(45, FORWARD, steer);
 
-        // Imprimir para depuración
         Serial.print("Corrigiendo con ángulo. Steer: ");
-        //Serial.println(steer);
     }
     else
     {
-        // El ángulo está alineado, utilizar sensores TOF para mantener la distancia
         float distance_error = TARGET_DISTANCE - (pared == "left" ? distance_left_tof : distance_right_tof);
 
         steer = KP_DISTANCE * -distance_error;
 
-        // Error de distancia a la pared
+        steer = constrain(steer, -MAX_STEER, MAX_STEER);
 
-        // Calcular la corrección para el steer basada en la distancia
-
-        steer = constrain(steer, -MAX_STEER, MAX_STEER); // Limitar steer
-
-        // Mover el robot utilizando la corrección de distancia
         robot.steer(45, FORWARD, steer);
 
-        // Imprimir para depuración
         Serial.print("Corrigiendo con TOF. Steer: ");
-        //Serial.println(steer);
     }
 }
 
@@ -882,9 +807,7 @@ void setup()
 {
 
     robot.steer(0, 0, 0);
-    // claw.lift();  // Moved to begin()
     angulo_rescate = fmod(20, 360.0);
-    //Serial.println(angulo_rescate);
     attachInterrupt(digitalPinToInterrupt(27), ISR1, CHANGE);
     attachInterrupt(digitalPinToInterrupt(5), ISR2, CHANGE);
     attachInterrupt(digitalPinToInterrupt(38), ISR3, CHANGE);
@@ -894,10 +817,8 @@ void setup()
     pinMode(LED_ROJO, OUTPUT);     // LED ROJO
     pinMode(LED_BUILTIN, OUTPUT);  //  LED BUILT-IN for debugging
     pinMode(RELAY, OUTPUT);           
-//Serial1.begin(57600);          // for reading IMU
     Serial5.begin(115200);         // for reading data from rpi and state
     delay(200);
-    //Serial.begin(115200);          // displays ultrasound ping result
     // Initialise BNO055
     if (!bno.begin())
     {
@@ -915,20 +836,17 @@ void setup()
     else
         //Serial.println("Device initialized!");
 
-    // enable color sensign mode
     apds.enableColor(true);
 
     // Initialise TOF
-    Wire1.begin(); // Initialize the first I2C bus
-    Wire2.begin(); // Initialize the second I2C bus
+    Wire1.begin();
+    Wire2.begin();
 
-    left_tof.setBus(&Wire2);  // Assign the first bus to Sensor 1
-    right_tof.setBus(&Wire1); // Assign the second bus to Sensor 2
+    left_tof.setBus(&Wire2);
+    right_tof.setBus(&Wire1);
 
-    left_tof.setAddress(0x30);  // Set unique address for Sensor 1
-    right_tof.setAddress(0x30); // Set unique address for Sensor 2
-
-    // Continue with your setup and loop functions as before
+    left_tof.setAddress(0x30);
+    right_tof.setAddress(0x30);
 
     left_tof.init();
     left_tof.setTimeout(500);
@@ -938,7 +856,6 @@ void setup()
     right_tof.setTimeout(500);
     right_tof.startContinuous();
 
-    // Inicializar la garra después de setup
     claw.begin();
 }
 
@@ -946,9 +863,7 @@ void setup()
 
 void loop()
 {
-    // Advance non-blocking claw state machine each loop
     claw.update();
-    // Actualizar máquina de estados de rescate no-bloqueante
     actualizarRescate();
     if (digitalRead(32) == 1)
     {                               // switch is off
@@ -969,13 +884,12 @@ void loop()
         while (true)
         {
             robot.steer(0, 0, 0);
-                    digitalWrite(RELAY,LOW);
+            digitalWrite(RELAY,LOW);
             claw.open();
             centrar = leer_yaw();            
             centrar = fmod(centrar, 360.0);
-             if (centrar < 0) centrar += 360;
+            if (centrar < 0) centrar += 360;
             digitalWrite(LED_BUILTIN, HIGH);
-            // digitalWrite(BUZZER, HIGH);
             digitalWrite(LED_ROJO, HIGH);
             delay(500);
             robot.steer(0, 0, 0);
@@ -983,7 +897,6 @@ void loop()
             digitalWrite(BUZZER, LOW);
             digitalWrite(LED_ROJO, LOW);
             digitalWrite(RELAY,LOW); 
-
 
             delay(500);
             if (digitalRead(SWITCH) == 0)
@@ -1008,7 +921,7 @@ void loop()
                 digitalWrite(LED_BUILTIN, ledState);
                 blinkStartup = 0;
             }
-            if (Serial5.available() > 0)
+            while (Serial5.available())
             {
                 int data = Serial5.read();
                 if (data == HEARTBEAT_BYTE)
@@ -1022,7 +935,6 @@ void loop()
 
         runTime(20, BACKWARD, 0, 300);
         runTime(20, FORWARD, 0, 300);
-        // Serial5.write(254);
         startUp = true;
         rutina = "linea";
         watchdogActive = true;
@@ -1039,19 +951,7 @@ void loop()
         digitalWrite(LED_BUILTIN, HIGH);
         digitalWrite(BUZZER, LOW);
         digitalWrite(LED_ROJO, HIGH);
-        // int lectura = ultrasonic.read();
-        /*if(steer<30 or steer>150){
-            counter++;
-        }
-        if(laststeer<30 and steer>30 and counter>15){
-            runTime(20,1,0.5,500);
-            counter=0;
-        }
-        if(laststeer>150 and steer<150 and counter>15){
-            runTime(20,1,-0.5,500);
-            counter=0;
-        }
-        */
+
         while (rutina == "linea" && digitalRead(32) == 0)
         {
             serialEvent5();
@@ -1059,32 +959,20 @@ void loop()
             color_detected = get_color();
             leer_tof();
             leer_ultrasonidos();
-            /*
-            if (color_detected == "Plateado"){
-                runTime(20,FORWARD,0,100);
-                color_detected = get_color();
-                if (color_detected == "Plateado"){
-                rutina = "rescate";
-                break;
-            }
-            }
-            */
-            if (taskDone)
-            { // robot is currently not performing any task
 
-                // //Serial.println("Incoming Task: ");
-                // //Serial.println(green_state);
+            if (taskDone)
+            {
                 if (green_state == 0)
                 {
                     action = 7;
                 }
                 if (green_state == 1)
                 {
-                    action = 6; // verde izquierda  
+                    action = 6;
                 }
                 if (green_state == 2)
                 {
-                    action = 5; // verde derecha
+                    action = 5;
                 }
                 if (green_state == 3)
                 {
@@ -1119,7 +1007,6 @@ void loop()
                             while (digitalRead(32) == 0)
                             {
                                 robot.steer(30, FORWARD, -0.35);
-                                // serialEvent5();
                                 if (get_color() == "Negro")
                                 {
                                     runAngle(30, FORWARD, -90);
@@ -1134,7 +1021,6 @@ void loop()
                             while (digitalRead(32) == 0)
                             {
                                 robot.steer(30, FORWARD, 0.35);
-                                // serialEvent5();
                                 if (get_color() == "Negro")
                                 {
                                     runAngle(30, FORWARD, 90);
@@ -1155,18 +1041,11 @@ void loop()
                     alineado=false;
                     depositando=false;
                     runTime(0, FORWARD, 0, 1000);
-                     runTime(30,FORWARD,0,2000);
+                    runTime(30,FORWARD,0,2000);
 
-
-                   
                     leer_ultrasonidos();
                     if(left_distance < right_distance)
                     {
-                        /*runAngle(30,FORWARD,90);
-                        runTime(0,BACKWARD,0,900);
-                        runTime(40,BACKWARD,0,380);
-                        runTime(40,FORWARD,0,800);
-                        runTime(0,BACKWARD,0,1000);*/
                         angulo_rescate = leer_yaw();            
                         angulo_rescate = fmod(angulo_rescate, 360.0);
                         if (angulo_rescate < 0) angulo_rescate += 360;
@@ -1180,10 +1059,6 @@ void loop()
                     }
                     if(right_distance < left_distance)
                     {
-                       /* runAngle(30,FORWARD,-90);
-                        runTime(0,BACKWARD,0,900);
-                        runTime(60,BACKWARD,0,380);
-                        runTime(40,FORWARD,0,800);*/
                         angulo_rescate = leer_yaw();            
                         angulo_rescate = fmod(angulo_rescate, 360.0); 
                         if (angulo_rescate < 0)                        
@@ -1195,23 +1070,6 @@ void loop()
                         pared="right";
                         lado_plateado="izquierda";
                     }
-                   /* if(right_distance && left_distance>=50){
-                        leer_ultrasonidos();
-
-                        while(front_distance>12){
-                            robot.steer(25,FORWARD,0);
-                            leer_ultrasonidos();
-                        }
-                        runAngle(30,FORWARD,180);
-                        runTime(0,BACKWARD,0,800);
-                        runTime(60,BACKWARD,0,200);
-                        angulo_rescate = leer_yaw();            
-                        angulo_rescate = fmod(angulo_rescate, 360.0); 
-                        if (angulo_rescate < 0)                        
-                        angulo_rescate += 360;
-                        lado_plateado="medio";
-                        pared="derecha";
-                    }*/
                     runTime(0,FORWARD,0,3000);
                     tiemporescate=millis();
                     break;
@@ -1232,56 +1090,48 @@ void loop()
                     }
                     break;
                 case 7: // linetrack
-                
-                    {int velocidadAjustada = ajustarVelocidadPorPendiente(25);
-
-                     if (steer < -0.7 || steer > 0.7)
                     {
+                        int velocidadAjustada = ajustarVelocidadPorPendiente(25);
+                        if (steer < -0.7 || steer > 0.7)
+                        {
                             robot.steer(55, FORWARD, steer);
-                    }
-
-                    else
-                    {
-                        robot.steer(velocidadAjustada, FORWARD, steer);
-                    }
-                
-                    break;
+                        }
+                        else
+                        {
+                            robot.steer(velocidadAjustada, FORWARD, steer);
+                        }
+                        break;
                     }
 
                 case 12:
                     {
                         serialEvent5();
-
                         float diferencia = calcularDiferenciaAngulo(leer_yaw(), centrar);
                         runAngle(30, FORWARD, diferencia);
                         runTime(30, BACKWARD, 0, 300);
                         runTime(0, FORWARD, 0, 2000);
-                    while(digitalRead(32) == 0){
-                        robot.steer(0, FORWARD, 0);
-                        
-                        serialEvent5();
-
-                        if (green_state == 15)
-                        {
-                            runTime(30, FORWARD, 0, 500);
-                            runAngle(30, FORWARD, 80);
+                        while(digitalRead(32) == 0){
+                            robot.steer(0, FORWARD, 0);
+                            serialEvent5();
+                            if (green_state == 15)
+                            {
+                                runTime(30, FORWARD, 0, 500);
+                                runAngle(30, FORWARD, 80);
+                                break;
+                            }
+                            if (green_state == 16)
+                            {
+                                runTime(30, FORWARD, 0, 200);
+                                runAngle(30, FORWARD, -80);
+                                break;
+                            }
+                            if (green_state == 17)
+                            {
+                                runDistance(30, FORWARD, 15);
+                                break;
+                            }
                             break;
                         }
-
-                        if (green_state == 16)
-                        {
-                            runTime(30, FORWARD, 0, 200);
-                            runAngle(30, FORWARD, -80);
-                            break;
-                        }
-
-                        if (green_state == 17)
-                        {
-                            runDistance(30, FORWARD, 15);
-                            break;
-                        }
-
-                        break;}
                     }
 
                 case 14: // turn 180 deg for double green squares
@@ -1301,11 +1151,15 @@ void loop()
         while (rutina == "rescate" && digitalRead(32) == 0)
         {
             digitalWrite(RELAY, HIGH);
-           digitalWrite(LED_BUILTIN, LOW);
+            digitalWrite(LED_BUILTIN, LOW);
             serialEvent5();
             watchdogCheck();
-            robot.steer(speed, FORWARD, steer);
-            digitalWrite(0,LOW);
+
+            if (!watchdogActive || watchdogTimer <= WD_TIMEOUT_RESCATE)
+            {
+                robot.steer(speed, FORWARD, steer);
+            }
+            digitalWrite(0, LOW);
 
             if (green_state == 6) // Recoleccion Pelota negra
             {
@@ -1331,9 +1185,9 @@ void loop()
                 nonBlockingDelay(1000);
                 runTime(30,FORWARD,0,200);
                 runTime(30,BACKWARD,0,200);
-                 ball_counter++;
+                ball_counter++;
             }
-            if (green_state == 7)            { // Recoleccion Pelota platea
+            if (green_state == 7) { // Recoleccion Pelota plateada
                 digitalWrite(RELAY, HIGH);
                 runTime(0,FORWARD,0,1000);
                 claw.lower();
@@ -1358,39 +1212,38 @@ void loop()
                 ball_counter++;
             }
 
-            if (ball_counter>= 3 && depositando==false)
+            if (ball_counter >= 3 && depositando == false)
             {
                 digitalWrite(RELAY, HIGH);
                 Serial5.write(248);
-                depositando=true;
+                depositando = true;
                 serialEvent5();
                 robot.steer(speed, FORWARD, steer);   
             }
-            if(green_state == 9)//verde
-                {
-                    digitalWrite(RELAY, HIGH);
-                    runAngle(20,FORWARD,180);
-                    runTime(10,BACKWARD,0,2000);
-                    claw.depositRight();
-                    nonBlockingDelay(2000);
-                    claw.depositCenter();
-                    runTime(0,FORWARD,0,500);
-                    runDistance(30,FORWARD,4+60);
-                    veces_deposit++;
-                }
-            if (green_state == 8)//rojo
-                {
-                    digitalWrite(RELAY, HIGH);
-                    runAngle(20,FORWARD,180);
-                    runTime(10,BACKWARD,0,2000);
-                    claw.depositLeft();
-                    nonBlockingDelay(2000);
-                    claw.depositCenter();
-                    runTime(0,FORWARD,0,500);
-                    runDistance(30,FORWARD,40);
-                    veces_deposit++;
-
-                }
+            if(green_state == 9) // verde
+            {
+                digitalWrite(RELAY, HIGH);
+                runAngle(20,FORWARD,180);
+                runTime(10,BACKWARD,0,2000);
+                claw.depositRight();
+                nonBlockingDelay(2000);
+                claw.depositCenter();
+                runTime(0,FORWARD,0,500);
+                runDistance(30,FORWARD,4+60);
+                veces_deposit++;
+            }
+            if (green_state == 8) // rojo
+            {
+                digitalWrite(RELAY, HIGH);
+                runAngle(20,FORWARD,180);
+                runTime(10,BACKWARD,0,2000);
+                claw.depositLeft();
+                nonBlockingDelay(2000);
+                claw.depositCenter();
+                runTime(0,FORWARD,0,500);
+                runDistance(30,FORWARD,40);
+                veces_deposit++;
+            }
             
             if (veces_deposit == 2)
             {
@@ -1408,7 +1261,7 @@ void loop()
                         digitalWrite(RELAY, HIGH);
                         runTime(0, FORWARD, 0, 1000); 
                         if(pared == "left"){
-                           digitalWrite(RELAY, HIGH);
+                            digitalWrite(RELAY, HIGH);
                             runAngle(25, FORWARD, 90);
                         }
                         if(pared == "right"){
@@ -1427,25 +1280,17 @@ void loop()
                             if(left_distance < right_distance)
                             {
                                 digitalWrite(RELAY, HIGH);
-                                    
                                 runAngle(25,FORWARD,-90);
                             }
                             else if(right_distance<left_distance)
                             {
-                                    digitalWrite(RELAY, HIGH);
-                                    runAngle(25,FORWARD,-90);
+                                digitalWrite(RELAY, HIGH);
+                                runAngle(25,FORWARD,-90);
                             }
-                        }
-                    }
-                } // end inner while
-            }
-            /*if(green_state == 10)
-                { 
-                    estado == "salida"
-                    runTime(0,BACKWARD,0,3000);
-
-                }*/
-            
-        } // end while (rutina == "rescate" && digitalRead(32) == 0)
-    } // end else (principal del loop)
-} // end loop()
+                        }//
+                    }// end if alineado
+                }// end while switch on
+            }// end if veces_deposit
+        }// end while rutina rescate
+    }// end else switch on
+}// end loop

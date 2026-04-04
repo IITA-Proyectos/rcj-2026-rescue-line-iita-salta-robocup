@@ -104,14 +104,40 @@ if USE_ZERODCE:
     print("Cargando Zero-DCE...")
     _enhancer = ZeroDCE(ZERODCE_PATH, patch_size=(YOLO_IMGSZ, YOLO_IMGSZ), num_threads=2)
     print("Zero-DCE listo.")
+ENABLE_ANTIFLASH = True
+
+def anti_flash_preprocess(img_bgr, v_flash=215, s_low=60, compress=0.45):
+    hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
+    h, s, v = cv2.split(hsv)
+    s = s.astype(np.float32)
+    v = v.astype(np.float32)
+    
+    flash_mask = (v >= v_flash) & (s <= s_low)
+    
+    if not np.any(flash_mask):
+        return img_bgr
+        
+    mask_blur = flash_mask.astype(np.uint8) * 255
+    mask_blur = cv2.GaussianBlur(mask_blur, (5,5), 0)
+    alpha = mask_blur.astype(np.float32) / 255.0
+
+    v = v * (1 - alpha) + (v_flash + (v - v_flash) * compress) * alpha
+
+    hsv[:, :, 1] = s.astype(np.uint8)
+    hsv[:, :, 2] = v.astype(np.uint8)
+    return cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
 
 def enhance(img_bgr, use_zerodce=False):
     if use_zerodce:
         rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
         rgb = _enhancer.enhance(rgb, gain=ZERODCE_GAIN)
-        return cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
+        out = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
     else:
-        return agcwd(img_bgr)
+        out = img_bgr
+    if ENABLE_ANTIFLASH:
+        out = anti_flash_preprocess(out)
+    return agcwd(out)
+
 
 
 # ---- Inicializar TFLite global + warmup ----
@@ -228,16 +254,16 @@ def modo_rescate():
     HEADLESS     = False
 
     last_target_box      = None
-    CENTER_TOLERANCE_PX  = 10
-    STOP_WIDTH_RATIO     = 0.20
-    STOP_WIDTH_RATIO_BOX = 0.93
+    CENTER_TOLERANCE_PX  = 8
+    STOP_WIDTH_RATIO     = 0.21
+    STOP_WIDTH_RATIO_BOX = 0.98
     RESUME_WIDTH_RATIO   = 0.18
     is_stopped           = False
 
     CLASS_THRESH = {
         0: 0.45,
         1: 0.45,
-        2: 0.2,
+        2: 0.5,
         3: 0.6
     }
 
@@ -375,8 +401,9 @@ def modo_rescate():
             if frame_idx % DETECT_EVERY == 0:
                 small = enhance(small, use_zerodce=USE_ZERODCE)
             else:
+                if ENABLE_ANTIFLASH:
+                    small = anti_flash_preprocess(small)
                 small = agcwd(small)
-
             enhanced_frame = cv2.resize(small, (w, h))
 
             if frame_idx % DETECT_EVERY == 0:
@@ -455,7 +482,6 @@ def modo_rescate():
                 if ser.in_waiting > 0:
                     data = ser.read()
                     if data == bytes([ACK_BYTE]):
-                        # ACK del Teensy: actualizar timestamp del watchdog
                         _actualizar_ack()
                     elif data == b'\xff':
                         print("serial monitor: switch apagado")
@@ -604,12 +630,22 @@ def modo_rescate():
     try:
         main_loop()
     finally:
-        stop_event.set()
-        serial_stop_evt.set()
-        stop_rescate = False
-        tcap.join(timeout=1)
-        tinf.join(timeout=1)
-        t_serial_mon.join(timeout=0.5)
+            stop_event.set()
+            serial_stop_evt.set()
+            stop_rescate = False
+            
+            # --- FIX ZOMBI: Drenar colas para destrabar los hilos ---
+            while not frame_q.empty():
+                try: frame_q.get_nowait()
+                except: pass
+            while not result_q.empty():
+                try: result_q.get_nowait()
+                except: pass
+            # --------------------------------------------------------
+
+            tcap.join(timeout=1)
+            tinf.join(timeout=1)
+            t_serial_mon.join(timeout=0.5)
 
 
 # -----------------------------------------------
@@ -625,8 +661,7 @@ while True:
             if data == b'\xf9':
                 estado = 'linea'
             elif data == bytes([ACK_BYTE]):
-                _actualizar_ack()   # mantener watchdog actualizado en espera
-            ser.reset_input_buffer()
+                _actualizar_ack()
 
     while estado == 'rescate':
         modo_rescate()
@@ -729,11 +764,17 @@ while True:
         if silver_line:
             estado = 'rescate'
 
-        if ser.in_waiting > 0:
+        # FIX: while en lugar de if para drenar el buffer completo cada iteracion.
+        # Con if, si el Teensy envia ~30 ACKs/s y el loop de vision tarda ~25ms,
+        # el buffer se acumula y el watchdog reporta falsos timeouts.
+        # El break al detectar 0xFF es critico: evita procesar bytes de un estado
+        # que ya cambio si el buffer contiene [ACK, ACK, 0xFF, ACK].
+        while ser.in_waiting > 0:
             data = ser.read()
             if data == b'\xff':
                 estado = 'esperando'
                 print("cambiando estado")
+                break  # salir inmediatamente: el estado ya cambio
             elif data == bytes([ACK_BYTE]):
                 _actualizar_ack()
 
