@@ -141,6 +141,7 @@ public:
     // drive() continuo — no termina solo, llamar stop()
     // FIX #2: ahora inicializa timers correctamente
     void drive(float speed_mm_s, float turn_rate_deg_s);
+    void setMotionTimeout(unsigned long ms) { _motion_timeout_ms = ms; }
 
     // stop() — COAST: rueda libre
     //          BRAKE: freno activo (steer(0,0,0))

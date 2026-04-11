@@ -75,12 +75,17 @@ VL53L0X right_tof; // Sensor 2
 int distance_left_tof;
 int distance_right_tof;
 float angulo_rescate = 0;
+int last_right_distance = 0;
+int right_jump_counter = 0;
+
 float centrar = 0;
 String pared="";
 bool alineado=false;
 bool depositando=false;
 int veces_deposit=2;
 int ball_counter=2;
+bool evacuacion_iniciada=false;
+bool evacuacion_straight=false;
 #define SONAR_NUM 3      // Number of sensors.
 #define MAX_DISTANCE 150 // Maximum distance (in cm) to ping.
 
@@ -486,6 +491,7 @@ void resetear_bno()
             ;
     }
     bno.setExtCrystalUse(true);
+    robot.setIMU(&bno);
     delay(200);
 }
 
@@ -612,6 +618,7 @@ void setup()
     right_tof.init();
     right_tof.setTimeout(500);
     right_tof.startContinuous();
+    robot.setIMU(&bno);
 
     // Inicializar la garra después de setup
     claw.begin();
@@ -632,8 +639,13 @@ void loop()
         esquinas_negro[2] = 0;
         first_rescate = 1;
         final_rescate = 1;
+        evacuacion_iniciada = false;
+        evacuacion_straight = false;
         action = 7;
         startUp = false;
+        last_right_distance = 0;
+        right_jump_counter = 0;
+
         taskDone = true;
         Serial5.write(255);
         while (true)
@@ -672,6 +684,8 @@ void loop()
         // Serial5.write(254);
         startUp = true;
         rutina = "linea";
+        evacuacion_iniciada = false;
+        evacuacion_straight = false;
         claw.lift();
         claw.depositCenter();
         action = 7;
@@ -1041,50 +1055,13 @@ void loop()
             
             if (veces_deposit == 2)
             {
-                digitalWrite(RELAY, HIGH);
-                runTime(0,BACKWARD,0,3000);
-                claw.close();
-                runTime(0,FORWARD,0,1000);
-                float diferencia = calcularDiferenciaAngulo(leer_yaw(), angulo_rescate);
-                runAngle(30, FORWARD, diferencia);
-                while(digitalRead(32) == 0){
-                    leer_ultrasonidos();
-                    robot.steer(25, FORWARD, 0); 
-
-                    if(!alineado && front_distance < 12){
-                        digitalWrite(RELAY, HIGH);
-                        runTime(0, FORWARD, 0, 1000); 
-                        if(pared == "left"){
-                           digitalWrite(RELAY, HIGH);
-                            runAngle(25, FORWARD, 90);
-                        }
-                        if(pared == "right"){
-                            digitalWrite(RELAY, HIGH);
-                            runAngle(25, FORWARD, -90);
-                        }
-                        alineado = true; 
-                    }
-                    if(alineado){
-                        digitalWrite(RELAY, HIGH);
-                        leer_ultrasonidos();
-                        robot.steer(25,FORWARD,0);
-                        if(front_distance<12){
-                            leer_ultrasonidos();
-                            runTime(20,FORWARD,0,200);
-                            if(left_distance < right_distance)
-                            {
-                                digitalWrite(RELAY, HIGH);
-                                    
-                                runAngle(25,FORWARD,-90);
-                            }
-                            else if(right_distance<left_distance)
-                            {
-                                    digitalWrite(RELAY, HIGH);
-                                    runAngle(25,FORWARD,-90);
-                            }
-                        }
-                    }
-                } // end inner while
+                // Terminamos deposito, pasamos a evacuacion
+                if (!evacuacion_iniciada) {
+                    Serial5.write(247); // avisar a Raspberry: buscar salida
+                    evacuacion_iniciada = true;
+                }
+                rutina = "evacuacion";
+                break;
             }
             /*if(green_state == 10)
                 { 
@@ -1094,5 +1071,57 @@ void loop()
                 }*/
             
         } // end while (rutina == "rescate" && digitalRead(32) == 0)
+        while (rutina == "evacuacion" && digitalRead(32) == 0)
+        {
+            digitalWrite(RELAY, LOW);
+            serialEvent5();
+            leer_ultrasonidos();
+
+            if (last_right_distance != 0) {
+                if (right_distance == 0 || (right_distance - last_right_distance) > 30) {
+                    right_jump_counter++;
+                } else {
+                    right_jump_counter = 0;
+                }
+            }
+            last_right_distance = right_distance;
+
+            if (right_jump_counter >= 3) {
+                right_jump_counter = 0;
+                robot.cancelMotion();
+                runAngle(30, FORWARD, 90);
+                robot.startStraight(100000, 78.5);
+            }
+
+            // Detectar pared frontal y analizar lateral derecho
+            if (green_state == 0 && front_distance != 0 && front_distance < 20) {
+                robot.cancelMotion();
+                if (right_distance == 0 || right_distance > 120) {
+                    runAngle(30, FORWARD, 90);
+                } else {
+                    runAngle(30, FORWARD, -90);
+                }
+                right_jump_counter = 0;
+                robot.startStraight(100000, 78.5);
+            }
+
+            if (!evacuacion_straight) {
+                robot.setMotionTimeout(999999);
+                robot.startStraight(100000, 78.5);
+                evacuacion_straight = true;
+            }
+
+            robot.update();
+
+            if (green_state == 8 || green_state == 9) {
+                robot.cancelMotion();
+                runAngle(30, FORWARD, -90);
+                robot.startStraight(100000, 78.5);
+            }
+
+            if (green_state == 20) {
+                // salida
+            }
+        }
     } // end else (principal del loop)
 } // end loop()

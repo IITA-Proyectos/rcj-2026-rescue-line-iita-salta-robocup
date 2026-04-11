@@ -381,6 +381,9 @@ void DriveBase::_updateStraight(float dt_s)
 
     float speed_signed = (_target_dist >= 0)
                          ? _profile_vel : -_profile_vel;
+    // Al ir en reversa, la correccion de heading debe invertirse
+    // porque la relacion entre steer y yaw se invierte.
+    if (speed_signed < 0) head_corr = -head_corr;
     _applyDifferential(speed_signed, head_corr);
 }
 
