@@ -10,7 +10,6 @@
 #include <Adafruit_I2CDevice.h>
 #include <claw.h>
 #include "Adafruit_APDS9960.h"
-#include <NewPing.h>
 #include <Wire.h>
 #include <VL53L0X.h>
 
@@ -75,19 +74,39 @@ VL53L0X right_tof; // Sensor 2
 int distance_left_tof;
 int distance_right_tof;
 float angulo_rescate = 0;
+int last_right_distance = 0;
+int right_jump_counter = 0;
+
 float centrar = 0;
 String pared="";
 bool alineado=false;
 bool depositando=false;
 int veces_deposit=2;
 int ball_counter=2;
-#define SONAR_NUM 3      // Number of sensors.
-#define MAX_DISTANCE 150 // Maximum distance (in cm) to ping.
+bool evacuacion_iniciada=false;
+bool evacuacion_straight=false;
 
-NewPing sonar[SONAR_NUM] = {     // Sensor object array.
-    NewPing(8, 9, MAX_DISTANCE), // Each sensor's trigger pin, echo pin, and max distance to ping.
-    NewPing(11, 10, MAX_DISTANCE),
-    NewPing(39, 33, MAX_DISTANCE)};
+constexpr uint8_t SONAR_NUM = 3;
+constexpr uint8_t SONAR_FRONT = 0;
+constexpr uint8_t SONAR_LEFT = 1;
+constexpr uint8_t SONAR_RIGHT = 2;
+constexpr uint8_t SONAR_FRONT_TRIG = 8;
+constexpr uint8_t SONAR_FRONT_ECHO = 9;
+constexpr uint8_t SONAR_LEFT_TRIG = 11;
+constexpr uint8_t SONAR_LEFT_ECHO = 10;
+constexpr uint8_t SONAR_RIGHT_TRIG = 39;
+constexpr uint8_t SONAR_RIGHT_ECHO = 33;
+constexpr uint16_t SONAR_MAX_DISTANCE_CM = 150;
+constexpr uint32_t SONAR_US_ROUNDTRIP_CM = 57UL;
+constexpr uint32_t SONAR_TIMEOUT_US = (SONAR_MAX_DISTANCE_CM + 1UL) * SONAR_US_ROUNDTRIP_CM + 2000UL;
+constexpr uint32_t SONAR_TRIGGER_SPACING_US = 20000UL;
+
+volatile uint32_t sonar_echo_rise_us[SONAR_NUM] = {0, 0, 0};
+volatile uint32_t sonar_trigger_us[SONAR_NUM] = {0, 0, 0};
+volatile uint16_t sonar_distance_cm[SONAR_NUM] = {0, 0, 0};
+volatile bool sonar_measurement_active[SONAR_NUM] = {false, false, false};
+elapsedMicros sonar_scheduler_clock;
+uint8_t sonar_next_sensor = 0;
 
 int front_distance;
 int left_distance;
@@ -95,11 +114,191 @@ int right_distance;
 
 // -----------  FUNCTIONS  -----------
 // ULTRASONIDOS FRENTE IZQ DER
+void FASTRUN sonar_front_echo_isr()
+{
+    uint32_t now = micros();
+    if (digitalReadFast(SONAR_FRONT_ECHO))
+    {
+        sonar_echo_rise_us[SONAR_FRONT] = now;
+        return;
+    }
+
+    uint32_t rise = sonar_echo_rise_us[SONAR_FRONT];
+    if (rise == 0)
+        return;
+
+    uint32_t pulse_us = now - rise;
+    uint16_t cm = pulse_us / SONAR_US_ROUNDTRIP_CM;
+    sonar_distance_cm[SONAR_FRONT] = (cm > 0 && cm <= SONAR_MAX_DISTANCE_CM) ? cm : 0;
+    sonar_echo_rise_us[SONAR_FRONT] = 0;
+    sonar_measurement_active[SONAR_FRONT] = false;
+}
+
+void FASTRUN sonar_left_echo_isr()
+{
+    uint32_t now = micros();
+    if (digitalReadFast(SONAR_LEFT_ECHO))
+    {
+        sonar_echo_rise_us[SONAR_LEFT] = now;
+        return;
+    }
+
+    uint32_t rise = sonar_echo_rise_us[SONAR_LEFT];
+    if (rise == 0)
+        return;
+
+    uint32_t pulse_us = now - rise;
+    uint16_t cm = pulse_us / SONAR_US_ROUNDTRIP_CM;
+    sonar_distance_cm[SONAR_LEFT] = (cm > 0 && cm <= SONAR_MAX_DISTANCE_CM) ? cm : 0;
+    sonar_echo_rise_us[SONAR_LEFT] = 0;
+    sonar_measurement_active[SONAR_LEFT] = false;
+}
+
+void FASTRUN sonar_right_echo_isr()
+{
+    uint32_t now = micros();
+    if (digitalReadFast(SONAR_RIGHT_ECHO))
+    {
+        sonar_echo_rise_us[SONAR_RIGHT] = now;
+        return;
+    }
+
+    uint32_t rise = sonar_echo_rise_us[SONAR_RIGHT];
+    if (rise == 0)
+        return;
+
+    uint32_t pulse_us = now - rise;
+    uint16_t cm = pulse_us / SONAR_US_ROUNDTRIP_CM;
+    sonar_distance_cm[SONAR_RIGHT] = (cm > 0 && cm <= SONAR_MAX_DISTANCE_CM) ? cm : 0;
+    sonar_echo_rise_us[SONAR_RIGHT] = 0;
+    sonar_measurement_active[SONAR_RIGHT] = false;
+}
+
+bool sonar_echo_pin_ready(uint8_t sensor)
+{
+    switch (sensor)
+    {
+    case SONAR_FRONT:
+        return digitalRead(SONAR_FRONT_ECHO) == LOW;
+    case SONAR_LEFT:
+        return digitalRead(SONAR_LEFT_ECHO) == LOW;
+    case SONAR_RIGHT:
+        return digitalRead(SONAR_RIGHT_ECHO) == LOW;
+    default:
+        return false;
+    }
+}
+
+void sonar_trigger_sensor(uint8_t sensor)
+{
+    uint8_t trig_pin = SONAR_FRONT_TRIG;
+
+    switch (sensor)
+    {
+    case SONAR_FRONT:
+        trig_pin = SONAR_FRONT_TRIG;
+        break;
+    case SONAR_LEFT:
+        trig_pin = SONAR_LEFT_TRIG;
+        break;
+    case SONAR_RIGHT:
+        trig_pin = SONAR_RIGHT_TRIG;
+        break;
+    }
+
+    digitalWrite(trig_pin, LOW);
+    delayMicroseconds(2);
+    digitalWrite(trig_pin, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(trig_pin, LOW);
+}
+
+void sonar_begin()
+{
+    pinMode(SONAR_FRONT_TRIG, OUTPUT);
+    pinMode(SONAR_LEFT_TRIG, OUTPUT);
+    pinMode(SONAR_RIGHT_TRIG, OUTPUT);
+    pinMode(SONAR_FRONT_ECHO, INPUT);
+    pinMode(SONAR_LEFT_ECHO, INPUT);
+    pinMode(SONAR_RIGHT_ECHO, INPUT);
+
+    digitalWrite(SONAR_FRONT_TRIG, LOW);
+    digitalWrite(SONAR_LEFT_TRIG, LOW);
+    digitalWrite(SONAR_RIGHT_TRIG, LOW);
+
+    attachInterrupt(digitalPinToInterrupt(SONAR_FRONT_ECHO), sonar_front_echo_isr, CHANGE);
+    attachInterrupt(digitalPinToInterrupt(SONAR_LEFT_ECHO), sonar_left_echo_isr, CHANGE);
+    attachInterrupt(digitalPinToInterrupt(SONAR_RIGHT_ECHO), sonar_right_echo_isr, CHANGE);
+
+    sonar_scheduler_clock = SONAR_TRIGGER_SPACING_US;
+}
+
+void sonar_service()
+{
+    uint32_t now_us = micros();
+
+    noInterrupts();
+    front_distance = sonar_distance_cm[SONAR_FRONT];
+    left_distance = sonar_distance_cm[SONAR_LEFT];
+    right_distance = sonar_distance_cm[SONAR_RIGHT];
+    interrupts();
+
+    for (uint8_t sensor = 0; sensor < SONAR_NUM; sensor++)
+    {
+        bool expired = false;
+
+        noInterrupts();
+        if (sonar_measurement_active[sensor] && (uint32_t)(now_us - sonar_trigger_us[sensor]) > SONAR_TIMEOUT_US)
+        {
+            sonar_measurement_active[sensor] = false;
+            sonar_echo_rise_us[sensor] = 0;
+            sonar_distance_cm[sensor] = 0;
+            expired = true;
+        }
+        interrupts();
+
+        if (expired)
+        {
+            if (sensor == SONAR_FRONT)
+                front_distance = 0;
+            else if (sensor == SONAR_LEFT)
+                left_distance = 0;
+            else
+                right_distance = 0;
+        }
+    }
+
+    if (sonar_scheduler_clock < SONAR_TRIGGER_SPACING_US)
+        return;
+
+    for (uint8_t tries = 0; tries < SONAR_NUM; tries++)
+    {
+        uint8_t sensor = (sonar_next_sensor + tries) % SONAR_NUM;
+        bool busy = false;
+
+        noInterrupts();
+        busy = sonar_measurement_active[sensor];
+        interrupts();
+
+        if (busy || !sonar_echo_pin_ready(sensor))
+            continue;
+
+        noInterrupts();
+        sonar_measurement_active[sensor] = true;
+        sonar_echo_rise_us[sensor] = 0;
+        sonar_trigger_us[sensor] = micros();
+        interrupts();
+
+        sonar_trigger_sensor(sensor);
+        sonar_next_sensor = (sensor + 1) % SONAR_NUM;
+        sonar_scheduler_clock = 0;
+        break;
+    }
+}
+
 void leer_ultrasonidos()
 {
-    front_distance = sonar[0].ping_cm();
-    left_distance = sonar[1].ping_cm();
-    right_distance = sonar[2].ping_cm();
+    sonar_service();
 }
 
 void imprimir_ultrasonidos()
@@ -242,6 +441,7 @@ void runTime(int speed, int dir, double steer, unsigned long long time)
     unsigned long long startTime = millis();
     while ((millis() - startTime) < time)
     {
+        leer_ultrasonidos();
         robot.steer(speed, dir, steer);
         digitalWrite(13, HIGH);
         if (Serial5.available() > 0)
@@ -274,6 +474,7 @@ void runAngle(int speed, int dir, double angle)
 
     while (true)
     {
+        leer_ultrasonidos();
         bno.getEvent(&event);
         float currentAngle = event.orientation.x;
         if (digitalRead(32) == 1)
@@ -367,6 +568,7 @@ void runDistance(int speed, int dir, int Distance) {
     
     if (dir == FORWARD) {
         while (true) {
+            leer_ultrasonidos();
             int32_t frCount = fr.pulseCount;
             int32_t flCount = fl.pulseCount;
             if (frCount >= encoder || flCount >= encoder) break;
@@ -392,6 +594,7 @@ void runDistance(int speed, int dir, int Distance) {
     }else{
          while (true) 
         {
+            leer_ultrasonidos();
             int32_t frCount = fr.pulseCount;
             int32_t flCount = fl.pulseCount;
 
@@ -612,6 +815,7 @@ void setup()
     right_tof.init();
     right_tof.setTimeout(500);
     right_tof.startContinuous();
+    sonar_begin();
 
     // Inicializar la garra después de setup
     claw.begin();
@@ -632,8 +836,13 @@ void loop()
         esquinas_negro[2] = 0;
         first_rescate = 1;
         final_rescate = 1;
+        evacuacion_iniciada = false;
+        evacuacion_straight = false;
         action = 7;
         startUp = false;
+        last_right_distance = 0;
+        right_jump_counter = 0;
+
         taskDone = true;
         Serial5.write(255);
         while (true)
@@ -671,11 +880,13 @@ void loop()
         runTime(20, FORWARD, 0, 300);
         // Serial5.write(254);
         startUp = true;
-        rutina = "linea";
+        rutina = "evacuacion";
+        evacuacion_iniciada = false;
+        evacuacion_straight = false;
         claw.lift();
         claw.depositCenter();
         action = 7;
-        Serial5.write(249);
+        Serial5.write(247);
 
     }
     else
@@ -1038,53 +1249,16 @@ void loop()
                     veces_deposit++;
 
                 }
-            
-            if (veces_deposit == 2)
+                veces_deposit=2;
+                if (veces_deposit == 2)
             {
-                digitalWrite(RELAY, HIGH);
-                runTime(0,BACKWARD,0,3000);
-                claw.close();
-                runTime(0,FORWARD,0,1000);
-                float diferencia = calcularDiferenciaAngulo(leer_yaw(), angulo_rescate);
-                runAngle(30, FORWARD, diferencia);
-                while(digitalRead(32) == 0){
-                    leer_ultrasonidos();
-                    robot.steer(25, FORWARD, 0); 
-
-                    if(!alineado && front_distance < 12){
-                        digitalWrite(RELAY, HIGH);
-                        runTime(0, FORWARD, 0, 1000); 
-                        if(pared == "left"){
-                           digitalWrite(RELAY, HIGH);
-                            runAngle(25, FORWARD, 90);
-                        }
-                        if(pared == "right"){
-                            digitalWrite(RELAY, HIGH);
-                            runAngle(25, FORWARD, -90);
-                        }
-                        alineado = true; 
-                    }
-                    if(alineado){
-                        digitalWrite(RELAY, HIGH);
-                        leer_ultrasonidos();
-                        robot.steer(25,FORWARD,0);
-                        if(front_distance<12){
-                            leer_ultrasonidos();
-                            runTime(20,FORWARD,0,200);
-                            if(left_distance < right_distance)
-                            {
-                                digitalWrite(RELAY, HIGH);
-                                    
-                                runAngle(25,FORWARD,-90);
-                            }
-                            else if(right_distance<left_distance)
-                            {
-                                    digitalWrite(RELAY, HIGH);
-                                    runAngle(25,FORWARD,-90);
-                            }
-                        }
-                    }
-                } // end inner while
+                // Terminamos deposito, pasamos a evacuacion
+                if (!evacuacion_iniciada) {
+                    Serial5.write(247); // avisar a Raspberry: buscar salida
+                    evacuacion_iniciada = true;
+                }
+                rutina = "evacuacion";
+                break;
             }
             /*if(green_state == 10)
                 { 
@@ -1094,5 +1268,50 @@ void loop()
                 }*/
             
         } // end while (rutina == "rescate" && digitalRead(32) == 0)
+        while (rutina == "evacuacion" && digitalRead(32) == 0)
+        {
+            digitalWrite(RELAY, HIGH);
+            serialEvent5();
+            leer_ultrasonidos();
+            robot.steer(20, FORWARD, 0);
+            if (last_right_distance != 0) {
+                if (right_distance == 0 || (right_distance - last_right_distance) > 30) {
+                    right_jump_counter++;
+                } else {
+                    right_jump_counter = 0;
+                }
+            }
+            last_right_distance = right_distance;
+
+            if (right_jump_counter >= 3) {
+                right_jump_counter = 0;
+                robot.steer(0, FORWARD, 0);
+                runAngle(30, FORWARD, 90);
+            }
+
+            if (green_state == 0 && front_distance != 0 && front_distance < 15) {
+                    runAngle(30, FORWARD, 90);
+            }
+            if (green_state == 8 || green_state == 9) {
+                resetear_bno();
+                runAngle(30, FORWARD, 90);
+                runDistance(30, FORWARD, 27);
+                runAngle(30, FORWARD, -90);
+                leer_ultrasonidos();
+                 while (digitalRead(32) == 0 && front_distance != 0 && front_distance > 15) {
+                    robot.steer(30, FORWARD, 0);
+                    leer_ultrasonidos();
+                }
+                runAngle(30, FORWARD, 180);
+                runDistance(15, BACKWARD, 5); 
+                runAngle(30, FORWARD, -90);
+                green_state = 0;
+
+            }
+
+            if (green_state == 20) {
+                // salida
+            }
+        }
     } // end else (principal del loop)
 } // end loop()
