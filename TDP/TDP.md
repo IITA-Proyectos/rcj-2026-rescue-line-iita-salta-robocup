@@ -150,7 +150,9 @@ The robot includes a custom PCB designed by the team. The PCB improves cable org
 
 ### 4.3 Power System
 
-The robot is powered by a **12 V LiPo battery with 2200 mAh capacity**. The power system feeds the drivetrain and the electronics through regulated distribution.
+The robot is powered by a **11.1V LiPo battery with 2200 mAh capacity**. The power system feeds the drivetrain and the electronics through regulated distribution.
+
+<img src="batery.jpg" alt="Batery of robot" style="transform: rotate(90deg);">
 
 We use two independent switches:
 
@@ -166,6 +168,11 @@ A red LED indicates the system status:
 - blinking: program paused
 - steady on: program running correctly
 - off: software did not start
+
+<div style="display: flex; gap: 10px;">
+  <img src="Led_high.jpg" alt="High" width="300">
+  <img src="Led_Low.jpg" alt="Low" width="300">
+</div>
 
 This simple indicator helps us diagnose problems quickly during setup.
 
