@@ -1,3 +1,9 @@
+// ##################################################
+//
+// ### IMPORTACION DE LIBRERIAS
+//
+// ##################################################
+
 #include <Arduino.h>
 #include <drivebase.h>
 #include <PID.h>
@@ -17,12 +23,40 @@ void ISR2() { fl.updatePulse(); }
 void ISR3() { br.updatePulse(); }
 void ISR4() { fr.updatePulse(); }
 void reset_enconder(){
+    /*
+    Technical description.
+
+    Reset encoder pulse counters for all motors.
+
+    Parameters:
+    None
+
+    Returns:
+    void
+
+    Side effects:
+    - Clears encoder accumulators.
+    */
     bl.resetPulseCount();
     fl.resetPulseCount();
     br.resetPulseCount();
     fr.resetPulseCount();
 }
 void setup() {
+  /*
+  Technical description.
+
+  Initialize drivebase, interrupts, pins, and serial ports for runtime test.
+
+  Parameters:
+  None
+
+  Returns:
+  void
+
+  Side effects:
+  - Configures hardware and communication interfaces.
+  */
   robot.steer(0, 0, 0);
   attachInterrupt(digitalPinToInterrupt(27), ISR1, CHANGE);
   attachInterrupt(digitalPinToInterrupt(5), ISR2, CHANGE);
@@ -37,6 +71,23 @@ void setup() {
 
 void runTime(int speed, int dir, double steer, unsigned long long time)
 {
+  /*
+  Technical description.
+
+  Drive robot at fixed command for a specified duration with switch safety.
+
+  Parameters:
+  speed (int): motor speed.
+  dir (int): direction flag.
+  steer (double): steering ratio.
+  time (unsigned long long): duration in milliseconds.
+
+  Returns:
+  void
+
+  Side effects:
+  - Commands motors and writes Serial5 when switch is off.
+  */
   unsigned long long startTime = millis();
   // elapsedMillis startTime;
   while ((millis() - startTime) < time)
@@ -57,6 +108,23 @@ void runTime(int speed, int dir, double steer, unsigned long long time)
 
 void runTime2(int speed, int dir, double steer, unsigned long long time)
 {
+  /*
+  Technical description.
+
+  Drive robot and continuously signal Serial5 regardless of switch.
+
+  Parameters:
+  speed (int): motor speed.
+  dir (int): direction flag.
+  steer (double): steering ratio.
+  time (unsigned long long): duration in milliseconds.
+
+  Returns:
+  void
+
+  Side effects:
+  - Drives motors and writes Serial5 codes.
+  */
   unsigned long long startTime = millis();
   // elapsedMillis startTime;
   while ((millis() - startTime) < time)
@@ -71,6 +139,23 @@ void runTime2(int speed, int dir, double steer, unsigned long long time)
 
 
 void loop() {
+  // Main system loop.
+  // Executes continuous real-time processing.
+  /*
+  Technical description.
+
+  Manage safety switch, startup blinking, and repetitive motion pattern.
+
+  Parameters:
+  None
+
+  Returns:
+  void
+
+  Side effects:
+  - Drives motors and status LED.
+  - Writes notifications to Serial5.
+  */
   if (digitalRead(32) == 1) { // Apagado
     digitalWrite(13, LOW); // Apagar LED de depuración
     Serial5.write(255); // Informar que el robot está apagado

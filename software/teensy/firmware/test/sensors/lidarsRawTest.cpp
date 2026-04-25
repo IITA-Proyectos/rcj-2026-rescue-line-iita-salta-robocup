@@ -1,3 +1,9 @@
+// ##################################################
+//
+// ### IMPORTACION DE LIBRERIAS
+//
+// ##################################################
+
 #include <Wire.h>
 #include <VL53L0X.h>
 
@@ -6,6 +12,21 @@ VL53L0X right_tof;  // Sensor 2
 
 void setup()
 {
+  /*
+  Technical description.
+
+  Initialize dual I2C buses and configure two VL53L0X sensors for continuous mode.
+
+  Parameters:
+  None
+
+  Returns:
+  void
+
+  Side effects:
+  - Starts Serial, Wire1, and Wire2.
+  - Sets sensor addresses and begins continuous ranging.
+  */
   Serial.begin(9600);
   Wire1.begin();   // Initialize the first I2C bus
   Wire2.begin();  // Initialize the second I2C bus
@@ -29,6 +50,23 @@ void setup()
 
 void loop()
 {
+  // Main system loop.
+  // Executes continuous real-time processing.
+  /*
+  Technical description.
+
+  Read continuous distance measurements from both TOF sensors and print them.
+
+  Parameters:
+  None
+
+  Returns:
+  void
+
+  Side effects:
+  - Queries TOF sensors.
+  - Outputs readings to Serial.
+  */
   int distance_left_tof = left_tof.readRangeContinuousMillimeters();
   int distance_right_tof = right_tof.readRangeContinuousMillimeters();
 

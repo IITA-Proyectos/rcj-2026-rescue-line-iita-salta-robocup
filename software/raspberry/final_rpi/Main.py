@@ -1,43 +1,82 @@
+##################################################
+
+### IMPORTACION DE LIBRERIAS
+
+##################################################
+
+# OpenCV: image processing, feature extraction, drawing and tracking.
 import cv2
+# camthreader: threaded camera capture for continuous frame availability.
 from camthreader import *
+# NumPy: numerical arrays and vectorized computations for masks and geometry.
 import numpy as np
+# math: trigonometric operations for angle calculations.
 import math
+# time: timing utilities for cooldowns and performance.
 import time
+# serial: UART communication with Teensy controller.
 import serial
+# sys: interpreter access and exit handling.
 import sys
+# ultralytics.YOLO: object detection model loading and inference.
 from ultralytics import YOLO
 
 
-debugOriginal = False
-debugBlack = True
-debugGreen = True
-debugBlue = False
-debugHori = False
-record = False
-noise_blob_threshold = 16
-min_square_size = 150
-min_line_size =1000
-fixed_angle_value = 0
-fixed_angle_active = False
-fixed_angle_start_time = 0
-estado='esperando'
+##################################################
 
-vs = WebcamVideoStream(src=0).start()
-ser = serial.Serial('/dev/serial0', 115200)
-lower_black = np.array([0, 0,0])  # BGR
+### CONFIGURACION GLOBAL
+
+##################################################
+
+debugOriginal = False  # Enable display of original frames for visual inspection.
+debugBlack = True      # Enable display of black mask used for line detection.
+debugGreen = True      # Enable display of green mask used for intersection handling.
+debugBlue = False      # Placeholder debug flag for blue detection visuals.
+debugHori = False      # Enable display focused on horizontal lines or horizon masks.
+record = False         # Enable recording or auxiliary windows for debugging.
+noise_blob_threshold = 16  # Minimum blob area to discard noise in mask filtering.
+min_square_size = 150      # Minimum green area (px) to consider a square marker.
+min_line_size =1000        # Minimum black line area to maintain angular correction.
+fixed_angle_value = 0      # Manual override angle used when fixed control is active.
+fixed_angle_active = False # Toggle to enforce fixed_angle_value regardless of detection.
+fixed_angle_start_time = 0 # Timestamp when fixed angle mode was activated.
+estado='esperando'         # Current high-level state machine mode.
+
+##################################################
+
+### DEBUG Y VISUALIZACION
+
+##################################################
+
+# Debug flags enable OpenCV windows for masks and overlays to validate
+# segmentation, steering decisions, and YOLO detections during runtime.
+
+##################################################
+
+### COMUNICACION / IO
+
+##################################################
+
+#
+# Camera input: threaded capture on /dev/video0.
+# Serial output: UART to Teensy on /dev/serial0 at 115200 bps, command packets 255-prefixed.
+#
+vs = WebcamVideoStream(src=0).start()            # Threaded camera stream for low-latency capture.
+ser = serial.Serial('/dev/serial0', 115200)      # UART link to Teensy at 115200 bps.
+lower_black = np.array([0, 0,0])                 # BGR lower bound for black line segmentation.
 upper_black = np.array([90, 90, 90])
-lower_green = np.array([120,90, 100])  # lab
+lower_green = np.array([120,90, 100])            # Lab lower bound for green square detection.
 upper_green = np.array([170,120, 140])
-lower_silver_hsv = np.array([ 79, 16, 46])  # Valores en espacio HSV para detectar el plateado
-upper_silver_hsv = np.array([168, 28, 79])  # Ajusta estos valores si es necesario
-lower_red = np.array([1, 147,159])
-upper_red = np.array([7, 205, 216])
-last_angles = []
+lower_silver_hsv = np.array([ 79, 16, 46])       # HSV lower bound for silver tape detection.
+upper_silver_hsv = np.array([168, 28, 79])       # HSV upper bound for silver tape detection.
+lower_red = np.array([1, 147,159])               # HSV lower bound for red line detection.
+upper_red = np.array([7, 205, 216])              # HSV upper bound for red line detection.
+last_angles = []                                  # Rolling buffer for recent steering angles.
 
-MODEL_PATH = "/home/iita/Desktop/zonasdepositoalta.onnx"
-YOLO_IMGSZ = 256
+MODEL_PATH = "/home/iita/Desktop/zonasdepositoalta.onnx"  # ONNX model for deposit zone detection.
+YOLO_IMGSZ = 256                                             # Input size for YOLO inference.
 
-test_frame = vs.read()
+test_frame = vs.read()                         # Warm-up capture to validate camera readiness.
 
 width, height = 160, 120
 print(width, height)
@@ -66,7 +105,29 @@ model = YOLO(MODEL_PATH, task='detect')
 imagen_negra = np.zeros((YOLO_IMGSZ, YOLO_IMGSZ, 3), dtype=np.uint8)
 model.predict(imagen_negra, imgsz=YOLO_IMGSZ, conf=0.25, iou=0.45, stream=False, verbose=False)
 
+##################################################
+
+### FUNCIONES AUXILIARES
+
+##################################################
+
 def modo_rescate():
+    """
+    Technical description.
+
+    Coordinates rescue mode with detection, tracking, and serial control.
+
+    Parameters:
+    None
+
+    Returns:
+    None
+
+    Side effects:
+    - Starts capture, inference, and serial monitor threads.
+    - Sends command packets over serial.
+    - Opens OpenCV windows when enabled.
+    """
     global last_target_box
     last_target_box = None  
     global is_stopped  
@@ -112,7 +173,22 @@ def modo_rescate():
     is_stopped = False
 
     def make_mosse():
-        """try:
+        """
+        Technical description.
+
+        Create a MOSSE tracker using available OpenCV entry points.
+
+        Parameters:
+        None
+
+        Returns:
+        Any: tracker instance or None when unavailable.
+
+        Side effects:
+        - None.
+        """
+        # Attempt compatibility with OpenCV legacy API
+        try:
             if hasattr(cv2, "legacy") and hasattr(cv2.legacy, "TrackerMOSSE_create"):
                 return cv2.legacy.TrackerMOSSE_create()
         except Exception:
@@ -126,17 +202,59 @@ def modo_rescate():
             if hasattr(cv2, "Tracker_create"):
                 return cv2.Tracker_create("MOSSE")
         except Exception:
-            pass"""
+            pass
         return None
 
     class CentroidTracker:
+        """
+        Technical description.
+
+        Minimal centroid-based tracker to maintain object IDs across frames.
+
+        Parameters:
+        max_lost (int): allowed missed frames before deletion.
+
+        Returns:
+        None
+
+        Side effects:
+        - Maintains internal dictionaries for tracked objects.
+        """
         def __init__(self, max_lost=5):
+            """
+            Technical description.
+
+            Initialize tracker state dictionaries.
+
+            Parameters:
+            max_lost (int): frames tolerated without detection before removal.
+
+            Returns:
+            None
+
+            Side effects:
+            - Initializes counters and storage dictionaries.
+            """
             self.next_object_id = 0
             self.objects = {}
             self.lost = {}
             self.max_lost = max_lost
 
         def register(self, bbox):
+            """
+            Technical description.
+
+            Assign a new ID to a detected bounding box.
+
+            Parameters:
+            bbox (tuple): (x1, y1, x2, y2) coordinates.
+
+            Returns:
+            int: assigned object ID.
+
+            Side effects:
+            - Updates internal tracking dictionaries.
+            """
             oid = self.next_object_id
             self.next_object_id += 1
             self.objects[oid] = bbox
@@ -144,10 +262,38 @@ def modo_rescate():
             return oid
 
         def deregister(self, oid):
+            """
+            Technical description.
+
+            Remove an object ID from tracking tables.
+
+            Parameters:
+            oid (int): object identifier to remove.
+
+            Returns:
+            None
+
+            Side effects:
+            - Modifies objects and lost dictionaries.
+            """
             if oid in self.objects: del self.objects[oid]
             if oid in self.lost: del self.lost[oid]
 
         def update(self, detections):
+            """
+            Technical description.
+
+            Update tracked objects with a new set of detections.
+
+            Parameters:
+            detections (list): list of bounding boxes (x1, y1, x2, y2).
+
+            Returns:
+            list: current tracked objects [{'id': int, 'bbox': tuple}].
+
+            Side effects:
+            - Advances lost counters and registers/deregisters objects.
+            """
             if len(detections) == 0:
                 remove = []
                 for oid in list(self.lost.keys()):
@@ -165,6 +311,20 @@ def modo_rescate():
             object_bboxes = [self.objects[oid] for oid in object_ids]
 
             def centroid(b):
+                """
+                Technical description.
+
+                Compute centroid coordinates for a bounding box.
+
+                Parameters:
+                b (tuple): (x1, y1, x2, y2) bounding box.
+
+                Returns:
+                tuple: (cx, cy) centroid integer coordinates.
+
+                Side effects:
+                - None.
+                """
                 x1,y1,x2,y2 = b
                 return ((x1+x2)//2, (y1+y2)//2)
 
@@ -214,12 +374,45 @@ def modo_rescate():
     stop_event = threading.Event()
 
     def scale_box(box_xyxy, src_w, src_h, in_w=IMGSZ, in_h=IMGSZ):
+        """
+        Technical description.
+
+        Rescale coordinates from model input size back to source frame size.
+
+        Parameters:
+        box_xyxy (tuple): (x1, y1, x2, y2) in inference scale.
+        src_w (int): source frame width.
+        src_h (int): source frame height.
+        in_w (int): inference width (default IMGSZ).
+        in_h (int): inference height (default IMGSZ).
+
+        Returns:
+        tuple: (x1, y1, x2, y2) scaled to source dimensions.
+
+        Side effects:
+        - None.
+        """
         x1, y1, x2, y2 = box_xyxy
         scale_x = src_w / in_w
         scale_y = src_h / in_h
         return int(x1 * scale_x), int(y1 * scale_y), int(x2 * scale_x), int(y2 * scale_y)
 
     def capture_thread():
+        """
+        Technical description.
+
+        Capture frames continuously and push them to the frame queue.
+
+        Parameters:
+        None
+
+        Returns:
+        None
+
+        Side effects:
+        - Reads from camera hardware in a dedicated thread.
+        - Populates frame_q with frames or None sentinel.
+        """
         while not stop_event.is_set():
             frame = vs.read()
             ret = frame is not None
@@ -247,6 +440,21 @@ def modo_rescate():
     }
 
     def infer_thread():
+        """
+        Technical description.
+
+        Run YOLO inference on frames from the queue and push detections.
+
+        Parameters:
+        None
+
+        Returns:
+        None
+
+        Side effects:
+        - Uses GPU/CPU for inference.
+        - Writes detection results into result_q.
+        """
         frame_idx = 0
         while True:
             frame = frame_q.get()
@@ -287,6 +495,21 @@ def modo_rescate():
                 result_q.put(('no_det', frame, None))
             frame_idx += 1
     def select_target_from_list(boxes, estado):
+            """
+            Technical description.
+
+            Filter detections according to current state to choose candidates.
+
+            Parameters:
+            boxes (list): detections containing 'cls' and 'xyxy' keys.
+            estado (str): finite state guiding class preference.
+
+            Returns:
+            dict or None: selected detection or None if no match.
+
+            Side effects:
+            - None.
+            """
             targets = []
 
             if estado == 'rescate':
@@ -308,6 +531,22 @@ def modo_rescate():
             return targets[0]
 
     def choose_stable_target(detections, last_target,estado):
+        """
+        Technical description.
+
+        Maintain target stability by selecting detection nearest to last target.
+
+        Parameters:
+        detections (list): current detection dicts.
+        last_target (dict|None): previously chosen target.
+        estado (str): current state for class filtering.
+
+        Returns:
+        dict or None: stable target selection.
+
+        Side effects:
+        - None.
+        """
         if not detections:
             return None
         if last_target is None:
@@ -327,8 +566,22 @@ def modo_rescate():
 
     serial_stop_evt = threading.Event()
     def serial_monitor_local():
+        """
+        Technical description.
+
+        Monitor serial port for stop command and trigger rescue exit.
+
+        Parameters:
+        None
+
+        Returns:
+        None
+
+        Side effects:
+        - Reads from serial port and updates stop_rescate flag.
+        """
         nonlocal stop_rescate
-        global estado   # <-- necesario para modificar la variable global
+        global estado   # Required to modify global state machine variable.
         while not serial_stop_evt.is_set():
             try:
                 if ser.in_waiting > 0:
@@ -352,6 +605,22 @@ def modo_rescate():
     t_serial_mon.start()
 
     def main_loop():
+        """
+        Technical description.
+
+        Main rescue processing loop using detections or trackers to compute
+        steering commands, render overlays, and transmit serial packets.
+
+        Parameters:
+        None
+
+        Returns:
+        None
+
+        Side effects:
+        - Serial transmissions.
+        - OpenCV visualization when enabled.
+        """
         global last_target_box
         global is_stopped
         global estado
@@ -562,9 +831,29 @@ def modo_rescate():
         tcap.join(timeout=1)
         tinf.join(timeout=1)
         t_serial_mon.join(timeout=0.5)
+
+##################################################
+
+### PROCESAMIENTO PRINCIPAL
+
+##################################################
+
+# Pipeline overview: wait state monitors serial for start code, line-follow
+# state performs color segmentation and steering, and rescue state invokes
+# modo_rescate for detection, tracking, and deposit logic.
+
+##################################################
+
+### LOOP PRINCIPAL
+
+##################################################
+
+# Main system loop.
+# Executes continuous real-time processing.
 while True:
 
     while estado == 'esperando':
+        # ===== ETAPA: Waiting for start command =====
         frame = vs.read()
         silver_line=False
         if ser.in_waiting > 0:
@@ -574,17 +863,17 @@ while True:
             ser.reset_input_buffer()
 
     while estado =='rescate':
+        # ===== ETAPA: Rescue routine =====
         modo_rescate()
 
     while estado == 'linea':
-
+        # ===== ETAPA: Line following =====
         frame = vs.read()
         frame = cv2.rotate(frame, cv2.ROTATE_180)
         frame_resized = cv2.resize(frame, (160, 120), interpolation=cv2.INTER_NEAREST)
 
 
-        # Luego, recortar la parte superior
-        #cv2.imshow("frameresize",frame_resized)
+        # ===== ETAPA: Mask preparation =====
         kernel = np.ones((3, 3), np.uint8)
         lab = cv2.cvtColor(frame_resized, cv2.COLOR_BGR2LAB)
         # FILTER BLACK PIXELS
@@ -596,13 +885,13 @@ while True:
         green_mask=np.zeros((120,160),dtype=np.uint8)
         green_mask[90:,:]=cv2.inRange(lab[90:,:,:],lower_green,upper_green)
         cut_line = np.zeros((120,160),dtype=np.uint8)
-        hsv_frame = cv2.cvtColor(frame_resized, cv2.COLOR_BGR2HSV)  # Convertir la imagen de BGR a HSV
+        hsv_frame = cv2.cvtColor(frame_resized, cv2.COLOR_BGR2HSV)  # Convert BGR to HSV for chroma masks
         cut_line[62:,:]=cv2.inRange(frame_resized[62:,:,:], lower_black, upper_black)
         red_mask = cv2.inRange(hsv_frame, lower_red, upper_red)
         red_mask[:75,:]=0
         silver_mask = cv2.inRange(frame_resized, lower_silver_hsv, upper_silver_hsv)
         silver_mask[:75,:]=0
-        # CALCULATE RESULTANT
+        # ===== ETAPA: Resultant calculation =====
         green_state = 0
         x_resultant = np.mean(x_black)
         y_resultant = np.mean(y_black)

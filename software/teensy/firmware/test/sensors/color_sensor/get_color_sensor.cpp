@@ -1,3 +1,9 @@
+// ##################################################
+//
+// ### IMPORTACION DE LIBRERIAS
+//
+// ##################################################
+
 #include <Wire.h>
 #include <Arduino.h>
 #include <drivebase.h>
@@ -21,6 +27,12 @@ DFServo lift(22, 540, 2390, 274);
 DFServo deposit(23, 540, 2390, 274);
 Claw claw(&lift, &left, &right, &sort, &deposit);
 
+// ##################################################
+//
+// ### CONFIGURACION GLOBAL
+//
+// ##################################################
+
 // Front Ultrasonic Sensor9)
 // Color Sensor
 Adafruit_APDS9960 apds;
@@ -36,8 +48,24 @@ Color known_colors[] = {
   {"Plateado", 16, 22, 25, 77}//19,25,43,124
 };
 
-// Función para leer los valores del sensor y determinar el color
 const char* get_color() {
+  /*
+  Technical description.
+
+  Read APDS9960 color channels, compute least-squares distance to known colors,
+  and return closest label.
+
+  Parameters:
+  None
+
+  Returns:
+  const char*: detected color name or "Desconocido".
+
+  Side effects:
+  - Blocks until color data ready.
+  - Reads sensor via I2C.
+  - Prints raw channel values to Serial.
+  */
   uint16_t r, g, b, c;
   
   // Esperar a que los datos de color estén listos
@@ -79,7 +107,22 @@ const char* get_color() {
 
 void setup()
 {
-  // put your setup code here, to run once:
+  /*
+  Technical description.
+
+  Initialize serial port, lower claw, and enable APDS9960 color sensing.
+
+  Parameters:
+  None
+
+  Returns:
+  void
+
+  Side effects:
+  - Opens Serial at 115200.
+  - Moves claw to lowered position.
+  - Starts APDS9960 color mode.
+  */
   Serial.begin(115200);
   claw.lower(); 
   if(!apds.begin()){
@@ -92,12 +135,24 @@ void setup()
 }
 
 void loop()
-{/*
-  // Ultrasound Sensor get data
-  distance = front_ultrasonic.read();
-  Serial.print("Distance in CM: ");
-  Serial.println(distance);*/
+{
+  // Main system loop.
+  // Executes continuous real-time processing.
+  /*
+  Technical description.
 
+  Continuously read detected color and report over Serial every second.
+
+  Parameters:
+  None
+
+  Returns:
+  void
+
+  Side effects:
+  - Serial output.
+  - Sensor I2C transactions.
+  */
   const char* color_detected = get_color();
   // Imprimir el color detectado
   Serial.print("Color detectado: ");

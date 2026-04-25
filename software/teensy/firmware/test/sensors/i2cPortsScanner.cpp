@@ -1,8 +1,29 @@
+// ##################################################
+//
+// ### IMPORTACION DE LIBRERIAS
+//
+// ##################################################
+
 #include <Wire.h>
 #include <Arduino.h>
 
 void setup()
 {
+  /*
+  Technical description.
+
+  Initialize dual I2C buses and serial console for scanning devices.
+
+  Parameters:
+  None
+
+  Returns:
+  void
+
+  Side effects:
+  - Starts Wire and Wire1.
+  - Opens Serial at 9600 baud.
+  */
   Wire.begin();
   Wire1.begin();
   Serial.begin(9600);
@@ -13,6 +34,23 @@ void setup()
 
 void loop()
 {
+  // Main system loop.
+  // Executes continuous real-time processing.
+  /*
+  Technical description.
+
+  Scan both I2C buses for active device addresses and print findings.
+
+  Parameters:
+  None
+
+  Returns:
+  void
+
+  Side effects:
+  - Bus transactions on Wire and Wire1.
+  - Serial output of scan results.
+  */
   byte error, address;
   int nDevices;
 

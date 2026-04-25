@@ -1,3 +1,9 @@
+// ##################################################
+//
+// ### IMPORTACION DE LIBRERIAS
+//
+// ##################################################
+
 #include <Wire.h>
 #include <Arduino.h>
 #include <drivebase.h>
@@ -15,6 +21,12 @@
 #include <VL53L0X.h>
 
 
+
+// ##################################################
+//
+// ### CONFIGURACION GLOBAL
+//
+// ##################################################
 
 // SERVOS
 DFServo sort(23, 540, 2390, 274);
@@ -93,10 +105,30 @@ int front_distance;
 int left_distance;
 int right_distance;
 
+// ##################################################
+//
+// ### FUNCIONES AUXILIARES
+//
+// ##################################################
+
 // -----------  FUNCTIONS  -----------
 // ULTRASONIDOS FRENTE IZQ DER
 void leer_ultrasonidos()
 {
+    /*
+    Technical description.
+
+    Acquire distance measurements from front, left, and right ultrasonic sensors.
+
+    Parameters:
+    None
+
+    Returns:
+    void: updates module-level distance variables.
+
+    Side effects:
+    - Reads hardware sonar array into front_distance, left_distance, right_distance.
+    */
     front_distance = sonar[0].ping_cm();
     left_distance = sonar[1].ping_cm();
     right_distance = sonar[2].ping_cm();
@@ -104,6 +136,20 @@ void leer_ultrasonidos()
 
 void imprimir_ultrasonidos()
 {
+    /*
+    Technical description.
+
+    Send right ultrasonic distance over Serial for diagnostics.
+
+    Parameters:
+    None
+
+    Returns:
+    void
+
+    Side effects:
+    - Writes formatted distance to Serial.
+    */
     Serial.print("|D: ");
     Serial.print(right_distance);
     //Serial.println("cm ");
@@ -112,12 +158,40 @@ void imprimir_ultrasonidos()
 // TOF
 void leer_tof()
 {
+    /*
+    Technical description.
+
+    Read continuous distance measurements from left and right VL53L0X sensors.
+
+    Parameters:
+    None
+
+    Returns:
+    void
+
+    Side effects:
+    - Updates distance_left_tof and distance_right_tof globals.
+    */
     distance_left_tof = left_tof.readRangeContinuousMillimeters();
     distance_right_tof = right_tof.readRangeContinuousMillimeters();
 }
 
 void imprimir_tof()
 {
+    /*
+    Technical description.
+
+    Print TOF distances and timeout status to Serial.
+
+    Parameters:
+    None
+
+    Returns:
+    void
+
+    Side effects:
+    - Outputs diagnostic text via Serial.
+    */
     Serial.print("Distance Left: ");
     Serial.print(distance_left_tof);
     Serial.print("mm");
@@ -137,6 +211,20 @@ void imprimir_tof()
     }
 }
 void reset_enconder(){
+    /*
+    Technical description.
+
+    Reset encoder pulse counters for all drive motors.
+
+    Parameters:
+    None
+
+    Returns:
+    void
+
+    Side effects:
+    - Clears pulse counts on motor instances bl, fl, br, fr.
+    */
     bl.resetPulseCount();
     fl.resetPulseCount();
     br.resetPulseCount();
@@ -159,6 +247,21 @@ Color known_colors[] = {
 // Función para leer los valores del sensor y determinar el color
 String get_color()
 {
+    /*
+    Technical description.
+
+    Read APDS9960 color sensor, compute nearest known color via least squares,
+    and return the closest label.
+
+    Parameters:
+    None
+
+    Returns:
+    String: detected color name or "Desconocido" when unmatched.
+
+    Side effects:
+    - Reads hardware color sensor over I2C.
+    */
     uint16_t r, g, b, c;
 
     // Esperar a que los datos de color estén listos
@@ -211,6 +314,20 @@ void ISR4() { fr.updatePulse(); }
 // Read Data from Raspberry by Serial TX-RX
 void serialEvent5()
 {
+    /*
+    Technical description.
+
+    Parse incoming serial bytes from Raspberry Pi and update control variables.
+
+    Parameters:
+    None
+
+    Returns:
+    void
+
+    Side effects:
+    - Reads Serial5 and updates speed, steer, green_state, silver_line.
+    */
     if (Serial5.available() > 0)
     {
         int data = Serial5.read(); // read serial code
@@ -239,6 +356,24 @@ void serialEvent5()
 // Do a predefined move by time
 void runTime(int speed, int dir, double steer, unsigned long long time)
 {
+    /*
+    Technical description.
+
+    Drive robot with constant steer and speed for a specified duration.
+
+    Parameters:
+    speed (int): motor speed command.
+    dir (int): direction flag (FORWARD/BACKWARD).
+    steer (double): steering value [-1,1].
+    time (unsigned long long): duration in milliseconds.
+
+    Returns:
+    void
+
+    Side effects:
+    - Sends drive commands repeatedly.
+    - Interacts with Serial5 for emergency signals.
+    */
     unsigned long long startTime = millis();
     while ((millis() - startTime) < time)
     {
@@ -262,6 +397,23 @@ void runTime(int speed, int dir, double steer, unsigned long long time)
 }
 void runAngle(int speed, int dir, double angle)
 {
+    /*
+    Technical description.
+
+    Rotate robot by a target angle using IMU feedback.
+
+    Parameters:
+    speed (int): motor speed.
+    dir (int): direction flag.
+    angle (double): desired rotation in degrees.
+
+    Returns:
+    void
+
+    Side effects:
+    - Drives motors while reading IMU.
+    - Sends Serial5 codes when switch toggled.
+    */
     sensors_event_t event;
     bno.getEvent(&event);
     float initialAngle = event.orientation.x;
@@ -360,6 +512,23 @@ void runAngle(int speed, int dir, double angle)
 
 
 void runDistance(int speed, int dir, int Distance) {
+    /*
+    Technical description.
+
+    Drive a specific encoder distance with optional direction.
+
+    Parameters:
+    speed (int): motor speed.
+    dir (int): direction flag FORWARD/BACKWARD.
+    Distance (int): distance units tied to encoder counts.
+
+    Returns:
+    void
+
+    Side effects:
+    - Resets encoders and commands motors until distance reached.
+    - Reads Serial5 for interruptions.
+    */
     runTime(30,BACKWARD,0,20);
     runTime(30,FORWARD,0,20);
     reset_enconder();
@@ -429,6 +598,20 @@ float yaw = 0;               // Ángulo de rotación (yaw)
 float pitch=0;
 float leer_yaw()
 {
+    /*
+    Technical description.
+
+    Read yaw angle from BNO055 IMU.
+
+    Parameters:
+    None
+
+    Returns:
+    float: yaw in degrees.
+
+    Side effects:
+    - Queries IMU via I2C.
+    */
     sensors_event_t event;
     bno.getEvent(&event);
     float yaw = event.orientation.x; // Yaw es el ángulo de rotación (en grados)
@@ -436,17 +619,59 @@ float leer_yaw()
 }
 void leer_pitch()
 {
+    /*
+    Technical description.
+
+    Update global pitch from IMU reading.
+
+    Parameters:
+    None
+
+    Returns:
+    void
+
+    Side effects:
+    - Writes pitch global variable.
+    */
     sensors_event_t event;
     bno.getEvent(&event);
     pitch = event.orientation.y; // Yaw es el ángulo de rotación (en grados)
 }
 void imprimir_yaw()
 {
+    /*
+    Technical description.
+
+    Print yaw value to Serial.
+
+    Parameters:
+    None
+
+    Returns:
+    void
+
+    Side effects:
+    - Writes diagnostic text to Serial.
+    */
     Serial.print("Yaw: ");
     //Serial.println(yaw);
 }
 int ajustarVelocidadPorPendiente(int velocidadBase)
 {
+    /*
+    Technical description.
+
+    Adjust base speed according to measured pitch.
+
+    Parameters:
+    velocidadBase (int): nominal speed.
+
+    Returns:
+    int: adjusted speed command.
+
+    Side effects:
+    - Updates pitch by calling leer_pitch().
+    */
     leer_pitch();
 
     int velocidadAjustada = velocidadBase;
@@ -462,6 +687,21 @@ int ajustarVelocidadPorPendiente(int velocidadBase)
 // Función para calcular la diferencia de ángulo en un rango circular de 0 a 360 grados
 float calcularDiferenciaAngulo(float anguloActual, float anguloObjetivo)
 {
+    /*
+    Technical description.
+
+    Compute minimal signed angular difference within [-180, 180].
+
+    Parameters:
+    anguloActual (float): current heading degrees.
+    anguloObjetivo (float): target heading degrees.
+
+    Returns:
+    float: angle error degrees.
+
+    Side effects:
+    - None.
+    */
     float error = anguloObjetivo - anguloActual;
 
     // Ajustar la diferencia para que esté en el rango [-180, 180]
@@ -479,6 +719,21 @@ float calcularDiferenciaAngulo(float anguloActual, float anguloObjetivo)
 
 void resetear_bno()
 {
+    /*
+    Technical description.
+
+    Initialize BNO055 sensor and enable external crystal reference.
+
+    Parameters:
+    None
+
+    Returns:
+    void
+
+    Side effects:
+    - Halts execution if sensor not detected.
+    - Configures IMU clock source.
+    */
     if (!bno.begin())
     {
         Serial.print("No BNO055 detected ... Check your wiring or I2C ADDR!");
@@ -491,6 +746,21 @@ void resetear_bno()
 
 void avance_recto(String pared)
 {
+    /*
+    Technical description.
+
+    Maintain straight motion using IMU yaw and TOF wall distance.
+
+    Parameters:
+    pared (String): wall reference ("left" or "right").
+
+    Returns:
+    void
+
+    Side effects:
+    - Reads IMU and TOF sensors.
+    - Commands drivebase corrections.
+    */
     leer_yaw();
     leer_tof();
     imprimir_tof();
@@ -538,6 +808,20 @@ void avance_recto(String pared)
 
 void lado_pared()
 {
+    /*
+    Technical description.
+
+    Determine closer wall based on ultrasonic distances.
+
+    Parameters:
+    None
+
+    Returns:
+    void
+
+    Side effects:
+    - Updates global 'wall' string.
+    */
     if (left_distance != 0 && right_distance != 0 && right_distance < left_distance)
     {
         wall = "right";
@@ -549,12 +833,34 @@ void lado_pared()
 }
 void pelotita()
 {
-    
+    // TODO_DOC: manual review required
 }
 
+// ##################################################
+//
+// ### PROCESAMIENTO PRINCIPAL
+//
+// ##################################################
+
+// Pipeline: initialize sensors and actuators in setup(), then run loop()
+// to manage safety switch, line following, rescue handling, and deposit tasks.
 
 void setup()
 {
+    /*
+    Technical description.
+
+    Initialize peripherals, sensors, interrupts, and default actuator states.
+
+    Parameters:
+    None
+
+    Returns:
+    void
+
+    Side effects:
+    - Configures GPIO, serial links, IMU, color sensor, TOF sensors, and claw.
+    */
 
     robot.steer(0, 0, 0);
     // claw.lift();  // Moved to begin()
@@ -621,6 +927,31 @@ void setup()
 
 void loop()
 {
+    // ##################################################
+    //
+    // ### LOOP PRINCIPAL
+    //
+    // ##################################################
+
+    // Main system loop.
+    // Executes continuous real-time processing.
+    /*
+    Technical description.
+
+    Handle main robot behavior: safety switch, startup routine, line following,
+    rescue actions, and deposit sequences based on sensor states and serial commands.
+
+    Parameters:
+    None
+
+    Returns:
+    void
+
+    Side effects:
+    - Reads/writes serial channels.
+    - Drives motors and actuators.
+    - Updates global state variables.
+    */
     if (digitalRead(32) == 1)
     {                               // switch is off
         robot.steer(0, FORWARD, 0); // stop moving

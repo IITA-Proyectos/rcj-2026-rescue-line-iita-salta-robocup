@@ -1,49 +1,108 @@
+##################################################
+
+### IMPORTACION DE LIBRERIAS
+
+##################################################
+
+# OpenCV: image display and mouse event handling.
 import cv2
-from camthreader import *
+# os: filesystem path utilities for image loading.
 import os
 
-### CAMTHEREADER ###
+##################################################
+
+### CONFIGURACION GLOBAL
+
+##################################################
+
+IMAGE_DIR = "imagenes"  # Directory containing images to annotate.
+current_image = None     # Current image frame shown on screen.
+points = []              # Collected annotation points.
+
+##################################################
+
+### FUNCIONES AUXILIARES
+
+##################################################
+
+def mouse_callback(event, x, y, flags, param):
+    """
+    Technical description.
+
+    Capture mouse clicks to store annotation points and draw markers.
+
+    Parameters:
+    event (int): OpenCV mouse event.
+    x (int): X coordinate.
+    y (int): Y coordinate.
+    flags (int): OpenCV event flags.
+    param (Any): extra parameter (unused).
+
+    Returns:
+    None
+
+    Side effects:
+    - Modifies global points list.
+    - Draws circles on the displayed image.
+    """
+    global current_image, points
+    if event == cv2.EVENT_LBUTTONDOWN and current_image is not None:
+        points.append((x, y))
+        cv2.circle(current_image, (x, y), 3, (0, 255, 0), -1)
+        cv2.imshow("Annotator", current_image)
+
+##################################################
+
+### PROCESAMIENTO PRINCIPAL
+
+##################################################
+
+# Pipeline: load images from IMAGE_DIR, present them for manual point
+# annotation, and print collected coordinates after each image.
+
+##################################################
+
+### LOOP PRINCIPAL
+
+##################################################
+
+# Main system loop.
+# Executes continuous real-time processing.
+def main():
+    """
+    Technical description.
+
+    Iterate through images in IMAGE_DIR, allow manual point annotation,
+    and print collected points per image.
+
+    Parameters:
+    None
+
+    Returns:
+    None
+
+    Side effects:
+    - Opens OpenCV window and waits for user input.
+    - Prints annotation results to stdout.
+    """
+    global current_image, points
+    cv2.namedWindow("Annotator")
+    cv2.setMouseCallback("Annotator", mouse_callback)
+
+    for fname in sorted(os.listdir(IMAGE_DIR)):
+        path = os.path.join(IMAGE_DIR, fname)
+        current_image = cv2.imread(path)
+        if current_image is None:
+            continue
+        points = []
+        cv2.imshow("Annotator", current_image)
+        key = cv2.waitKey(0)
+        if key == 27:  # ESC to quit
+            break
+        print(f"{fname}: {points}")
+
+    cv2.destroyAllWindows()
 
 
-vs = WebcamVideoStream(src=0).start()
-
-rgb_frame = vs.read()
-hsv_frame = cv2.cvtColor(rgb_frame, cv2.COLOR_BGR2HSV)
-
-
-def rgbclick(event, x, y, flags, param):
-    if event == cv2.EVENT_LBUTTONDBLCLK:
-        print(x,y,rgb_frame[y][x])
-
-
-def hsvclick(event, x, y, flags, param):
-    if event == cv2.EVENT_LBUTTONDBLCLK:
-        print(x,y,hsv_frame[y][x])
-
-
-def click_event(event, x, y, flags, param):
-    if event == cv2.EVENT_LBUTTONDOWN:
-        frame = vs.read()
-        img_name = f"capture_{x}_{y}.png"
-        img_path = os.path.join(img_name)
-        cv2.imwrite(img_path, frame)
-
-cv2.namedWindow('RGB')
-cv2.setMouseCallback('RGB', rgbclick)
-cv2.namedWindow('HSV')
-cv2.setMouseCallback('HSV', hsvclick)
-cv2.namedWindow('Para-hacer-click')
-cv2.setMouseCallback('Para-hacer-click', click_event)
-while True:
-    rgb_frame = vs.read()
-    hsv_frame = cv2.cvtColor(rgb_frame, cv2.COLOR_BGR2HSV)
-    rgb_frame = cv2.line(rgb_frame, (80, 0), (80, 120), (255, 0, 0), 1)
-    hsv_frame = cv2.line(hsv_frame, (80, 0), (80, 120), (255, 0, 0), 1)
-    cv2.imshow("RGB", rgb_frame)
-    cv2.imshow("HSV", hsv_frame)
-    if cv2.waitKey(1) == 27:
-        break  # esc to quit
-
-vs.stop()
-cv2.destroyAllWindows()
-
+if __name__ == "__main__":
+    main()
