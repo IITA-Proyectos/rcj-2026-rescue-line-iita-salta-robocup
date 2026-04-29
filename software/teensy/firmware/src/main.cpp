@@ -81,6 +81,177 @@ bool alineado=false;
 bool depositando=false;
 int veces_deposit=2;
 int ball_counter=2;
+
+// Máquina de Estados para Rescate (No Bloqueante)
+enum RescateState {
+    RESCATE_IDLE = 0,          // Estado inactivo
+    RESCATE_NEGRA_STEP1,       // Baja garra
+    RESCATE_NEGRA_STEP2,       // Posiciona depósito centro
+    RESCATE_NEGRA_STEP3,       // Clasifica derecha
+    RESCATE_NEGRA_STEP4,       // Avanza distancia
+    RESCATE_NEGRA_STEP5,       // Cierra garra
+    RESCATE_NEGRA_STEP6,       // Levanta garra
+    RESCATE_NEGRA_STEP7,       // Abre garra
+    RESCATE_NEGRA_STEP8,       // Retrocede un poco
+    RESCATE_PLATEADA_STEP1,    // Baja garra
+    RESCATE_PLATEADA_STEP2,    // Clasifica izquierda
+    RESCATE_PLATEADA_STEP3,    // Posiciona depósito centro
+    RESCATE_PLATEADA_STEP4,    // Avanza distancia
+    RESCATE_PLATEADA_STEP5,    // Cierra garra
+    RESCATE_PLATEADA_STEP6,    // Levanta garra
+    RESCATE_PLATEADA_STEP7,    // Abre garra
+    RESCATE_PLATEADA_STEP8     // Retrocede un poco
+};
+RescateState rescateState = RESCATE_IDLE;  // Estado actual de la máquina de rescate
+unsigned long rescateLastTime = 0;         // Timestamp del último paso
+const unsigned long RESCATE_STEP_DELAY = 1000;  // Delay entre pasos en ms
+
+// Función para iniciar recolección de pelota negra
+void iniciarRecoleccionNegra() {
+    if (rescateState == RESCATE_IDLE) {
+        rescateState = RESCATE_NEGRA_STEP1;
+        rescateLastTime = millis();
+    }
+}
+
+// Función para iniciar recolección de pelota plateada
+void iniciarRecoleccionPlateada() {
+    if (rescateState == RESCATE_IDLE) {
+        rescateState = RESCATE_PLATEADA_STEP1;
+        rescateLastTime = millis();
+    }
+}
+
+// Función para actualizar la máquina de estados de rescate (llamar en loop())
+void actualizarRescate() {
+    unsigned long now = millis();
+    switch (rescateState) {
+        case RESCATE_IDLE:
+            // Nada que hacer
+            break;
+        case RESCATE_NEGRA_STEP1:
+            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
+                claw.lower();
+                rescateState = RESCATE_NEGRA_STEP2;
+                rescateLastTime = now;
+            }
+            break;
+        case RESCATE_NEGRA_STEP2:
+            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
+                claw.depositCenter();
+                rescateState = RESCATE_NEGRA_STEP3;
+                rescateLastTime = now;
+            }
+            break;
+        case RESCATE_NEGRA_STEP3:
+            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
+                claw.sortRight();
+                rescateState = RESCATE_NEGRA_STEP4;
+                rescateLastTime = now;
+            }
+            break;
+        case RESCATE_NEGRA_STEP4:
+            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
+                runDistance(30, FORWARD, 8);
+                rescateState = RESCATE_NEGRA_STEP5;
+                rescateLastTime = now;
+            }
+            break;
+        case RESCATE_NEGRA_STEP5:
+            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
+                claw.close();
+                digitalWrite(BUZZER, HIGH);
+                delay(100);  // Pequeño delay para buzzer, considerar no-bloqueante si necesario
+                digitalWrite(BUZZER, LOW);
+                rescateState = RESCATE_NEGRA_STEP6;
+                rescateLastTime = now;
+            }
+            break;
+        case RESCATE_NEGRA_STEP6:
+            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
+                claw.lift();
+                rescateState = RESCATE_NEGRA_STEP7;
+                rescateLastTime = now;
+            }
+            break;
+        case RESCATE_NEGRA_STEP7:
+            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
+                claw.open();
+                rescateState = RESCATE_NEGRA_STEP8;
+                rescateLastTime = now;
+            }
+            break;
+        case RESCATE_NEGRA_STEP8:
+            if (now - rescateLastTime >= 200) {  // Menor delay para retroceso
+                runTime(30, FORWARD, 0, 200);
+                runTime(30, BACKWARD, 0, 200);
+                ball_counter++;
+                rescateState = RESCATE_IDLE;
+            }
+            break;
+        // Estados para pelota plateada (análogos)
+        case RESCATE_PLATEADA_STEP1:
+            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
+                claw.lower();
+                rescateState = RESCATE_PLATEADA_STEP2;
+                rescateLastTime = now;
+            }
+            break;
+        case RESCATE_PLATEADA_STEP2:
+            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
+                claw.sortLeft();
+                rescateState = RESCATE_PLATEADA_STEP3;
+                rescateLastTime = now;
+            }
+            break;
+        case RESCATE_PLATEADA_STEP3:
+            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
+                claw.depositCenter();
+                rescateState = RESCATE_PLATEADA_STEP4;
+                rescateLastTime = now;
+            }
+            break;
+        case RESCATE_PLATEADA_STEP4:
+            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
+                runDistance(20, FORWARD, 8);
+                rescateState = RESCATE_PLATEADA_STEP5;
+                rescateLastTime = now;
+            }
+            break;
+        case RESCATE_PLATEADA_STEP5:
+            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
+                claw.close();
+                digitalWrite(BUZZER, HIGH);
+                delay(100);
+                digitalWrite(BUZZER, LOW);
+                rescateState = RESCATE_PLATEADA_STEP6;
+                rescateLastTime = now;
+            }
+            break;
+        case RESCATE_PLATEADA_STEP6:
+            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
+                claw.lift();
+                rescateState = RESCATE_PLATEADA_STEP7;
+                rescateLastTime = now;
+            }
+            break;
+        case RESCATE_PLATEADA_STEP7:
+            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
+                claw.open();
+                rescateState = RESCATE_PLATEADA_STEP8;
+                rescateLastTime = now;
+            }
+            break;
+        case RESCATE_PLATEADA_STEP8:
+            if (now - rescateLastTime >= 200) {
+                runTime(30, FORWARD, 0, 200);
+                runTime(30, BACKWARD, 0, 200);
+                ball_counter++;
+                rescateState = RESCATE_IDLE;
+            }
+            break;
+    }
+}
 #define SONAR_NUM 3      // Number of sensors.
 #define MAX_DISTANCE 150 // Maximum distance (in cm) to ping.
 
@@ -417,8 +588,17 @@ void runDistance(int speed, int dir, int Distance) {
     }
 }
 
-
-
+// non-blocking delay that keeps processing serial and claw state
+void nonBlockingDelay(unsigned long ms)
+{
+    unsigned long start = millis();
+    while (millis() - start < ms)
+    {
+        claw.update();
+        if (Serial5.available() > 0)
+            serialEvent5();
+    }
+}
 #define TARGET_DISTANCE 70.0 // distancia deseada en cm
 #define KP_DISTANCE 0.05     // constante proporcional para la distancia
 #define KP_ANGLE 0.05        // constante proporcional para el ángulo de rotación
@@ -621,6 +801,10 @@ void setup()
 
 void loop()
 {
+    // Advance non-blocking claw state machine each loop
+    claw.update();
+    // Actualizar máquina de estados de rescate no-bloqueante
+    actualizarRescate();
     if (digitalRead(32) == 1)
     {                               // switch is off
         robot.steer(0, FORWARD, 0); // stop moving
@@ -955,23 +1139,23 @@ void loop()
                 digitalWrite(RELAY, HIGH);
                 runTime(0,FORWARD,0,1000);
                 claw.lower();
-                delay(1000);
+                nonBlockingDelay(1000);
                 claw.depositCenter();
-                delay(1000);
+                nonBlockingDelay(1400);
                 claw.sortRight();
-                delay(1000);
-                runDistance(30,FORWARD,7);
+                nonBlockingDelay(1000);
+                runDistance(30,FORWARD,5);
                 runTime(0,FORWARD,0,1000);
                 claw.close();
-                delay(1000);
+                nonBlockingDelay(1000);
                 digitalWrite(BUZZER, HIGH);
                 delay(100); 
                 digitalWrite(BUZZER, LOW);
                 runTime(0,FORWARD,0,1000);
                 claw.lift();
-                delay(1000);
+                nonBlockingDelay(1000);
                 claw.open();
-                delay(1000);
+                nonBlockingDelay(1000);
                 runTime(30,FORWARD,0,200);
                 runTime(30,BACKWARD,0,200);
                  ball_counter++;
@@ -981,21 +1165,21 @@ void loop()
                 runTime(0,FORWARD,0,1000);
                 claw.lower();
                 claw.sortLeft();
-                delay(1000);
+                nonBlockingDelay(1400);
                 claw.depositCenter();
-                delay(1000);
-                runDistance(20,FORWARD,7);
+                nonBlockingDelay(1000);
+                runDistance(20,FORWARD,5);
                 runTime(0,FORWARD,0,1000);
                 claw.close();
-                delay(1000);
+                nonBlockingDelay(1000);
                 digitalWrite(BUZZER, HIGH);
                 delay(100); 
                 digitalWrite(BUZZER, LOW);
                 runTime(0,FORWARD,0,1000);
                 claw.lift();
-                delay(1000);
+                nonBlockingDelay(1000);
                 claw.open();
-                delay(1000);
+                nonBlockingDelay(1000);
                 runTime(30,FORWARD,0,200);
                 runTime(30,BACKWARD,0,200);
                 ball_counter++;
@@ -1009,16 +1193,14 @@ void loop()
                 serialEvent5();
                 robot.steer(speed, FORWARD, steer);   
             }
-            if(green_state == 9)
+            if(green_state == 9)//verde
                 {
                     digitalWrite(RELAY, HIGH);
                     runAngle(20,FORWARD,180);
                     runTime(10,BACKWARD,0,2000);
                     claw.depositRight();
-                    delay(2000);
+                    nonBlockingDelay(2000);
                     claw.depositCenter();
-                    runTime(0,FORWARD,0,500);
-                    runTime(30,BACKWARD,0,500);
                     runTime(0,FORWARD,0,500);
                     runDistance(30,FORWARD,4+60);
                     veces_deposit++;
@@ -1029,10 +1211,8 @@ void loop()
                     runAngle(20,FORWARD,180);
                     runTime(10,BACKWARD,0,2000);
                     claw.depositLeft();
-                    delay(2000);
+                    nonBlockingDelay(2000);
                     claw.depositCenter();
-                    runTime(0,FORWARD,0,500);
-                    runTime(30,BACKWARD,0,500);
                     runTime(0,FORWARD,0,500);
                     runDistance(30,FORWARD,40);
                     veces_deposit++;
