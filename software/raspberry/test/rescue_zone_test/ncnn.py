@@ -8,42 +8,44 @@ import sys
 import os
 import threading
 import queue
+from ultralytics import YOLO
 
 # ---- SWITCH PRINCIPAL ----
-# True  → Zero-DCE en det + AGCWD en intermedios  (Pi 5,  ~20 FPS)
-# False → AGCWD en todos los frames               (Pi 4B, ~35 FPS)
+# True  → Zero-DCE en det + AGCWD en intermedios  (Pi 5)
+# False → AGCWD en todos los frames               (Pi 4B)
 USE_ZERODCE  = False
 ZERODCE_PATH = "/home/pi/Downloads/AI_enhance/dcenet_int8.tflite"
 ZERODCE_GAIN = 1.65
 # --------------------------
 
 debugOriginal = False
-debugBlack = True
-debugGreen = True
-debugBlue = False
-debugHori = False
-record = False
-noise_blob_threshold = 16
-min_square_size = 150
-min_line_size = 1000
-fixed_angle_value = 0
-fixed_angle_active = False
+debugBlack    = True
+debugGreen    = True
+debugBlue     = False
+debugHori     = False
+record        = False
+noise_blob_threshold   = 16
+min_square_size        = 150
+min_line_size          = 1000
+fixed_angle_value      = 0
+fixed_angle_active     = False
 fixed_angle_start_time = 0
 estado = 'esperando'
 
-vs = WebcamVideoStream(src=0).start()
+vs  = WebcamVideoStream(src=0).start()
 ser = serial.Serial('/dev/serial0', 115200)
-lower_black   = np.array([0, 0, 0])
-upper_black   = np.array([90, 90, 90])
-lower_green   = np.array([120, 90, 100])
-upper_green   = np.array([170, 120, 140])
+
+lower_black      = np.array([0, 0, 0])
+upper_black      = np.array([90, 90, 90])
+lower_green      = np.array([120, 90, 100])
+upper_green      = np.array([170, 120, 140])
 lower_silver_hsv = np.array([79, 16, 46])
 upper_silver_hsv = np.array([168, 28, 79])
-lower_red     = np.array([1, 147, 159])
-upper_red     = np.array([7, 205, 216])
-last_angles   = []
+lower_red        = np.array([1, 147, 159])
+upper_red        = np.array([7, 205, 216])
+last_angles      = []
 
-YOLO_IMGSZ  = 256
+YOLO_IMGSZ = 256
 
 test_frame = vs.read()
 width, height = 160, 120
@@ -52,12 +54,12 @@ print(width, height)
 cam_x = width / 2 - 1
 cam_y = height - 1
 
-timer_active = False
-green_output_duration = 1
+timer_active               = False
+green_output_duration      = 1
 green_output_cooldown_duration = 2
-green_state_final = 0
-timer_start_time = 0
-silver_line = False
+green_state_final          = 0
+timer_start_time           = 0
+silver_line                = False
 
 x_com = np.zeros(shape=(height, width))
 y_com = np.zeros(shape=(height, width))
@@ -66,11 +68,10 @@ for i in range(height):
         x_com[i][j] = (j - cam_x) / (width / 2)
         y_com[i][j] = (cam_y - i) / height
 
-
 # ---- AGCWD ----
 def agcwd(img_bgr, w=0.5):
-    hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
-    v   = hsv[:, :, 2]
+    hsv  = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
+    v    = hsv[:, :, 2]
     hist = np.bincount(v.ravel(), minlength=256).astype(np.float32)
     hist_min, hist_max = hist.min(), hist.max()
     if hist_max - hist_min < 1e-6:
@@ -88,8 +89,7 @@ def agcwd(img_bgr, w=0.5):
     hsv[:, :, 2] = cv2.LUT(v, lut)
     return cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
 
-
-# ---- inicializar Zero-DCE si hace falta ----
+# ---- Zero-DCE (opcional) ----
 if USE_ZERODCE:
     sys.path.insert(0, '/home/pi/Downloads/AI_enhance')
     from zero_dce import ZeroDCE
@@ -105,53 +105,16 @@ def enhance(img_bgr, use_zerodce=False):
     else:
         return agcwd(img_bgr)
 
+# ---- warmup NCNN ----
+NCNN_MODEL_PATH = "/home/pi/Documents/best_ncnn_model"
+model = YOLO(NCNN_MODEL_PATH)
+imagen_negra = np.zeros((YOLO_IMGSZ, YOLO_IMGSZ, 3), dtype=np.uint8)
+model.predict(imagen_negra, imgsz=YOLO_IMGSZ, verbose=False)
+print("NCNN listo.")
 
-# ---- Inicializar TFLite global + warmup ----
-try:
-    from tflite_runtime.interpreter import Interpreter as TFLiteInterpreter
-    print("Usando tflite_runtime.interpreter")
-except Exception:
-    import tensorflow as tf
-    TFLiteInterpreter = tf.lite.Interpreter
-    print("Usando tensorflow.lite.Interpreter (fallback)")
-
-TFLITE_MODEL_PATH = "/home/pi/Downloads/best_float32 (1).tflite"
-NUM_THREADS = 2
-try:
-    interpreter = TFLiteInterpreter(model_path=TFLITE_MODEL_PATH, num_threads=NUM_THREADS)
-except TypeError:
-    interpreter = TFLiteInterpreter(model_path=TFLITE_MODEL_PATH)
-    try:
-        interpreter.set_num_threads(NUM_THREADS)
-    except Exception:
-        pass
-
-interpreter.allocate_tensors()
-_input_details  = interpreter.get_input_details()[0]
-_output_details = interpreter.get_output_details()[0]
-print("TFLite input:", _input_details)
-print("TFLite output:", _output_details)
-
-# Warmup: igual que el model.predict() de warmup en el main con YOLO
-print("Realizando warmup del modelo TFLite...")
-_dummy = np.zeros((YOLO_IMGSZ, YOLO_IMGSZ, 3), dtype=np.uint8)
-if np.issubdtype(_input_details['dtype'], np.floating):
-    _dummy_inp = (_dummy.astype(np.float32) / 255.0)[np.newaxis, ...].astype(_input_details['dtype'])
-else:
-    _dummy_inp = _dummy[np.newaxis, ...].astype(_input_details['dtype'])
-interpreter.set_tensor(_input_details['index'], _dummy_inp)
-interpreter.invoke()
-_ = interpreter.get_tensor(_output_details['index'])
-print("Warmup completado.")
-# -------------------------------------------
-
-
+# -----------------------------------------------
 def modo_rescate():
     global last_target_box, is_stopped, estado, ser
-
-    # Usar el intérprete y detalles ya inicializados globalmente
-    input_details  = _input_details
-    output_details = _output_details
 
     last_target_box = None
     stop_rescate    = False
@@ -170,8 +133,8 @@ def modo_rescate():
     os.environ["MKL_NUM_THREADS"] = "2"
 
     CLASS_NAMES = ['negro', 'plateado', 'rojo alto', 'verde_alto']
-    IMGSZ       = YOLO_IMGSZ
-    DETECT_EVERY = 3
+    IMGSZ        = YOLO_IMGSZ
+    DETECT_EVERY = 1
     MAX_QUEUE    = 2
     DRAW_EVERY   = 1
     HEADLESS     = False
@@ -322,6 +285,7 @@ def modo_rescate():
             small = cv2.resize(frame, (IMGSZ, IMGSZ))
 
             if frame_idx % DETECT_EVERY == 0:
+                # mejora de imagen antes de inferir
                 small = enhance(small, use_zerodce=USE_ZERODCE)
             else:
                 small = agcwd(small)
@@ -329,32 +293,26 @@ def modo_rescate():
             enhanced_frame = cv2.resize(small, (w, h))
 
             if frame_idx % DETECT_EVERY == 0:
-                img = cv2.cvtColor(small, cv2.COLOR_BGR2RGB)
-                if np.issubdtype(input_details['dtype'], np.floating):
-                    inp = (img.astype(np.float32) / 255.0)[np.newaxis, ...].astype(input_details['dtype'])
-                else:
-                    inp = img[np.newaxis, ...].astype(input_details['dtype'])
-
-                interpreter.set_tensor(input_details['index'], inp)
-                interpreter.invoke()
-                out = interpreter.get_tensor(output_details['index'])[0]
-
+                results = model.predict(
+                    small, imgsz=IMGSZ, conf=min(CLASS_THRESH.values()),
+                    iou=0.45, verbose=False
+                )
                 detections = []
-                for det in out:
-                    x1, y1, x2, y2, score, cls_raw = det
-                    score  = float(score)
-                    cls_id = int(round(float(cls_raw)))
-                    if score < CLASS_THRESH.get(cls_id, 0.5):
-                        continue
-                    x1 *= IMGSZ; y1 *= IMGSZ; x2 *= IMGSZ; y2 *= IMGSZ
-                    sx1, sy1, sx2, sy2 = scale_box((x1, y1, x2, y2), w, h, IMGSZ, IMGSZ)
-                    if estado == "rescate":
-                        if cls_id in (2, 3): continue
-                    if estado == "depositar":
-                        if cls_id in (0, 1, 2): continue
-                    if estado == "depositar verde":
-                        if cls_id in (0, 1, 3): continue
-                    detections.append({'xyxy': (sx1, sy1, sx2, sy2), 'score': score, 'cls': cls_id})
+                for res in results:
+                    for box in res.boxes:
+                        score  = float(box.conf[0])
+                        cls_id = int(box.cls[0])
+                        if score < CLASS_THRESH.get(cls_id, 0.5):
+                            continue
+                        x1, y1, x2, y2 = map(int, box.xyxy[0])
+                        x1, y1, x2, y2 = scale_box((x1,y1,x2,y2), w, h, IMGSZ, IMGSZ)
+                        if estado == "rescate":
+                            if cls_id in (2, 3): continue
+                        if estado == "depositar":
+                            if cls_id in (0, 1, 2): continue
+                        if estado == "depositar verde":
+                            if cls_id in (0, 1, 3): continue
+                        detections.append({'xyxy': (x1,y1,x2,y2), 'score': score, 'cls': cls_id})
 
                 result_q.put(('det', enhanced_frame, detections))
             else:
@@ -527,7 +485,7 @@ def modo_rescate():
             processed += 1
             elapsed = time.time() - start
             fps     = processed / elapsed if elapsed > 0 else 0.0
-            modo    = "ZeroDCE+AGCWD" if USE_ZERODCE else "AGCWD"
+            modo    = "ZeroDCE+AGCWD" if USE_ZERODCE else "AGCWD+NCNN"
             cv2.putText(frame, f"FPS: {fps:.2f} [{modo}]", (10, 30),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
 
@@ -542,7 +500,6 @@ def modo_rescate():
         if not HEADLESS:
             cv2.destroyAllWindows()
 
-    # ---- lanzar hilos ----
     tcap = threading.Thread(target=capture_thread, daemon=True)
     tinf = threading.Thread(target=infer_thread, daemon=True)
     tcap.start(); tinf.start()
@@ -555,7 +512,6 @@ def modo_rescate():
         tcap.join(timeout=1)
         tinf.join(timeout=1)
         t_serial_mon.join(timeout=0.5)
-
 
 # -----------------------------------------------
 # LOOP PRINCIPAL
@@ -607,11 +563,11 @@ while True:
         speed = 40
 
         if np.sum(green_mask) > min_square_size * 255:
-            green_pixels = np.amax(green_mask, axis=0)
-            greenIndices = np.where(green_pixels == np.max(green_pixels))
-            leftIndex    = greenIndices[0][0]
-            rightIndex   = greenIndices[0][-1]
-            slicedGreen  = frame_resized[60:90, leftIndex:rightIndex + 1, :]
+            green_pixels   = np.amax(green_mask, axis=0)
+            greenIndices   = np.where(green_pixels == np.max(green_pixels))
+            leftIndex      = greenIndices[0][0]
+            rightIndex     = greenIndices[0][-1]
+            slicedGreen    = frame_resized[60:90, leftIndex:rightIndex + 1, :]
             greenCentroidX = (rightIndex + leftIndex) / 2
             slicedBlackMaskAboveGreen = black_mask[60:90, leftIndex:rightIndex + 1]
             blackM = cv2.moments(black_mask[90:, :])
@@ -620,12 +576,14 @@ while True:
                 cx_black = int(blackM["m10"] / blackM["m00"])
 
             if (np.sum(slicedBlackMaskAboveGreen) / (255 * 30 * (rightIndex - leftIndex))) > 0.32:
-                greenSquare = False
+                greenSquare         = False
                 filtered_green_mask = cv2.erode(green_mask, kernel)
                 filtered_green_mask = cv2.dilate(green_mask, kernel)
-                green_contours, hierarchy = cv2.findContours(filtered_green_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                green_contours, hierarchy = cv2.findContours(
+                    filtered_green_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-                if len(green_contours) > 1 and cx_black > leftIndex and cx_black < rightIndex and np.sum(green_mask) > (1.35 * min_square_size * 255):
+                if len(green_contours) > 1 and cx_black > leftIndex and cx_black < rightIndex \
+                        and np.sum(green_mask) > (1.35 * min_square_size * 255):
                     green_state = 3
                 elif greenCentroidX < cx_black:
                     green_state = 1
@@ -641,7 +599,8 @@ while True:
         if np.sum(black_mask) < min_line_size:
             angle = 0
 
-        silver_contours, _ = cv2.findContours(silver_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        silver_contours, _ = cv2.findContours(
+            silver_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         silver_line = False
         for contour in silver_contours:
             area = cv2.contourArea(contour)
@@ -650,8 +609,9 @@ while True:
                 silver_line = True
                 break
 
-        red_line    = False
-        red_contours, _ = cv2.findContours(red_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        red_line     = False
+        red_contours, _ = cv2.findContours(
+            red_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         for cont in red_contours:
             area = cv2.contourArea(cont)
             if area > 25:

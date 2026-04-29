@@ -5,4 +5,5 @@ numpy
 pyserial
 ultralytics
 onnxruntime
-
+tflite-runtime==2.14.0 
+ai-edge-litert==2.1.3 
