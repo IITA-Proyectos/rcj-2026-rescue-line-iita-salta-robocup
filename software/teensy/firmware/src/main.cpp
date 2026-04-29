@@ -28,8 +28,8 @@ Claw claw(&lift, &left, &right, &sort, &deposit);
 #define FORWARD 0         // Def direction ADELANTE
 #define BACKWARD 1        // Def direction ATRAS
 #define RELAY 0
-#define BUZZER 35         // Definicion de PIN BUZZER
-#define LED_ROJO 34       // Definicion de PIN LED_ROJO
+#define BUZZER 31         // Definicion de PIN BUZZER
+#define LED_ROJO 30       // Definicion de PIN LED_ROJO
 #define SWITCH 32         // Definicion de PIN SWITCH
 elapsedMillis steertimer; // Cuenta el tiempo transcurrido
 bool contador = false;    // Para saber si estamos contando el tiempo o no
