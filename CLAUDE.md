@@ -76,9 +76,14 @@ Este repo tiene 4 skills en `.claude/skills/` que orquestan la auditoría:
 ## Comandos útiles
 
 ```bash
-# Listar issues abiertos por prioridad
-gh issue list --label audit/p0 --state open
-gh issue list --label audit/p1 --state open
+# Listar issues abiertos por prioridad (P0 = priority/high, P1 = priority/medium, P2 = priority/low)
+gh issue list --label priority/high --state open
+gh issue list --label priority/medium --state open
+
+# Buscar issues por subsistema
+gh issue list --label subsystem/control --state all  # Teensy / motores / PID
+gh issue list --label subsystem/vision  --state all  # RPi / YOLO / OpenCV
+gh issue list --label subsystem/comms   --state all  # serial / protocolo
 
 # Crear issue desde plantilla
 gh issue create --template audit-finding.yml

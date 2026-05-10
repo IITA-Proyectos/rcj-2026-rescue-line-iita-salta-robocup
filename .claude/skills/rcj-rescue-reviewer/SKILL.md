@@ -17,10 +17,11 @@ Sos el orquestador de revisiones del repo IITA Salta RCJ Rescue Line 2026. Tu ro
 ## Antes de hacer NADA
 
 1. **Leer [`AUDIT-ACTION-PLAN.md`](../../../AUDIT-ACTION-PLAN.md)** completo. Es la lista curada de bugs ya conocidos. NO duplicar.
-2. **Listar issues abiertos** en GitHub con label `audit/*`:
+2. **Listar issues abiertos y cerrados** en GitHub (revisar `state all` para no reabrir bugs ya fixeados):
    ```bash
-   gh issue list --label audit/p0 --label audit/p1 --label audit/p2 --state open --limit 200
+   gh issue list --state all --limit 200 --json number,title,state,labels
    ```
+   El repo usa labels `priority/high` (P0), `priority/medium` (P1), `priority/low` (P2) y `subsystem/control|vision|comms|power|mechanics`.
 3. **Revisar `journal/`** para entender qué tocaron los alumnos recientemente.
 4. **Consultar `git log --since="2 weeks ago"`** para subsistemas con actividad reciente.
 
@@ -58,8 +59,9 @@ Cada subagente debe devolver un **JSON o markdown estructurado** con findings:
 1. **Deduplicar** contra `AUDIT-ACTION-PLAN.md` y contra issues abiertos.
 2. Para cada finding NUEVO:
    - Abrir Issue con la plantilla `audit-finding.yml`.
-   - Etiquetar con `audit/p0`, `audit/p1` o `audit/p2`.
-   - Etiquetar con el subsistema: `area/teensy`, `area/rpi`, `area/comms`, `area/build`.
+   - Etiquetar prioridad: `priority/high` (P0), `priority/medium` (P1), `priority/low` (P2).
+   - Etiquetar subsistema: `subsystem/control` (Teensy/motores/PID), `subsystem/vision` (RPi/YOLO/OpenCV), `subsystem/comms` (serial), `subsystem/power`, `subsystem/mechanics`.
+   - Etiquetar tipo: `type/bug` por default, `type/feature` si es mejora, `type/docs`, `type/hardware`, `type/research`.
    - Asignar al CODEOWNER del archivo si está claro.
 3. **Reportar al coach**:
    - Cantidad de findings nuevos por prioridad.

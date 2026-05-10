@@ -1,14 +1,19 @@
 name: 🔍 Finding de auditoría
 description: Bug o mejora detectada en revisión técnica (manual o por IA). Usar para todo lo que toque firmware, visión o comms.
 title: "[Pxx] <título corto y accionable>"
-labels: ["audit"]
+labels: ["type/bug"]
 projects: []
 assignees: []
 body:
   - type: markdown
     attributes:
       value: |
-        Plantilla estándar IITA RCJ 2026. Antes de abrir, verificá que **no esté ya** en `AUDIT-ACTION-PLAN.md` ni en los issues abiertos con label `audit/*`.
+        Plantilla estándar IITA RCJ 2026. Antes de abrir, verificá que **no esté ya** en `AUDIT-ACTION-PLAN.md` ni en los issues abiertos con label `priority/high|medium|low`.
+
+        **IMPORTANTE:** Después de crear el issue, agregale los labels:
+        - **Prioridad** → `priority/high` (P0), `priority/medium` (P1), `priority/low` (P2)
+        - **Subsistema** → `subsystem/control` (Teensy/PID/motores), `subsystem/vision` (RPi/YOLO), `subsystem/comms` (serial), `subsystem/power`, `subsystem/mechanics`
+        - **Tipo** → `type/bug` (default), `type/feature`, `type/docs`, `type/hardware`, `type/research`
 
   - type: dropdown
     id: prioridad
@@ -132,7 +137,7 @@ body:
       options:
         - label: Verifiqué que el bug no está ya en `AUDIT-ACTION-PLAN.md`.
           required: true
-        - label: Busqué issues abiertos con `gh issue list --label audit/*` y no hay duplicado.
+        - label: Busqué issues abiertos con `gh issue list --label priority/high --label priority/medium --label priority/low --state all` y no hay duplicado.
           required: true
         - label: El test plan es ejecutable con el material del equipo.
           required: true
