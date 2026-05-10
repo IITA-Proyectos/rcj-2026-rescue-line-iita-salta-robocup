@@ -13,7 +13,6 @@
 #include <NewPing.h>
 #include <Wire.h>
 #include <VL53L0X.h>
-#include "priority_fix_flags.h"
 
 
 
@@ -84,116 +83,6 @@ int veces_deposit=2;
 int ball_counter=2;
 
 // Máquina de Estados para Rescate (No Bloqueante)
-bool color_sensor_ok = true;
-bool rescateUpdateInProgress = false;
-
-void actualizarRescate();
-void runTime(int speed, int dir, double steer, unsigned long long time);
-void runAngle(int speed, int dir, double angle);
-void runDistance(int speed, int dir, int Distance);
-
-bool fixIssue57Enabled()
-{
-    return priority_fix_flags::kEnableAllPriorityFixes ||
-           priority_fix_flags::kFixIssue57RescueWallTurnDirection;
-}
-
-bool fixIssue58Enabled()
-{
-    return priority_fix_flags::kEnableAllPriorityFixes ||
-           priority_fix_flags::kFixIssue58Case12ControlFlow;
-}
-
-bool fixIssue59Enabled()
-{
-    return priority_fix_flags::kEnableAllPriorityFixes ||
-           priority_fix_flags::kFixIssue59ServiceStateMachinesDuringMotion;
-}
-
-bool fixIssue60Enabled()
-{
-    return priority_fix_flags::kEnableAllPriorityFixes ||
-           priority_fix_flags::kFixIssue60RunDistanceTimeout;
-}
-
-bool fixIssue61Enabled()
-{
-    return priority_fix_flags::kEnableAllPriorityFixes ||
-           priority_fix_flags::kFixIssue61ColorSensorTimeout;
-}
-
-bool fixIssue62Enabled()
-{
-    return priority_fix_flags::kEnableAllPriorityFixes ||
-           priority_fix_flags::kFixIssue62VisibleSensorInitFailures;
-}
-
-void blinkVisibleError(unsigned long onMs, unsigned long offMs, int cycles)
-{
-    for (int i = 0; i < cycles; ++i)
-    {
-        digitalWrite(LED_ROJO, HIGH);
-        digitalWrite(BUZZER, HIGH);
-        delay(onMs);
-        digitalWrite(LED_ROJO, LOW);
-        digitalWrite(BUZZER, LOW);
-        delay(offMs);
-    }
-}
-
-void fatalSensorInitLoop()
-{
-    while (true)
-    {
-        digitalWrite(LED_ROJO, HIGH);
-        digitalWrite(BUZZER, HIGH);
-        delay(200);
-        digitalWrite(LED_ROJO, LOW);
-        digitalWrite(BUZZER, LOW);
-        delay(800);
-    }
-}
-
-void handleBnoInitFailure()
-{
-    Serial.print("No BNO055 detected ... Check your wiring or I2C ADDR!");
-    if (fixIssue62Enabled())
-    {
-        fatalSensorInitLoop();
-    }
-    while (1)
-        ;
-}
-
-void notifyOptionalSensorWarning()
-{
-    if (fixIssue62Enabled())
-    {
-        blinkVisibleError(120, 120, 3);
-    }
-}
-
-void serviceMotionBackgroundTasks()
-{
-    if (!fixIssue59Enabled())
-    {
-        return;
-    }
-
-    claw.update();
-    actualizarRescate();
-}
-
-unsigned long computeRunDistanceTimeoutMs(int speed, int distance)
-{
-    unsigned long distanceCm = static_cast<unsigned long>(abs(distance));
-    int effectiveSpeed = speed > 0 ? speed : 30;
-    unsigned long estimatedSpeedCmPerSecond = static_cast<unsigned long>(max(8, effectiveSpeed * 3 / 4));
-    unsigned long estimatedMs = (distanceCm * 1000UL) / estimatedSpeedCmPerSecond;
-
-    return (estimatedMs * 3UL) / 2UL + 500UL;
-}
-
 enum RescateState {
     RESCATE_IDLE = 0,          // Estado inactivo
     RESCATE_NEGRA_STEP1,       // Baja garra
@@ -235,11 +124,6 @@ void iniciarRecoleccionPlateada() {
 
 // Función para actualizar la máquina de estados de rescate (llamar en loop())
 void actualizarRescate() {
-    if (rescateUpdateInProgress) {
-        return;
-    }
-
-    rescateUpdateInProgress = true;
     unsigned long now = millis();
     switch (rescateState) {
         case RESCATE_IDLE:
@@ -367,7 +251,6 @@ void actualizarRescate() {
             }
             break;
     }
-    rescateUpdateInProgress = false;
 }
 #define SONAR_NUM 3      // Number of sensors.
 #define MAX_DISTANCE 150 // Maximum distance (in cm) to ping.
@@ -447,21 +330,11 @@ Color known_colors[] = {
 // Función para leer los valores del sensor y determinar el color
 String get_color()
 {
-    if ((fixIssue61Enabled() || fixIssue62Enabled()) && !color_sensor_ok)
-    {
-        return "Desconocido";
-    }
-
     uint16_t r, g, b, c;
-    unsigned long waitStart = millis();
 
     // Esperar a que los datos de color estén listos
     while (!apds.colorDataReady())
     {
-        if (fixIssue61Enabled() && (millis() - waitStart) > 50)
-        {
-            return "Desconocido";
-        }
         delay(5);
     }
 
@@ -541,7 +414,6 @@ void runTime(int speed, int dir, double steer, unsigned long long time)
     while ((millis() - startTime) < time)
     {
         robot.steer(speed, dir, steer);
-        serviceMotionBackgroundTasks();
         digitalWrite(13, HIGH);
         if (Serial5.available() > 0)
         {
@@ -575,7 +447,6 @@ void runAngle(int speed, int dir, double angle)
     {
         bno.getEvent(&event);
         float currentAngle = event.orientation.x;
-        serviceMotionBackgroundTasks();
         if (digitalRead(32) == 1)
         { // switch is off
             Serial5.clear();
@@ -664,19 +535,14 @@ void runDistance(int speed, int dir, int Distance) {
     runTime(30,FORWARD,0,20);
     reset_enconder();
     int32_t  encoder = 25*Distance;
-    bool stopOnExit = fixIssue60Enabled();
-    unsigned long startTime = millis();
-    unsigned long timeoutMs = computeRunDistanceTimeoutMs(speed, Distance);
     
     if (dir == FORWARD) {
         while (true) {
-            if (fixIssue60Enabled() && (millis() - startTime) >= timeoutMs) break;
             int32_t frCount = fr.pulseCount;
             int32_t flCount = fl.pulseCount;
             if (frCount >= encoder || flCount >= encoder) break;
 
             robot.steer(speed, dir, 0);
-            serviceMotionBackgroundTasks();
             Serial.print(flCount);
             Serial.print(" | ");
             Serial.print(frCount);
@@ -697,13 +563,11 @@ void runDistance(int speed, int dir, int Distance) {
     }else{
          while (true) 
         {
-            if (fixIssue60Enabled() && (millis() - startTime) >= timeoutMs) break;
             int32_t frCount = fr.pulseCount;
             int32_t flCount = fl.pulseCount;
 
             if (frCount <= -encoder || flCount <= -encoder) break;
             robot.steer(speed, dir, 0);
-            serviceMotionBackgroundTasks();
             Serial.print(flCount);
             Serial.print(" | ");
             Serial.print(frCount);
@@ -719,13 +583,8 @@ void runDistance(int speed, int dir, int Distance) {
                 break;
             }
         }
-         
-         
-    }
-
-    if (stopOnExit)
-    {
-        robot.steer(0, dir, 0);
+        
+        
     }
 }
 
@@ -802,7 +661,9 @@ void resetear_bno()
 {
     if (!bno.begin())
     {
-        handleBnoInitFailure();
+        Serial.print("No BNO055 detected ... Check your wiring or I2C ADDR!");
+        while (1)
+            ;
     }
     bno.setExtCrystalUse(true);
     delay(200);
@@ -895,36 +756,22 @@ void setup()
     // Initialise BNO055
     if (!bno.begin())
     {
-        handleBnoInitFailure();
+        Serial.print("No BNO055 detected ... Check your wiring or I2C ADDR!");
+        while (1)
+            ;
     }
     bno.setExtCrystalUse(true);
 
     // Initialise APDS9960 Color Sensor
-    color_sensor_ok = apds.begin();
-    if (!color_sensor_ok)
+    if (!apds.begin())
     {
-        if (fixIssue62Enabled())
-        {
-            notifyOptionalSensorWarning();
-        }
+        //Serial.println("failed to initialize device! Please check your wiring.");
     }
     else
-    {
         //Serial.println("Device initialized!");
-    }
 
     // enable color sensign mode
-    if (fixIssue61Enabled() || fixIssue62Enabled())
-    {
-        if (color_sensor_ok)
-        {
-            apds.enableColor(true);
-        }
-    }
-    else
-    {
-        apds.enableColor(true);
-    }
+    apds.enableColor(true);
 
     // Initialise TOF
     Wire1.begin(); // Initialize the first I2C bus
@@ -1237,16 +1084,10 @@ void loop()
                         runAngle(30, FORWARD, diferencia);
                         runTime(30, BACKWARD, 0, 300);
                         runTime(0, FORWARD, 0, 2000);
-                        unsigned long waitStart = millis();
                     while(digitalRead(32) == 0){
                         robot.steer(0, FORWARD, 0);
                         
                         serialEvent5();
-
-                        if (fixIssue58Enabled() && (millis() - waitStart) >= 5000)
-                        {
-                            break;
-                        }
 
                         if (green_state == 15)
                         {
@@ -1268,16 +1109,7 @@ void loop()
                             break;
                         }
 
-                        if (!fixIssue58Enabled())
-                        {
-                            break;
-                        }
-                    }
-                    }
-
-                    if (fixIssue58Enabled())
-                    {
-                        break;
+                        break;}
                     }
 
                 case 14: // turn 180 deg for double green squares
@@ -1423,7 +1255,7 @@ void loop()
                             {
                                 digitalWrite(RELAY, HIGH);
                                     
-                                runAngle(25,FORWARD,fixIssue57Enabled() ? 90 : -90);
+                                runAngle(25,FORWARD,-90);
                             }
                             else if(right_distance<left_distance)
                             {
