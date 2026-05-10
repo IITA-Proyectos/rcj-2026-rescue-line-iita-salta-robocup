@@ -9,13 +9,43 @@ import os
 import threading
 import queue
 
+HEADLESS = os.environ.get("DISPLAY") is None
+DEBUG_VIEW = os.environ.get("DEBUG_VIEW") == "1"
+SHOW_DEBUG_WINDOWS = (not HEADLESS) or DEBUG_VIEW
+
+# PROTOCOLO RPi -> Teensy
+# Frame: [0xFF, speed, 0xFE, angle, 0xFD, green_state, 0xFC, silver_line]
+#
+# CONTRATO DE RANGOS:
+#   speed:       [0, 100]
+#   angle:       [0, 180]   # se envia como angle + 90
+#   green_state: 0..17
+#   silver_line: 0 o 1
+#
+# Los payloads NO deben colisionar con los sync bytes 0xFC..0xFF.
+SYNC_SPEED = 0xFF
+SYNC_ANGLE = 0xFE
+SYNC_GREEN_STATE = 0xFD
+SYNC_SILVER_LINE = 0xFC
+
+TEENSY_BOOT = b'\xfa'
+TEENSY_READY = b'\xf9'
+TEENSY_RESCATE_DONE = b'\xf8'
+TEENSY_STOP = b'\xff'
+
+SERIAL_TIMEOUT_S = 0.05
+FRAME_NONE_RETRY_SLEEP_S = 0.01
+FRAME_NONE_RESTART_THRESHOLD = 30
+TELEMETRY_INTERVAL_S = 5.0
+
 # ---- SWITCH PRINCIPAL ----
-# True  → Zero-DCE en det + AGCWD en intermedios  (Pi 5,  ~20 FPS)
-# False → AGCWD en todos los frames               (Pi 4B, ~35 FPS)
+# True  -> Zero-DCE en det + AGCWD en intermedios  (Pi 5,  ~20 FPS)
+# False -> AGCWD en todos los frames               (Pi 4B, ~35 FPS)
 USE_ZERODCE  = False
 ZERODCE_PATH = "/home/pi/Downloads/AI_enhance/dcenet_int8.tflite"
 ZERODCE_GAIN = 1.65
 # --------------------------
+
 
 debugOriginal = False
 debugBlack = True
@@ -30,9 +60,11 @@ fixed_angle_value = 0
 fixed_angle_active = False
 fixed_angle_start_time = 0
 estado = 'esperando'
+frames_sent = 0
+last_tx_telemetry = time.monotonic()
 
 vs = WebcamVideoStream(src=0).start()
-ser = serial.Serial('/dev/serial0', 115200)
+ser = serial.Serial('/dev/serial0', 115200, timeout=SERIAL_TIMEOUT_S, write_timeout=SERIAL_TIMEOUT_S)
 lower_black   = np.array([0, 0, 0])
 upper_black   = np.array([90, 90, 90])
 lower_green   = np.array([120, 90, 100])
@@ -45,7 +77,6 @@ last_angles   = []
 
 YOLO_IMGSZ  = 256
 
-test_frame = vs.read()
 width, height = 160, 120
 print(width, height)
 
@@ -58,6 +89,92 @@ green_output_cooldown_duration = 2
 green_state_final = 0
 timer_start_time = 0
 silver_line = False
+
+
+def clamp_byte(value):
+    return max(0, min(255, int(value)))
+
+
+def send_frame(speed, angle, green_state, silver_line_flag):
+    global frames_sent, last_tx_telemetry
+
+    output = bytes([
+        SYNC_SPEED, clamp_byte(speed),
+        SYNC_ANGLE, clamp_byte(angle + 90),
+        SYNC_GREEN_STATE, clamp_byte(green_state),
+        SYNC_SILVER_LINE, clamp_byte(int(bool(silver_line_flag))),
+    ])
+    ser.write(output)
+    ser.flush()
+
+    frames_sent += 1
+    now = time.monotonic()
+    if now - last_tx_telemetry >= TELEMETRY_INTERVAL_S:
+        print(f"[TLM] frames_sent={frames_sent} estado={estado}")
+        last_tx_telemetry = now
+
+    return output
+
+
+def restart_video_stream():
+    global vs
+
+    try:
+        vs.stop()
+    except Exception:
+        pass
+
+    time.sleep(0.1)
+    vs = WebcamVideoStream(src=0).start()
+    return vs
+
+
+def read_frame_with_recovery(none_count, context):
+    frame = vs.read()
+    if frame is not None:
+        return frame, 0
+
+    none_count += 1
+    if none_count == 1 or none_count % 10 == 0:
+        print(f"[WARN] {context}: frame None ({none_count})")
+
+    if none_count >= FRAME_NONE_RESTART_THRESHOLD:
+        print(f"[WARN] {context}: reiniciando VideoStream tras {FRAME_NONE_RESTART_THRESHOLD} frames vacios")
+        restart_video_stream()
+        none_count = 0
+
+    time.sleep(FRAME_NONE_RETRY_SLEEP_S)
+    return None, none_count
+
+
+def handle_control_byte(data, context="serial"):
+    global estado
+
+    if not data:
+        return None
+
+    if data == TEENSY_BOOT:
+        print(f"[INFO] {context}: Teensy reseteado -> esperando")
+        estado = 'esperando'
+        return 'boot'
+
+    if data == TEENSY_STOP:
+        estado = 'esperando'
+        return 'stop'
+
+    if data == TEENSY_READY:
+        if estado == 'esperando':
+            estado = 'linea'
+            return 'linea'
+        return 'ready'
+
+    if data == TEENSY_RESCATE_DONE:
+        if estado == 'rescate':
+            estado = 'depositar'
+            return 'depositar'
+        return 'rescate_done'
+
+    return None
 
 x_com = np.zeros(shape=(height, width))
 y_com = np.zeros(shape=(height, width))
@@ -96,14 +213,40 @@ if USE_ZERODCE:
     print("Cargando Zero-DCE...")
     _enhancer = ZeroDCE(ZERODCE_PATH, patch_size=(YOLO_IMGSZ, YOLO_IMGSZ), num_threads=2)
     print("Zero-DCE listo.")
+ENABLE_ANTIFLASH = True
+
+def anti_flash_preprocess(img_bgr, v_flash=215, s_low=60, compress=0.45):
+    hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
+    h, s, v = cv2.split(hsv)
+    s = s.astype(np.float32)
+    v = v.astype(np.float32)
+    
+    flash_mask = (v >= v_flash) & (s <= s_low)
+    
+    if not np.any(flash_mask):
+        return img_bgr
+        
+    mask_blur = flash_mask.astype(np.uint8) * 255
+    mask_blur = cv2.GaussianBlur(mask_blur, (5,5), 0)
+    alpha = mask_blur.astype(np.float32) / 255.0
+
+    v = v * (1 - alpha) + (v_flash + (v - v_flash) * compress) * alpha
+
+    hsv[:, :, 1] = s.astype(np.uint8)
+    hsv[:, :, 2] = v.astype(np.uint8)
+    return cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
 
 def enhance(img_bgr, use_zerodce=False):
     if use_zerodce:
         rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
         rgb = _enhancer.enhance(rgb, gain=ZERODCE_GAIN)
-        return cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
+        out = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
     else:
-        return agcwd(img_bgr)
+        out = img_bgr
+    if ENABLE_ANTIFLASH:
+        out = anti_flash_preprocess(out)
+    return agcwd(out)
+
 
 
 # ---- Inicializar TFLite global + warmup ----
@@ -132,7 +275,6 @@ _output_details = interpreter.get_output_details()[0]
 print("TFLite input:", _input_details)
 print("TFLite output:", _output_details)
 
-# Warmup: igual que el model.predict() de warmup en el main con YOLO
 print("Realizando warmup del modelo TFLite...")
 _dummy = np.zeros((YOLO_IMGSZ, YOLO_IMGSZ, 3), dtype=np.uint8)
 if np.issubdtype(_input_details['dtype'], np.floating):
@@ -143,13 +285,11 @@ interpreter.set_tensor(_input_details['index'], _dummy_inp)
 interpreter.invoke()
 _ = interpreter.get_tensor(_output_details['index'])
 print("Warmup completado.")
-# -------------------------------------------
 
 
 def modo_rescate():
     global last_target_box, is_stopped, estado, ser
 
-    # Usar el intérprete y detalles ya inicializados globalmente
     input_details  = _input_details
     output_details = _output_details
 
@@ -174,19 +314,18 @@ def modo_rescate():
     DETECT_EVERY = 3
     MAX_QUEUE    = 2
     DRAW_EVERY   = 1
-    HEADLESS     = False
 
     last_target_box      = None
-    CENTER_TOLERANCE_PX  = 10
-    STOP_WIDTH_RATIO     = 0.20
-    STOP_WIDTH_RATIO_BOX = 0.93
+    CENTER_TOLERANCE_PX  = 8
+    STOP_WIDTH_RATIO     = 0.21
+    STOP_WIDTH_RATIO_BOX = 0.98
     RESUME_WIDTH_RATIO   = 0.18
     is_stopped           = False
 
     CLASS_THRESH = {
         0: 0.45,
         1: 0.45,
-        2: 0.2,
+        2: 0.5,
         3: 0.6
     }
 
@@ -301,11 +440,11 @@ def modo_rescate():
         return int(x1*scale_x), int(y1*scale_y), int(x2*scale_x), int(y2*scale_y)
 
     def capture_thread():
+        none_count = 0
         while not stop_event.is_set():
-            frame = vs.read()
+            frame, none_count = read_frame_with_recovery(none_count, "rescate-capture")
             if frame is None:
-                frame_q.put(None)
-                break
+                continue
             frame = cv2.rotate(frame, cv2.ROTATE_180)
             frame_q.put(frame)
         frame_q.put(None)
@@ -324,8 +463,9 @@ def modo_rescate():
             if frame_idx % DETECT_EVERY == 0:
                 small = enhance(small, use_zerodce=USE_ZERODCE)
             else:
+                if ENABLE_ANTIFLASH:
+                    small = anti_flash_preprocess(small)
                 small = agcwd(small)
-
             enhanced_frame = cv2.resize(small, (w, h))
 
             if frame_idx % DETECT_EVERY == 0:
@@ -403,14 +543,13 @@ def modo_rescate():
             try:
                 if ser.in_waiting > 0:
                     data = ser.read()
-                    if data == b'\xff':
-                        print("serial monitor")
+                    action = handle_control_byte(data, context="serial-monitor")
+                    if action in ('boot', 'stop'):
+                        print("serial monitor: switch apagado")
                         stop_rescate = True
-                        estado = 'esperando'
                         break
-                    if data == b'\xf8' and estado == "rescate":
+                    elif action == 'depositar':
                         print("Llego 248 -> terminar rescate y cambiar a depositar")
-                        estado = 'depositar'
             except Exception as e:
                 print("serial_monitor_local error:", e)
             time.sleep(0.01)
@@ -520,9 +659,8 @@ def modo_rescate():
                 angle       = 90
                 green_state = 0
 
-            output = [255, speed, 254, angle + 90, 253, green_state, 252, 0]
-            ser.write(output)
-            print(output)
+            # ---- Envío con ACK ----
+            output = send_frame(speed, angle, green_state, 0)
 
             processed += 1
             elapsed = time.time() - start
@@ -531,7 +669,7 @@ def modo_rescate():
             cv2.putText(frame, f"FPS: {fps:.2f} [{modo}]", (10, 30),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
 
-            if not HEADLESS:
+            if SHOW_DEBUG_WINDOWS:
                 cv2.imshow("Optimizado", frame)
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     stop_event.set(); break
@@ -539,7 +677,7 @@ def modo_rescate():
                 if processed % 30 == 0:
                     print(f"[HEADLESS] FPS ~ {fps:.2f}  detecciones: {len(last_detections)}")
 
-        if not HEADLESS:
+        if SHOW_DEBUG_WINDOWS:
             cv2.destroyAllWindows()
 
     # ---- lanzar hilos ----
@@ -549,12 +687,22 @@ def modo_rescate():
     try:
         main_loop()
     finally:
-        stop_event.set()
-        serial_stop_evt.set()
-        stop_rescate = False
-        tcap.join(timeout=1)
-        tinf.join(timeout=1)
-        t_serial_mon.join(timeout=0.5)
+            stop_event.set()
+            serial_stop_evt.set()
+            stop_rescate = False
+            
+            # --- FIX ZOMBI: Drenar colas para destrabar los hilos ---
+            while not frame_q.empty():
+                try: frame_q.get_nowait()
+                except: pass
+            while not result_q.empty():
+                try: result_q.get_nowait()
+                except: pass
+            # --------------------------------------------------------
+
+            tcap.join(timeout=1)
+            tinf.join(timeout=1)
+            t_serial_mon.join(timeout=0.5)
 
 
 # -----------------------------------------------
@@ -563,19 +711,21 @@ def modo_rescate():
 while True:
 
     while estado == 'esperando':
-        frame = vs.read()
         silver_line = False
         if ser.in_waiting > 0:
             data = ser.read()
-            if data == b'\xf9':
-                estado = 'linea'
-            ser.reset_input_buffer()
+            handle_control_byte(data, context="esperando")
+        time.sleep(FRAME_NONE_RETRY_SLEEP_S)
 
     while estado == 'rescate':
         modo_rescate()
 
+    line_none_count = 0
     while estado == 'linea':
-        frame = vs.read()
+        frame, line_none_count = read_frame_with_recovery(line_none_count, "linea")
+        if frame is None:
+            continue
+
         frame = cv2.rotate(frame, cv2.ROTATE_180)
         frame_resized = cv2.resize(frame, (160, 120), interpolation=cv2.INTER_NEAREST)
 
@@ -661,35 +811,39 @@ while True:
         if red_line:
             green_state = 10
 
-        output = [255, speed,
-                  254, round(angle) + 90,
-                  253, green_state,
-                  252, int(silver_line)]
+        output = send_frame(speed, round(angle), green_state, silver_line)
 
-        ser.write(output)
+        # ---- Envío con ACK ----
 
         if silver_line:
             estado = 'rescate'
 
-        if ser.in_waiting > 0:
+        # FIX: while en lugar de if para drenar el buffer completo cada iteracion.
+        # Con if, si el Teensy envia ~30 ACKs/s y el loop de vision tarda ~25ms,
+        # el buffer se acumula y el watchdog reporta falsos timeouts.
+        # El break al detectar 0xFF es critico: evita procesar bytes de un estado
+        # que ya cambio si el buffer contiene [ACK, ACK, 0xFF, ACK].
+        while ser.in_waiting > 0:
             data = ser.read()
-            if data == b'\xff':
-                estado = 'esperando'
+            action = handle_control_byte(data, context="linea")
+            if action in ('boot', 'stop'):
                 print("cambiando estado")
+                break  # salir inmediatamente: el estado ya cambio
 
-        if debugOriginal:
+        if SHOW_DEBUG_WINDOWS and debugOriginal:
             cv2.imshow('Original', frame_resized)
-        if record:
+        if SHOW_DEBUG_WINDOWS and record:
             cv2.imshow('redd', red_mask)
-        if debugBlack:
+        if SHOW_DEBUG_WINDOWS and debugBlack:
             cv2.imshow('Black Mask', black_mask)
-        if debugGreen:
+        if SHOW_DEBUG_WINDOWS and debugGreen:
             cv2.imshow('Green Mask', green_mask)
-        if debugHori:
+        if SHOW_DEBUG_WINDOWS and debugHori:
             cv2.imshow('Silver Mask', silver_mask)
 
-        if cv2.waitKey(1) & 0xFF == ord('q'):
+        if SHOW_DEBUG_WINDOWS and cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
-cv2.destroyAllWindows()
+if SHOW_DEBUG_WINDOWS:
+    cv2.destroyAllWindows()
 vs.stop()
