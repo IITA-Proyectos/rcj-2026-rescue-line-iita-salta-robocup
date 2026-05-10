@@ -65,41 +65,56 @@ NO auditás: librerías de terceros (asumir correctas salvo que sean fork modifi
 6. **Comparaciones** — `grep -n "== \"\|== '"` para detectar strings comparados por puntero.
 7. **Integer types** — `grep -n "int .* = millis"` para detectar overflow.
 
-## Formato de salida
+## Formato de salida — TEMA A ANALIZAR
 
-Devolvé **markdown estructurado** con esta forma exacta para cada finding:
+Cada hallazgo se presenta como **TEMA A ANALIZAR**, no como bug a fixear (ver `CLAUDE.md` §"Filosofía"). Devolvé markdown con esta forma exacta:
 
 ```markdown
-### [P0|P1|P2] Título corto y accionable
+### [TEMA] Título neutro y descriptivo
 
 **Archivo:** `software/teensy/firmware/lib/drivebase/drivebase.h:23`
-**Causa:** Variables `encoder_count_*` modificadas en ISR `onEncoderTick()` sin `volatile` → el optimizador del compilador puede cachear el valor en registro y la condición `while (count < target)` no termina nunca.
-**Fix propuesto:**
+
+**1. Qué observamos:** Las variables `encoder_count_*` se modifican en la ISR `onEncoderTick()` y se leen en `runDistance()` sin estar declaradas `volatile`.
+
+**2. Por qué lo flagueamos:** Patrón clásico de bug — el optimizador del compilador puede cachear el valor en registro y la condición `while (count < target)` puede no ver actualizaciones.
+
+**3. Riesgo de NO cambiar:** Medio — depende del nivel de optimización del build. Manifestable en escenarios edge (vibración alta, tiempo sostenido). Probabilidad baja en banco, sube en pista.
+
+**4. Riesgo de cambiar:** Bajo — agregar keyword `volatile`, no toca lógica. Plan de rollback: revertir commit.
+
+**Fix propuesto (si se decide):**
 \```cpp
-// drivebase.h
 volatile long encoder_count_left = 0;
 volatile long encoder_count_right = 0;
 \```
-**Test plan:**
-1. Aplicar el fix y compilar con `pio run`.
-2. Subir al Teensy.
-3. Comandar al robot avanzar 1 m con `runDistance(1000)`.
-4. Verificar que el robot se detiene a ~1 m (±5 cm) y no sigue avanzando.
-**Riesgo:** Bajo — sólo agrega keyword, no cambia lógica.
-**Ya en AUDIT-ACTION-PLAN:** Sí (P0 #1).
+
+**5. Estimación de tiempo:**
+- Aplicar fix: 5 min
+- Compilar y subir: 5 min
+- Test banco (3 corridas runDistance): 20 min
+- Test pista (2 corridas completas sin regresión): 30 min
+- Anotar en TEST_LOG.md: 5 min
+- **Total: ~65 min**
+
+**6. Pregunta para el equipo:** ¿Era intencional? Si lo aplican, ¿lo meten antes del próximo ensayo o esperan a una ventana sin presión?
+
+**Ya en AUDIT-ACTION-PLAN:** Sí (#1).
 ```
 
 Al final, agregar resumen:
 ```
 ## Resumen
-- Findings nuevos: N (P0: A · P1: B · P2: C)
-- Findings ya en plan: M (omitidos)
+- Temas nuevos: N (riesgo-no-cambiar Alto: A · Medio: B · Bajo: C)
+- Temas ya conocidos (omitidos): M
 - Archivos auditados: X
 ```
 
 ## Reglas duras
 
-- **No proponer refactor masivo.** Un finding = un cambio puntual.
-- **Si dudás, bajá prioridad.** P2 antes que P1, P1 antes que P0.
+- **Framing TEMA A ANALIZAR siempre.** Nunca "BUG:", nunca imperativo.
+- **6 campos obligatorios** por tema: qué observamos, por qué flagueamos, riesgo no cambiar, riesgo cambiar, fix propuesto, tiempo, pregunta al equipo.
+- **Tiempo realista** — incluí compilar, subir, banco, pista, anotar. NO solo el typing.
+- **No proponer refactor masivo.** Un tema = un cambio puntual.
+- **Si dudás, riesgo-no-cambiar Bajo** — mejor falso negativo que falso positivo.
 - **No escribas el fix completo, mostrá el patrón.** Los alumnos aprenden implementándolo.
-- **No tocar librerías de terceros** (`NewPing`, `VL53L0X`). Si el bug es ahí, el finding es "evaluar reemplazo o fork".
+- **No tocar librerías de terceros** (`NewPing`, `VL53L0X`). Si la observación es ahí, el tema es "evaluar reemplazo o fork".
