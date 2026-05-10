@@ -1,0 +1,143 @@
+name: 🔍 Finding de auditoría
+description: Bug o mejora detectada en revisión técnica (manual o por IA). Usar para todo lo que toque firmware, visión o comms.
+title: "[Pxx] <título corto y accionable>"
+labels: ["type/bug"]
+projects: []
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Plantilla estándar IITA RCJ 2026. Antes de abrir, verificá que **no esté ya** en `AUDIT-ACTION-PLAN.md` ni en los issues abiertos con label `priority/high|medium|low`.
+
+        **IMPORTANTE:** Después de crear el issue, agregale los labels:
+        - **Prioridad** → `priority/high` (P0), `priority/medium` (P1), `priority/low` (P2)
+        - **Subsistema** → `subsystem/control` (Teensy/PID/motores), `subsystem/vision` (RPi/YOLO), `subsystem/comms` (serial), `subsystem/power`, `subsystem/mechanics`
+        - **Tipo** → `type/bug` (default), `type/feature`, `type/docs`, `type/hardware`, `type/research`
+
+  - type: dropdown
+    id: prioridad
+    attributes:
+      label: Prioridad
+      description: |
+        - **P0** — Riesgo de no completar una corrida (robot se cuelga, se va de la pista, no arranca).
+        - **P1** — Pérdida significativa de puntaje o comportamiento errático intermitente.
+        - **P2** — Robustez / mantenibilidad. No bloquea competencia.
+      options:
+        - "P0 — Bloquea corrida"
+        - "P1 — Pérdida de puntaje"
+        - "P2 — Robustez / deuda"
+      default: 1
+    validations:
+      required: true
+
+  - type: dropdown
+    id: subsistema
+    attributes:
+      label: Subsistema afectado
+      multiple: true
+      options:
+        - "teensy (firmware C++)"
+        - "rpi (visión Python)"
+        - "comms (protocolo serial)"
+        - "build / CI"
+        - "hardware"
+        - "docs"
+    validations:
+      required: true
+
+  - type: textarea
+    id: ubicacion
+    attributes:
+      label: Ubicación
+      description: Archivo(s) y línea(s) afectadas. Una por línea.
+      placeholder: |
+        software/teensy/firmware/lib/drivebase/drivebase.h:23
+        software/teensy/firmware/lib/drivebase/drivebase.cpp:45
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: causa
+    attributes:
+      label: Causa
+      description: Qué hace el código y por qué eso es un bug. Sé específico — no "está mal" sino "el optimizador puede cachear el valor del registro porque la variable no es volatile".
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduccion
+    attributes:
+      label: Reproducción
+      description: Pasos numerados que reproducen el síntoma observable. Si es un bug de runtime, qué se vería.
+      placeholder: |
+        1. Subir el firmware actual al Teensy.
+        2. Comandar `runDistance(1000)` desde la Pi.
+        3. Observar: el robot avanza más allá de 1 m sin detenerse (~1.5 m).
+    validations:
+      required: true
+
+  - type: textarea
+    id: fix_propuesto
+    attributes:
+      label: Fix propuesto
+      description: Qué cambio resuelve la causa raíz. Snippet o descripción concreta. Si hay alternativas, listalas con tradeoff.
+      render: markdown
+    validations:
+      required: true
+
+  - type: textarea
+    id: test_plan
+    attributes:
+      label: Plan de test (en banco)
+      description: Cómo el equipo verifica que el fix funciona ANTES de mergear. Tiene que ser ejecutable con el material que tienen.
+      placeholder: |
+        1. Aplicar el fix.
+        2. `pio run` debe compilar sin warnings nuevos.
+        3. Subir al Teensy.
+        4. Comandar `runDistance(1000)` y medir distancia con cinta — esperado 100 cm ± 5 cm.
+        5. Repetir 3 veces, todas dentro de tolerancia.
+        6. Anotar resultado en `testing/TEST_LOG.md`.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: riesgo
+    attributes:
+      label: Riesgo del fix
+      description: |
+        - **Bajo** — cambio puntual de keyword o constante, no toca lógica.
+        - **Medio** — refactor de una función, requiere test cuidadoso.
+        - **Alto** — cambia comportamiento de un subsistema o rompe API entre módulos.
+      options:
+        - Bajo
+        - Medio
+        - Alto
+    validations:
+      required: true
+
+  - type: textarea
+    id: rollback
+    attributes:
+      label: Plan de rollback
+      description: Si el fix rompe algo en banco, cómo se revierte. Para fixes simples basta "revertir commit".
+
+  - type: input
+    id: fuente
+    attributes:
+      label: Fuente del finding
+      description: ¿Quién/qué lo detectó? (auditoría manual, skill `teensy-firmware-auditor`, alumno X, etc.)
+      placeholder: "skill: teensy-firmware-auditor (corrida 2026-05-09)"
+
+  - type: checkboxes
+    id: previo
+    attributes:
+      label: Previo a abrir el issue
+      options:
+        - label: Verifiqué que el bug no está ya en `AUDIT-ACTION-PLAN.md`.
+          required: true
+        - label: Busqué issues abiertos con `gh issue list --label priority/high --label priority/medium --label priority/low --state all` y no hay duplicado.
+          required: true
+        - label: El test plan es ejecutable con el material del equipo.
+          required: true
