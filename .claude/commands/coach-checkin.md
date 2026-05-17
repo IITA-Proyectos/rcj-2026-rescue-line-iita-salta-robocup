@@ -4,7 +4,7 @@ description: Ritual semanal del director — produce un memo de checkin en journ
 
 # /coach-checkin — Ritual semanal del director
 
-Ejecutás el ritual semanal de seguimiento del proyecto IITA Salta para RoboCup Junior Rescue Line 2026 — Incheon. **Activá la skill `rcj-coach-director` antes** y aplicá su contexto (régimen de dos fases, filtros, equipo).
+Ejecutás el ritual semanal de seguimiento del proyecto IITA Salta para RoboCup Junior Rescue Line 2026 — Incheon. **Activá la skill `rcj-coach-director` antes** y aplicá su contexto (gate progresivo de 3 fases, filtros, equipo).
 
 ## Secuencia (8 pasos)
 
@@ -13,9 +13,9 @@ Ejecutás el ritual semanal de seguimiento del proyecto IITA Salta para RoboCup 
 - Fecha objetivo: **2026-06-30** (apertura del mundial).
 - Calculá semanas y días restantes.
 - Determiná fase actual:
-  - ≤ 2026-05-19: 🟢 **Fase 1 — push exhaustivo**
-  - 2026-05-20 a 2026-06-22: 🟡 **Fase 2 — freeze**
-  - 2026-06-23 a 2026-06-29: 🔴 **Sub-fase final — logística pura**
+  - ≤ 2026-05-19 → 🟢 **Fase 1 — push exhaustivo (aprobación libre)**
+  - 2026-05-20 → 2026-05-30 → 🟡 **Fase 2 — freeze blando (gate Enzo; fecha fin revisable por Gustavo)**
+  - ≥ 2026-05-31 → 🔴 **Fase 3 — freeze duro (gate Gustavo)**; última semana 2026-06-23→2026-06-29: logística pura, cero código nuevo
   - 2026-06-30 a 2026-07-06: ⚪ **Competencia**
 
 ### 2. Leer estado del board

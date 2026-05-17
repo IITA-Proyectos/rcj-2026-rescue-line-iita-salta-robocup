@@ -103,40 +103,49 @@ La skill **no recalcula** estos datos en cada conversación — los tiene grabad
 - Banco antes de mergear firmware.
 - AUDIT-ACTION-PLAN.md como referencia, no duplicar findings.
 
-### 4.5. Filtro de Incheon — dos regímenes temporales
+### 4.5. Filtro de Incheon — gate progresivo de 3 fases
 
-El objetivo es **ganar**, así que el filtro es agresivo al principio y conservador al final. La skill cambia de régimen automáticamente según la fecha:
+El objetivo es **ganar el mundial**. El control de cambios se endurece a medida que se acerca Incheon. La skill determina la fase por la fecha de hoy y marca SIEMPRE en el output qué fase y qué gate aplica.
 
 #### Fase 1 — PUSH EXHAUSTIVO (hasta 2026-05-19 inclusive)
 
-**Mantra:** *"Si suma puntos o protege puntos, entra. Solo se difiere lo muy menor con riesgo desproporcionado."*
+**Mantra:** *"Si suma o protege puntos, entra. Solo se difiere lo muy menor + riesgoso."*
 
 - Default: **meter** el cambio antes de Incheon.
 - Solo se manda a `post-mundial` un issue si cumple **ambas** condiciones:
   - **Muy menor** (no mueve la aguja del scoring ni del riesgo)
   - **Riesgoso** (puede romper algo validado, o el esfuerzo es alto vs. el upside)
-- Si suma pero es complejo: entra y se le da tiempo de banco. El equipo tiene 10 días de push duro.
+- Si suma pero es complejo: entra y se le da tiempo de banco.
+- **Aprobación:** libre con criterio (bajo-riesgo/alto-impacto).
 
-#### Fase 2 — FREEZE (desde 2026-05-20 hasta el mundial)
+#### Fase 2 — FREEZE BLANDO / gate Enzo (2026-05-20 → 2026-05-30; fecha fin inicial, revisable por Gustavo, "posiblemente se extienda")
 
-**Mantra:** *"NO se cambia nada salvo que se demuestre ventaja desproporcionada respecto al esfuerzo y riesgo."*
+**Mantra:** *"Se aceptan algunos cambios, pero NINGÚN push entra sin validación explícita de Enzo."*
 
-- Default: **no tocar.** Lo que está funcionando, queda como está.
-- Para que un cambio entre en fase 2 tiene que pasar el filtro de "ventaja desproporcionada":
+- Default: **no tocar** sin gate. Sigue aplicando el filtro de ventaja vs esfuerzo+riesgo:
   - Ganancia clara y cuantificada en puntos (ej. "+30 pts esperados en run promedio").
-  - Riesgo cuantificado y aceptable (probabilidad razonable de no romper nada validado).
-  - Esfuerzo acotado (cabe en banco, validable, sin tocar subsistemas paralelos).
-  - Tiempo suficiente entre el merge y el mundial para 5+ corridas de banco completas.
+  - Riesgo cuantificado y aceptable: etiqueta P2 o P1, no P0. No toca interfaces entre subsistemas.
+  - Esfuerzo acotado (cabe en 1-2 archivos, validable en banco, sin refactors paralelos).
+  - Tiempo suficiente entre merge y el mundial para 5+ corridas de banco completas.
+- **Gate:** Enzo aprueba cada push antes de mergear.
 - Si no pasa el filtro → `post-mundial`, sin excepción.
-- **Sub-fase final (2026-06-23 a 2026-06-29):** última semana antes del viaje. Cero código nuevo. Foco en logística, packing, calibración de cámara/sensores para iluminación de Songdo, repuestos.
+
+#### Fase 3 — FREEZE DURO / gate Gustavo (desde 2026-05-31)
+
+**Mantra:** *"Solo se hacen push con autorización explícita de Gustavo (el director)."*
+
+- Default: **cero cambios** sin autorización directa de Gustavo.
+- **Gate:** Gustavo firma cada push. Sin firma, no se mergea nada.
+- **Última semana antes del viaje (2026-06-23 a 2026-06-29) y durante el mundial:** logística pura, cero código nuevo. Foco en logística, packing, calibración de cámara/sensores para iluminación de Songdo, repuestos.
 
 #### Cómo aplica la skill el filtro
 
 Cuando rankea un issue o evalúa una propuesta:
 1. Lee la fecha de hoy y determina la fase.
 2. Aplica el filtro correspondiente.
-3. **Marca explícitamente en su output** qué fase está aplicando ("Estamos en Fase 1 — push exhaustivo" / "Estamos en Fase 2 — freeze, este cambio necesita demostrar ventaja desproporcionada").
-4. Si Gustavo o Enzo quieren overridear (ej. meter algo en freeze que no pasa el filtro), la skill lo permite pero **registra la excepción en `journal/decisiones/`** con la justificación.
+3. **Marca explícitamente en su output** qué fase y gate está aplicando: 🟢 Fase 1 (libre) / 🟡 Fase 2 (gate Enzo) / 🔴 Fase 3 (gate Gustavo).
+4. Si alguien propone un cambio, indica qué gate necesita.
+5. Si Gustavo o Enzo quieren overridear, la skill lo permite pero **registra la excepción en `journal/decisiones/`** con la justificación.
 
 ### 4.6. Modelo de priorización
 
@@ -398,12 +407,13 @@ Después de que Gustavo apruebe este spec, los pasos serán (los detalla la pró
 **Objetivo final del equipo:** podio en RCJ Rescue Line 2026 — Incheon. La skill se considera exitosa si contribuye a eso a través de:
 
 1. **Hay un checkin semanal en `journal/`** todas las semanas hasta el 2026-06-29.
-2. **Cada lunes Gustavo sabe** en qué balde están los 38 issues (must / should / nice / post-mundial), y la skill marca explícitamente la fase (push exhaustivo / freeze).
+2. **Cada lunes Gustavo sabe** en qué balde están los 38 issues (must / should / nice / post-mundial), y la skill marca explícitamente la fase y el gate que aplica (🟢 F1 libre / 🟡 F2 gate Enzo / 🔴 F3 gate Gustavo).
 3. **Cada chico** tiene su agenda semanal escrita y un criterio de "hecho" por ítem.
 4. **Las decisiones grandes** (cortes de scope, excepciones al freeze, vetar features) quedan documentadas en `journal/decisiones/`.
-5. **El régimen de fases se respeta:**
-   - Push exhaustivo cerró fuerte el 2026-05-19 (mayoría de issues `must` resueltos o en PR).
-   - Desde 2026-05-20 no entró ningún cambio que no haya pasado el filtro de "ventaja desproporcionada".
+5. **El gate progresivo de 3 fases se respeta:**
+   - Push exhaustivo F1 cerró fuerte el 2026-05-19 (mayoría de issues `must` resueltos o en PR).
+   - F2 freeze blando (2026-05-20 a 2026-05-30): ningún push entró sin validación explícita de Enzo.
+   - F3 freeze duro (desde 2026-05-31): ningún cambio entró sin autorización directa de Gustavo.
    - La última semana (2026-06-23 a 2026-06-29) fue puramente logística.
 
 Si en 3 semanas no se cumple esto, se ajusta o se retira la skill.
