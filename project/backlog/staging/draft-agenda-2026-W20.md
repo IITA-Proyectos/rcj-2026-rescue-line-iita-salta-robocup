@@ -23,9 +23,9 @@ Por eso esta agenda prioriza **quick-wins de bajo riesgo que cierran en 1-2 sent
 | #73 serial timeout | confiabilidad | Lucio | ~15 min | must | Sí, fácil |
 | #66 ser.write() clamp | confiabilidad | Lucio | ~45 min | must | Sí |
 | #64 cv2.imshow HEADLESS | performance | Lucio | ~45 min | must | Sí |
-| #58 case 12 sin break | comportamiento | Lautaro | ~1 h (ojo `while`) | must | Sí, con cuidado |
-| #67 pulseCount init | confiabilidad | Lautaro | ~15 min | should | Sí, fácil |
-| Verificar timeouts #60/#61/#62 | confiabilidad | Lautaro | ~1 h banco | must | Verificación, no fix |
+| #58 case 12 sin break | comportamiento | Laureano | ~1 h (ojo `while`) | must | Sí, con cuidado |
+| #67 pulseCount init | confiabilidad | Laureano | ~15 min | should | Sí, fácil |
+| Verificar timeouts #60/#61/#62 | confiabilidad | Laureano | ~1 h banco | must | Verificación, no fix |
 | #68 requirements pinning | confiabilidad | Benjamin | ~30 min en la Pi | must | Sí |
 | PR #101 TEST_LOG (~24 pts TDP) | proceso/TDP | Enzo | merge | must | **Hoy/mañana** |
 | Triage #91 | proceso | Enzo | sesión equipo | must | **Vence 05-17** |
@@ -72,7 +72,7 @@ Cluster de 4 quick-wins en `Main.py`. Los 4 son chicos y no tocan la lógica de 
 
 ---
 
-## 👤 Lautaro — Teensy / firmware (codeowner)
+## 👤 Laureano — Teensy / firmware (codeowner)
 
 ### TEMA #58 — `case 12` cae al `case 14` (falta `break;`)
 - **Qué:** agregar el `break;` que falta al final del `case 12` (`main.cpp:1079-1115`). **Ojo:** el issue señala que dentro del `while(digitalRead(32)==0)` hay un `break;` incondicional (línea ~1112) que hace que el while corra una sola vez — revisar si ese `break` es intencional o parte del mismo bug antes de tocar.

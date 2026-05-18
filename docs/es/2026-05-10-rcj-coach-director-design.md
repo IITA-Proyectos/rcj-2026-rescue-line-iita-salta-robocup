@@ -63,7 +63,7 @@ La skill activa cuando aparecen estas frases en la conversación (no exhaustivo)
 **Ritual:**
 - "checkin", "armá la agenda", "qué tareas para [nombre]", "qué le pongo a [nombre]"
 
-**Roles:** cuando se mencione a Enzo / Lautaro / Benjamin / Lucio en contexto de asignación o seguimiento.
+**Roles:** cuando se mencione a Enzo / Laureano / Benjamin / Lucio en contexto de asignación o seguimiento.
 
 ---
 
@@ -90,7 +90,7 @@ La skill **no recalcula** estos datos en cada conversación — los tiene grabad
 |---|---|---|
 | Gustavo Viollaz (`gviollaz`) | Director | docs |
 | Enzo Juarez (`enzzo19`) | Coach real | docs |
-| Lautaro Monteros (`Laumonteros`) | Alumno | firmware Teensy |
+| Laureano Monteros (`Laumonteros`) | Alumno | firmware Teensy |
 | Benjamin Villagran (`benjaminvillagran`) | Alumno | hardware + RPi |
 | Lucio Uriel (`luciouriel2011`) | Alumno | RPi visión |
 
@@ -153,7 +153,7 @@ La skill produce uno (o varios) de estos formatos según el pedido:
 | # | Título | Subsistema | Balde | Dueño | Razón |
 |---|---|---|---|---|---|
 | 93 | Inicializar TEST_LOG.md | docs | must | Enzo+Benjamin | ~24 pts del TDP |
-| 57 | Zona rescate: ambas ramas rotan -90 | control | must | Lautaro | P0, pierde corrida |
+| 57 | Zona rescate: ambas ramas rotan -90 | control | must | Laureano | P0, pierde corrida |
 | ... | | | | | |
 
 **Baldes:** `must-ship-incheon` / `should-ship-incheon` / `nice-to-have` / `post-mundial`.
@@ -174,7 +174,7 @@ La skill produce uno (o varios) de estos formatos según el pedido:
 ### 5.3. Agenda semanal por persona
 
 ```
-**Lautaro** (Teensy):
+**Laureano** (Teensy):
   - [must] #57 zona rescate ambas ramas rotan -90 → fix + banco
   - [must] #60 runDistance sin timeout
   - [should] #58 case 12 fall-through
@@ -230,7 +230,7 @@ Archivo `journal/2026-W{N}-checkin.md`:
 ## Estado por persona
 | Persona | Verde / Amarillo / Rojo | Nota |
 |---|---|---|
-| Lautaro | 🟢 | ... |
+| Laureano | 🟢 | ... |
 | ... | | |
 
 ## Decisiones tomadas
@@ -241,7 +241,7 @@ Archivo `journal/2026-W{N}-checkin.md`:
 - Salen del `must` (a `post-mundial`): ...
 
 ## Agenda semana próxima
-**Lautaro:**
+**Laureano:**
 - ...
 **Benjamin:**
 - ...
@@ -310,7 +310,7 @@ name: rcj-coach-director
 description: |
   Director técnico/coach del equipo IITA Salta para RCJ Rescue Line 2026.
   Activar cuando se pida priorizar issues, planificar la semana, decidir qué cerrar antes
-  de Incheon, asignar tareas al equipo (Enzo/Lautaro/Benjamin/Lucio), o evaluar si una mejora
+  de Incheon, asignar tareas al equipo (Enzo/Laureano/Benjamin/Lucio), o evaluar si una mejora
   suma puntos en el mundial. NO escribe código — orienta decisiones, produce rankings,
   agendas, memos y entradas de journal.
 ---

@@ -1,10 +1,10 @@
-## Cluster Teensy / firmware — para Lautaro (Laureano Monteros, `Laumonteros`, codeowner firmware)
+## Cluster Teensy / firmware — para Laureano (Laureano Monteros, `Laumonteros`, codeowner firmware)
 
-> Nota de nombres: **Lautaro = Laureano Monteros = `Laumonteros`** — misma persona, el del firmware Teensy.
+> Nota de nombres: **Laureano = Laureano Monteros = `Laumonteros`** — misma persona, el del firmware Teensy.
 
 **Fase:** 🟢 Fase 1 — push exhaustivo · **T–6 semanas a Incheon** · freeze el 2026-05-20 (3-4 días).
 
-Lautaro: este issue junta tu frente de firmware Teensy — lo previo abierto + los hallazgos nuevos de la auditoría 2026-05-16 (branch `feature/initialize-testing-log`, commit `c42e535`). Formato de cada tema: riesgo-si-NO / riesgo-si-SÍ / tiempo / criterio de "hecho". Ver panorama completo en #103.
+Laureano: este issue junta tu frente de firmware Teensy — lo previo abierto + los hallazgos nuevos de la auditoría 2026-05-16 (branch `feature/initialize-testing-log`, commit `c42e535`). Formato de cada tema: riesgo-si-NO / riesgo-si-SÍ / tiempo / criterio de "hecho". Ver panorama completo en #103.
 
 ---
 

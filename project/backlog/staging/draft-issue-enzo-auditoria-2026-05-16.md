@@ -15,7 +15,7 @@ Los timeouts de los issues **#59 / #60 / #61 / #62 están REVERTIDOS** en el có
 - `cead75e fix(teensy): error de libreria claw.cpp` borró 181 líneas (incl. `priority_fix_flags.h`).
 - Ningún commit posterior los restauró.
 
-El equipo opera creyendo que están resueltos y **no lo están**. Recomendación: re-aplicar incremental (issue por issue) tras arreglar el error de `claw.cpp` que forzó el revert. **Prioridad #1 de Lautaro antes del freeze.**
+El equipo opera creyendo que están resueltos y **no lo están**. Recomendación: re-aplicar incremental (issue por issue) tras arreglar el error de `claw.cpp` que forzó el revert. **Prioridad #1 de Laureano antes del freeze.**
 
 ---
 
@@ -58,7 +58,7 @@ Los auditores confirmaron que los **rangos del payload serial NO colisionan con 
 ### Acciones sugeridas para el triage #91
 
 1. Mover los 10 quick-wins a `must-ship-incheon` (caben antes del freeze, bajo riesgo).
-2. Re-aplicar timeouts #59/#60/#61/#62 → prioridad #1 Lautaro.
+2. Re-aplicar timeouts #59/#60/#61/#62 → prioridad #1 Laureano.
 3. Los 5 medio-riesgo → evaluar uno por uno: ¿entra antes del 05-20 con banco, o `post-mundial`?
 4. Cluster RPi/hardware detallado → ver el issue de Benjamin (creado en paralelo a este).
 

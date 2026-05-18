@@ -14,8 +14,8 @@ Sin esto nada fluye. Es lo de #107.
 
 ### Sprint 1 — CÓDIGO QUE SE ESCRIBE YA (no requiere robot enfrente) → habilita el 6/10
 Esto se puede empezar HOY, en cualquier checkout del repo, aunque el equipo esté disperso o el robot no esté a mano. La validación en banco viene después (Sprint 2).
-- [ ] **#60 + #61** — re-aplicar los timeouts revertidos. El código YA existió en el commit `5bac4a5`; es cherry-pick/re-escritura selectiva, no diseño nuevo. (Track A, Lautaro)
-- [ ] **#112** — timeout + dreno serial en `runAngle()`. Patrón idéntico a #60. (Track A, Lautaro)
+- [ ] **#60 + #61** — re-aplicar los timeouts revertidos. El código YA existió en el commit `5bac4a5`; es cherry-pick/re-escritura selectiva, no diseño nuevo. (Track A, Laureano)
+- [ ] **#112** — timeout + dreno serial en `runAngle()`. Patrón idéntico a #60. (Track A, Laureano)
 - [ ] **#113** — `threading.Lock` en `camthreader.py` (~6 líneas). (Track B, Lucio/Benjamin)
 - [ ] **#110** — inicializar `cx_black` + `try/except` en loop de línea (~2 líneas). (Track B, Lucio/Benjamin)
 - [ ] **#108** — escribir la unit `systemd` + `try/except` global en `Main.py`. Se prueba en cualquier Pi/PC, no necesita el robot. (Track B, Lucio/Benjamin)
@@ -23,8 +23,8 @@ Esto se puede empezar HOY, en cualquier checkout del repo, aunque el equipo est�
 
 ### Sprint 2 — VALIDACIÓN EN BANCO (Track A, push libre ≤2026-05-26) → cierra el 6/10 sólido
 Requiere el robot. Cada fix con su "test plan (banco)" del issue + entrada en `testing/TEST_LOG.md`.
-- [ ] **#53** — heartbeat serial + failsafe `speed=0`. Necesita banco para tunear el timeout real y probar el corte. **La palanca #1.** (Track A, Lautaro)
-- [ ] **#27** — watchdog de hardware (`WDT_T4`) + callback que para motores. Validar reset+recuperación en banco. (Track A, Lautaro)
+- [ ] **#53** — heartbeat serial + failsafe `speed=0`. Necesita banco para tunear el timeout real y probar el corte. **La palanca #1.** (Track A, Laureano)
+- [ ] **#27** — watchdog de hardware (`WDT_T4`) + callback que para motores. Validar reset+recuperación en banco. (Track A, Laureano)
 - [ ] Validar en banco todos los fixes del Sprint 1 (timeouts, runAngle, camthreader, systemd, cx_black).
 - **Resultado: 6/10 — el robot no se autodestruye, no queda descontrolado, el proceso se reinicia.**
 

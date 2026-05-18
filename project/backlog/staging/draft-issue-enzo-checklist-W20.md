@@ -19,14 +19,14 @@ Enzo, esto es **lo que tenés que hacer vos** como coach/coordinador esta semana
 - **Deadline:** 2026-05-17.
 
 ### 3. 🟧 Antes del 2026-05-20 — Distribuir y arrancar el push
-- **Acción:** bajar a cada chico su frente: **#105** a Lautaro (Teensy), **#104** a Benjamin (RPi+banco; Benjamin coordina con Lucio los fixes de visión). Usar la agenda #102 como guion de la reunión de equipo.
+- **Acción:** bajar a cada chico su frente: **#105** a Laureano (Teensy), **#104** a Benjamin (RPi+banco; Benjamin coordina con Lucio los fixes de visión). Usar la agenda #102 como guion de la reunión de equipo.
 - **Hecho:** cada chico confirmó su lista y arrancó; reunión de kickoff del push hecha.
 - **Deadline:** 2026-05-18 (para que queden 2 días de ejecución antes del freeze).
 
-### 4. 🟧 Seguimiento crítico — Prioridad #1 de Lautaro
+### 4. 🟧 Seguimiento crítico — Prioridad #1 de Laureano
 - **Por qué:** el hallazgo más grave es que los timeouts #59/#60/#61/#62 están **revertidos en código** (ver comentarios en esos issues y plan en #105). El equipo creía que estaban resueltos.
-- **Acción:** asegurarte de que Lautaro ataque la re-aplicación de timeouts **antes** que cualquier quick-win. Que no se distraiga con lo chico mientras el agujero grande sigue abierto.
-- **Hecho:** Lautaro confirmó que arranca por los timeouts; #105 con progreso visible antes del 2026-05-20.
+- **Acción:** asegurarte de que Laureano ataque la re-aplicación de timeouts **antes** que cualquier quick-win. Que no se distraiga con lo chico mientras el agujero grande sigue abierto.
+- **Hecho:** Laureano confirmó que arranca por los timeouts; #105 con progreso visible antes del 2026-05-20.
 - **Deadline:** seguimiento diario hasta el freeze.
 
 ### 5. 🟨 Tu dominio (docs pre-mundial) — encuadrar qué entra antes del freeze
@@ -42,6 +42,6 @@ Enzo, esto es **lo que tenés que hacer vos** como coach/coordinador esta semana
 ---
 
 ### Resumen de tu semana en una línea
-**Mergeá #101 → cerrá el triage #91 con #103 → distribuí #104/#105 → cuidá que Lautaro arranque por los timeouts. Lo demás es secundario hasta el freeze.**
+**Mergeá #101 → cerrá el triage #91 con #103 → distribuí #104/#105 → cuidá que Laureano arranque por los timeouts. Lo demás es secundario hasta el freeze.**
 
-*Generado por el coach director (Claude Code) bajo supervisión de @gviollaz. Panorama: #103 · Agenda equipo: #102 · Frentes: #104 (Benjamin) #105 (Lautaro).*
+*Generado por el coach director (Claude Code) bajo supervisión de @gviollaz. Panorama: #103 · Agenda equipo: #102 · Frentes: #104 (Benjamin) #105 (Laureano).*
