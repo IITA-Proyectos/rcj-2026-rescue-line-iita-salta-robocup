@@ -106,7 +106,7 @@ Estos no entraron al triage de auditoría — son tareas del equipo decididas an
 | [#4](https://github.com/IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup/issues/4) | Informe de coaching repositorio (2026-02-23) | — | Old, evaluar si sigue vigente |
 | [#41](https://github.com/IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup/issues/41) | P0 Diagrama de bloques / flujo del software | — | TDP requirement |
 | [#45](https://github.com/IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup/issues/45) | Armado Poster | — | TDP / poster |
-| [#46](https://github.com/IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup/issues/46) | Armado TDP | enzo, lucio, lautaro, benjamin | TDP requirement |
+| [#46](https://github.com/IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup/issues/46) | Armado TDP | enzo, lucio, laureano, benjamin | TDP requirement |
 | [#47](https://github.com/IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup/issues/47) | Mejora Drive-Base | — | Mecánica |
 | [#52](https://github.com/IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup/issues/52) | Mejora y Dudas sobre Diseño | — | Discusión abierta |
 | [#55](https://github.com/IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup/issues/55) | Armado VIDEO | benjamin | TDP |
@@ -158,7 +158,7 @@ Próxima revisión: 2026-MM-DD
 
 1. **No empiecen a implementar mientras triagean.** El triage es triage, la implementación es después.
 2. **Ante duda > 5 min → 🟡 Posponer.** Pueden retomarlo la próxima sesión.
-3. **🔴 Descartar requiere razón en una línea** en el comentario del issue. Ejemplo: "intencional, así lo decidió Lautaro porque el robot SIEMPRE entra por la izquierda en zona de rescate".
+3. **🔴 Descartar requiere razón en una línea** en el comentario del issue. Ejemplo: "intencional, así lo decidió Laureano porque el robot SIEMPRE entra por la izquierda en zona de rescate".
 4. **🟢 Tomar requiere asignar a alguien.** Sin dueño, no es Tomado — es Pospuesto.
 5. **El coach (Gustavo) NO decide acá.** Vos dos eligen, y le mandan el resumen del §5 al final.
 
