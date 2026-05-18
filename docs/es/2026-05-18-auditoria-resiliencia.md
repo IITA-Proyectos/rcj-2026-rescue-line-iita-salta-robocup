@@ -10,7 +10,11 @@
 
 > **Auto-recuperabilidad del sistema HOY: 2/10.** El robot NO se recupera solo de casi ninguna falla común de competencia. La mayoría lo dejan **descontrolado** (motores activos, fuera de pista) o **muerto silencioso**, sin posibilidad de intervención (no se puede tocar el robot durante la corrida).
 
-Con la "arquitectura mínima de resiliencia" (3 palancas, ~medio día de trabajo) sube a **~6/10**.
+Con la "arquitectura mínima de resiliencia" (3 palancas, ~medio día de trabajo) sube a **~6/10**. Con la capa de salud + degradación, **8/10**.
+
+## Objetivo decidido (Gustavo, 2026-05-18)
+
+**Objetivo para Incheon = 8/10 sólido y validado en banco. El tramo 8→10 es post-mundial.** Razón: rendimientos decrecientes brutales (2→6 medio día, 6→8 ~1 semana, 8→10 semanas); cada capa extra es código nuevo que toca sistemas validados (riesgo de regresión); el 8→10 es sobre todo *validación* (tiempo de banco que se necesita para puntuar); y 8→10 no pasa el filtro de fases del propio régimen. **Un robot 8/10 probado gana más corridas que un 10/10 teórico sin validar.** Decisión completa en `journal/decisiones/2026-05-18-objetivo-confiabilidad-8-incheon.md`. Plan de trabajo por sprints en **#114**.
 
 ---
 
