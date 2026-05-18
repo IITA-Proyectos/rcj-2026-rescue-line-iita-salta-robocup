@@ -87,7 +87,7 @@ Cada **Key Element** se puntúa 0, 1-2, 3-4 o **5-6 (excelente)**. Total = 17 el
 
 ### 2.1 TDP — Issue [#46](https://github.com/IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup/issues/46)
 
-- **Owner:** @luciouriel2011 (+ Enzo, Lautaro, Benjamin asignados).
+- **Owner:** @luciouriel2011 (+ Enzo, Laureano, Benjamin asignados).
 - **Estado:** issue abierto desde hace meses. **No hay archivo TDP en el repo** (ni `.md`, ni `.docx`, ni `.pdf`).
 - **Plan original (del coach en el issue):** archivo Markdown en `docs/`, formato basado en TDP Soccer 2025, cumplir 100 % rúbricas.
 
@@ -190,7 +190,7 @@ Estos diagrams son **insumo directo** del TDP (criterios "Architecture design wi
 
 **Riesgo de cambiar.** Bajo — escritura + reconstrucción del histórico.
 
-**Tiempo estimado.** 1.5 h (entrevista a Lautaro/Benjamin sobre cuándo se hizo cada cosa + redacción).
+**Tiempo estimado.** 1.5 h (entrevista a Laureano/Benjamin sobre cuándo se hizo cada cosa + redacción).
 
 **Pregunta para el equipo.** ¿Quién tiene memoria histórica de las fechas?
 
@@ -438,7 +438,7 @@ Cosas de gran ROI con riesgo bajo:
 
 ### Fase 2 — Cuerpo del TDP (próximas 2 semanas, ~20 h)
 
-Documentar lo técnico que ya existe en formato rúbrica. Distribuir entre Lucio (TDP), Benjamin (electrónica + mecánica), Enzo (review + integration plan), Lautaro (firmware diagrams).
+Documentar lo técnico que ya existe en formato rúbrica. Distribuir entre Lucio (TDP), Benjamin (electrónica + mecánica), Enzo (review + integration plan), Laureano (firmware diagrams).
 
 5. T1 Requirements (2 h)
 6. T2 Project Plan (1.5 h)
@@ -531,7 +531,7 @@ Plus comentarios concretos en los **issues existentes** #46 (TDP), #45 (Poster),
 
 ## 11. Recomendación final
 
-**Mi recomendación honesta:** que Lucio, Lautaro, Benjamin y Enzo se sienten **una tarde entera** a ejecutar la Fase 1 completa (descargar plantilla, crear archivo TDP esqueleto, iniciar TEST_LOG, primer pase de diagrams). Eso solo lleva al equipo de ~10 % del puntaje a ~22 % en 6-7 horas — la curva de retorno más empinada de toda la campaña.
+**Mi recomendación honesta:** que Lucio, Laureano, Benjamin y Enzo se sienten **una tarde entera** a ejecutar la Fase 1 completa (descargar plantilla, crear archivo TDP esqueleto, iniciar TEST_LOG, primer pase de diagrams). Eso solo lleva al equipo de ~10 % del puntaje a ~22 % en 6-7 horas — la curva de retorno más empinada de toda la campaña.
 
 Después, distribuir la Fase 2 entre los 4 con deadlines semanales y revisión cruzada. Coach hace pase final.
 
