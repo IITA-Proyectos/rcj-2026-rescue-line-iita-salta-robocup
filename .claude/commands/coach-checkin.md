@@ -13,12 +13,12 @@ Ejecutás el ritual semanal de seguimiento del proyecto IITA Salta para RoboCup 
 - Fecha objetivo: **2026-06-30** (apertura del mundial). Calculá semanas y días restantes.
 - Para cada issue/cambio, mirá su label `subsystem/*` → **Track A** (`control`, `comms`, `power`/firmware) o **Track B** (`vision`, `docs`).
 - **Track A — firmware/control + comms:**
-  - ≤ 2026-05-19 → 🟢 push libre (aprobación libre con criterio)
-  - 2026-05-20 → 2026-05-30 → 🟡 gate Enzo (fecha fin revisable por Gustavo)
-  - ≥ 2026-05-31 → 🔴 gate Gustavo
+  - ≤ 2026-05-26 → 🟢 push libre (aprobación libre con criterio)
+  - 2026-05-27 → 2026-06-06 → 🟡 gate Enzo (fecha fin revisable por Gustavo)
+  - ≥ 2026-06-07 → 🔴 gate Gustavo
 - **Track B — docs + visión (RPi):**
-  - ≤ 2026-06-04 → 🟢 push libre con criterio
-  - ≥ 2026-06-05 → 🟡 gate Enzo
+  - ≤ 2026-06-11 → 🟢 push libre con criterio
+  - ≥ 2026-06-12 → 🟡 gate Enzo
 - **Transversal:** 2026-06-23→06-29 y mundial (2026-06-30→07-06) = ⚪ logística pura, cero código nuevo (ambos tracks).
 
 ### 2. Leer estado del board

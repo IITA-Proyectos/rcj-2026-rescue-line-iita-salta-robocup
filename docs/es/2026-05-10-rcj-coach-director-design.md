@@ -109,16 +109,16 @@ El objetivo es **ganar el mundial**. El control de cambios se calibra por subsis
 
 #### Track A — Firmware/control + comms (Teensy + protocolo serial; tocan el robot validado, alto riesgo)
 
-- **F1 — push exhaustivo (≤ 2026-05-19):** "Si suma o protege puntos, entra. Solo se difiere lo muy menor + riesgoso." Aprobación libre con criterio.
-- **F2 — freeze blando / gate Enzo (2026-05-20 → 2026-05-30; fecha fin revisable por Gustavo):** se aceptan algunos cambios, pero NINGÚN push entra sin validación explícita de Enzo. Sigue el filtro ventaja vs esfuerzo+riesgo (ganancia cuantificada, riesgo P2/P1 no P0, 1-2 archivos, banco) + OK de Enzo.
-- **F3 — freeze duro / gate Gustavo (≥ 2026-05-31):** solo push con autorización explícita de Gustavo.
+- **F1 — push exhaustivo (≤ 2026-05-26):** "Si suma o protege puntos, entra. Solo se difiere lo muy menor + riesgoso." Aprobación libre con criterio.
+- **F2 — freeze blando / gate Enzo (2026-05-27 → 2026-06-06; fecha fin revisable por Gustavo):** se aceptan algunos cambios, pero NINGÚN push entra sin validación explícita de Enzo. Sigue el filtro ventaja vs esfuerzo+riesgo (ganancia cuantificada, riesgo P2/P1 no P0, 1-2 archivos, banco) + OK de Enzo.
+- **F3 — freeze duro / gate Gustavo (≥ 2026-06-07):** solo push con autorización explícita de Gustavo.
 
 > **comms va en Track A:** un cambio de protocolo rompe el robot validado igual que el firmware.
 
 #### Track B — Docs + visión (RPi/OpenCV/YOLO + TDP/Poster/Video; NO tocan el firmware validado, menor riesgo)
 
-- **Sin freeze / push libre con criterio (≤ 2026-06-04).**
-- **Gate Enzo (≥ 2026-06-05):** solo con autorización de Enzo.
+- **Sin freeze / push libre con criterio (≤ 2026-06-11).**
+- **Gate Enzo (≥ 2026-06-12):** solo con autorización de Enzo.
 
 #### Transversal a ambos tracks
 
@@ -398,8 +398,8 @@ Después de que Gustavo apruebe este spec, los pasos serán (los detalla la pró
 3. **Cada chico** tiene su agenda semanal escrita y un criterio de "hecho" por ítem.
 4. **Las decisiones grandes** (cortes de scope, excepciones al freeze, vetar features) quedan documentadas en `journal/decisiones/`.
 5. **El gate progresivo con track dual se respeta:**
-   - **Track A (firmware/control + comms):** F1 push exhaustivo cerró fuerte el 2026-05-19; F2 freeze blando (2026-05-20 a 2026-05-30): ningún push entró sin validación explícita de Enzo; F3 freeze duro (desde 2026-05-31): ningún cambio entró sin autorización directa de Gustavo.
-   - **Track B (docs + visión):** push libre hasta el 2026-06-04; desde el 2026-06-05 ningún push entró sin autorización de Enzo.
+   - **Track A (firmware/control + comms):** F1 push exhaustivo cerró fuerte el 2026-05-26; F2 freeze blando (2026-05-27 a 2026-06-06): ningún push entró sin validación explícita de Enzo; F3 freeze duro (desde 2026-06-07): ningún cambio entró sin autorización directa de Gustavo.
+   - **Track B (docs + visión):** push libre hasta el 2026-06-11; desde el 2026-06-12 ningún push entró sin autorización de Enzo.
    - La última semana (2026-06-23 a 2026-06-29) fue puramente logística para ambos tracks.
 
 Si en 3 semanas no se cumple esto, se ajusta o se retira la skill.
