@@ -49,6 +49,6 @@ Un test puede tener dos tags si cruza categorías (ej: `[MECH][PERF]` para una c
 
 ## Quién mantiene esto
 
-Rotación semanal entre Lautaro, Benjamin, Lucio y Enzo. La regla es del equipo, no del coach — si nadie anota, nadie llega al TDP.
+Rotación semanal entre Laureano, Benjamin, Lucio y Enzo. La regla es del equipo, no del coach — si nadie anota, nadie llega al TDP.
 
 > **Issue padre:** [#93 — Inicializar testing/TEST_LOG.md](https://github.com/IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup/issues/93)
