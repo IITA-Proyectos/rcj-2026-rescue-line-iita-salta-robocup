@@ -13,7 +13,6 @@
 #include <NewPing.h>
 #include <Wire.h>
 #include <VL53L0X.h>
-#include "priority_fix_flags.h"
 
 
 
@@ -37,7 +36,6 @@ Claw claw(&lift, &left, &right, &sort, &deposit);
 elapsedMillis steertimer; // Cuenta el tiempo transcurrido
 bool contador = false;    // Para saber si estamos contando el tiempo o no
 bool retroceder = false;  // Para saber si debe retroceder
-bool rescateAvisado = false;
 // INITIALISE BNO055 //
 Adafruit_BNO055 bno = Adafruit_BNO055(55, 0x28);
 // INITIALISE ACTUATORS //
@@ -58,22 +56,6 @@ double speed;          // speed (0 to 100)
 double steer;          // angle (0 to 180 deg, will -90 later)
 int green_state = 0;   // 0 = no green squares, 1 = left, 2 = right, 3 = double
 int silver_line = 0;   // if there is a line to reacquire after obstacle
-// PROTOCOLO RPi -> Teensy:
-// Frame: [255, speed, 254, angle, 253, green_state, 252, silver_line]
-// speed: 0..100; angle: 0..180 (RPi envia angle + 90);
-// green_state: 0..20; silver_line: 0..1.
-// Los sync bytes 252..255 no deben usarse como payload.
-constexpr int SERIAL_SYNC_SPEED = 255;
-constexpr int SERIAL_SYNC_STEER = 254;
-constexpr int SERIAL_SYNC_TASK = 253;
-constexpr int SERIAL_SYNC_SILVER = 252;
-constexpr int SERIAL_MAX_SPEED = 100;
-constexpr int SERIAL_MAX_ANGLE = 180;
-constexpr int SERIAL_MAX_GREEN_STATE = 20;
-constexpr int SERIAL_MAX_SILVER_LINE = 1;
-unsigned long serial_bytes_rx = 0;
-unsigned long serial_frames_rx = 0;
-elapsedMillis serialTelemetryTimer;
 int servo = 0;
 int action =7;            // action to take (part of a task)
 bool taskDone = false; // if true, update current_task
@@ -95,6 +77,9 @@ VL53L0X right_tof; // Sensor 2
 int distance_left_tof;
 int distance_right_tof;
 float angulo_rescate = 0;
+int last_right_distance = 0;
+int right_jump_counter = 0;
+
 float centrar = 0;
 String pared="";
 bool alineado=false;
@@ -103,330 +88,6 @@ int veces_deposit=2;
 int ball_counter=2;
 bool evacuacion_iniciada=false;
 bool evacuacion_straight=false;
-int last_right_distance = 0;
-int right_jump_counter = 0;
-
-// Máquina de Estados para Rescate (No Bloqueante)
-bool color_sensor_ok = true;
-bool rescateUpdateInProgress = false;
-
-void actualizarRescate();
-void runTime(int speed, int dir, double steer, unsigned long long time);
-void runAngle(int speed, int dir, double angle);
-void runDistance(int speed, int dir, int Distance);
-
-bool fixIssue57Enabled()
-{
-    return priority_fix_flags::kEnableAllPriorityFixes ||
-           priority_fix_flags::kFixIssue57RescueWallTurnDirection;
-}
-
-bool fixIssue58Enabled()
-{
-    return priority_fix_flags::kEnableAllPriorityFixes ||
-           priority_fix_flags::kFixIssue58Case12ControlFlow;
-}
-
-bool fixIssue59Enabled()
-{
-    return priority_fix_flags::kEnableAllPriorityFixes ||
-           priority_fix_flags::kFixIssue59ServiceStateMachinesDuringMotion;
-}
-
-bool fixIssue60Enabled()
-{
-    return priority_fix_flags::kEnableAllPriorityFixes ||
-           priority_fix_flags::kFixIssue60RunDistanceTimeout;
-}
-
-bool fixIssue61Enabled()
-{
-    return priority_fix_flags::kEnableAllPriorityFixes ||
-           priority_fix_flags::kFixIssue61ColorSensorTimeout;
-}
-
-bool fixIssue62Enabled()
-{
-    return priority_fix_flags::kEnableAllPriorityFixes ||
-           priority_fix_flags::kFixIssue62VisibleSensorInitFailures;
-}
-
-bool fixIssue63Enabled()
-{
-    return priority_fix_flags::kEnableAllPriorityFixes ||
-           priority_fix_flags::kFixIssue63KeepSerialDuringMotions;
-}
-
-bool fixIssue74Enabled()
-{
-    return priority_fix_flags::kEnableAllPriorityFixes ||
-           priority_fix_flags::kFixIssue74ValidateSerialPayloads;
-}
-
-bool fixIssue75Enabled()
-{
-    return priority_fix_flags::kEnableAllPriorityFixes ||
-           priority_fix_flags::kFixIssue75SerialTelemetry;
-}
-
-bool fixIssue112Enabled()
-{
-    return priority_fix_flags::kEnableAllPriorityFixes ||
-           priority_fix_flags::kFixIssue112RunAngleTimeout;
-}
-
-void blinkVisibleError(unsigned long onMs, unsigned long offMs, int cycles)
-{
-    for (int i = 0; i < cycles; ++i)
-    {
-        digitalWrite(LED_ROJO, HIGH);
-        digitalWrite(BUZZER, HIGH);
-        delay(onMs);
-        digitalWrite(LED_ROJO, LOW);
-        digitalWrite(BUZZER, LOW);
-        delay(offMs);
-    }
-}
-
-void fatalSensorInitLoop()
-{
-    while (true)
-    {
-        digitalWrite(LED_ROJO, HIGH);
-        digitalWrite(BUZZER, HIGH);
-        delay(200);
-        digitalWrite(LED_ROJO, LOW);
-        digitalWrite(BUZZER, LOW);
-        delay(800);
-    }
-}
-
-void handleBnoInitFailure()
-{
-    Serial.print("No BNO055 detected ... Check your wiring or I2C ADDR!");
-    if (fixIssue62Enabled())
-    {
-        fatalSensorInitLoop();
-    }
-    while (1)
-        ;
-}
-
-void notifyOptionalSensorWarning()
-{
-    if (fixIssue62Enabled())
-    {
-        blinkVisibleError(120, 120, 3);
-    }
-}
-
-void serviceMotionBackgroundTasks()
-{
-    if (!fixIssue59Enabled())
-    {
-        return;
-    }
-
-    claw.update();
-    actualizarRescate();
-}
-
-unsigned long computeRunDistanceTimeoutMs(int speed, int distance)
-{
-    unsigned long distanceCm = static_cast<unsigned long>(abs(distance));
-    int effectiveSpeed = speed > 0 ? speed : 30;
-    unsigned long estimatedSpeedCmPerSecond = static_cast<unsigned long>(max(8, effectiveSpeed * 3 / 4));
-    unsigned long estimatedMs = (distanceCm * 1000UL) / estimatedSpeedCmPerSecond;
-
-    return (estimatedMs * 3UL) / 2UL + 500UL;
-}
-
-unsigned long computeRunAngleTimeoutMs(double angle)
-{
-    unsigned long angleDeg = static_cast<unsigned long>(fabs(angle));
-    if (angleDeg < 1)
-    {
-        return 1000UL;
-    }
-
-    return max(1500UL, angleDeg * 35UL + 1000UL);
-}
-
-enum RescateState {
-    RESCATE_IDLE = 0,          // Estado inactivo
-    RESCATE_NEGRA_STEP1,       // Baja garra
-    RESCATE_NEGRA_STEP2,       // Posiciona depósito centro
-    RESCATE_NEGRA_STEP3,       // Clasifica derecha
-    RESCATE_NEGRA_STEP4,       // Avanza distancia
-    RESCATE_NEGRA_STEP5,       // Cierra garra
-    RESCATE_NEGRA_STEP6,       // Levanta garra
-    RESCATE_NEGRA_STEP7,       // Abre garra
-    RESCATE_NEGRA_STEP8,       // Retrocede un poco
-    RESCATE_PLATEADA_STEP1,    // Baja garra
-    RESCATE_PLATEADA_STEP2,    // Clasifica izquierda
-    RESCATE_PLATEADA_STEP3,    // Posiciona depósito centro
-    RESCATE_PLATEADA_STEP4,    // Avanza distancia
-    RESCATE_PLATEADA_STEP5,    // Cierra garra
-    RESCATE_PLATEADA_STEP6,    // Levanta garra
-    RESCATE_PLATEADA_STEP7,    // Abre garra
-    RESCATE_PLATEADA_STEP8     // Retrocede un poco
-};
-RescateState rescateState = RESCATE_IDLE;  // Estado actual de la máquina de rescate
-unsigned long rescateLastTime = 0;         // Timestamp del último paso
-const unsigned long RESCATE_STEP_DELAY = 1000;  // Delay entre pasos en ms
-
-// Función para iniciar recolección de pelota negra
-void iniciarRecoleccionNegra() {
-    if (rescateState == RESCATE_IDLE) {
-        rescateState = RESCATE_NEGRA_STEP1;
-        rescateLastTime = millis();
-    }
-}
-
-// Función para iniciar recolección de pelota plateada
-void iniciarRecoleccionPlateada() {
-    if (rescateState == RESCATE_IDLE) {
-        rescateState = RESCATE_PLATEADA_STEP1;
-        rescateLastTime = millis();
-    }
-}
-
-// Función para actualizar la máquina de estados de rescate (llamar en loop())
-void actualizarRescate() {
-    if (rescateUpdateInProgress) {
-        return;
-    }
-
-    rescateUpdateInProgress = true;
-    unsigned long now = millis();
-    switch (rescateState) {
-        case RESCATE_IDLE:
-            // Nada que hacer
-            break;
-        case RESCATE_NEGRA_STEP1:
-            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
-                claw.lower();
-                rescateState = RESCATE_NEGRA_STEP2;
-                rescateLastTime = now;
-            }
-            break;
-        case RESCATE_NEGRA_STEP2:
-            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
-                claw.depositCenter();
-                rescateState = RESCATE_NEGRA_STEP3;
-                rescateLastTime = now;
-            }
-            break;
-        case RESCATE_NEGRA_STEP3:
-            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
-                claw.sortRight();
-                rescateState = RESCATE_NEGRA_STEP4;
-                rescateLastTime = now;
-            }
-            break;
-        case RESCATE_NEGRA_STEP4:
-            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
-                runDistance(30, FORWARD, 8);
-                rescateState = RESCATE_NEGRA_STEP5;
-                rescateLastTime = now;
-            }
-            break;
-        case RESCATE_NEGRA_STEP5:
-            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
-                claw.close();
-                digitalWrite(BUZZER, HIGH);
-                delay(100);  // Pequeño delay para buzzer, considerar no-bloqueante si necesario
-                digitalWrite(BUZZER, LOW);
-                rescateState = RESCATE_NEGRA_STEP6;
-                rescateLastTime = now;
-            }
-            break;
-        case RESCATE_NEGRA_STEP6:
-            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
-                claw.lift();
-                rescateState = RESCATE_NEGRA_STEP7;
-                rescateLastTime = now;
-            }
-            break;
-        case RESCATE_NEGRA_STEP7:
-            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
-                claw.open();
-                rescateState = RESCATE_NEGRA_STEP8;
-                rescateLastTime = now;
-            }
-            break;
-        case RESCATE_NEGRA_STEP8:
-            if (now - rescateLastTime >= 200) {  // Menor delay para retroceso
-                runTime(30, FORWARD, 0, 200);
-                runTime(30, BACKWARD, 0, 200);
-                ball_counter++;
-                rescateState = RESCATE_IDLE;
-            }
-            break;
-        // Estados para pelota plateada (análogos)
-        case RESCATE_PLATEADA_STEP1:
-            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
-                claw.lower();
-                rescateState = RESCATE_PLATEADA_STEP2;
-                rescateLastTime = now;
-            }
-            break;
-        case RESCATE_PLATEADA_STEP2:
-            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
-                claw.sortLeft();
-                rescateState = RESCATE_PLATEADA_STEP3;
-                rescateLastTime = now;
-            }
-            break;
-        case RESCATE_PLATEADA_STEP3:
-            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
-                claw.depositCenter();
-                rescateState = RESCATE_PLATEADA_STEP4;
-                rescateLastTime = now;
-            }
-            break;
-        case RESCATE_PLATEADA_STEP4:
-            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
-                runDistance(20, FORWARD, 8);
-                rescateState = RESCATE_PLATEADA_STEP5;
-                rescateLastTime = now;
-            }
-            break;
-        case RESCATE_PLATEADA_STEP5:
-            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
-                claw.close();
-                digitalWrite(BUZZER, HIGH);
-                delay(100);
-                digitalWrite(BUZZER, LOW);
-                rescateState = RESCATE_PLATEADA_STEP6;
-                rescateLastTime = now;
-            }
-            break;
-        case RESCATE_PLATEADA_STEP6:
-            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
-                claw.lift();
-                rescateState = RESCATE_PLATEADA_STEP7;
-                rescateLastTime = now;
-            }
-            break;
-        case RESCATE_PLATEADA_STEP7:
-            if (now - rescateLastTime >= RESCATE_STEP_DELAY) {
-                claw.open();
-                rescateState = RESCATE_PLATEADA_STEP8;
-                rescateLastTime = now;
-            }
-            break;
-        case RESCATE_PLATEADA_STEP8:
-            if (now - rescateLastTime >= 200) {
-                runTime(30, FORWARD, 0, 200);
-                runTime(30, BACKWARD, 0, 200);
-                ball_counter++;
-                rescateState = RESCATE_IDLE;
-            }
-            break;
-    }
-    rescateUpdateInProgress = false;
-}
 #define SONAR_NUM 3      // Number of sensors.
 #define MAX_DISTANCE 150 // Maximum distance (in cm) to ping.
 
@@ -501,82 +162,16 @@ Color known_colors[] = {
   {"Negro", 60, 135, 135, 310},
   {"Verde", 62, 181, 175, 470},
   {"Plateado", 500, 900, 900, 2300}
-  
 };
 // Función para leer los valores del sensor y determinar el color
-String get_color_old()
-{
-    if ((fixIssue61Enabled() || fixIssue62Enabled()) && !color_sensor_ok)
-    {
-        return "Desconocido";
-    }
-
-    uint16_t r, g, b, c;
-    unsigned long waitStart = millis();
-
-    // Esperar a que los datos de color estén listos
-    while (!apds.colorDataReady())
-    {
-        if (fixIssue61Enabled() && (millis() - waitStart) > 50)
-        {
-            return "Desconocido";
-        }
-        delay(5);
-    }
-
-    // Obtener los datos del sensor
-    apds.getColorData(&r, &g, &b, &c);
-
-    // Calcular el color más cercano utilizando mínimos cuadrados
-    String closest_color = "Desconocido";
-    uint32_t min_error = UINT32_MAX;
-
-    for (size_t i = 0; i < sizeof(known_colors) / sizeof(known_colors[0]); i++)
-    {
-        uint32_t error = pow(known_colors[i].r - r, 2) +
-                         pow(known_colors[i].g - g, 2) +
-                         pow(known_colors[i].b - b, 2) +
-                         pow(known_colors[i].c - c, 2);
-        if (error < min_error)
-        {
-            min_error = error;
-            closest_color = known_colors[i].name;
-        }
-    }
-
-    // Imprimir los valores de R, G, B y Clear
-    /*
-    Serial.print("red: ");
-    Serial.print(r);
-    Serial.print(" green: ");
-    Serial.print(g);
-    Serial.print(" blue: ");
-    Serial.print(b);
-    Serial.print(" clear: ");
-    //Serial.println(c);
-    */
-
-    return closest_color;
-}
-
 String get_color()
 {
-    if ((fixIssue61Enabled() || fixIssue62Enabled()) && !color_sensor_ok)
-        return "Desconocido";
-
     uint16_t r_sum = 0, g_sum = 0, b_sum = 0, c_sum = 0;
     const int muestras = 5;
 
-    for (int i = 0; i < muestras; i++)
-    {
+    for (int i = 0; i < muestras; i++) {
         uint16_t r, g, b, c;
-        unsigned long waitStart = millis();
-        while (!apds.colorDataReady())
-        {
-            if (fixIssue61Enabled() && (millis() - waitStart) > 50)
-                return "Desconocido";
-            delay(5);
-        }
+        while (!apds.colorDataReady()) { delay(5); }
         apds.getColorData(&r, &g, &b, &c);
         r_sum += r; g_sum += g; b_sum += b; c_sum += c;
     }
@@ -586,41 +181,29 @@ String get_color()
     uint16_t b = b_sum / muestras;
     uint16_t c = c_sum / muestras;
 
-    float ratio_rc = c > 0 ? (float)r / (float)c : 0.0f;
-    float ratio_rg = g > 0 ? (float)r / (float)g : 0.0f;
-    float ratio_rb = b > 0 ? (float)r / (float)b : 0.0f;
+    float ratio_rc = (float)r / (float)c;
 
-    // Print siempre antes de los returns
     static unsigned long lastPrint = 0;
-    if (millis() - lastPrint > 500)
-    {
+    if (millis() - lastPrint > 500) {
         Serial.print("R: "); Serial.print(r);
-        Serial.print(" | B: "); Serial.print(b);
-        Serial.print(" | G: "); Serial.print(g);
         Serial.print(" | C: "); Serial.print(c);
         Serial.print(" | R/C: "); Serial.print(ratio_rc, 3);
-        Serial.print(" | R/G: "); Serial.print(ratio_rg, 3);
-        Serial.print(" | R/B: "); Serial.print(ratio_rb, 3);
-
         Serial.print(" | -> ");
-        if      (c > 1700 && ratio_rc > 0.240)                          Serial.println("Plateado");
-        else if (c > 1500 && ratio_rc <= 0.235)                         Serial.println("Blanco");
-        else if (c >= 300 && c <= 600 && ratio_rg > 1.6f && ratio_rb > 1.5f) Serial.println("Rojo");
-        else if (c < 600)                                                Serial.println("Negro");
-        else                                                             Serial.println("Verde");
+        if (c > 1500 && ratio_rc > 0.235) Serial.println("Plateado");
+        else if (c > 1500 && ratio_rc <= 0.235) Serial.println("Blanco");
+        else if (c < 600) Serial.println("Negro");
+        else Serial.println("Verde");
         lastPrint = millis();
     }
 
-    // Returns en el mismo orden que el print
-    if (c > 1700 && ratio_rc > 0.240)        return "Plateado";
-    if (c > 1500 && ratio_rc <= 0.235)       return "Blanco";
-    if (c >= 300 && c <= 600 && ratio_rg > 1.62f && ratio_rc > 0.440f) return "Rojo";
+    // Blanco y Plateado por ratio R/C
+    if (c > 1500 && ratio_rc > 0.235) return "Plateado";
+    if (c > 1500 && ratio_rc <= 0.235) return "Blanco";
 
-    // Negro y Verde por mínimos cuadrados
+    // Negro y Verde por minimos cuadrados
     String closest_color = "Desconocido";
     uint32_t min_error = UINT32_MAX;
-    for (size_t i = 0; i < sizeof(known_colors) / sizeof(known_colors[0]); i++)
-    {
+    for (size_t i = 0; i < sizeof(known_colors) / sizeof(known_colors[0]); i++) {
         if (known_colors[i].name == "Blanco" || known_colors[i].name == "Plateado")
             continue;
         uint32_t error = pow(known_colors[i].r - r, 2) +
@@ -631,100 +214,46 @@ String get_color()
     }
     return closest_color;
 }
-
 // ISR for updating motor pulses
 void ISR1() { bl.updatePulse(); }
 void ISR2() { fl.updatePulse(); }
 void ISR3() { br.updatePulse(); }
 void ISR4() { fr.updatePulse(); }
 
-bool serialPayloadOutOfRange(const char *field, int value, int maxValue)
-{
-    if (!fixIssue74Enabled())
-    {
-        return false;
-    }
-
-    if (value >= 0 && value <= maxValue)
-    {
-        return false;
-    }
-
-    Serial.print("[WARN] ");
-    Serial.print(field);
-    Serial.print(" fuera de rango: ");
-    Serial.println(value);
-    return true;
-}
-
-void maybePrintSerialTelemetry()
-{
-    if (!fixIssue75Enabled() || serialTelemetryTimer < 5000)
-    {
-        return;
-    }
-
-    Serial.print("[TLM] serial_bytes_rx=");
-    Serial.print(serial_bytes_rx);
-    Serial.print(" serial_frames_rx=");
-    Serial.println(serial_frames_rx);
-    serialTelemetryTimer = 0;
-}
-
 // Read Data from Raspberry by Serial TX-RX
 void serialEvent5()
 {
-    while (Serial5.available() > 0)
+    if (Serial5.available() > 0)
     {
         int data = Serial5.read(); // read serial code
-        if (fixIssue75Enabled())
-        {
-            serial_bytes_rx++;
-        }
          
-        if (data == SERIAL_SYNC_SPEED) // speed incoming
+        if (data == 255) // speed incoming
             serial5state = 0;
-        else if (data == SERIAL_SYNC_STEER) // steer incoming
+        else if (data == 254) // steer incoming
             serial5state = 1;
-        else if (data == SERIAL_SYNC_TASK) // task incoming
+        else if (data == 253) // task incoming
             serial5state = 2;
-        else if (data == SERIAL_SYNC_SILVER) // line_middle incoming
+        else if (data == 252) // line_middle incoming
             serial5state = 3;
         else if (serial5state == 0)           // set speed
-        {
-            if (serialPayloadOutOfRange("speed", data, SERIAL_MAX_SPEED))
-                continue;
             speed = (double)data / 100 * 100; // max speed = 100
-        }
         else if (serial5state == 1)           // set steer
-        {
-            if (serialPayloadOutOfRange("angle", data, SERIAL_MAX_ANGLE))
-                continue;
             steer = ((double)data - 90) / 90;
-        }
         else if (serial5state == 2) // set task
-        {
-            if (serialPayloadOutOfRange("green_state", data, SERIAL_MAX_GREEN_STATE))
-                continue;
             green_state = data;
-        }
         else if (serial5state == 3) // set line_middle
-        {
-            if (serialPayloadOutOfRange("silver_line", data, SERIAL_MAX_SILVER_LINE))
-                continue;
             silver_line = data;
-            if (fixIssue75Enabled())
-            {
-                serial_frames_rx++;
-            }
-        }
     }
-
-    maybePrintSerialTelemetry();
+}
+void serialEvent8(){
+    if (Serial8.available() > 0)
+    {
+        int data = Serial8.read(); // read serial code
+        lectura = data;
+    }
 }
 
 // HELPER FUNCTIONS //
-
 // Do a predefined move by time
 void runTime(int speed, int dir, double steer, unsigned long long time)
 {
@@ -732,19 +261,11 @@ void runTime(int speed, int dir, double steer, unsigned long long time)
     while ((millis() - startTime) < time)
     {
         robot.steer(speed, dir, steer);
-        serviceMotionBackgroundTasks();
         digitalWrite(13, HIGH);
         if (Serial5.available() > 0)
         {
-            if (fixIssue63Enabled())
-            {
-                serialEvent5();
-            }
-            else
-            {
-                int lecturas = Serial5.read();
-                Serial.print(lecturas);
-            }
+            int lecturas = Serial5.read();
+            Serial.print(lecturas);
         }
 
         if (digitalRead(32) == 1)
@@ -763,8 +284,6 @@ void runAngle(int speed, int dir, double angle)
     bno.getEvent(&event);
     float initialAngle = event.orientation.x;
     float targetAngle = initialAngle + angle;
-    unsigned long startTime = millis();
-    unsigned long timeoutMs = computeRunAngleTimeoutMs(angle);
 
     // Normalizar el ángulo objetivo al rango 0-360
     targetAngle = fmod(targetAngle, 360.0);
@@ -775,16 +294,6 @@ void runAngle(int speed, int dir, double angle)
     {
         bno.getEvent(&event);
         float currentAngle = event.orientation.x;
-        serviceMotionBackgroundTasks();
-        if (Serial5.available() > 0 && fixIssue63Enabled())
-        {
-            serialEvent5();
-        }
-        if (fixIssue112Enabled() && (millis() - startTime) >= timeoutMs)
-        {
-            Serial.println("[WARN] runAngle timeout");
-            break;
-        }
         if (digitalRead(32) == 1)
         { // switch is off
             Serial5.clear();
@@ -805,7 +314,7 @@ void runAngle(int speed, int dir, double angle)
         if (angle == 180)
         {
             // Girar 180 grados (media vuelta)
-            robot.steer(speed, dir, (error > 0) ? 1 : -1);
+            robot.steer(speed, dir, 1); // Girar a la derecha
         }
         else if (angle == 90 || angle == -270)
         {
@@ -873,19 +382,14 @@ void runDistance(int speed, int dir, int Distance) {
     runTime(30,FORWARD,0,20);
     reset_enconder();
     int32_t  encoder = 25*Distance;
-    bool stopOnExit = fixIssue60Enabled();
-    unsigned long startTime = millis();
-    unsigned long timeoutMs = computeRunDistanceTimeoutMs(speed, Distance);
     
     if (dir == FORWARD) {
         while (true) {
-            if (fixIssue60Enabled() && (millis() - startTime) >= timeoutMs) break;
             int32_t frCount = fr.pulseCount;
             int32_t flCount = fl.pulseCount;
             if (frCount >= encoder || flCount >= encoder) break;
 
             robot.steer(speed, dir, 0);
-            serviceMotionBackgroundTasks();
             Serial.print(flCount);
             Serial.print(" | ");
             Serial.print(frCount);
@@ -894,15 +398,8 @@ void runDistance(int speed, int dir, int Distance) {
             delay(10);
             
             if (Serial5.available() > 0) {
-                if (fixIssue63Enabled())
-                {
-                    serialEvent5();
-                }
-                else
-                {
-                    int lecturas = Serial5.read();
-                    Serial.print(lecturas);
-                }
+                int lecturas = Serial5.read();
+                Serial.print(lecturas);
             }
             
             if (digitalRead(32) == 1) { // switch is off
@@ -913,28 +410,19 @@ void runDistance(int speed, int dir, int Distance) {
     }else{
          while (true) 
         {
-            if (fixIssue60Enabled() && (millis() - startTime) >= timeoutMs) break;
             int32_t frCount = fr.pulseCount;
             int32_t flCount = fl.pulseCount;
 
             if (frCount <= -encoder || flCount <= -encoder) break;
             robot.steer(speed, dir, 0);
-            serviceMotionBackgroundTasks();
             Serial.print(flCount);
             Serial.print(" | ");
             Serial.print(frCount);
             //Serial.println(fr.pulseCount);
             delay(10);
             if (Serial5.available() > 0) {
-                if (fixIssue63Enabled())
-                {
-                    serialEvent5();
-                }
-                else
-                {
-                    int lecturas = Serial5.read();
-                    Serial.print(lecturas);
-                }
+                int lecturas = Serial5.read();
+                Serial.print(lecturas);
             }
             
             if (digitalRead(32) == 1) { // switch is off
@@ -942,25 +430,8 @@ void runDistance(int speed, int dir, int Distance) {
                 break;
             }
         }
-         
-         
-    }
-
-    if (stopOnExit)
-    {
-        robot.steer(0, dir, 0);
-    }
-}
-
-// non-blocking delay that keeps processing serial and claw state
-void nonBlockingDelay(unsigned long ms)
-{
-    unsigned long start = millis();
-    while (millis() - start < ms)
-    {
-        claw.update();
-        if (Serial5.available() > 0)
-            serialEvent5();
+        
+        
     }
 }
 
@@ -969,7 +440,7 @@ void accionNegro() {
     Serial5.write(249);
     rutina = "linea";
     digitalWrite(BUZZER, HIGH);
-    delay(300);
+    delay(300); 
     digitalWrite(BUZZER, LOW);
     robot.steer(0, FORWARD, 0);
 }
@@ -979,20 +450,11 @@ void accionPlateado() {
     runAngle(30, FORWARD, 90);
     runDistance(30, FORWARD, 2);
     digitalWrite(BUZZER, HIGH);
-    delay(100);
+    delay(100); 
     digitalWrite(BUZZER, LOW);
     robot.steer(0, FORWARD, 0);
 }
 
-bool detectarNegro() {
-    color_detected = get_color();
-    return (color_detected == "Negro");
-}
-
-bool detectarPlateado() {
-    color_detected = get_color();
-    return (color_detected == "Plateado");
-}
 
 #define TARGET_DISTANCE 70.0 // distancia deseada en cm
 #define KP_DISTANCE 0.05     // constante proporcional para la distancia
@@ -1056,7 +518,9 @@ void resetear_bno()
 {
     if (!bno.begin())
     {
-        handleBnoInitFailure();
+        Serial.print("No BNO055 detected ... Check your wiring or I2C ADDR!");
+        while (1)
+            ;
     }
     bno.setExtCrystalUse(true);
     delay(200);
@@ -1125,6 +589,15 @@ void pelotita()
     
 }
 
+bool detectarNegro() {
+    color_detected = get_color();
+    return (color_detected == "Negro");
+}
+
+bool detectarPlateado() {
+    color_detected = get_color();
+    return (color_detected == "Plateado");
+}
 
 void setup()
 {
@@ -1149,39 +622,23 @@ void setup()
     // Initialise BNO055
     if (!bno.begin())
     {
-        handleBnoInitFailure();
+        Serial.print("No BNO055 detected ... Check your wiring or I2C ADDR!");
+        while (1)
+            ;
     }
     bno.setExtCrystalUse(true);
 
     // Initialise APDS9960 Color Sensor
-    color_sensor_ok = apds.begin();
-    if (!color_sensor_ok)
+    if (!apds.begin())
     {
-        if (fixIssue62Enabled())
-        {
-            notifyOptionalSensorWarning();
-        }
+        //Serial.println("failed to initialize device! Please check your wiring.");
     }
     else
-    {
         //Serial.println("Device initialized!");
-    }
 
     // enable color sensign mode
-    if (fixIssue61Enabled() || fixIssue62Enabled())
-    {
-        if (color_sensor_ok)
-        {
-            apds.enableColor(true);
-            apds.enableProximity(true);
-        }
-    }
-    else
-    {
-        apds.enableColor(true);
-        apds.enableProximity(true);
-    }
-
+    apds.enableColor(true);
+    apds.enableProximity(true);  // agregar esto
     // Initialise TOF
     Wire1.begin(); // Initialize the first I2C bus
     Wire2.begin(); // Initialize the second I2C bus
@@ -1203,29 +660,20 @@ void setup()
     right_tof.startContinuous();
     pinMode(FCL, INPUT);
     pinMode(FCR, INPUT);
-
+    
     // Inicializar la garra después de setup
     claw.begin();
-    for (int i = 0; i < 20; i++)
-    {
-        Serial5.write(0xFA);
-        delay(100);
-    }
-
 }
 
 
 
 void loop()
-{
-    // Advance non-blocking claw state machine each loop
-    claw.update();
-    // Actualizar máquina de estados de rescate no-bloqueante
-    actualizarRescate();
+{   
     if (digitalRead(32) == 1)
     {                               // switch is off
         robot.steer(0, FORWARD, 0); // stop moving
         claw.lift();
+
         claw.sortLeft();
         Serial5.clear();
         esquinas_negro[0] = 0;
@@ -1239,31 +687,35 @@ void loop()
         startUp = false;
         last_right_distance = 0;
         right_jump_counter = 0;
+
         taskDone = true;
         Serial5.write(255);
         while (true)
         {
             robot.steer(0, 0, 0);
                     digitalWrite(RELAY,LOW);
-            claw.lift();
-            get_color();   
+            claw.open();
+            delay(1000);
+            claw.close();
+            delay(2000);
             centrar = leer_yaw();            
             centrar = fmod(centrar, 360.0);
              if (centrar < 0) centrar += 360;
             digitalWrite(LED_BUILTIN, HIGH);
             // digitalWrite(BUZZER, HIGH);
             digitalWrite(LED_ROJO, HIGH);
-            delay(500);
             robot.steer(0, 0, 0);
             digitalWrite(LED_BUILTIN, LOW);
             digitalWrite(BUZZER, LOW);
             digitalWrite(LED_ROJO, LOW);
             digitalWrite(RELAY,LOW); 
-
-
-            delay(500);
+            digitalRead(FCR);
+            Serial.print("FCR:");
+            Serial.println(digitalRead(FCR));
+            Serial.print("FCL:");
+            Serial.println(digitalRead(FCL));
             if (digitalRead(SWITCH) == 0)
-            {
+            {  
                 break;
             }
         }
@@ -1277,14 +729,13 @@ void loop()
         runTime(20, FORWARD, 0, 300);
         // Serial5.write(254);
         startUp = true;
-        rutina = "linea";
+        rutina = "evacuacion";
         evacuacion_iniciada = false;
         evacuacion_straight = false;
-        rescateAvisado = false;
         claw.lift();
         claw.depositCenter();
         action = 7;
-        Serial5.write(249);
+        Serial5.write(247);
 
     }
     else
@@ -1308,31 +759,20 @@ void loop()
         */
         while (rutina == "linea" && digitalRead(32) == 0)
         {
-            bool plateadoDetectado = false;
 
             color_detected = get_color();
             leer_tof();
             leer_ultrasonidos();
-            
-            if (color_detected == "Plateado") {
+            /*
+            if (color_detected == "Plateado"){
+                runTime(20,FORWARD,0,100);
                 color_detected = get_color();
-
-                if (color_detected == "Plateado") {
-                    plateadoDetectado = true;
-
-                    if (!rescateAvisado) {
-                        Serial5.write(241);
-                        rescateAvisado = true;
-                    }
-                }
+                if (color_detected == "Plateado"){
+                rutina = "rescate";
+                break;
             }
-
-            if (color_detected == "Rojo") {
-                    runTime(0, FORWARD, 0, 10000);
-                    break;
-            
             }
-            
+            */
             if (taskDone)
             { // robot is currently not performing any task
 
@@ -1367,10 +807,6 @@ void loop()
                 {
                     action = 2;
                 }
-                if (plateadoDetectado) {
-                    action = 2;
-                }
-
 
                 switch (action)
                 {
@@ -1417,8 +853,6 @@ void loop()
                     delay(100);
                     digitalWrite(BUZZER, LOW);
                     rutina="rescate";
-                    rescateAvisado = true;
-
                     digitalWrite(RELAY,HIGH);
                     ball_counter=0;
                     veces_deposit = 0;
@@ -1526,16 +960,10 @@ void loop()
                         runAngle(30, FORWARD, diferencia);
                         runTime(30, BACKWARD, 0, 300);
                         runTime(0, FORWARD, 0, 2000);
-                        unsigned long waitStart = millis();
                     while(digitalRead(32) == 0){
                         robot.steer(0, FORWARD, 0);
                         
                         serialEvent5();
-
-                        if (fixIssue58Enabled() && (millis() - waitStart) >= 5000)
-                        {
-                            break;
-                        }
 
                         if (green_state == 15)
                         {
@@ -1557,16 +985,7 @@ void loop()
                             break;
                         }
 
-                        if (!fixIssue58Enabled())
-                        {
-                            break;
-                        }
-                    }
-                    }
-
-                    if (fixIssue58Enabled())
-                    {
-                        break;
+                        break;}
                     }
 
                 case 14: // turn 180 deg for double green squares
@@ -1596,23 +1015,23 @@ void loop()
                 digitalWrite(RELAY, HIGH);
                 runTime(0,FORWARD,0,1000);
                 claw.lower();
-                nonBlockingDelay(1000);
+                delay(1000);
                 claw.depositCenter();
-                nonBlockingDelay(1400);
+                delay(1000);
                 claw.sortRight();
-                nonBlockingDelay(1000);
-                runDistance(30,FORWARD,5);
+                delay(1000);
+                runDistance(30,FORWARD,7);
                 runTime(0,FORWARD,0,1000);
                 claw.close();
-                nonBlockingDelay(1000);
+                delay(1000);
                 digitalWrite(BUZZER, HIGH);
                 delay(100); 
                 digitalWrite(BUZZER, LOW);
                 runTime(0,FORWARD,0,1000);
                 claw.lift();
-                nonBlockingDelay(1000);
+                delay(1000);
                 claw.open();
-                nonBlockingDelay(1000);
+                delay(1000);
                 runTime(30,FORWARD,0,200);
                 runTime(30,BACKWARD,0,200);
                  ball_counter++;
@@ -1622,26 +1041,25 @@ void loop()
                 runTime(0,FORWARD,0,1000);
                 claw.lower();
                 claw.sortLeft();
-                nonBlockingDelay(1400);
+                delay(1000);
                 claw.depositCenter();
-                nonBlockingDelay(1000);
-                runDistance(20,FORWARD,5);
+                delay(1000);
+                runDistance(20,FORWARD,7);
                 runTime(0,FORWARD,0,1000);
                 claw.close();
-                nonBlockingDelay(1000);
+                delay(1000);
                 digitalWrite(BUZZER, HIGH);
                 delay(100); 
                 digitalWrite(BUZZER, LOW);
                 runTime(0,FORWARD,0,1000);
                 claw.lift();
-                nonBlockingDelay(1000);
+                delay(1000);
                 claw.open();
-                nonBlockingDelay(1000);
+                delay(1000);
                 runTime(30,FORWARD,0,200);
                 runTime(30,BACKWARD,0,200);
                 ball_counter++;
             }
-
             if (ball_counter>= 3 && depositando==false)
             {
                 digitalWrite(RELAY, HIGH);
@@ -1650,7 +1068,7 @@ void loop()
                 serialEvent5();
                 robot.steer(speed, FORWARD, steer);   
             }
-            if(green_state == 9)//verde
+            if(green_state == 9)
                 {
                     digitalWrite(RELAY, HIGH);
                     runAngle(20,FORWARD,180);
@@ -1658,11 +1076,11 @@ void loop()
                         robot.steer(15, BACKWARD, 0);
                         if (digitalRead(FCL) == HIGH && digitalRead(FCR) == HIGH)
                         {
-                            break;
-                        }
-                    }
+                        break;
+                        } 
+                  }
                     claw.depositRight();
-                    nonBlockingDelay(2000);
+                    delay(2000);
                     claw.depositCenter();
                     runTime(0,FORWARD,0,500);
                     runTime(30,BACKWARD,0,500);
@@ -1678,11 +1096,12 @@ void loop()
                         robot.steer(15, BACKWARD, 0);
                         if (digitalRead(FCL) == HIGH && digitalRead(FCR) == HIGH)
                         {
-                            break;
-                        }
-                    }
+                        break;
+                        }    
+                  }
+                    
                     claw.depositLeft();
-                    nonBlockingDelay(2000);
+                    delay(2000);
                     claw.depositCenter();
                     runTime(0,FORWARD,0,500);
                     runTime(30,BACKWARD,0,500);
@@ -1691,10 +1110,12 @@ void loop()
                     veces_deposit++;
 
                 }
-            if (veces_deposit == 2)
+                veces_deposit=2;
+                if (veces_deposit == 2)
             {
+                // Terminamos deposito, pasamos a evacuacion
                 if (!evacuacion_iniciada) {
-                    Serial5.write(247);
+                    Serial5.write(247); // avisar a Raspberry: buscar salida
                     evacuacion_iniciada = true;
                 }
                 rutina = "evacuacion";
@@ -1770,13 +1191,15 @@ void loop()
                 }
 
                 runAngle(30, FORWARD, 180);
-                runDistance(15, BACKWARD, 5);
+                runDistance(15, BACKWARD, 5); 
                 runAngle(30, FORWARD, -90);
 
                 green_state = 0;
             }
 
-
+            if (green_state == 20) {
+                if (detectarNegro()) accionNegro();
+            }
         }
     } // end else (principal del loop)
 } // end loop()

@@ -1,0 +1,15 @@
+[Unit]
+Description=IITA RCJ Rescue Line robot main process
+After=network.target
+
+[Service]
+Type=simple
+User=iita
+WorkingDirectory=/home/pi/rcj-2026-rescue-line-iita-salta-robocup/software/raspberry/final_rpi
+ExecStart=/usr/bin/python3 /home/pi/rcj-2026-rescue-line-iita-salta-robocup/software/raspberry/final_rpi/Main.py
+Restart=always
+RestartSec=2
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

@@ -14,6 +14,7 @@ Moto::Moto(int pwmPin, int dirPin, int encPin, const char* id)
     pinMode(encPin, INPUT_PULLUP);
     analogWriteFrequency(_pwmPin, 50000);
     _encPin = encPin;
+    pulseCount = 0;
     _motoPID.SetMode(AUTOMATIC);
     this->id = id;
 }
