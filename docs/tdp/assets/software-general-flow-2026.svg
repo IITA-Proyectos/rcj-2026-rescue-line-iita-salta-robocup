@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 Z" fill="#1f2933"/>
+    </marker>
+    <style>
+      .bg { fill: #ffffff; }
+      .box { fill: #f8fafc; stroke: #1f2933; stroke-width: 2.5; }
+      .box2 { fill: #ecfdf5; stroke: #1f2933; stroke-width: 2.5; }
+      .box3 { fill: #eff6ff; stroke: #1f2933; stroke-width: 2.5; }
+      .box4 { fill: #fff7ed; stroke: #1f2933; stroke-width: 2.5; }
+      .title { font-family: Arial, Helvetica, sans-serif; font-size: 34px; font-weight: 700; fill: #111827; }
+      .label { font-family: Arial, Helvetica, sans-serif; font-size: 22px; font-weight: 700; fill: #111827; }
+      .small { font-family: Arial, Helvetica, sans-serif; font-size: 18px; fill: #111827; }
+      .tiny { font-family: Arial, Helvetica, sans-serif; font-size: 15px; fill: #374151; }
+      .arrow { stroke: #1f2933; stroke-width: 2.5; fill: none; marker-end: url(#arrow); }
+      .soft { stroke: #64748b; stroke-width: 2; stroke-dasharray: 8 7; fill: none; marker-end: url(#arrow); }
+    </style>
+  </defs>
+  <rect class="bg" x="0" y="0" width="1600" height="900"/>
+  <text class="title" x="800" y="56" text-anchor="middle">General Software Flow Diagram</text>
+
+  <rect class="box4" x="55" y="95" width="300" height="135" rx="18"/>
+  <text class="label" x="205" y="130" text-anchor="middle">Roboflow Dataset</text>
+  <text class="small" x="80" y="165">6256 images, 9521 annotations</text>
+  <text class="small" x="80" y="194">walls: white, brown, orange</text>
+  <text class="small" x="80" y="219">yellow, gray; 711 null examples</text>
+
+  <rect class="box4" x="55" y="265" width="300" height="120" rx="18"/>
+  <text class="label" x="205" y="300" text-anchor="middle">YOLO Training</text>
+  <text class="small" x="80" y="333">YOLOv8n, 100 epochs</text>
+  <text class="small" x="80" y="359">256 x 256 with AMP</text>
+  <text class="small" x="80" y="379">HSV + mosaic + erasing</text>
+
+  <rect class="box4" x="55" y="435" width="300" height="120" rx="18"/>
+  <text class="label" x="205" y="470" text-anchor="middle">Deployment Model</text>
+  <text class="small" x="80" y="505">TFLite + embedded NMS</text>
+  <text class="small" x="80" y="534">global warmup before run</text>
+
+  <rect class="box3" x="430" y="95" width="340" height="140" rx="18"/>
+  <text class="label" x="600" y="130" text-anchor="middle">Raspberry Pi Main Process</text>
+  <text class="small" x="455" y="165">states: waiting, line, rescue</text>
+  <text class="small" x="455" y="194">deposit and evacuation modes</text>
+  <text class="small" x="455" y="223">exception recovery and safe stop</text>
+
+  <rect class="box3" x="430" y="295" width="340" height="165" rx="18"/>
+  <text class="label" x="600" y="330" text-anchor="middle">Line Vision Process</text>
+  <text class="small" x="455" y="365">160 x 120 OpenCV frame path</text>
+  <text class="small" x="455" y="394">black line angle + speed</text>
+  <text class="small" x="455" y="423">green, red and silver masks</text>
+  <text class="small" x="455" y="452">sends compact UART frame</text>
+
+  <rect class="box3" x="430" y="525" width="340" height="190" rx="18"/>
+  <text class="label" x="600" y="560" text-anchor="middle">Rescue AI Process</text>
+  <text class="small" x="455" y="595">capture thread + inference thread</text>
+  <text class="small" x="455" y="624">anti-flash + AGCWD preprocessing</text>
+  <text class="small" x="455" y="653">TFLite inference every 3 frames</text>
+  <text class="small" x="455" y="682">CentroidTracker target continuity</text>
+  <text class="small" x="455" y="704">state-based victim/zone selection</text>
+
+  <rect class="box" x="850" y="265" width="285" height="205" rx="18"/>
+  <text class="label" x="992" y="300" text-anchor="middle">UART Protocol</text>
+  <text class="small" x="880" y="338">115200 baud</text>
+  <text class="small" x="880" y="367">8-byte frame:</text>
+  <text class="tiny" x="880" y="396">0xFF speed 0xFE angle</text>
+  <text class="tiny" x="880" y="421">0xFD green_state 0xFC silver</text>
+  <text class="small" x="880" y="450">50 ms RPi timeout</text>
+
+  <rect class="box2" x="1220" y="95" width="320" height="140" rx="18"/>
+  <text class="label" x="1380" y="130" text-anchor="middle">Teensy Serial Parser</text>
+  <text class="small" x="1245" y="165">validates speed and angle</text>
+  <text class="small" x="1245" y="194">validates task and silver flags</text>
+  <text class="small" x="1245" y="223">returns robot state bytes</text>
+
+  <rect class="box2" x="1220" y="295" width="320" height="170" rx="18"/>
+  <text class="label" x="1380" y="330" text-anchor="middle">Teensy Control Loop</text>
+  <text class="small" x="1245" y="365">line actions and obstacle avoidance</text>
+  <text class="small" x="1245" y="394">pickup, sort and deposit routines</text>
+  <text class="small" x="1245" y="423">evacuation and exit behavior</text>
+  <text class="small" x="1245" y="452">timeout and switch-off guards</text>
+
+  <rect class="box2" x="1220" y="525" width="320" height="190" rx="18"/>
+  <text class="label" x="1380" y="560" text-anchor="middle">Sensors and Actuators</text>
+  <text class="small" x="1245" y="595">4 encoder motors + drivers</text>
+  <text class="small" x="1245" y="624">5-servo claw and deposit system</text>
+  <text class="small" x="1245" y="653">BNO055, APDS9960, HC-SR04</text>
+  <text class="small" x="1245" y="682">VL53L0X, switches, LEDs, relay</text>
+
+  <path class="arrow" d="M205 230 L205 265"/>
+  <path class="arrow" d="M205 385 L205 435"/>
+  <path class="arrow" d="M355 495 C390 495 390 620 430 620"/>
+  <path class="arrow" d="M600 235 L600 295"/>
+  <path class="arrow" d="M600 460 L600 525"/>
+  <path class="arrow" d="M770 365 L850 365"/>
+  <path class="arrow" d="M770 620 C815 620 815 470 850 430"/>
+  <path class="arrow" d="M1135 365 L1220 365"/>
+  <path class="arrow" d="M1380 235 L1380 295"/>
+  <path class="arrow" d="M1380 465 L1380 525"/>
+  <path class="soft" d="M1220 178 C1110 178 1110 225 1045 265"/>
+  <path class="soft" d="M1220 380 C1170 475 1120 560 770 620"/>
+
+  <text class="tiny" x="785" y="348">write speed/angle/task</text>
+  <text class="tiny" x="1128" y="348">parse and execute</text>
+  <text class="tiny" x="1095" y="204">status bytes back to RPi</text>
+  <text class="tiny" x="840" y="589">stop/deposit/evacuation events</text>
+</svg>

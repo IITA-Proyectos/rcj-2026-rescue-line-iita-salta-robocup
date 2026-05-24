@@ -52,6 +52,7 @@ unsigned long tiemporescate=0;
 static unsigned long lastTurn = 0;           // persiste entre iteraciones
 const unsigned long turnCooldown = 600;      // ms (ajusta)
 int counter = 0;
+
 int laststeer = 0;
 int serial5state = 0;  // serial code e.g. 255
 double speed;          // speed (0 to 100)
@@ -111,6 +112,7 @@ bool color_sensor_ok = true;
 bool rescateUpdateInProgress = false;
 
 void actualizarRescate();
+void serialEvent5();
 void runTime(int speed, int dir, double steer, unsigned long long time);
 void runAngle(int speed, int dir, double angle);
 void runDistance(int speed, int dir, int Distance);
@@ -504,6 +506,173 @@ Color known_colors[] = {
   
 };
 // Función para leer los valores del sensor y determinar el color
+constexpr unsigned long APDS_COLOR_INTEGRATION_MS = 10;
+constexpr unsigned long APDS_COLOR_STATUS_POLL_MS = 2;
+constexpr unsigned long APDS_COLOR_FRESH_TIMEOUT_MS = 35;
+constexpr uint8_t APDS_COLOR_FILTER_SAMPLES = 3;
+
+uint16_t color_r_history[APDS_COLOR_FILTER_SAMPLES] = {0};
+uint16_t color_g_history[APDS_COLOR_FILTER_SAMPLES] = {0};
+uint16_t color_b_history[APDS_COLOR_FILTER_SAMPLES] = {0};
+uint16_t color_c_history[APDS_COLOR_FILTER_SAMPLES] = {0};
+uint8_t color_history_index = 0;
+uint8_t color_history_count = 0;
+unsigned long last_color_sample_ms = 0;
+unsigned long last_color_status_poll_ms = 0;
+String last_color_detected = "Desconocido";
+
+uint64_t square_error(uint16_t expected, uint16_t actual)
+{
+    int32_t diff = static_cast<int32_t>(expected) - static_cast<int32_t>(actual);
+    return static_cast<uint64_t>(diff) * static_cast<uint64_t>(diff);
+}
+
+void push_color_sample(uint16_t r, uint16_t g, uint16_t b, uint16_t c)
+{
+    color_r_history[color_history_index] = r;
+    color_g_history[color_history_index] = g;
+    color_b_history[color_history_index] = b;
+    color_c_history[color_history_index] = c;
+    color_history_index = (color_history_index + 1) % APDS_COLOR_FILTER_SAMPLES;
+    if (color_history_count < APDS_COLOR_FILTER_SAMPLES)
+    {
+        color_history_count++;
+    }
+}
+
+void get_filtered_color(uint16_t &r, uint16_t &g, uint16_t &b, uint16_t &c)
+{
+    uint32_t r_sum = 0, g_sum = 0, b_sum = 0, c_sum = 0;
+    uint8_t samples = color_history_count > 0 ? color_history_count : 1;
+
+    for (uint8_t i = 0; i < color_history_count; i++)
+    {
+        r_sum += color_r_history[i];
+        g_sum += color_g_history[i];
+        b_sum += color_b_history[i];
+        c_sum += color_c_history[i];
+    }
+
+    r = r_sum / samples;
+    g = g_sum / samples;
+    b = b_sum / samples;
+    c = c_sum / samples;
+}
+
+String classify_color(uint16_t r, uint16_t g, uint16_t b, uint16_t c)
+{
+    float ratio_rc = c > 0 ? static_cast<float>(r) / static_cast<float>(c) : 0.0f;
+    float ratio_rg = g > 0 ? static_cast<float>(r) / static_cast<float>(g) : 0.0f;
+    float ratio_rb = b > 0 ? static_cast<float>(r) / static_cast<float>(b) : 0.0f;
+
+    static unsigned long lastPrint = 0;
+    bool shouldPrint = (millis() - lastPrint > 500);
+    if (shouldPrint)
+    {
+        Serial.print("R: "); Serial.print(r);
+        Serial.print(" | B: "); Serial.print(b);
+        Serial.print(" | G: "); Serial.print(g);
+        Serial.print(" | C: "); Serial.print(c);
+        Serial.print(" | R/C: "); Serial.print(ratio_rc, 3);
+        Serial.print(" | R/G: "); Serial.print(ratio_rg, 3);
+        Serial.print(" | R/B: "); Serial.print(ratio_rb, 3);
+        Serial.print(" | -> ");
+    }
+
+    String detected = "Desconocido";
+    if (c > 1700 && ratio_rc > 0.240f)
+    {
+        detected = "Plateado";
+    }
+    else if (c > 1500 && ratio_rc <= 0.235f)
+    {
+        detected = "Blanco";
+    }
+    else if (c >= 300 && c <= 600 && ratio_rg > 1.62f && ratio_rc > 0.440f)
+    {
+        detected = "Rojo";
+    }
+    else
+    {
+        uint64_t min_error = UINT64_MAX;
+        for (size_t i = 0; i < sizeof(known_colors) / sizeof(known_colors[0]); i++)
+        {
+            if (known_colors[i].name == "Blanco" || known_colors[i].name == "Plateado")
+                continue;
+
+            uint64_t error = square_error(known_colors[i].r, r) +
+                             square_error(known_colors[i].g, g) +
+                             square_error(known_colors[i].b, b) +
+                             square_error(known_colors[i].c, c);
+            if (error < min_error)
+            {
+                min_error = error;
+                detected = known_colors[i].name;
+            }
+        }
+    }
+
+    if (shouldPrint)
+    {
+        Serial.println(detected);
+        lastPrint = millis();
+    }
+
+    return detected;
+}
+
+bool update_color_nonblocking(bool force_poll = false)
+{
+    if ((fixIssue61Enabled() || fixIssue62Enabled()) && !color_sensor_ok)
+        return false;
+
+    unsigned long now = millis();
+    if (!force_poll && (now - last_color_status_poll_ms) < APDS_COLOR_STATUS_POLL_MS)
+        return false;
+
+    last_color_status_poll_ms = now;
+    if ((now - last_color_sample_ms) < APDS_COLOR_INTEGRATION_MS)
+        return false;
+
+    if (!apds.colorDataReady())
+        return false;
+
+    uint16_t r, g, b, c;
+    apds.getColorData(&r, &g, &b, &c);
+    push_color_sample(r, g, b, c);
+    get_filtered_color(r, g, b, c);
+    last_color_detected = classify_color(r, g, b, c);
+    last_color_sample_ms = now;
+    return true;
+}
+
+String get_color_fresh(unsigned long timeoutMs = APDS_COLOR_FRESH_TIMEOUT_MS)
+{
+    unsigned long start = millis();
+    while ((millis() - start) <= timeoutMs)
+    {
+        if (update_color_nonblocking(true))
+            return last_color_detected;
+
+        serviceMotionBackgroundTasks();
+        if (Serial5.available() > 0 && fixIssue63Enabled())
+        {
+            serialEvent5();
+        }
+        delay(1);
+    }
+
+    return "Desconocido";
+}
+
+String get_color_fast()
+{
+    if (update_color_nonblocking(false))
+        return last_color_detected;
+
+    return "Desconocido";
+}
+
 String get_color_old()
 {
     if ((fixIssue61Enabled() || fixIssue62Enabled()) && !color_sensor_ok)
@@ -559,7 +728,7 @@ String get_color_old()
     return closest_color;
 }
 
-String get_color()
+String get_color_blocking_legacy()
 {
     if ((fixIssue61Enabled() || fixIssue62Enabled()) && !color_sensor_ok)
         return "Desconocido";
@@ -630,6 +799,11 @@ String get_color()
         if (error < min_error) { min_error = error; closest_color = known_colors[i].name; }
     }
     return closest_color;
+}
+
+String get_color()
+{
+    return get_color_fast();
 }
 
 // ISR for updating motor pulses
@@ -707,6 +881,8 @@ void serialEvent5()
             if (serialPayloadOutOfRange("green_state", data, SERIAL_MAX_GREEN_STATE))
                 continue;
             green_state = data;
+    Serial.print("[RX] green_state recibido: ");
+    Serial.println(green_state);
         }
         else if (serial5state == 3) // set line_middle
         {
@@ -736,7 +912,7 @@ void runTime(int speed, int dir, double steer, unsigned long long time)
         digitalWrite(13, HIGH);
         if (Serial5.available() > 0)
         {
-            if (fixIssue63Enabled())
+            if (fixIssue63Enabled() )
             {
                 serialEvent5();
             }
@@ -792,6 +968,7 @@ void runAngle(int speed, int dir, double angle)
             break;
         }
         // Calcular la diferencia más corta entre los ángulos
+       // Calcular la diferencia más corta entre los ángulos
         float error = targetAngle - currentAngle;
         if (error > 180)
             error -= 360;
@@ -805,7 +982,7 @@ void runAngle(int speed, int dir, double angle)
         if (angle == 180)
         {
             // Girar 180 grados (media vuelta)
-            robot.steer(speed, dir, (error > 0) ? 1 : -1);
+            robot.steer(speed, dir, 1); // Girar a la derecha
         }
         else if (angle == 90 || angle == -270)
         {
@@ -866,7 +1043,6 @@ void runAngle(int speed, int dir, double angle)
     }
     robot.steer(0, FORWARD, 0);
 }
-
 
 void runDistance(int speed, int dir, int Distance) {
     runTime(30,BACKWARD,0,20);
@@ -985,12 +1161,12 @@ void accionPlateado() {
 }
 
 bool detectarNegro() {
-    color_detected = get_color();
+    color_detected = get_color_fresh();
     return (color_detected == "Negro");
 }
 
 bool detectarPlateado() {
-    color_detected = get_color();
+    color_detected = get_color_fresh();
     return (color_detected == "Plateado");
 }
 
@@ -1246,7 +1422,8 @@ void loop()
             robot.steer(0, 0, 0);
                     digitalWrite(RELAY,LOW);
             claw.lift();
-            get_color();   
+            //get_color_fast();
+            serialEvent5();
             centrar = leer_yaw();            
             centrar = fmod(centrar, 360.0);
              if (centrar < 0) centrar += 360;
@@ -1310,21 +1487,18 @@ void loop()
         {
             bool plateadoDetectado = false;
 
-            color_detected = get_color();
+            color_detected = get_color_fast();
             leer_tof();
             leer_ultrasonidos();
             
             if (color_detected == "Plateado") {
-                color_detected = get_color();
 
-                if (color_detected == "Plateado") {
                     plateadoDetectado = true;
 
                     if (!rescateAvisado) {
                         Serial5.write(241);
                         rescateAvisado = true;
                     }
-                }
             }
 
             if (color_detected == "Rojo") {
@@ -1388,7 +1562,7 @@ void loop()
                             {
                                 robot.steer(30, FORWARD, -0.35);
                                 // serialEvent5();
-                                if (get_color() == "Negro")
+                                if (get_color_fast() == "Negro")
                                 {
                                     runAngle(30, FORWARD, -90);
                                     break;
@@ -1403,7 +1577,7 @@ void loop()
                             {
                                 robot.steer(30, FORWARD, 0.35);
                                 // serialEvent5();
-                                if (get_color() == "Negro")
+                                if (get_color_fast() == "Negro")
                                 {
                                     runAngle(30, FORWARD, 90);
                                     break;
@@ -1685,9 +1859,11 @@ void loop()
                     nonBlockingDelay(2000);
                     claw.depositCenter();
                     runTime(0,FORWARD,0,500);
-                    runTime(30,BACKWARD,0,500);
                     runTime(0,FORWARD,0,500);
-                    runDistance(30,FORWARD,40);
+                    runAngle(20,FORWARD,45);
+                    runTime(30,FORWARD,0,500);
+                    runAngle(20,FORWARD,-45);
+
                     veces_deposit++;
 
                 }
@@ -1710,7 +1886,7 @@ void loop()
         } // end while (rutina == "rescate" && digitalRead(32) == 0)
         while (rutina == "evacuacion" && digitalRead(32) == 0)
         {
-            color_detected = get_color();
+            color_detected = get_color_fast();
 
             if (color_detected == "Negro") {
                 accionNegro();

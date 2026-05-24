@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="980" viewBox="0 0 1600 980">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#1f2937"/>
+    </marker>
+    <style>
+      .title { font: 700 34px Arial, sans-serif; fill: #111827; }
+      .box { fill: #ffffff; stroke: #1f2937; stroke-width: 3; rx: 14; }
+      .core { fill: #ecfeff; stroke: #0891b2; stroke-width: 4; rx: 16; }
+      .motion { fill: #fef3c7; stroke: #d97706; stroke-width: 3; rx: 14; }
+      .sensor { fill: #eef2ff; stroke: #4f46e5; stroke-width: 3; rx: 14; }
+      .power { fill: #fef2f2; stroke: #dc2626; stroke-width: 3; rx: 14; }
+      .text { font: 700 22px Arial, sans-serif; fill: #111827; }
+      .small { font: 18px Arial, sans-serif; fill: #374151; }
+      .tiny { font: 15px Arial, sans-serif; fill: #4b5563; }
+      .line { stroke: #1f2937; stroke-width: 3; fill: none; marker-end: url(#arrow); }
+      .bi { stroke: #1f2937; stroke-width: 3; fill: none; marker-start: url(#arrow); marker-end: url(#arrow); }
+      .label { font: 16px Arial, sans-serif; fill: #111827; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="980" fill="#f9fafb"/>
+  <text x="800" y="55" text-anchor="middle" class="title">System Integration Plan - RescueBot IITA 2026</text>
+
+  <rect x="95" y="160" width="250" height="115" class="sensor"/>
+  <text x="220" y="204" text-anchor="middle" class="text">Wide USB Camera</text>
+  <text x="220" y="236" text-anchor="middle" class="small">160x120 line frames</text>
+  <text x="220" y="261" text-anchor="middle" class="small">256x256 AI crops</text>
+
+  <rect x="480" y="120" width="300" height="170" class="core"/>
+  <text x="630" y="167" text-anchor="middle" class="text">Raspberry Pi 4B</text>
+  <text x="630" y="202" text-anchor="middle" class="small">OpenCV line pipeline</text>
+  <text x="630" y="229" text-anchor="middle" class="small">TFLite rescue detector</text>
+  <text x="630" y="256" text-anchor="middle" class="small">State manager</text>
+
+  <rect x="455" y="365" width="350" height="110" class="box"/>
+  <text x="630" y="407" text-anchor="middle" class="text">Binary UART Contract</text>
+  <text x="630" y="440" text-anchor="middle" class="small">115200 baud, 8-byte frame</text>
+  <text x="630" y="465" text-anchor="middle" class="small">50 ms timeout + range validation</text>
+
+  <rect x="950" y="130" width="305" height="170" class="core"/>
+  <text x="1102" y="178" text-anchor="middle" class="text">Teensy 4.1</text>
+  <text x="1102" y="213" text-anchor="middle" class="small">Motor control + parser</text>
+  <text x="1102" y="240" text-anchor="middle" class="small">Sensors, IMU, claw routines</text>
+  <text x="1102" y="267" text-anchor="middle" class="small">Timeout and safety guards</text>
+
+  <rect x="1015" y="405" width="210" height="95" class="motion"/>
+  <text x="1120" y="442" text-anchor="middle" class="text">Drivebase</text>
+  <text x="1120" y="473" text-anchor="middle" class="small">4 motors + encoders</text>
+
+  <rect x="1295" y="405" width="210" height="95" class="motion"/>
+  <text x="1400" y="442" text-anchor="middle" class="text">Rescue Module</text>
+  <text x="1400" y="473" text-anchor="middle" class="small">5 servos + sorter</text>
+
+  <rect x="905" y="590" width="235" height="105" class="sensor"/>
+  <text x="1022" y="631" text-anchor="middle" class="text">Navigation Sensors</text>
+  <text x="1022" y="662" text-anchor="middle" class="small">BNO055, VL53L0X</text>
+  <text x="1022" y="687" text-anchor="middle" class="small">HC-SR04</text>
+
+  <rect x="1190" y="590" width="235" height="105" class="sensor"/>
+  <text x="1307" y="631" text-anchor="middle" class="text">Floor + Safety</text>
+  <text x="1307" y="662" text-anchor="middle" class="small">APDS9960, switch</text>
+  <text x="1307" y="687" text-anchor="middle" class="small">FCL/FCR, buzzer, LEDs</text>
+
+  <rect x="150" y="625" width="295" height="120" class="power"/>
+  <text x="297" y="668" text-anchor="middle" class="text">3S LiPo + Regulators</text>
+  <text x="297" y="701" text-anchor="middle" class="small">motor, servo, logic, RPi rails</text>
+  <text x="297" y="728" text-anchor="middle" class="small">common ground strategy</text>
+
+  <path d="M345 215 L480 205" class="line"/>
+  <text x="410" y="190" text-anchor="middle" class="label">USB video</text>
+
+  <path d="M630 290 L630 365" class="line"/>
+
+  <path d="M805 420 C885 420 865 215 950 215" class="bi"/>
+  <text x="875" y="330" text-anchor="middle" class="label">RPi -> Teensy command frame</text>
+  <text x="875" y="358" text-anchor="middle" class="label">Teensy -> RPi state byte</text>
+
+  <path d="M1102 300 L1120 405" class="line"/>
+  <text x="1160" y="354" class="label">PWM + encoder feedback</text>
+
+  <path d="M1255 230 C1375 255 1400 345 1400 405" class="line"/>
+  <text x="1404" y="345" class="label">servo PWM</text>
+
+  <path d="M1068 300 C1035 385 1025 505 1022 590" class="bi"/>
+  <text x="948" y="450" class="label">I2C / trigger-echo</text>
+
+  <path d="M1165 300 C1235 385 1290 505 1307 590" class="bi"/>
+  <text x="1285" y="450" class="label">I2C + digital I/O</text>
+
+  <path d="M445 665 C600 650 610 500 630 475" class="line"/>
+  <text x="590" y="610" class="label">regulated RPi rail</text>
+  <path d="M445 690 C700 705 955 710 1120 500" class="line"/>
+  <text x="785" y="736" class="label">motor / logic / servo rails</text>
+
+  <rect x="125" y="820" width="1350" height="88" fill="#ffffff" stroke="#cbd5e1" stroke-width="2" rx="12"/>
+  <text x="150" y="852" class="small">Traceability: camera + RPi satisfy perception; UART satisfies deterministic integration; Teensy + sensors satisfy motion, obstacles and safety.</text>
+  <text x="150" y="884" class="small">Separated power rails support reliability under motor/servo load; returned Teensy bytes change the Raspberry Pi mission mode.</text>
+</svg>

@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="880" viewBox="0 0 1500 880">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#111827"/>
+    </marker>
+    <style>
+      .title { font: 700 34px Arial, sans-serif; fill: #111827; }
+      .box { fill: #ffffff; stroke: #1f2937; stroke-width: 3; rx: 14; }
+      .source { fill: #fef2f2; stroke: #dc2626; stroke-width: 4; rx: 16; }
+      .reg { fill: #eff6ff; stroke: #2563eb; stroke-width: 3; rx: 14; }
+      .load { fill: #ecfdf5; stroke: #059669; stroke-width: 3; rx: 14; }
+      .signal { fill: #fff7ed; stroke: #ea580c; stroke-width: 3; rx: 14; }
+      .text { font: 700 22px Arial, sans-serif; fill: #111827; }
+      .small { font: 18px Arial, sans-serif; fill: #374151; }
+      .tiny { font: 15px Arial, sans-serif; fill: #4b5563; }
+      .line { stroke: #111827; stroke-width: 3; fill: none; marker-end: url(#arrow); }
+      .ground { stroke: #374151; stroke-width: 3; fill: none; stroke-dasharray: 7 7; marker-end: url(#arrow); }
+      .label { font: 16px Arial, sans-serif; fill: #111827; }
+    </style>
+  </defs>
+
+  <rect width="1500" height="880" fill="#f9fafb"/>
+  <text x="750" y="55" text-anchor="middle" class="title">Power and Electronics Integration - RescueBot IITA 2026</text>
+
+  <rect x="70" y="150" width="230" height="120" class="source"/>
+  <text x="185" y="192" text-anchor="middle" class="text">3S LiPo Pack</text>
+  <text x="185" y="224" text-anchor="middle" class="small">11.1 V nominal</text>
+  <text x="185" y="250" text-anchor="middle" class="small">12.6 V full charge</text>
+
+  <rect x="390" y="155" width="210" height="110" class="box"/>
+  <text x="495" y="197" text-anchor="middle" class="text">Main Switch</text>
+  <text x="495" y="228" text-anchor="middle" class="small">XT60 + fuse path</text>
+
+  <rect x="705" y="80" width="250" height="100" class="reg"/>
+  <text x="830" y="121" text-anchor="middle" class="text">RPi Regulator</text>
+  <text x="830" y="151" text-anchor="middle" class="small">5.1 V rail</text>
+
+  <rect x="705" y="235" width="250" height="100" class="reg"/>
+  <text x="830" y="276" text-anchor="middle" class="text">Logic Rail</text>
+  <text x="830" y="306" text-anchor="middle" class="small">5 V / 3.3 V sensors</text>
+
+  <rect x="705" y="390" width="250" height="100" class="reg"/>
+  <text x="830" y="431" text-anchor="middle" class="text">Servo Rail</text>
+  <text x="830" y="461" text-anchor="middle" class="small">5 DFRobot servos</text>
+
+  <rect x="705" y="545" width="250" height="100" class="reg"/>
+  <text x="830" y="586" text-anchor="middle" class="text">Motor Rail</text>
+  <text x="830" y="616" text-anchor="middle" class="small">12 V drivetrain</text>
+
+  <rect x="1110" y="65" width="250" height="130" class="load"/>
+  <text x="1235" y="110" text-anchor="middle" class="text">Raspberry Pi 4B</text>
+  <text x="1235" y="142" text-anchor="middle" class="small">camera + TFLite</text>
+  <text x="1235" y="168" text-anchor="middle" class="small">UART state manager</text>
+
+  <rect x="1110" y="240" width="250" height="130" class="signal"/>
+  <text x="1235" y="286" text-anchor="middle" class="text">Teensy 4.1</text>
+  <text x="1235" y="318" text-anchor="middle" class="small">PWM, I2C, digital I/O</text>
+  <text x="1235" y="344" text-anchor="middle" class="small">timeout guards</text>
+
+  <rect x="1110" y="415" width="250" height="130" class="load"/>
+  <text x="1235" y="461" text-anchor="middle" class="text">Rescue Servos</text>
+  <text x="1235" y="493" text-anchor="middle" class="small">claw, lift, sort, deposit</text>
+  <text x="1235" y="519" text-anchor="middle" class="small">separate current path</text>
+
+  <rect x="1110" y="590" width="250" height="130" class="load"/>
+  <text x="1235" y="636" text-anchor="middle" class="text">Motor Drivers</text>
+  <text x="1235" y="668" text-anchor="middle" class="small">4x 12 V encoder motors</text>
+  <text x="1235" y="694" text-anchor="middle" class="small">159 RPM drivetrain</text>
+
+  <path d="M300 210 L390 210" class="line"/>
+  <text x="345" y="190" text-anchor="middle" class="label">battery input</text>
+
+  <path d="M600 210 C650 150 665 130 705 130" class="line"/>
+  <path d="M600 210 C660 225 670 285 705 285" class="line"/>
+  <path d="M600 210 C660 300 670 440 705 440" class="line"/>
+  <path d="M600 210 C660 370 670 595 705 595" class="line"/>
+
+  <path d="M955 130 L1110 130" class="line"/>
+  <text x="1032" y="108" text-anchor="middle" class="label">stable 5.1 V</text>
+  <path d="M955 285 L1110 305" class="line"/>
+  <text x="1032" y="272" text-anchor="middle" class="label">logic + sensors</text>
+  <path d="M955 440 L1110 480" class="line"/>
+  <text x="1032" y="430" text-anchor="middle" class="label">servo power</text>
+  <path d="M955 595 L1110 655" class="line"/>
+  <text x="1032" y="592" text-anchor="middle" class="label">motor power</text>
+
+  <path d="M1235 195 L1235 240" class="line"/>
+  <text x="1280" y="222" class="label">UART</text>
+  <path d="M1235 370 L1235 415" class="line"/>
+  <text x="1280" y="397" class="label">servo PWM</text>
+  <path d="M1235 370 C1235 500 1235 545 1235 590" class="line"/>
+  <text x="1280" y="565" class="label">PWM + direction</text>
+
+  <rect x="120" y="760" width="1260" height="70" class="box"/>
+  <text x="750" y="791" text-anchor="middle" class="small">Quality intent: high-current motor and servo loads are routed separately from Raspberry Pi and logic rails, while all modules share a documented ground reference.</text>
+  <text x="750" y="818" text-anchor="middle" class="small">This prevents camera/AI resets during pickup and makes faults easier to isolate during competition repairs.</text>
+</svg>

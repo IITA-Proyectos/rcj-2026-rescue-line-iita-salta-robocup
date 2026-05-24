@@ -5,8 +5,8 @@ After=network.target
 [Service]
 Type=simple
 User=iita
-WorkingDirectory=/home/pi/rcj-2026-rescue-line-iita-salta-robocup/software/raspberry/final_rpi
-ExecStart=/usr/bin/python3 /home/pi/rcj-2026-rescue-line-iita-salta-robocup/software/raspberry/final_rpi/Main.py
+WorkingDirectory=/home/iita/Desktop
+ExecStart=/usr/bin/python3 /home/iita/Desktop/main.py
 Restart=always
 RestartSec=2
 Environment=PYTHONUNBUFFERED=1
