@@ -270,7 +270,7 @@ except Exception:
     TFLiteInterpreter = tf.lite.Interpreter
     print("Usando tensorflow.lite.Interpreter (fallback)")
 
-TFLITE_MODEL_PATH = "/home/iita/Documentos/best (2)_float32.tflite"
+TFLITE_MODEL_PATH = "/home/iita/Documentos/best (2)_float32.tflite" #path ruta Raspberry de Robot NO de repo
 NUM_THREADS = 2
 try:
     interpreter = TFLiteInterpreter(model_path=TFLITE_MODEL_PATH, num_threads=NUM_THREADS)
