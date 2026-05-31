@@ -51,8 +51,12 @@ Cuando alguien pide "revisá X" o "auditá X", el flujo es:
 
 ### Skills disponibles
 
-Este repo tiene 4 skills en `.claude/skills/` que orquestan la auditoría:
+Este repo tiene 5 skills en `.claude/skills/`:
 
+**Dirección del proyecto:**
+- **[`rcj-coach-director`](.claude/skills/rcj-coach-director/SKILL.md)** — director técnico / coach. Prioriza, planifica la semana, asigna tareas, documenta decisiones, aplica régimen de dos fases (push hasta 2026-05-19, freeze desde 2026-05-20). NO escribe código.
+
+**Auditoría técnica:**
 - **[`rcj-rescue-reviewer`](.claude/skills/rcj-rescue-reviewer/SKILL.md)** — orquestador. Decide qué subsistemas auditar y consolida findings.
 - **[`teensy-firmware-auditor`](.claude/skills/teensy-firmware-auditor/SKILL.md)** — audita C++ Teensy (ISR, `volatile`, `delay()`, watchdogs, PID, race conditions).
 - **[`rpi-vision-auditor`](.claude/skills/rpi-vision-auditor/SKILL.md)** — audita Python/OpenCV/YOLO (model loading, FPS, threading, calibración).
@@ -93,8 +97,11 @@ cd software/teensy/firmware && pio run
 
 # Test rápido visión (RPi en LAN)
 python software/raspberry/final_rpi/calibration.py
+
+# Ritual semanal del director (lunes a primera hora)
+/coach-checkin
 ```
 
 ---
 
-*Última actualización: 2026-05-09*
+*Última actualización: 2026-05-10*
