@@ -1,5 +1,7 @@
 # Referencias Externas - RCJ Rescue Line 2026 IITA Salta
 
+> **PLANTILLA INCOMPLETA / WIP.** La mayoría de estos links son placeholders sin completar (`https://link`, `YOUR_FOLDER_ID`). No asumir que son referencias válidas hasta reemplazarlos por las URLs reales. Único link confirmado: "Drive Principal".
+
 > Centralizado de links y recursos externos utilizados en el proyecto
 
 ## 📁 Google Drive y Almacenamiento

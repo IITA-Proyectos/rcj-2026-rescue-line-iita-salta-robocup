@@ -2,7 +2,11 @@
 
 > Nota de nombres: **Laureano = Laureano Monteros = `Laumonteros`** — misma persona, el del firmware Teensy.
 
-**Fase:** 🟢 Fase 1 — push exhaustivo · **T–6 semanas a Incheon** · freeze el 2026-05-20 (3-4 días).
+> **DOCUMENTO HISTÓRICO (2026-05-16).** Estado de proyecto y régimen vigente: ver [`docs/es/ESTADO-ACTUAL-2026-05-31.md`](../../../docs/es/ESTADO-ACTUAL-2026-05-31.md). Las fechas y pendientes de abajo pueden estar superados.
+>
+> **Correcciones (al 2026-05-31):** el freeze "2026-05-20" no aplica → firmware/comms ya entra por **gate de Enzo** (ventana de push vencida; freeze de código 2026-06-15). Buena parte de estos fixes hoy viven (total o parcial) en **PR #129 (OPEN) — validar en banco, no mergear a ciegas.** Si algún ítem toca el **lazo de control / PID**, aplica la reinterpretación **#121/B1**: motores DFRobot FIT0441 con PWM invertido (`255 - _pwmVal` es correcto a nivel HW); el problema es el lazo (PID DIRECT + ki dominante + kp=0), es rediseño, NO un fix de signo. **DUPLICADO:** detalle ampliado en `programa-laureano-teensy-resiliencia.md`.
+
+**Fase:** 🟢 Fase 1 — push exhaustivo · **T–6 semanas a Incheon** · freeze el 2026-05-20 (3-4 días). *(HISTÓRICO — ver banner.)*
 
 Laureano: este issue junta tu frente de firmware Teensy — lo previo abierto + los hallazgos nuevos de la auditoría 2026-05-16 (branch `feature/initialize-testing-log`, commit `c42e535`). Formato de cada tema: riesgo-si-NO / riesgo-si-SÍ / tiempo / criterio de "hecho". Ver panorama completo en #103.
 
@@ -78,7 +82,7 @@ Los issues **#59 / #60 / #61 / #62** tienen su fix **revertido en el código act
 
 ---
 
-### Tu prioridad sugerida esta semana (antes del freeze 2026-05-20)
+### Tu prioridad sugerida esta semana *(HISTÓRICO: "antes del freeze 2026-05-20" → al 2026-05-31 firmware ya entra por gate de Enzo; freeze de código 2026-06-15)*
 
 1. **Re-aplicar timeouts #59/#60/#61/#62** (PRIORIDAD #1 — diagnosticar claw.cpp primero, re-aplicar incremental).
 2. **T-A `get_color()` timeout** + **T-B `taskDone`** + **#58 `break`** — 3 quick-wins de confiabilidad de bajo riesgo.

@@ -1,5 +1,9 @@
 **Enzo — panorama completo y qué tenés que hacer para que el equipo arranque YA.**
 
+> **DOCUMENTO HISTÓRICO (2026-05-18).** Estado de proyecto y régimen vigente: ver [`docs/es/ESTADO-ACTUAL-2026-05-31.md`](../../../docs/es/ESTADO-ACTUAL-2026-05-31.md). Las fechas y pendientes de abajo pueden estar superados.
+>
+> **Correcciones (al 2026-05-31):** **PR #101 ya está mergeado en `main`**; el triage #91 quedó superado por el régimen 31-may. El régimen "Track A push ≤26-may" SUPERADO → firmware/comms ya entra por **gate de Enzo**; docs/visión push libre ≤2026-06-11; freeze de código 2026-06-15. "6 semanas a Incheon / 7 días sin commit" es del 18-may (hoy faltan **~30 días / ~4,3 semanas**). **DUPLICADO:** se solapa con `programa-enzo-coordinacion-validacion.md` y los `msg-*` por persona.
+
 El plan a 8/10 de confiabilidad para Incheon (#114) ya está bajado a código concreto. Hay **4 documentos de aceleración**, uno por persona, con análisis + código propuesto + cómo validar. Tu trabajo: distribuir, destrabar y aprobar — no implementar.
 
 ## El tablero (quién hace qué esta semana)
@@ -14,8 +18,8 @@ El plan a 8/10 de confiabilidad para Incheon (#114) ya está bajado a código co
 ## Tus 2 acciones de destrabe (Sprint 0 — sin esto nada fluye)
 
 Siguen siendo las de #107, ahora con herramienta:
-1. **Mergear PR #101** (TEST_LOG, ~24 pts TDP, riesgo cero — 5 min).
-2. **Correr el triage #91** (vencido). Tu doc trae un **guion de 60 min** para hacerlo usando #114 como orden maestro.
+1. ~~**Mergear PR #101**~~ — ✅ **YA está en `main`** (al 2026-05-31).
+2. **Correr el triage #91** ~~(vencido)~~ — superado por el régimen 31-may. Tu doc trae un **guion de 60 min** para hacerlo usando #114 como orden maestro.
 
 ## Tu documento (`programa-enzo-coordinacion-validacion.md`) tiene
 

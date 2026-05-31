@@ -1,5 +1,9 @@
 **Laureano — tu plan de trabajo está listo. Esto es lo primero que hacés HOY.**
 
+> **DOCUMENTO HISTÓRICO (2026-05-18).** Estado de proyecto y régimen vigente: ver [`docs/es/ESTADO-ACTUAL-2026-05-31.md`](../../../docs/es/ESTADO-ACTUAL-2026-05-31.md). Las fechas y pendientes de abajo pueden estar superados.
+>
+> **Correcciones (al 2026-05-31):** "Track A push libre hasta 2026-05-26" SUPERADO → firmware ya entra por **gate de Enzo** (freeze de código 2026-06-15). Si tu trabajo toca el **lazo de control / PID**, aplica **#121/B1**: motores DFRobot FIT0441 con PWM invertido (`255 - _pwmVal` correcto a nivel HW); el problema es el lazo, NO el signo. Es el resumen de `programa-laureano-teensy-resiliencia.md`.
+
 Tu frente: **firmware Teensy / red de seguridad (Track A)** — es la prioridad #1 técnica del proyecto rumbo a Incheon (roadmap #114).
 
 ### Lo primero, HOY, sin el robot enfrente
@@ -17,6 +21,6 @@ git show 5bac4a5 -- software/teensy/firmware/src/main.cpp
 `project/backlog/staging/programa-laureano-teensy-resiliencia.md` (865 líneas: código por tema, orden de ataque, validación en banco, checklist). **Te lo pasa Enzo.**
 
 ### Régimen
-Track A — **push libre hasta 2026-05-26**, después gate de Enzo. Aprovechá esta ventana: lo de hoy (#60/#61/#112) es escribir, no necesita el robot. El banco (#53 heartbeat, #27 WDT) viene en Sprint 2.
+~~Track A — **push libre hasta 2026-05-26**, después gate de Enzo.~~ → **Al 2026-05-31: firmware con ventana de push vencida, ya entra por gate de Enzo** (freeze de código 2026-06-15). Lo de #60/#61/#112 es escribir, no necesita el robot. El banco (#53 heartbeat, #27 WDT) viene después.
 
 > El código del doc es una PROPUESTA para que vos valides, adaptes y pruebes. Vos hacés el commit/PR — no está commiteado.

@@ -1,5 +1,7 @@
 # Programa de coordinación y validación — Enzo Juarez
 
+> **Código propuesto / guía de coordinación** (no es código del robot). Índice de docs y estado vigente: [`docs/es/ESTADO-ACTUAL-2026-05-31.md`](../../../docs/es/ESTADO-ACTUAL-2026-05-31.md). **Reinterpretación del PID #121 vigente.** OJO: la tabla "Régimen de tracks" de §1 (Track A push libre ≤05-26 / gate 27-may / Track B ≤06-11) es **HISTÓRICA y quedó superada** por el régimen 31-may: firmware/comms ya gated por Enzo (push libre vencido); docs/visión push libre ≤2026-06-11; freeze de código 2026-06-15. **PR #101 ya está en `main`.** El guion de triage y el checklist de aprobación siguen siendo útiles (solo desactualizados en fechas).
+
 > **Documento de apoyo para Enzo. NO commiteado. Es guía de coordinación/aprobación, no una directiva — Enzo decide y adapta.**
 >
 > Generado por Claude Code (Sonnet 4.6) a pedido del director @gviollaz · 2026-05-18.

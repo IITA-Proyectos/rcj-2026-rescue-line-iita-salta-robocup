@@ -1,5 +1,9 @@
 **Benjamin — tu plan de trabajo está listo. Esto es lo primero que hacés HOY.**
 
+> **DOCUMENTO HISTÓRICO (2026-05-18).** Estado de proyecto y régimen vigente: ver [`docs/es/ESTADO-ACTUAL-2026-05-31.md`](../../../docs/es/ESTADO-ACTUAL-2026-05-31.md). Las fechas y pendientes de abajo pueden estar superados.
+>
+> **Nota (al 2026-05-31):** push libre de tu frente (docs/visión) **≤2026-06-11 sigue vigente** (freeze de código 2026-06-15), pero este mensaje es **foto del 18-may**. Es el resumen de `programa-benjamin-rpi-hardware.md`.
+
 Tu frente: **RPi/hardware + sos el GATE de banco de todo el equipo (Track B)**.
 
 ### Lo primero, HOY, sin el robot

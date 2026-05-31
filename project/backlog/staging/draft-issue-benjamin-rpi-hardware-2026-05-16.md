@@ -1,6 +1,10 @@
 ## Cluster RPi + hardware — para Benjamin (codeowner RPi/hardware, dueño del banco)
 
-**Fase:** 🟢 Fase 1 — push exhaustivo · **T–6 semanas a Incheon** · freeze el 2026-05-20.
+> **DOCUMENTO HISTÓRICO (2026-05-16).** Estado de proyecto y régimen vigente: ver [`docs/es/ESTADO-ACTUAL-2026-05-31.md`](../../../docs/es/ESTADO-ACTUAL-2026-05-31.md). Las fechas y pendientes de abajo pueden estar superados.
+>
+> **Correcciones (al 2026-05-31):** el freeze "2026-05-20" no aplica; el régimen vigente para este frente (docs/visión, ex-Track B) es **push libre hasta 2026-06-11** y **freeze de código 2026-06-15**. PR #101 ya está en `main`. **DUPLICADO:** el detalle de los temas V-A..V-F vive también en `programa-benjamin-rpi-hardware.md` y en la subcarpeta `auditoria-integral-2026-05-18/` — no reabrir.
+
+**Fase:** 🟢 Fase 1 — push exhaustivo · **T–6 semanas a Incheon** · freeze el 2026-05-20. *(HISTÓRICO — ver banner.)*
 
 Benjamin: este issue junta **lo previo abierto que te toca** + **los hallazgos nuevos de RPi/visión** de la auditoría 2026-05-16. Sos codeowner RPi+hardware y el que tiene mejor acceso al banco, así que además de tus temas propios sos el **gate de validación en banco** de todo el cluster RPi (los fixes de Lucio se mergean con tu check de banco + entrada en `testing/TEST_LOG.md`).
 
@@ -80,7 +84,7 @@ Tu rol acá: ejecutar #68 vos, y **co-review + banco** de #65/#66/#73/#64 (los t
 
 ---
 
-### Tu prioridad sugerida esta semana (antes del freeze 2026-05-20)
+### Tu prioridad sugerida esta semana *(HISTÓRICO: "antes del freeze 2026-05-20" → al 2026-05-31 el frente docs/visión tiene push libre hasta 2026-06-11, freeze de código 2026-06-15)*
 
 1. **#68** (tuyo) — pinear `requirements.txt` desde la Pi de la última corrida buena.
 2. **Banco + co-review** de los fixes de Lucio (#65/#66/#73/#64 + V-A/V-D/V-E/V-F) — sos el gate de validación.

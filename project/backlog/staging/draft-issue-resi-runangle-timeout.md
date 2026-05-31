@@ -1,5 +1,9 @@
 ## Resiliencia R-T01/R-C02 — `runAngle()` sin timeout ni dreno serial: deadlock permanente por IMU
 
+> **DOCUMENTO HISTÓRICO (2026-05-18).** Estado de proyecto y régimen vigente: ver [`docs/es/ESTADO-ACTUAL-2026-05-31.md`](../../../docs/es/ESTADO-ACTUAL-2026-05-31.md). Las fechas y pendientes de abajo pueden estar superados.
+>
+> **Correcciones (al 2026-05-31):** régimen "Track A push libre ≤2026-05-26" SUPERADO → firmware/comms ya entra por **gate de Enzo**. **DUPLICADO:** gemelo de #112 en `programa-laureano-teensy-resiliencia.md`. Estado real de los fixes de firmware: en PR #129 (OPEN, validar en banco).
+
 **Origen:** auditoría de resiliencia 2026-05-18 (commit `c42e535`). Track A (control/firmware). Severidad: **CRÍTICA**. Nuevo: los #60/#61 cubren `runDistance`/`colorDataReady`; **`runAngle` nunca tuvo fix, ni siquiera en el revertido `5bac4a5`**.
 
 ### Modo de falla
@@ -16,4 +20,4 @@
 ### Test plan (banco)
 Forzar `runAngle(30, 90)` y desconectar el BNO en caliente → el robot debe terminar el giro por timeout (no girar infinito) y responder a un `0xFF` de la RPi durante el giro.
 
-**Régimen:** Track A (firmware) — push libre ≤2026-05-26. Combinar con la re-aplicación de #60/#61 (#105). **Asignar:** @Laumonteros @gviollaz.
+**Régimen:** ~~Track A (firmware) — push libre ≤2026-05-26~~ → **al 2026-05-31: firmware con ventana de push vencida, entra por gate de Enzo.** Combinar con la re-aplicación de #60/#61 (#105). **Asignar:** @Laumonteros @gviollaz.

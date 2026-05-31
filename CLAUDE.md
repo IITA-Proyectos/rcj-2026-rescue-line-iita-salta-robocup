@@ -54,7 +54,7 @@ Cuando alguien pide "revisá X" o "auditá X", el flujo es:
 Este repo tiene 5 skills en `.claude/skills/`:
 
 **Dirección del proyecto:**
-- **[`rcj-coach-director`](.claude/skills/rcj-coach-director/SKILL.md)** — director técnico / coach. Prioriza, planifica la semana, asigna tareas, documenta decisiones, aplica régimen de dos fases (push hasta 2026-05-19, freeze desde 2026-05-20). NO escribe código.
+- **[`rcj-coach-director`](.claude/skills/rcj-coach-director/SKILL.md)** — director técnico / coach. Prioriza, planifica la semana, asigna tareas, documenta decisiones, aplica el régimen de fases vigente (Track A firmware/comms: push cerrado, entra por gate de Enzo; Track B docs/visión: push libre hasta 2026-06-11; freeze de código 2026-06-15 — ver [docs/es/ESTADO-ACTUAL-2026-05-31.md](docs/es/ESTADO-ACTUAL-2026-05-31.md)). NO escribe código.
 
 **Auditoría técnica:**
 - **[`rcj-rescue-reviewer`](.claude/skills/rcj-rescue-reviewer/SKILL.md)** — orquestador. Decide qué subsistemas auditar y consolida findings.
@@ -71,9 +71,11 @@ Este repo tiene 5 skills en `.claude/skills/`:
 
 ---
 
-## Documento vivo: AUDIT-ACTION-PLAN.md
+## Fuente de verdad de findings: GitHub Issues
 
-[`AUDIT-ACTION-PLAN.md`](AUDIT-ACTION-PLAN.md) es la lista maestra curada de bugs. **Antes de abrir un finding nuevo**, verificar que no esté ya listado ahí. Bugs cerrados se mueven a la sección "Resueltos" con link al PR.
+Los findings activos viven en **GitHub Issues** (label `priority/*`). **Antes de abrir un finding nuevo**, buscar en Issues con `gh issue list` (ver comandos abajo).
+
+[`AUDIT-ACTION-PLAN.md`](AUDIT-ACTION-PLAN.md) quedó **archivado como histórico** (23-feb) y NO debe usarse para priorizar. El estado vigente del proyecto vive en [docs/es/ESTADO-ACTUAL-2026-05-31.md](docs/es/ESTADO-ACTUAL-2026-05-31.md) y en el informe director [docs/es/2026-05-31-informe-coach-auditoria-integral.md](docs/es/2026-05-31-informe-coach-auditoria-integral.md).
 
 ---
 
@@ -104,4 +106,6 @@ python software/raspberry/final_rpi/calibration.py
 
 ---
 
-*Última actualización: 2026-05-10*
+*Fuente de verdad del estado del proyecto (PRs mergeados, régimen de fases vigente, pendientes reales): [docs/es/ESTADO-ACTUAL-2026-05-31.md](docs/es/ESTADO-ACTUAL-2026-05-31.md).*
+
+*Última actualización: 2026-05-31*

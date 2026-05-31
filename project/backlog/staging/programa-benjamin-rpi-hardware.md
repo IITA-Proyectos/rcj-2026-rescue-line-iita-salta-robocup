@@ -1,5 +1,7 @@
 # Programa de trabajo — Benjamin Villagran · RPi 4B + Hardware gate
 
+> **Código propuesto** (no es código del robot). Índice de docs y estado vigente: [`docs/es/ESTADO-ACTUAL-2026-05-31.md`](../../../docs/es/ESTADO-ACTUAL-2026-05-31.md) (los `programa-*.md` son lo que la doc a veces llama "propuestas de código"; viven acá en `project/backlog/staging/`, no en un `docs/es/propuestas-codigo/`). **Reinterpretación del PID #121 vigente** (motores DFRobot FIT0441 con PWM invertido: `255 - _pwmVal` es correcto; el problema es el lazo, no el signo). Fechas internas = foto del 18-may.
+
 > **Propuesta para que Benjamin valide, adapte y pruebe. NO commiteado. Él lo ajusta, prueba, y hace el commit/PR.**
 
 **Equipo:** IITA Salta · **Mundial:** RoboCup Junior Rescue Line 2026 — Incheon (~6 semanas).

@@ -1,6 +1,10 @@
 ## Consolidado de auditoría 2026-05-16 — input para el triage #91
 
-**Fase:** 🟢 Fase 1 — push exhaustivo · **T–6 semanas a Incheon** · freeze el 2026-05-20 (3-4 días).
+> **DOCUMENTO HISTÓRICO (2026-05-16).** Estado de proyecto y régimen vigente: ver [`docs/es/ESTADO-ACTUAL-2026-05-31.md`](../../../docs/es/ESTADO-ACTUAL-2026-05-31.md). Las fechas y pendientes de abajo pueden estar superados.
+>
+> **Correcciones (al 2026-05-31):** este consolidado del 16-may quedó **superado por la auditoría integral 31-may** ([`2026-05-31-informe-coach-auditoria-integral.md`](../../../docs/es/2026-05-31-informe-coach-auditoria-integral.md)) y por PR #129 (fixes B1–B10, OPEN, validar en banco — no mergear a ciegas). Freeze "2026-05-20" no aplica → régimen vigente: firmware/comms gated por Enzo, docs/visión push libre ≤2026-06-11, freeze de código 2026-06-15. **Reinterpretaciones factuales vigentes:** PID/PWM (#121/B1) — los motores son DFRobot FIT0441 con PWM invertido, `255 - _pwmVal` es correcto a nivel HW; el problema es el **lazo** (PID DIRECT + ki dominante + kp=0), es rediseño, NO un fix de signo. Clases YOLO (#120/B3) — **NO están invertidas** (coinciden con `metadata.yaml`); lo invertido eran nombres de sub-estados de depósito.
+
+**Fase:** 🟢 Fase 1 — push exhaustivo · **T–6 semanas a Incheon** · freeze el 2026-05-20 (3-4 días). *(HISTÓRICO — ver banner.)*
 Auditoría integral de los 3 subsistemas (Teensy firmware / RPi visión / comms) sobre branch `feature/initialize-testing-log` (commit `c42e535`). Deduplicado contra issues #4–#102 y `AUDIT-ACTION-PLAN.md`.
 
 **Para Enzo:** esto es el insumo para cerrar el triage del #91 (vence). Decidir baldes (must/should/post-mundial) y qué se congela el 2026-05-20.

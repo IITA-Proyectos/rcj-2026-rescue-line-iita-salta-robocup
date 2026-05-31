@@ -1,9 +1,13 @@
 # Spec — Skill `rcj-coach-director` + slash command `/coach-checkin`
 
+> **DOCUMENTO HISTORICO (2026-05-10).** Estado de proyecto y regimen vigente: ver `docs/es/ESTADO-ACTUAL-2026-05-31.md`. Las fechas y pendientes de abajo pueden estar superados.
+>
+> Notas factuales al 2026-05-31: el "T–7 semanas" del header está vencido (hoy faltan ~4,3 semanas a Incheon). El **régimen track-dual con fechas 2026-05-26/05-27/06-06/06-07/06-11/06-12** que describe la §4.5 quedó **superado**: en el régimen vigente, **Track A (firmware/comms) ya está en gate de Enzo** (su ventana de push libre venció) y el **freeze de código es el 2026-06-15**; Track B (docs/visión) mantiene push libre hasta el 2026-06-11. La narrativa **en pasado** de la §13 (líneas "F1 cerró fuerte el 2026-05-26", "ningún push entró", "la última semana fue logística") es **hipotética/proyectada**, NO un registro de hechos ocurridos.
+
 **Fecha:** 2026-05-10
 **Estado:** Borrador para review (Gustavo)
 **Autor:** Claude Code (sesión con Gustavo Viollaz, director IITA Salta)
-**Mundial objetivo:** RCJ 2026 — Incheon, Songdo Convensia, 2026-06-30 a 2026-07-06 (T–7 semanas)
+**Mundial objetivo:** RCJ 2026 — Incheon, Songdo Convensia, 2026-06-30 a 2026-07-06 (T–7 semanas al 2026-05-10; HISTÓRICO — al 2026-05-31 faltan ~4,3 semanas)
 
 ---
 
