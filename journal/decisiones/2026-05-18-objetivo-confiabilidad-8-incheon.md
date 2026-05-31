@@ -1,5 +1,9 @@
 # Decisión — Objetivo de confiabilidad para Incheon: 8/10 (10/10 post-mundial)
 
+> **DOCUMENTO HISTORICO (2026-05-18).** Estado de proyecto y regimen vigente: ver `docs/es/ESTADO-ACTUAL-2026-05-31.md`. Las fechas y pendientes de abajo pueden estar superados.
+>
+> La DECISIÓN de fondo (objetivo **8/10 probado**, 8→10 post-mundial) **sigue vigente** al 2026-05-31. Lo que quedó **superado** es el encuadre temporal y el mapeo a fases: el "Faltan 6 semanas" está vencido (faltan ~4,3) y el "Sprint 1-2 = Track A push libre ≤2026-05-26 / Sprint 3 = gate Enzo" ya no aplica — en el régimen vigente **Track A (firmware/comms) ya está en gate de Enzo** y el **freeze de código es el 2026-06-15**.
+
 **Fecha:** 2026-05-18 · **Tipo:** corte de scope / criterio de proyecto
 
 **Decisión:** El objetivo de auto-recuperación para el mundial Incheon es **8/10 sólido y validado en banco**, NO 10/10. El tramo **8→10 queda explícitamente como post-mundial**.

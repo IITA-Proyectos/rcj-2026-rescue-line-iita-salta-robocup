@@ -1,5 +1,9 @@
 ## Roadmap a 8/10 de confiabilidad para Incheon — plan de trabajo
 
+> **DOCUMENTO HISTÓRICO (2026-05-18).** Estado de proyecto y régimen vigente: ver [`docs/es/ESTADO-ACTUAL-2026-05-31.md`](../../../docs/es/ESTADO-ACTUAL-2026-05-31.md). Las fechas y pendientes de abajo pueden estar superados.
+>
+> **Correcciones (al 2026-05-31):** **PR #101 ya está mergeado en `main`** (Sprint 0 parcialmente cumplido); el triage #91 quedó superado por el régimen 31-may. El **pie de régimen "Sprint 1-2 Track A push libre ≤2026-05-26"** quedó SUPERADO → firmware/comms ya entra por **gate de Enzo**; docs/visión push libre **≤2026-06-11**; **freeze de código 2026-06-15**. El plan de sprints se conserva como trazabilidad de la meta 8/10.
+
 **Decisión del director (2026-05-18):** objetivo para Incheon = **8/10 sólido y probado en banco**. El tramo **8→10 es post-mundial** (esfuerzo alto, riesgo de regresión, validación que no hay tiempo de hacer bien antes del mundial). Hoy estamos en **2/10**. Detalle del razonamiento: `docs/es/2026-05-18-auditoria-resiliencia.md` + `journal/decisiones/2026-05-18-objetivo-confiabilidad-8-incheon.md`.
 
 Este issue es el **plan de trabajo ordenado en sprints**. Cada sprint distingue lo que **se puede escribir YA sin el robot** de lo que **requiere banco**.
@@ -8,8 +12,8 @@ Este issue es el **plan de trabajo ordenado en sprints**. Cada sprint distingue 
 
 ### Sprint 0 — Destrabar (Enzo, esta semana) — *no toca el robot*
 Sin esto nada fluye. Es lo de #107.
-- [ ] Mergear PR #101 (TEST_LOG, ~24 pts TDP, riesgo cero).
-- [ ] Correr triage #91 (vencido) clasificando por track.
+- [x] Mergear PR #101 (TEST_LOG, ~24 pts TDP, riesgo cero). *(YA en `main` al 2026-05-31.)*
+- [ ] Correr triage #91 (vencido) clasificando por track. *(Superado por el régimen 31-may.)*
 - **Resultado:** equipo con prioridades cerradas y sustrato de registro de banco.
 
 ### Sprint 1 — CÓDIGO QUE SE ESCRIBE YA (no requiere robot enfrente) → habilita el 6/10
@@ -42,4 +46,4 @@ Recuperación funcional (reanudar misión, no solo safe-state), redundancia de s
 ### Qué se puede hacer YA (resumen para la próxima reunión)
 **Sin robot, hoy mismo:** todo el **Sprint 1** (código de timeouts, runAngle, camthreader Lock, cx_black, systemd) + el **diseño** del `SystemHealth` del Sprint 3. **Con Enzo:** Sprint 0 (merge #101 + triage #91). El robot solo hace falta a partir del Sprint 2 (validación).
 
-**Régimen:** Sprint 1-2 = Track A push libre ≤2026-05-26. Sprint 3 = gate Enzo (Track A ≥27-may / Track B ≥12-jun). **Asignar:** @gviollaz @enzzo19 (coordinación), ejecución por codeowner.
+**Régimen:** ~~Sprint 1-2 = Track A push libre ≤2026-05-26. Sprint 3 = gate Enzo (Track A ≥27-may / Track B ≥12-jun).~~ → **Al 2026-05-31 (régimen vigente):** firmware/comms ya gated por Enzo (push libre vencido); docs/visión push libre ≤2026-06-11; freeze de código 2026-06-15. **Asignar:** @gviollaz @enzzo19 (coordinación), ejecución por codeowner.

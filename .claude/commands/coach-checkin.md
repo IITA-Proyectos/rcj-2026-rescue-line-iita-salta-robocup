@@ -6,6 +6,8 @@ description: Ritual semanal del director — produce un memo de checkin en journ
 
 Ejecutás el ritual semanal de seguimiento del proyecto IITA Salta para RoboCup Junior Rescue Line 2026 — Incheon. **Activá la skill `rcj-coach-director` antes** y aplicá su contexto (gate progresivo con track dual por subsistema, filtros, equipo).
 
+> **El estado y régimen vigente del proyecto vive en `docs/es/ESTADO-ACTUAL-2026-05-31.md` — consultalo al inicio de cada sesión.**
+
 ## Secuencia (8 pasos)
 
 ### 1. Calcular T–N a Incheon y determinar track + fase por subsistema
@@ -13,13 +15,13 @@ Ejecutás el ritual semanal de seguimiento del proyecto IITA Salta para RoboCup 
 - Fecha objetivo: **2026-06-30** (apertura del mundial). Calculá semanas y días restantes.
 - Para cada issue/cambio, mirá su label `subsystem/*` → **Track A** (`control`, `comms`, `power`/firmware) o **Track B** (`vision`, `docs`).
 - **Track A — firmware/control + comms:**
-  - ≤ 2026-05-26 → 🟢 push libre (aprobación libre con criterio)
-  - 2026-05-27 → 2026-06-06 → 🟡 gate Enzo (fecha fin revisable por Gustavo)
-  - ≥ 2026-06-07 → 🔴 gate Gustavo
+  - Ventana de push libre **VENCIDA** → 🟡 gate Enzo (todo cambio de firmware/comms entra con su validación explícita).
+  - ≥ 2026-06-15 (freeze de código) → 🔴 gate Gustavo.
 - **Track B — docs + visión (RPi):**
   - ≤ 2026-06-11 → 🟢 push libre con criterio
-  - ≥ 2026-06-12 → 🟡 gate Enzo
-- **Transversal:** 2026-06-23→06-29 y mundial (2026-06-30→07-06) = ⚪ logística pura, cero código nuevo (ambos tracks).
+  - 2026-06-12 → 2026-06-14 → 🟡 gate Enzo
+  - ≥ 2026-06-15 (freeze de código) → 🔴 gate Gustavo
+- **Transversal:** última semana 2026-06-22→06-29 y mundial (2026-06-30→07-06) = ⚪ logística pura, cero código nuevo (ambos tracks).
 
 ### 2. Leer estado del board
 

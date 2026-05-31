@@ -1,5 +1,7 @@
 # Programa de aceleración — Lucio (visión RPi) — Sprint 1
 
+> **Código propuesto** (no es código del robot). Índice de docs y estado vigente: [`docs/es/ESTADO-ACTUAL-2026-05-31.md`](../../../docs/es/ESTADO-ACTUAL-2026-05-31.md). **Reinterpretación del PID #121 vigente.** Push libre de visión ≤2026-06-11 sigue vigente (freeze de código 2026-06-15); fechas internas = foto del 18-may. *Inconsistencia interna conocida:* la tabla del resumen marca #64 como "Crítico (crashea al arrancar en RPi sin pantalla)", pero el propio cuerpo concluye que `Main.py` **ya tiene** el guard `SHOW_DEBUG_WINDOWS` y el bug real está en `calibration.py` — vale el análisis del cuerpo, no la etiqueta de la tabla.
+
 > **AVISO IMPORTANTE: Este código es una PROPUESTA para que Lucio valide, adapte y pruebe.**
 > **NO está commiteado. Lucio lo revisa, lo ajusta, lo prueba en banco, y ÉL hace el commit/PR.**
 >

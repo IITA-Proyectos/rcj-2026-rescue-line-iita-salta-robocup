@@ -1,5 +1,9 @@
 # 📋 Plan de Acción de Auditoría Técnica - RCJ 2026
 
+> **ARCHIVADO (obsoleto desde feb-2026).** La verdad vigente vive en los Issues de GitHub y en `docs/es/ESTADO-ACTUAL-2026-05-31.md` + el informe director `docs/es/2026-05-31-informe-coach-auditoria-integral.md`. No usar este archivo para planificar.
+>
+> _Nota factual: varias afirmaciones de abajo quedaron superadas por la auditoría integral del 31-may. En particular, el "fix" del PID por cambio de signo del PWM es INCORRECTO — los motores DFRobot FIT0441 tienen PWM invertido (`255 - _pwmVal` es correcto a nivel HW) y el problema real es el lazo saturado (PID en modo DIRECT, `ki=22` dominante, `kp=0`) → es un rediseño de lazo, no un quick-win. El P0 de "encoders sin volatile" y el framing de bug-list detectada por IA también quedaron superados._
+
 > **IMPORTANTE:** Este documento contiene la lista de **Bugs Críticos** detectados por IA Gemini bajo supervisión de Gustavo Viollaz. Su resolución es de máxima prioridad para garantizar la estabilidad del robot en competencia.
 
 ---

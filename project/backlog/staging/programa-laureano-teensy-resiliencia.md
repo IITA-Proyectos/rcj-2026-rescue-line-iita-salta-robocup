@@ -1,5 +1,7 @@
 # Programa Laureano — Teensy Resiliencia (Incheon 2026)
 
+> **Código propuesto** (no es código del robot). Índice de docs y estado vigente: [`docs/es/ESTADO-ACTUAL-2026-05-31.md`](../../../docs/es/ESTADO-ACTUAL-2026-05-31.md). **Reinterpretación del PID #121 vigente** (motores DFRobot FIT0441 con PWM invertido: `255 - _pwmVal` correcto; el problema es el lazo PID DIRECT + ki dominante + kp=0, es rediseño, NO un fix de signo). El régimen "Track A push ≤05-26" es histórico → hoy firmware entra por gate de Enzo; buena parte de estos fixes vive en **PR #129 (OPEN), validar en banco**. Fechas internas = foto del 18-may.
+
 > **AVISO IMPORTANTE — LEER ANTES DE TOCAR CUALQUIER ARCHIVO:**
 > Todo el código que aparece en este documento es una **PROPUESTA** para que Laureano (Laureano Monteros, `Laumonteros`) valide, adapte y pruebe.
 > **NO está commiteado en ninguna rama.** Laureano lo revisa, lo ajusta a la realidad del hardware que tiene en banco, lo prueba, y **EL hace el commit y el PR.**

@@ -1,5 +1,9 @@
 ## Resiliencia R-V03 — `camthreader` sin Lock: frame desgarrado/stale → decisiones sobre datos corruptos
 
+> **DOCUMENTO HISTÓRICO (2026-05-18).** Estado de proyecto y régimen vigente: ver [`docs/es/ESTADO-ACTUAL-2026-05-31.md`](../../../docs/es/ESTADO-ACTUAL-2026-05-31.md). Las fechas y pendientes de abajo pueden estar superados.
+>
+> **Nota (al 2026-05-31):** el push libre de visión **≤2026-06-11 sigue vigente** (freeze de código 2026-06-15), pero este doc es **foto del 18-may** y la numeración de issues/sprints es histórica; el seguimiento real vive en el estado vigente. **DUPLICADO:** gemelo de #113 en `programa-lucio-rpi-vision.md` y de Sprint 1 en `draft-issue-roadmap-confiabilidad-8.md`.
+
 **Origen:** auditoría de resiliencia 2026-05-18 (commit `c42e535`). Track B (visión/RPi). Severidad: **CRÍTICA** (marcada CRÍTICA por el auditor de RPi; quedó sin issue propio en el primer lote).
 
 ### Modo de falla

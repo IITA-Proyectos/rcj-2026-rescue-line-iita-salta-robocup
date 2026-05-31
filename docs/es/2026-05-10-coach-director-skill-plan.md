@@ -1,5 +1,9 @@
 # Coach Director Skill — Implementation Plan
 
+> **DOCUMENTO HISTORICO (2026-05-10).** Estado de proyecto y regimen vigente: ver `docs/es/ESTADO-ACTUAL-2026-05-31.md`. Las fechas y pendientes de abajo pueden estar superados.
+>
+> Nota al 2026-05-31: este plan de implementación satura el **régimen de DOS FASES** (Fase 1 push exhaustivo hasta 2026-05-19 / Fase 2 freeze desde 2026-05-20) y conteos "T–7 semanas". Ese esquema de dos fases y esos T–N están **superados**: el régimen vigente es track-dual con **Track A (firmware/comms) ya en gate de Enzo**, **Track B (docs/visión) push libre hasta 2026-06-11**, y **freeze de código el 2026-06-15**. El cuerpo se preserva como registro del plan original.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Crear la skill project-scoped `rcj-coach-director` y el slash command `/coach-checkin` que permitan a Gustavo (director del equipo IITA Salta) priorizar, planificar y documentar el camino del equipo hacia el podio en RCJ Rescue Line 2026 Incheon, sin contaminar otras sesiones de Claude.

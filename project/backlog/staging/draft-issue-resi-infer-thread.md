@@ -1,5 +1,9 @@
 ## Resiliencia R-V04/R-V11 — `infer_thread` sin try/except: deadlock silencioso en modo rescate
 
+> **DOCUMENTO HISTÓRICO (2026-05-18).** Estado de proyecto y régimen vigente: ver [`docs/es/ESTADO-ACTUAL-2026-05-31.md`](../../../docs/es/ESTADO-ACTUAL-2026-05-31.md). Las fechas y pendientes de abajo pueden estar superados.
+>
+> **Nota (al 2026-05-31):** push libre de visión **≤2026-06-11 sigue vigente** (freeze 2026-06-15), pero este doc es **foto del 18-may**. **DUPLICADO:** gemelo de #111 en `programa-lucio-rpi-vision.md`.
+
 **Origen:** auditoría de resiliencia 2026-05-18 (commit `c42e535`). Track B (visión/RPi). Severidad: **CRÍTICA**.
 
 ### Modo de falla

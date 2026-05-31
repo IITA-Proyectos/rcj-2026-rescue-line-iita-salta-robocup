@@ -1,5 +1,9 @@
 # Checkin semanal — Semana W20 (2026-05-16)
 
+> **DOCUMENTO HISTORICO (2026-05-16, semana W20).** Estado de proyecto y regimen vigente: ver `docs/es/ESTADO-ACTUAL-2026-05-31.md`. Las fechas y pendientes de abajo pueden estar superados.
+>
+> Foto semanal del 16/18-may. Al 2026-05-31: el "T–6 semanas" está vencido (faltan ~4,3); las fechas de fases de abajo (incluidas las DOS variantes del régimen track-dual que conviven en este archivo — cabecera vs. línea de "Decisiones tomadas") quedaron **superadas**. Régimen vigente: **Track A (firmware/comms) ya en gate de Enzo**, **Track B push libre hasta 2026-06-11**, **freeze de código 2026-06-15**. PR #101 (TEST_LOG) **ya está mergeado en main** — abajo aparece como "a un merge de distancia" porque era foto del 16-may. Se preserva como registro.
+
 **T–6 semanas a Incheon** (2026-06-30, 45 días).
 **Régimen: gate progresivo con TRACK DUAL por subsistema** (Gustavo 2026-05-16, **+7 días el 2026-05-18** para dar tiempo de cierre al equipo):
 - **Track A — firmware/control + comms:** 🟢 push libre ≤2026-05-26 · 🟡 gate Enzo 2026-05-27→06-06 · 🔴 gate Gustavo ≥2026-06-07.

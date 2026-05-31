@@ -1,10 +1,18 @@
 # DRAFT — Agenda por persona · Semana W20 (2026-05-16)
 
+> **DOCUMENTO HISTÓRICO (2026-05-16).** Estado de proyecto y régimen vigente: ver [`docs/es/ESTADO-ACTUAL-2026-05-31.md`](../../../docs/es/ESTADO-ACTUAL-2026-05-31.md). Las fechas y pendientes de abajo pueden estar superados.
+>
+> **Correcciones factuales clave (al 2026-05-31):**
+> - **PR #101 YA está mergeado en `main`** (el ítem "mergear hoy/mañana" de abajo está cumplido).
+> - El **régimen de fases vigente** reemplaza al "Recordatorio de régimen" del final (líneas ~147-153): firmware/comms ya **gated por Enzo** (push libre vencido); docs/visión push libre **hasta 2026-06-11**; **freeze de código 2026-06-15**.
+> - "T–6 semanas / 45 días" es del 16-may: hoy faltan **~30 días** a Incheon.
+> - El triage #91 "vence mañana" ya quedó superado por el régimen 31-may.
+
 > **Estado:** BORRADOR del `rcj-coach-director` para que **Enzo lo revise, ajuste y distribuya**.
 > No commiteado. No es asignación oficial — Enzo es quien asigna. Si un ítem no cierra, se mueve, no se fuerza.
 > Cuando Enzo lo distribuya y procese, este archivo se borra de `staging/`.
 
-**🟢 Fase 1 — push exhaustivo · T–6 semanas a Incheon (2026-06-30, 45 días).**
+**🟢 Fase 1 — push exhaustivo · T–6 semanas a Incheon (2026-06-30, 45 días).** *(HISTÓRICO — ver banner arriba.)*
 
 ## 🔴 Dos deadlines que mandan esta semana
 
@@ -27,7 +35,7 @@ Por eso esta agenda prioriza **quick-wins de bajo riesgo que cierran en 1-2 sent
 | #67 pulseCount init | confiabilidad | Laureano | ~15 min | should | Sí, fácil |
 | Verificar timeouts #60/#61/#62 | confiabilidad | Laureano | ~1 h banco | must | Verificación, no fix |
 | #68 requirements pinning | confiabilidad | Benjamin | ~30 min en la Pi | must | Sí |
-| PR #101 TEST_LOG (~24 pts TDP) | proceso/TDP | Enzo | merge | must | **Hoy/mañana** |
+| PR #101 TEST_LOG (~24 pts TDP) | proceso/TDP | Enzo | merge | must | ~~Hoy/mañana~~ **YA MERGEADO en `main`** |
 | Triage #91 | proceso | Enzo | sesión equipo | must | **Vence 05-17** |
 
 Regla de "hecho" transversal: **PR mergeado + 1 corrida de banco que lo valide + 1 entrada en `testing/TEST_LOG.md`** (ya existe gracias al PR #101).
@@ -120,8 +128,8 @@ Cluster de 4 quick-wins en `Main.py`. Los 4 son chicos y no tocan la lógica de 
 
 ## 👤 Enzo — coach / docs / coordinación
 
-### TEMA — Mergear PR #101 (TEST_LOG.md)
-- **Qué:** revisar y mergear PR #101. Inicializa `testing/TEST_LOG.md` (~24 pts del TDP) y es el sustrato donde se registran los "hecho" de toda esta agenda.
+### TEMA — Mergear PR #101 (TEST_LOG.md) — ✅ YA MERGEADO en `main`
+- **Qué:** revisar y mergear PR #101. Inicializa `testing/TEST_LOG.md` (~24 pts del TDP) y es el sustrato donde se registran los "hecho" de toda esta agenda. *(Al 2026-05-31: PR #101 ya está en `main`; este ítem está cumplido. El archivo existe pero sigue vacío de datos reales — esos viven en PR #129 sin mergear.)*
 - **Riesgo si NO se toca:** se pierde el mayor leverage de puntaje del TDP y los demás ítems no tienen dónde registrar la validación de banco.
 - **Riesgo si SE toca:** cero (es doc).
 - **Tiempo:** merge hoy/mañana.
@@ -145,6 +153,8 @@ Cluster de 4 quick-wins en `Main.py`. Los 4 son chicos y no tocan la lógica de 
 ---
 
 ## Recordatorio de régimen (para alinear expectativas con los chicos)
+
+> ⚠️ **HISTÓRICO — este régimen (push ≤05-19, freeze 05-20) quedó SUPERADO.** Régimen vigente al 2026-05-31 (ver [`ESTADO-ACTUAL-2026-05-31.md`](../../../docs/es/ESTADO-ACTUAL-2026-05-31.md)): firmware/comms **ya gated por Enzo** (push libre vencido); docs/visión **push libre hasta 2026-06-11**; **freeze de código 2026-06-15**; logística pura **22–29 jun**. Lo de abajo se conserva solo como foto del 16-may.
 
 - **Hasta 2026-05-19:** 🟢 push — si suma o protege puntos y es bajo riesgo, entra. Esta agenda es eso.
 - **Desde 2026-05-20:** 🟡 freeze — NO se cambia nada salvo ventaja desproporcionada (ganancia cuantificada, riesgo P2/P1 no P0, 1-2 archivos, 5+ corridas de banco antes del 2026-06-23). Lo que no cerró antes, se evalúa con esa vara o se va a `post-mundial`.

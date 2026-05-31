@@ -1,16 +1,20 @@
 ## Enzo — tu checklist de coach, semana W20
 
-**Fase:** 🟢 Fase 1 — push exhaustivo · **T–6 semanas a Incheon** · **freeze el 2026-05-20** (3-4 días).
+> **DOCUMENTO HISTÓRICO (2026-05-16).** Estado de proyecto y régimen vigente: ver [`docs/es/ESTADO-ACTUAL-2026-05-31.md`](../../../docs/es/ESTADO-ACTUAL-2026-05-31.md). Las fechas y pendientes de abajo pueden estar superados.
+>
+> **Correcciones (al 2026-05-31):** el **ítem 1 (mergear PR #101) ya está cumplido — PR #101 está en `main`.** Las fechas 05-17 / 05-18 / 05-20 y el triage #91 quedaron **superados** por el régimen 31-may (firmware/comms gated por Enzo; docs/visión push libre ≤2026-06-11; freeze de código 2026-06-15). **DUPLICADO:** se solapa con `draft-issue-enzo-foco-semana.md` y `draft-issue-enzo-auditoria-2026-05-16.md`.
+
+**Fase:** 🟢 Fase 1 — push exhaustivo · **T–6 semanas a Incheon** · **freeze el 2026-05-20** (3-4 días). *(HISTÓRICO — ver banner.)*
 
 Enzo, esto es **lo que tenés que hacer vos** como coach/coordinador esta semana, en orden. No es el panorama (eso está en #103) ni la agenda para distribuir (#102) — es tu lista personal de acciones. Cada ítem tiene deadline y criterio de "hecho".
 
 ---
 
-### 1. 🟥 HOY/mañana — Mergear PR #101 (TEST_LOG.md)
+### 1. ✅ CUMPLIDO — Mergear PR #101 (TEST_LOG.md) — *YA está en `main` (al 2026-05-31)*
 - **Por qué primero:** desbloquea el "criterio de hecho" de TODOS los demás temas (cada fix se valida con una línea en `testing/TEST_LOG.md`). Además son ~24 pts del TDP con riesgo cero (es doc).
 - **Acción:** revisar y mergear PR #101.
-- **Hecho:** PR #101 mergeado a `main`.
-- **Deadline:** hoy o mañana 2026-05-17.
+- **Hecho:** PR #101 mergeado a `main`. *(Cumplido — el archivo existe pero sigue vacío de datos reales; esos viven en PR #129 sin mergear.)*
+- **Deadline:** ~~hoy o mañana 2026-05-17~~ — superado, ya hecho.
 
 ### 2. 🟥 Vence 2026-05-17 — Cerrar el triage del #91
 - **Por qué:** el deadline del #91 vence mañana. Sin triage cerrado el equipo entra al freeze sin prioridades.
