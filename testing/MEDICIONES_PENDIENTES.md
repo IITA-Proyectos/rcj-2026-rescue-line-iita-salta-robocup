@@ -1,6 +1,16 @@
-# Mediciones fisicas pendientes - sesion ~45 min con el robot
+# Mediciones fisicas y estado final de evidencia - TDP 2026
 
-Estos valores NO se pueden obtener del codigo. Hay que medirlos con el robot encendido antes de cerrar el TDP.
+Este archivo conserva el checklist de mediciones fisicas que no se pueden obtener del codigo. La mayoria ya fue medida y volcada al TDP; queda como guia para el PDF final y para mejoras opcionales de confianza.
+
+## Estado actual despues de T-001 a T-008
+
+La mayoria de las mediciones criticas ya fueron registradas en `testing/TEST_LOG.md` y volcadas al TDP: FPS de linea, FPS de rescate/deposito, bateria, runtime, `runDistance()`, `runAngle()`, pickup/deposito, railes de alimentacion, anti-flash, paredes de colores, rampas, masa, parametros de impresion 3D, diagramas CAD/reales y full-course retest con salida de rescate.
+
+Pendientes reales antes del PDF final:
+
+- Exportacion/revision del PDF en la plantilla oficial.
+- Full-course retest: **cerrado en T-008** con video completo donde el robot sale de la zona de rescate.
+- Opcional de alta confianza: caida minima del rail de servos durante pickup y 5 V logic/compute rail bajo vision + Teensy activos.
 
 ## Prioridad ALTA (afectan la nota directamente)
 
@@ -29,7 +39,7 @@ print(f"FPS: {frames / (time.time() - t0):.1f}")
 
 ### 2. Voltaje bajo carga (10 min)
 
-**Estado:** parcialmente medido en T-001. Ya hay 12.6 V inicial, 12.5 V despues de 5 min en reposo y 1 h hasta 10.5 V en funcionamiento continuo. Falta registrar el voltaje final exacto de la prueba extrema con motores a `speed = 60` + pickup.
+**Estado:** medido en T-001. Ya hay 12.6 V inicial, 12.5 V despues de 5 min en reposo, 1 h hasta 10.5 V en funcionamiento continuo y caida de 1.4 V durante la prueba extrema de 10 min con motores a `speed = 60` + pickup continuo. Si la referencia inicial fue 12.6 V, el final derivado es aproximadamente 11.2 V.
 
 - Multimetro en los bornes de la bateria.
 - Medir en reposo con el robot quieto y encendido.
@@ -59,6 +69,8 @@ print(f"FPS: {frames / (time.time() - t0):.1f}")
 
 ### 5. Tasa de pickup (10 min)
 
+**Estado:** medido en T-005. Pickup 8/10 en muestra corta. El fallo observado se debio a un falso positivo de una cinta reflectiva usada como proxy de pelota plateada; la cinta tenia diametro similar a la pelota real y no estaba perfectamente pegada al piso. Las demas detecciones del suelo funcionaron muy bien.
+
 - Posicionar victima negra en posicion estandar.
 - Ejecutar 10 intentos de pickup.
 - Contar exitosos, fallidos y casos en que la victima cae despues.
@@ -66,7 +78,23 @@ print(f"FPS: {frames / (time.time() - t0):.1f}")
 - Anotar: X/10 negra, Y/10 plateada.
 - Donde va en el TDP: Tabla 8, Seccion 5.
 
+### 5b. Deposito con finales de carrera
+
+**Estado:** medido en T-005. Deposito 10/10 usando finales de carrera derecho e izquierdo (`FCL`/`FCR`).
+
+- Ejecutar deposito a la izquierda 10 veces.
+- Ejecutar deposito a la derecha 10 veces.
+- Anotar exitosos, fallos de alineacion y fallos de liberacion.
+- Donde va en el TDP: Tabla 8, Seccion 5.
+
 ## Prioridad MEDIA (mejoran la nota pero no son criticas)
+
+### 5c. Full course, rampas y sube-baja
+
+**Estado:** T-006 documento el fallo anterior de full course 0/5 por busqueda de salida/evacuacion, con linea y rescate funcionando por separado. T-008 cierra el retest principal: el equipo consiguio un video completo donde el robot sale de la zona de rescate despues de la correccion. Rescate normal: 2 min 40 s sin contar salida. Rescate con linterna: +20 s. Rampas laterales: 0/10. Rampa de subida: 8/10 despues del fix con APDS9960 + LED de alto brillo para evitar falso plateado de camara. Sube-baja: 9/10; el fallo ocurrio cuando despues de la caida brusca habia un cuadrado verde y lo ignoro. Palillos/obstaculos funcionan bien salvo cuando tapan mas del 80% del cuadrado verde.
+
+- Prioridad tecnica: repetir 3-5 full courses si se quiere convertir el video exitoso en estadistica.
+- Si se repite: separar resultados por modulo para no mezclar linea/rescate, deposito y salida.
 
 ### 6. Autonomia de bateria
 
@@ -87,6 +115,8 @@ print(f"FPS: {frames / (time.time() - t0):.1f}")
 
 ### 8. Validacion anti-flash + AGCWD con linterna fuerte
 
+**Estado:** validado funcionalmente en T-003. Con linterna fuerte, anti-flash + AGCWD funciona. La deteccion de victima negra y zona roja funciona correctamente incluso con paredes de distintos colores; la victima plateada funciona muy bien a pesar del reflejo; la zona verde es la clase mas exigente, pero sigue funcionando y agrega aproximadamente 20 s a la zona de rescate sin contar salida.
+
 - Activar modo rescue con `ENABLE_ANTIFLASH=True`.
 - Apuntar una linterna blanca fuerte contra la pared/zona de evacuacion.
 - Grabar 30 segundos con y sin destello directo.
@@ -95,6 +125,10 @@ print(f"FPS: {frames / (time.time() - t0):.1f}")
 - Donde va: Seccion 4b, Innovation 3.
 
 ### 9. Validacion del modelo nuevo con paredes de colores
+
+**Estado:** validado funcionalmente en T-003 con el modelo final desplegado en la Raspberry de IITA: `/home/iita/Documentos/best (2)_float32.tflite`. El modelo corresponde al entrenamiento de estres con linterna y fondos/paredes de colores diferentes, y funciona correctamente en pruebas del equipo. Negro, plateado y rojo se mantienen robustos; verde funciona pero es el caso mas lento bajo reflejo fuerte. Falta solo registrar una tabla por color si se quiere evidencia estadistica completa.
+
+**Regression fix registrado:** T-004 documenta que la version anterior AGCWD-only/modelo previo al entrenamiento final generaba falsos positivos en zonas de deposito. El pipeline final anti-flash + AGCWD + modelo de 100 epochs corrigio ese caso observado y mantuvo deteccion estable con reflejos/obstaculos visuales.
 
 - Usar la rama que contiene el modelo reentrenado desde Roboflow.
 - Confirmar que el entrenamiento usado corresponde a `yolov8n.pt`, 100 epochs, `imgsz=256`, AMP activado, `hsv_s=0.7`, `hsv_v=0.8`, `mosaic=1.0`, `mixup=0.1`, `copy_paste=0.1` y `erasing=0.4`.
