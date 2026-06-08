@@ -31,7 +31,7 @@ Although each member has a main area, the robot was developed collaboratively: t
 
 **Figure 1: Robot evolution from first prototype to national championship robot**
 
-![Robot evolution 2023-2025](assets/robot-evolution-2023-2025.jpg)
+![Robot evolution 2023-2025](assets/robot-evolution-2023-2025.png)
 
 The team's history is an important part of the design. The robot evolved from a simple first-year platform into a compact 2025 competition robot with a custom rescue mechanism and integrated electronics. One week before a national competition, a major hardware failure forced the team to disassemble and rebuild the robot in a very short time. That experience changed the 2026 plan: modular parts, clearer wiring, PCB documentation, and reliability gates became design requirements instead of optional improvements.
 
