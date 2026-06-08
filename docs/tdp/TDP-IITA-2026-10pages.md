@@ -221,7 +221,7 @@ RescueBot IITA was developed as a complete system, not a collection of parts: th
 - Hardware/CAD: `hardware/mechanical/_legacy/CAD/` · `hardware/electronics/PCB_Main/` · power-tree `hardware/electronics/power-tree/README.md`
 - Software: `software/raspberry/final_rpi/Main.py` · `software/teensy/firmware/src/main.cpp` · libs `drivebase/`, `claw/`
 - Evidence: `testing/TEST_LOG.md` · `docs/tdp/code-reliability-evidence-2026.md` · `docs/tdp/roboflow-dataset-status-2026-05-23.md`
-- **Full-course run video:** *(add link before submission)*
+- **Full-course run video (T-008):** https://www.youtube.com/watch?v=CPpj4CvyvyA
 
 ## References
 

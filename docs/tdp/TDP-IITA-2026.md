@@ -598,6 +598,7 @@ The appendix is not intended to be scored, but these files support the claims in
 - `docs/tdp/code-reliability-evidence-2026.md`
 - `docs/tdp/roboflow-dataset-status-2026-05-23.md`
 - `testing/TEST_LOG.md`
+- Full-course run video (T-008): https://www.youtube.com/watch?v=CPpj4CvyvyA
 
 ## References
 
