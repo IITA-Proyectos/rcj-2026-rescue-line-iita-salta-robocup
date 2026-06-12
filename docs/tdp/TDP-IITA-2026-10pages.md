@@ -92,7 +92,7 @@ The rescue mechanism is the key subsystem: **five servos** — two grippers, one
 **Figure 6: Claw mechanism — exploded view with servo labels (Fusion 360)**
 
 ![Claw mechanism exploded view with servo labels](assets/claw-exploded-servos-2026.png)
-
+![Sort and deposit mechanism exploded view with servo labels](assets/rescue-mechanism-chassis-2026.png)
 **Figure 7: Mechanical submodule interaction map — mounting interfaces and victim pathway**
 
 ![Mechanical submodule interaction map showing chassis backbone, mounting interfaces and victim pathway](assets/mechanical-interaction-map-2026.png)
@@ -171,7 +171,7 @@ Confirmed production parameters: 160×120 line vision (140° camera); 256×256 d
 
 ### b. Innovative Solutions
 
-**1 — Hybrid classical + AI perception.** Classical vision handles line following at full speed (deterministic, easy to debug); AI is reserved for the rescue zone, where masks fail under variable lighting — so the robot never pays AI cost on the line. Because 2026 walls may be any non-semantic colour (committee notes include bright orange), and a fluorescent-orange wall was confusing the detector with the red zone, the dataset was expanded: **6256 images / 9521 annotations / 4 classes** (`plateado` 3029, `negro` 2488, `verde_alto` 2147, `rojo_alto` 1857), annotating white/brown/orange/yellow/gray walls plus flashlight-stress cases. Trained from `yolov8n.pt`, 100 epochs at 256×256 with aggressive saturation/brightness augmentation but low hue shift (so red/green are not swapped). Kaggle validation: **P 0.971 · R 0.929 · mAP50 0.932 · mAP50-95 0.767** (per-class mAP50: negro 0.995, plateado 0.904, rojo 0.929, verde 0.898).
+**1 — Fault-tolerant runtime architecture.** The robot is designed to **fail visibly and recover, never silently**, combining four guards that protect every mission segment. **(a) Robust data validation:** every Pi→Teensy UART payload is range-checked (speed 0–100, angle 0–180, `green_state` 0–20, silver 0–1) and out-of-range frames are rejected without affecting motion. **(b) Safety timeouts:** `runDistance()` and `runAngle()` have computed timeouts that stop motors if the target is not reached; the Pi serial read uses a 50 ms timeout and drains the buffer every line-mode iteration; the TFLite interpreter is warmed up at startup so the first inference cannot stall the loop. **(c) Sensor error detection:** APDS9960, VL53L0X (500 ms) and BNO055 have fresh-reading timeouts and visible init failures; if a critical sensor fails to boot, the Teensy stops motors and lights an error indicator instead of running blind. **(d) Automatic recovery:** a background RPi serial monitor can interrupt rescue on boot/stop/evacuation bytes; the Teensy state machine resets rescue flags on `0xFA` boot/reset; the physical switch and `0xFF` stop byte give the referee a single deterministic stop path that satisfies Rules 4.2.8 / 5.5. The same philosophy drives our hardware choice: instead of a Coral USB + Pi 5, the team optimized software on a Pi 4B — a Coral failure mid-run would be unrecoverable, while a software regression can be rolled back from the repository. T-002 confirms 2204 UART frames sent without loss; bench tests confirm the boot path and the stop behavior.
 
 **2 — TFLite migration with embedded NMS and global warmup.** The ONNX runtime was the rescue-mode bottleneck on the Pi 4B. Migrating to a TFLite interpreter with NMS embedded in the model (`nms=True`) and the XNNPack/NEON delegate gave a measured jump, and a startup warmup removes the first-inference spike.
 
@@ -180,7 +180,7 @@ Confirmed production parameters: 160×120 line vision (140° camera); 256×256 d
 | ONNX + ultralytics | ~7 | | Without | 177.7 ms | 38.7 ms |
 | TFLite + NMS | ~18 (**+157 %**) | | With | 67.0 ms | 50.6 ms |
 
-`DETECT_EVERY=3` with a CentroidTracker keeps target continuity between inferences.
+`DETECT_EVERY=3` with a CentroidTracker keeps target continuity between inferences, letting the robot move continuously instead of reacting frame-by-frame.
 
 **Figure 12: Measured FPS — ONNX (7.14) vs TFLite + AGCWD (18.10) on the Pi 4B**
 
@@ -190,7 +190,7 @@ Confirmed production parameters: 160×120 line vision (140° camera); 256×256 d
 
 **3 — Anti-flash + AGCWD preprocessing for the 2026 LED-wall rule.** LED glare creates over- and under-exposed regions in one frame, defeating fixed thresholds. `anti_flash_preprocess()` targets glare pixels (HSV `V≥215`, `S≤60`) and compresses them (`V_out = 215 + (V_in−215)×0.45`) under a soft mask, removing the histogram spike before AGCWD. **AGCWD** (Adaptive Gamma Correction with Weighting Distribution, Huang et al., IEEE TIP 2013) computes a per-intensity gamma from the frame histogram (`LUT[i] = 255·(i/255)^(1−w_cdf[i])`), correcting dark pixels aggressively and leaving bright ones nearly unchanged (blended 30/70 when already well-lit). It costs ~1–2 ms/frame via `cv2.LUT`, beats fixed gamma (no intra-frame adaptation) and CLAHE (amplifies dark-region noise) and needs no per-environment tuning. T-004 documents the regression that justified it: AGCWD-only produced deposit-zone false positives; anti-flash + AGCWD + the 100-epoch model removed them under strong glare.
 
-**4 — Reliability over premium components.** Instead of a Coral USB + Pi 5, the team reached ~18 FPS on a Pi 4B through runtime choice, embedded NMS and frame-skip tracking — no AI accelerator. A Coral failure mid-run would be unrecoverable; a software regression can be rolled back. The same philosophy drives the binary UART protocol and firmware timeout guards: fail visibly and recover, not silently.
+**4 — Hybrid classical + AI perception with a robust dataset.** Classical vision handles line following at full speed (deterministic, easy to debug); AI is reserved for the rescue zone, where masks fail under variable lighting — so the robot never pays AI cost on the line. Because 2026 walls may be any non-semantic colour (committee notes include bright orange) and a fluorescent-orange wall was confusing the detector with the red zone, the dataset was expanded to **6256 images / 9521 annotations / 4 classes** (`plateado` 3029, `negro` 2488, `verde_alto` 2147, `rojo_alto` 1857), annotating white/brown/orange/yellow/gray walls plus flashlight-stress cases. Trained from `yolov8n.pt`, 100 epochs at 256×256 with aggressive saturation/brightness augmentation but low hue shift (so red/green are not swapped). Kaggle validation: **P 0.971 · R 0.929 · mAP50 0.932 · mAP50-95 0.767** (per-class mAP50: `negro` 0.995, `plateado` 0.904, `rojo_alto` 0.929, `verde_alto` 0.898).
 
 ## 5. Performance Evaluation
 
@@ -216,12 +216,18 @@ The analysis points to specific modules and how each was fixed: **RPi resets** u
 
 RescueBot IITA was developed as a complete system, not a collection of parts: the custom PLA chassis, PCB-centred electronics, dual-controller architecture, hybrid classical/AI vision, encoded UART protocol and five-servo rescue mechanism all serve one goal — reliable completion of Rescue Line. The measured evidence (Table 6 and the T-001…T-008 log) covers FPS, power autonomy and rail separation, distance/turn accuracy, pickup/deposit rates, ramp/seesaw behavior, flashlight robustness and a full recorded run including the evacuation exit. The strongest lesson is that integration and evidence matter as much as individual features: every major design choice is tied to a requirement, an interface, a test, or a failure that drove the next iteration — and that traceability is what the team carries into RoboCup 2026.
 
-## Appendix (external links only — not scored)
+## Appendix — Public evidence (external links only, not scored)
 
-- Hardware/CAD: `hardware/mechanical/_legacy/CAD/` · `hardware/electronics/PCB_Main/` · power-tree `hardware/electronics/power-tree/README.md`
-- Software: `software/raspberry/final_rpi/Main.py` · `software/teensy/firmware/src/main.cpp` · libs `drivebase/`, `claw/`
-- Evidence: `testing/TEST_LOG.md` · `docs/tdp/code-reliability-evidence-2026.md` · `docs/tdp/roboflow-dataset-status-2026-05-23.md`
-- **Full-course run video (T-008):** https://www.youtube.com/watch?v=CPpj4CvyvyA
+The complete codebase, hardware sources, test logs and supporting evidence cited throughout this TDP are publicly available in our team repository on GitHub:
+
+**Team repository:** https://github.com/IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup
+
+Direct links to the evidence referenced in the TDP:
+
+- **Hardware / CAD and PCB:** [hardware/mechanical/](https://github.com/IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup/tree/main/hardware/mechanical) · [hardware/electronics/PCB_Main/](https://github.com/IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup/tree/main/hardware/electronics/PCB_Main) · [power-tree README](https://github.com/IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup/blob/main/hardware/electronics/power-tree/README.md) · [Bill of Materials](https://github.com/IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup/blob/main/hardware/electronics/PCB_Main/README.md)
+- **Software:** [Raspberry Pi `Main.py`](https://github.com/IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup/blob/main/software/raspberry/final_rpi/Main.py) · [Teensy firmware `main.cpp`](https://github.com/IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup/blob/main/software/teensy/firmware/src/main.cpp) · libs [`drivebase/`](https://github.com/IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup/tree/main/software/teensy/firmware/lib/drivebase) and [`claw/`](https://github.com/IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup/tree/main/software/teensy/firmware/lib/claw)
+- **Tests and reliability evidence:** [`TEST_LOG.md` (T-001…T-008)](https://github.com/IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup/blob/main/testing/TEST_LOG.md) · [code-reliability evidence](https://github.com/IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup/blob/main/docs/tdp/code-reliability-evidence-2026.md) · [Roboflow dataset status](https://github.com/IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup/blob/main/docs/tdp/roboflow-dataset-status-2026-05-23.md)
+- **Full-course run video (T-008 evidence):** https://www.youtube.com/watch?v=CPpj4CvyvyA
 
 ## References
 

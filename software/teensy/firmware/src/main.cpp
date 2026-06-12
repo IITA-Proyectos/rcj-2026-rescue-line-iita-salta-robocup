@@ -773,7 +773,7 @@ String get_color_blocking_legacy()
         Serial.print(" | R/B: "); Serial.print(ratio_rb, 3);
 
         Serial.print(" | -> ");
-        if      (c > 1700 && ratio_rc > 0.240)                          Serial.println("Plateado");
+        if      (c > 1950 && ratio_rc > 0.240)                          Serial.println("Plateado");
         else if (c > 1500 && ratio_rc <= 0.235)                         Serial.println("Blanco");
         else if (c >= 300 && c <= 600 && ratio_rg > 1.6f && ratio_rb > 1.5f) Serial.println("Rojo");
         else if (c < 600)                                                Serial.println("Negro");
@@ -1436,7 +1436,7 @@ void loop()
             digitalWrite(LED_ROJO, HIGH);
             delay(500);
             robot.steer(0, 0, 0);
-
+            get_color_fast();
             Serial.println("FCL: " + String(digitalRead(FCL)));
             Serial.println("FCR: " + String(digitalRead(FCR)));
             digitalWrite(LED_BUILTIN, LOW);
