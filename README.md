@@ -1,9 +1,7 @@
 # 🤖 IITA Salta – RCJ 2026 Rescue Line
 
-> [!CAUTION]
-> ### 🚨 PLAN DE ACCIÓN DE AUDITORÍA (URGENTE)
-> Se han detectado **Bugs Críticos P0** que pueden comprometer la integridad del robot. 
-> **Revisar inmediatamente el [AUDIT-ACTION-PLAN.md](AUDIT-ACTION-PLAN.md)** para conocer las tareas de resolución prioritaria.
+> [!NOTE]
+> Estado del proyecto y pendientes reales: ver los **GitHub Issues** y el informe director ([docs/es/2026-05-31-informe-coach-auditoria-integral.md](docs/es/2026-05-31-informe-coach-auditoria-integral.md)). El antiguo [AUDIT-ACTION-PLAN.md](AUDIT-ACTION-PLAN.md) quedó archivado como histórico.
 
 **Repositorio de ingeniería del equipo IITA Salta para RoboCup Junior 2026 – Rescue Line**
 
@@ -17,9 +15,9 @@
 |---|---|
 | Director | Gustavo Viollaz |
 | Mentor | Enzo Juarez |
-| Electrónica + Python | Benjamín Villagrán |
-| Python + Raspberry Pi | Lucio Saucedo |
-| C++ + Teensy | Laureano Monteros |
+| Raspberry Pi + Hardware | Benjamín Villagrán |
+| Raspberry Pi + Visión | Lucio Saucedo |
+| C++ + Teensy (firmware) | Laureano Monteros |
 
 **Institución:** Instituto de Innovación y Tecnología Aplicada (IITA), Salta, Argentina
 

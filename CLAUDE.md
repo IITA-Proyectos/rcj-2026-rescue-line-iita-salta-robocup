@@ -51,8 +51,12 @@ Cuando alguien pide "revisá X" o "auditá X", el flujo es:
 
 ### Skills disponibles
 
-Este repo tiene 4 skills en `.claude/skills/` que orquestan la auditoría:
+Este repo tiene 5 skills en `.claude/skills/`:
 
+**Dirección del proyecto:**
+- **[`rcj-coach-director`](.claude/skills/rcj-coach-director/SKILL.md)** — director técnico / coach. Prioriza, planifica la semana, asigna tareas, documenta decisiones, aplica el régimen de fases vigente (Track A firmware/comms: push cerrado, entra por gate de Enzo; Track B docs/visión: push libre hasta 2026-06-11; freeze de código 2026-06-15 — ver [docs/es/ESTADO-ACTUAL-2026-05-31.md](docs/es/ESTADO-ACTUAL-2026-05-31.md)). NO escribe código.
+
+**Auditoría técnica:**
 - **[`rcj-rescue-reviewer`](.claude/skills/rcj-rescue-reviewer/SKILL.md)** — orquestador. Decide qué subsistemas auditar y consolida findings.
 - **[`teensy-firmware-auditor`](.claude/skills/teensy-firmware-auditor/SKILL.md)** — audita C++ Teensy (ISR, `volatile`, `delay()`, watchdogs, PID, race conditions).
 - **[`rpi-vision-auditor`](.claude/skills/rpi-vision-auditor/SKILL.md)** — audita Python/OpenCV/YOLO (model loading, FPS, threading, calibración).
@@ -67,9 +71,11 @@ Este repo tiene 4 skills en `.claude/skills/` que orquestan la auditoría:
 
 ---
 
-## Documento vivo: AUDIT-ACTION-PLAN.md
+## Fuente de verdad de findings: GitHub Issues
 
-[`AUDIT-ACTION-PLAN.md`](AUDIT-ACTION-PLAN.md) es la lista maestra curada de bugs. **Antes de abrir un finding nuevo**, verificar que no esté ya listado ahí. Bugs cerrados se mueven a la sección "Resueltos" con link al PR.
+Los findings activos viven en **GitHub Issues** (label `priority/*`). **Antes de abrir un finding nuevo**, buscar en Issues con `gh issue list` (ver comandos abajo).
+
+[`AUDIT-ACTION-PLAN.md`](AUDIT-ACTION-PLAN.md) quedó **archivado como histórico** (23-feb) y NO debe usarse para priorizar. El estado vigente del proyecto vive en [docs/es/ESTADO-ACTUAL-2026-05-31.md](docs/es/ESTADO-ACTUAL-2026-05-31.md) y en el informe director [docs/es/2026-05-31-informe-coach-auditoria-integral.md](docs/es/2026-05-31-informe-coach-auditoria-integral.md).
 
 ---
 
@@ -93,8 +99,13 @@ cd software/teensy/firmware && pio run
 
 # Test rápido visión (RPi en LAN)
 python software/raspberry/final_rpi/calibration.py
+
+# Ritual semanal del director (lunes a primera hora)
+/coach-checkin
 ```
 
 ---
 
-*Última actualización: 2026-05-09*
+*Fuente de verdad del estado del proyecto (PRs mergeados, régimen de fases vigente, pendientes reales): [docs/es/ESTADO-ACTUAL-2026-05-31.md](docs/es/ESTADO-ACTUAL-2026-05-31.md).*
+
+*Última actualización: 2026-05-31*
