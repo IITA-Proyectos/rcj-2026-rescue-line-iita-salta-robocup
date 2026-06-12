@@ -218,16 +218,31 @@ RescueBot IITA was developed as a complete system, not a collection of parts: th
 
 ## Appendix — Public evidence (external links only, not scored)
 
-The complete codebase, hardware sources, test logs and supporting evidence cited throughout this TDP are publicly available in our team repository on GitHub:
+The complete codebase, hardware sources, test logs, datasets and supporting evidence cited throughout this TDP are publicly available so that other teams can reproduce, audit or build on our work.
 
 **Team repository:** https://github.com/IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup
 
-Direct links to the evidence referenced in the TDP:
+**Hardware**
+- [hardware/mechanical/](https://github.com/IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup/tree/main/hardware/mechanical) — Fusion 360 CAD sources and printable parts
+- [hardware/electronics/PCB_Main/](https://github.com/IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup/tree/main/hardware/electronics/PCB_Main) — Schematic, PCB layout and component sources
+- [Bill of Materials (BOM)](https://github.com/IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup/blob/main/hardware/bom/BOM_RescueBot_IITA.xlsx) — Full component list (hardware + software), official RCJ template
 
-- **Hardware / CAD and PCB:** [hardware/mechanical/](https://github.com/IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup/tree/main/hardware/mechanical) · [hardware/electronics/PCB_Main/](https://github.com/IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup/tree/main/hardware/electronics/PCB_Main)
-- **Software:** [Raspberry Pi `Main.py`](https://github.com/IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup/blob/main/software/raspberry/final_rpi/Main.py) · [Teensy firmware `main.cpp`](https://github.com/IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup/blob/main/software/teensy/firmware/src/main.cpp) · libs [`drivebase/`](https://github.com/IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup/tree/main/software/teensy/firmware/lib/drivebase) and [`claw/`](https://github.com/IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup/tree/main/software/teensy/firmware/lib/claw)
-- **Tests and reliability evidence:** [`TEST_LOG.md` (T-001…T-008)](https://github.com/IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup/blob/main/testing/TEST_LOG.md) · [code-reliability evidence](https://github.com/IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup/blob/main/docs/tdp/code-reliability-evidence-2026.md) · [Roboflow dataset status](https://github.com/IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup/blob/main/docs/tdp/roboflow-dataset-status-2026-05-23.md)
-- **Full-course run video (T-008 evidence):** https://www.youtube.com/watch?v=CPpj4CvyvyA
+**Software**
+- [Raspberry Pi `Main.py`](https://github.com/IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup/blob/main/software/raspberry/final_rpi/Main.py) — Vision pipeline, AI detection, state manager
+- [Teensy firmware `main.cpp`](https://github.com/IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup/blob/main/software/teensy/firmware/src/main.cpp) — Deterministic real-time control
+- Team-written libraries: [`drivebase/`](https://github.com/IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup/tree/main/software/teensy/firmware/lib/drivebase) and [`claw/`](https://github.com/IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup/tree/main/software/teensy/firmware/lib/claw)
+- [AI model evolution (5 iterations)](https://github.com/IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup/tree/main/software/raspberry/AI) — Models + datasets from the 2025 Roboliga baseline to the deployed 2026 Incheon model, with a narrative README
+
+**Tests and reliability**
+- [`TEST_LOG.md` (T-001…T-008)](https://github.com/IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup/blob/main/testing/TEST_LOG.md) — All recorded test sessions
+- [Code-reliability evidence](https://github.com/IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup/blob/main/docs/tdp/code-reliability-evidence-2026.md) — Source-level mapping of every reliability guard
+- [Roboflow dataset status](https://github.com/IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup/blob/main/docs/tdp/roboflow-dataset-status-2026-05-23.md) — Dataset metrics and class distribution
+
+**Public dataset (Roboflow Universe)**
+- [Roboflow dataset](https://universe.roboflow.com/enzzorobotics/roboliga-2025-kh2ly) — 6256 images, 9521 annotations, 4 classes (`negro`, `plateado`, `verde_alto`, `rojo_alto`)
+
+**Video evidence**
+- [Full-course run (T-008)](https://www.youtube.com/watch?v=CPpj4CvyvyA) — Complete line-following, rescue, deposit and evacuation-exit sequence
 
 ## References
 
