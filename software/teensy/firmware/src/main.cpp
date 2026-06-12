@@ -13,6 +13,7 @@
 #include <NewPing.h>
 #include <Wire.h>
 #include <VL53L0X.h>
+#include "priority_fix_flags.h"
 
 
 
@@ -31,9 +32,12 @@ Claw claw(&lift, &left, &right, &sort, &deposit);
 #define BUZZER 31         // Definicion de PIN BUZZER
 #define LED_ROJO 30       // Definicion de PIN LED_ROJO
 #define SWITCH 32         // Definicion de PIN SWITCH
+#define FCL 40
+#define FCR 41
 elapsedMillis steertimer; // Cuenta el tiempo transcurrido
 bool contador = false;    // Para saber si estamos contando el tiempo o no
 bool retroceder = false;  // Para saber si debe retroceder
+bool rescateAvisado = false;
 // INITIALISE BNO055 //
 Adafruit_BNO055 bno = Adafruit_BNO055(55, 0x28);
 // INITIALISE ACTUATORS //
@@ -48,12 +52,29 @@ unsigned long tiemporescate=0;
 static unsigned long lastTurn = 0;           // persiste entre iteraciones
 const unsigned long turnCooldown = 600;      // ms (ajusta)
 int counter = 0;
+
 int laststeer = 0;
 int serial5state = 0;  // serial code e.g. 255
 double speed;          // speed (0 to 100)
 double steer;          // angle (0 to 180 deg, will -90 later)
 int green_state = 0;   // 0 = no green squares, 1 = left, 2 = right, 3 = double
 int silver_line = 0;   // if there is a line to reacquire after obstacle
+// PROTOCOLO RPi -> Teensy:
+// Frame: [255, speed, 254, angle, 253, green_state, 252, silver_line]
+// speed: 0..100; angle: 0..180 (RPi envia angle + 90);
+// green_state: 0..20; silver_line: 0..1.
+// Los sync bytes 252..255 no deben usarse como payload.
+constexpr int SERIAL_SYNC_SPEED = 255;
+constexpr int SERIAL_SYNC_STEER = 254;
+constexpr int SERIAL_SYNC_TASK = 253;
+constexpr int SERIAL_SYNC_SILVER = 252;
+constexpr int SERIAL_MAX_SPEED = 100;
+constexpr int SERIAL_MAX_ANGLE = 180;
+constexpr int SERIAL_MAX_GREEN_STATE = 20;
+constexpr int SERIAL_MAX_SILVER_LINE = 1;
+unsigned long serial_bytes_rx = 0;
+unsigned long serial_frames_rx = 0;
+elapsedMillis serialTelemetryTimer;
 int servo = 0;
 int action =7;            // action to take (part of a task)
 bool taskDone = false; // if true, update current_task
@@ -81,8 +102,158 @@ bool alineado=false;
 bool depositando=false;
 int veces_deposit=2;
 int ball_counter=2;
+bool evacuacion_iniciada=false;
+bool evacuacion_straight=false;
+int last_right_distance = 0;
+int right_jump_counter = 0;
 
 // Máquina de Estados para Rescate (No Bloqueante)
+bool color_sensor_ok = true;
+bool rescateUpdateInProgress = false;
+
+void actualizarRescate();
+void serialEvent5();
+void runTime(int speed, int dir, double steer, unsigned long long time);
+void runAngle(int speed, int dir, double angle);
+void runDistance(int speed, int dir, int Distance);
+
+bool fixIssue57Enabled()
+{
+    return priority_fix_flags::kEnableAllPriorityFixes ||
+           priority_fix_flags::kFixIssue57RescueWallTurnDirection;
+}
+
+bool fixIssue58Enabled()
+{
+    return priority_fix_flags::kEnableAllPriorityFixes ||
+           priority_fix_flags::kFixIssue58Case12ControlFlow;
+}
+
+bool fixIssue59Enabled()
+{
+    return priority_fix_flags::kEnableAllPriorityFixes ||
+           priority_fix_flags::kFixIssue59ServiceStateMachinesDuringMotion;
+}
+
+bool fixIssue60Enabled()
+{
+    return priority_fix_flags::kEnableAllPriorityFixes ||
+           priority_fix_flags::kFixIssue60RunDistanceTimeout;
+}
+
+bool fixIssue61Enabled()
+{
+    return priority_fix_flags::kEnableAllPriorityFixes ||
+           priority_fix_flags::kFixIssue61ColorSensorTimeout;
+}
+
+bool fixIssue62Enabled()
+{
+    return priority_fix_flags::kEnableAllPriorityFixes ||
+           priority_fix_flags::kFixIssue62VisibleSensorInitFailures;
+}
+
+bool fixIssue63Enabled()
+{
+    return priority_fix_flags::kEnableAllPriorityFixes ||
+           priority_fix_flags::kFixIssue63KeepSerialDuringMotions;
+}
+
+bool fixIssue74Enabled()
+{
+    return priority_fix_flags::kEnableAllPriorityFixes ||
+           priority_fix_flags::kFixIssue74ValidateSerialPayloads;
+}
+
+bool fixIssue75Enabled()
+{
+    return priority_fix_flags::kEnableAllPriorityFixes ||
+           priority_fix_flags::kFixIssue75SerialTelemetry;
+}
+
+bool fixIssue112Enabled()
+{
+    return priority_fix_flags::kEnableAllPriorityFixes ||
+           priority_fix_flags::kFixIssue112RunAngleTimeout;
+}
+
+void blinkVisibleError(unsigned long onMs, unsigned long offMs, int cycles)
+{
+    for (int i = 0; i < cycles; ++i)
+    {
+        digitalWrite(LED_ROJO, HIGH);
+        digitalWrite(BUZZER, HIGH);
+        delay(onMs);
+        digitalWrite(LED_ROJO, LOW);
+        digitalWrite(BUZZER, LOW);
+        delay(offMs);
+    }
+}
+
+void fatalSensorInitLoop()
+{
+    while (true)
+    {
+        digitalWrite(LED_ROJO, HIGH);
+        digitalWrite(BUZZER, HIGH);
+        delay(200);
+        digitalWrite(LED_ROJO, LOW);
+        digitalWrite(BUZZER, LOW);
+        delay(800);
+    }
+}
+
+void handleBnoInitFailure()
+{
+    Serial.print("No BNO055 detected ... Check your wiring or I2C ADDR!");
+    if (fixIssue62Enabled())
+    {
+        fatalSensorInitLoop();
+    }
+    while (1)
+        ;
+}
+
+void notifyOptionalSensorWarning()
+{
+    if (fixIssue62Enabled())
+    {
+        blinkVisibleError(120, 120, 3);
+    }
+}
+
+void serviceMotionBackgroundTasks()
+{
+    if (!fixIssue59Enabled())
+    {
+        return;
+    }
+
+    claw.update();
+    actualizarRescate();
+}
+
+unsigned long computeRunDistanceTimeoutMs(int speed, int distance)
+{
+    unsigned long distanceCm = static_cast<unsigned long>(abs(distance));
+    int effectiveSpeed = speed > 0 ? speed : 30;
+    unsigned long estimatedSpeedCmPerSecond = static_cast<unsigned long>(max(8, effectiveSpeed * 3 / 4));
+    unsigned long estimatedMs = (distanceCm * 1000UL) / estimatedSpeedCmPerSecond;
+
+    return (estimatedMs * 3UL) / 2UL + 500UL;
+}
+
+unsigned long computeRunAngleTimeoutMs(double angle)
+{
+    unsigned long angleDeg = static_cast<unsigned long>(fabs(angle));
+    if (angleDeg < 1)
+    {
+        return 1000UL;
+    }
+
+    return max(1500UL, angleDeg * 35UL + 1000UL);
+}
+
 enum RescateState {
     RESCATE_IDLE = 0,          // Estado inactivo
     RESCATE_NEGRA_STEP1,       // Baja garra
@@ -124,6 +295,11 @@ void iniciarRecoleccionPlateada() {
 
 // Función para actualizar la máquina de estados de rescate (llamar en loop())
 void actualizarRescate() {
+    if (rescateUpdateInProgress) {
+        return;
+    }
+
+    rescateUpdateInProgress = true;
     unsigned long now = millis();
     switch (rescateState) {
         case RESCATE_IDLE:
@@ -251,6 +427,7 @@ void actualizarRescate() {
             }
             break;
     }
+    rescateUpdateInProgress = false;
 }
 #define SONAR_NUM 3      // Number of sensors.
 #define MAX_DISTANCE 150 // Maximum distance (in cm) to ping.
@@ -322,19 +499,198 @@ struct Color
 };
 
 Color known_colors[] = {
-  {"Rojo", 12, 5, 7, 24},
-  {"Negro", 0, 0, 0, 67},
-  {"Verde", 3, 7, 7, 19},
-  
-  };
+  {"Blanco", 570, 1010, 1025, 2685},
+  {"Negro", 60, 135, 135, 310},
+  {"Verde", 62, 181, 175, 470},
+  {"Plateado", 500, 900, 900, 2300}
+ 
+};
 // Función para leer los valores del sensor y determinar el color
-String get_color()
+constexpr unsigned long APDS_COLOR_INTEGRATION_MS = 10;
+constexpr unsigned long APDS_COLOR_STATUS_POLL_MS = 2;
+constexpr unsigned long APDS_COLOR_FRESH_TIMEOUT_MS = 35;
+constexpr uint8_t APDS_COLOR_FILTER_SAMPLES = 3;
+
+uint16_t color_r_history[APDS_COLOR_FILTER_SAMPLES] = {0};
+uint16_t color_g_history[APDS_COLOR_FILTER_SAMPLES] = {0};
+uint16_t color_b_history[APDS_COLOR_FILTER_SAMPLES] = {0};
+uint16_t color_c_history[APDS_COLOR_FILTER_SAMPLES] = {0};
+uint8_t color_history_index = 0;
+uint8_t color_history_count = 0;
+unsigned long last_color_sample_ms = 0;
+unsigned long last_color_status_poll_ms = 0;
+String last_color_detected = "Desconocido";
+
+uint64_t square_error(uint16_t expected, uint16_t actual)
 {
+    int32_t diff = static_cast<int32_t>(expected) - static_cast<int32_t>(actual);
+    return static_cast<uint64_t>(diff) * static_cast<uint64_t>(diff);
+}
+
+void push_color_sample(uint16_t r, uint16_t g, uint16_t b, uint16_t c)
+{
+    color_r_history[color_history_index] = r;
+    color_g_history[color_history_index] = g;
+    color_b_history[color_history_index] = b;
+    color_c_history[color_history_index] = c;
+    color_history_index = (color_history_index + 1) % APDS_COLOR_FILTER_SAMPLES;
+    if (color_history_count < APDS_COLOR_FILTER_SAMPLES)
+    {
+        color_history_count++;
+    }
+}
+
+void get_filtered_color(uint16_t &r, uint16_t &g, uint16_t &b, uint16_t &c)
+{
+    uint32_t r_sum = 0, g_sum = 0, b_sum = 0, c_sum = 0;
+    uint8_t samples = color_history_count > 0 ? color_history_count : 1;
+
+    for (uint8_t i = 0; i < color_history_count; i++)
+    {
+        r_sum += color_r_history[i];
+        g_sum += color_g_history[i];
+        b_sum += color_b_history[i];
+        c_sum += color_c_history[i];
+    }
+
+    r = r_sum / samples;
+    g = g_sum / samples;
+    b = b_sum / samples;
+    c = c_sum / samples;
+}
+
+String classify_color(uint16_t r, uint16_t g, uint16_t b, uint16_t c)
+{
+    float ratio_rc = c > 0 ? static_cast<float>(r) / static_cast<float>(c) : 0.0f;
+    float ratio_rg = g > 0 ? static_cast<float>(r) / static_cast<float>(g) : 0.0f;
+    float ratio_rb = b > 0 ? static_cast<float>(r) / static_cast<float>(b) : 0.0f;
+
+    static unsigned long lastPrint = 0;
+    bool shouldPrint = (millis() - lastPrint > 500);
+    if (shouldPrint)
+    {
+        Serial.print("R: "); Serial.print(r);
+        Serial.print(" | B: "); Serial.print(b);
+        Serial.print(" | G: "); Serial.print(g);
+        Serial.print(" | C: "); Serial.print(c);
+        Serial.print(" | R/C: "); Serial.print(ratio_rc, 3);
+        Serial.print(" | R/G: "); Serial.print(ratio_rg, 3);
+        Serial.print(" | R/B: "); Serial.print(ratio_rb, 3);
+        Serial.print(" | -> ");
+    }
+
+    String detected = "Desconocido";
+    if (c > 1760 && ratio_rc > 0.250f)
+    {
+        detected = "Plateado";
+    }
+    else if (c > 1500 && ratio_rc <= 0.235f)
+    {
+        detected = "Blanco";
+    }
+    else if (c >= 300 && c <= 600 && ratio_rg > 1.62f && ratio_rc > 0.440f)
+    {
+        detected = "Rojo";
+    }
+    else
+    {
+        uint64_t min_error = UINT64_MAX;
+        for (size_t i = 0; i < sizeof(known_colors) / sizeof(known_colors[0]); i++)
+        {
+            if (known_colors[i].name == "Blanco" || known_colors[i].name == "Plateado")
+                continue;
+
+            uint64_t error = square_error(known_colors[i].r, r) +
+                             square_error(known_colors[i].g, g) +
+                             square_error(known_colors[i].b, b) +
+                             square_error(known_colors[i].c, c);
+            if (error < min_error)
+            {
+                min_error = error;
+                detected = known_colors[i].name;
+            }
+        }
+    }
+
+    if (shouldPrint)
+    {
+        Serial.println(detected);
+        lastPrint = millis();
+    }
+
+    return detected;
+}
+
+bool update_color_nonblocking(bool force_poll = false)
+{
+    if ((fixIssue61Enabled() || fixIssue62Enabled()) && !color_sensor_ok)
+        return false;
+
+    unsigned long now = millis();
+    if (!force_poll && (now - last_color_status_poll_ms) < APDS_COLOR_STATUS_POLL_MS)
+        return false;
+
+    last_color_status_poll_ms = now;
+    if ((now - last_color_sample_ms) < APDS_COLOR_INTEGRATION_MS)
+        return false;
+
+    if (!apds.colorDataReady())
+        return false;
+
     uint16_t r, g, b, c;
+    apds.getColorData(&r, &g, &b, &c);
+    push_color_sample(r, g, b, c);
+    get_filtered_color(r, g, b, c);
+    last_color_detected = classify_color(r, g, b, c);
+    last_color_sample_ms = now;
+    return true;
+}
+
+String 
+get_color_fresh(unsigned long timeoutMs = APDS_COLOR_FRESH_TIMEOUT_MS)
+{
+    unsigned long start = millis();
+    while ((millis() - start) <= timeoutMs)
+    {
+        if (update_color_nonblocking(true))
+            return last_color_detected;
+
+        serviceMotionBackgroundTasks();
+        if (Serial5.available() > 0 && fixIssue63Enabled())
+        {
+            serialEvent5();
+        }
+        delay(1);
+    }
+
+    return "Desconocido";
+}
+
+String get_color_fast()
+{
+    if (update_color_nonblocking(false))
+        return last_color_detected;
+
+    return "Desconocido";
+}
+
+String get_color_old()
+{
+    if ((fixIssue61Enabled() || fixIssue62Enabled()) && !color_sensor_ok)
+    {
+        return "Desconocido";
+    }
+
+    uint16_t r, g, b, c;
+    unsigned long waitStart = millis();
 
     // Esperar a que los datos de color estén listos
     while (!apds.colorDataReady())
     {
+        if (fixIssue61Enabled() && (millis() - waitStart) > 50)
+        {
+            return "Desconocido";
+        }
         delay(5);
     }
 
@@ -373,36 +729,175 @@ String get_color()
     return closest_color;
 }
 
+String get_color_blocking_legacy()
+{
+    if ((fixIssue61Enabled() || fixIssue62Enabled()) && !color_sensor_ok)
+        return "Desconocido";
+
+    uint16_t r_sum = 0, g_sum = 0, b_sum = 0, c_sum = 0;
+    const int muestras = 5;
+
+    for (int i = 0; i < muestras; i++)
+    {
+        uint16_t r, g, b, c;
+        unsigned long waitStart = millis();
+        while (!apds.colorDataReady())
+        {
+            if (fixIssue61Enabled() && (millis() - waitStart) > 50)
+                return "Desconocido";
+            delay(5);
+        }
+        apds.getColorData(&r, &g, &b, &c);
+        r_sum += r; g_sum += g; b_sum += b; c_sum += c;
+    }
+
+    uint16_t r = r_sum / muestras;
+    uint16_t g = g_sum / muestras;
+    uint16_t b = b_sum / muestras;
+    uint16_t c = c_sum / muestras;
+
+    float ratio_rc = c > 0 ? (float)r / (float)c : 0.0f;
+    float ratio_rg = g > 0 ? (float)r / (float)g : 0.0f;
+    float ratio_rb = b > 0 ? (float)r / (float)b : 0.0f;
+
+    // Print siempre antes de los returns
+    static unsigned long lastPrint = 0;
+    if (millis() - lastPrint > 500)
+    {
+        Serial.print("R: "); Serial.print(r);
+        Serial.print(" | B: "); Serial.print(b);
+        Serial.print(" | G: "); Serial.print(g);
+        Serial.print(" | C: "); Serial.print(c);
+        Serial.print(" | R/C: "); Serial.print(ratio_rc, 3);
+        Serial.print(" | R/G: "); Serial.print(ratio_rg, 3);
+        Serial.print(" | R/B: "); Serial.print(ratio_rb, 3);
+
+        Serial.print(" | -> ");
+        if      (c > 1950 && ratio_rc > 0.240)                          Serial.println("Plateado");
+        else if (c > 1500 && ratio_rc <= 0.235)                         Serial.println("Blanco");
+        else if (c >= 300 && c <= 600 && ratio_rg > 1.6f && ratio_rb > 1.5f) Serial.println("Rojo");
+        else if (c < 600)                                                Serial.println("Negro");
+        else                                                             Serial.println("Verde");
+        lastPrint = millis();
+    }
+
+    // Returns en el mismo orden que el print
+    if (c > 1700 && ratio_rc > 0.240)        return "Plateado";
+    if (c > 1500 && ratio_rc <= 0.235)       return "Blanco";
+    if (c >= 300 && c <= 600 && ratio_rg > 1.62f && ratio_rc > 0.440f) return "Rojo";
+
+    // Negro y Verde por mínimos cuadrados
+    String closest_color = "Desconocido";
+    uint32_t min_error = UINT32_MAX;
+    for (size_t i = 0; i < sizeof(known_colors) / sizeof(known_colors[0]); i++)
+    {
+        if (known_colors[i].name == "Blanco" || known_colors[i].name == "Plateado")
+            continue;
+        uint32_t error = pow(known_colors[i].r - r, 2) +
+                         pow(known_colors[i].g - g, 2) +
+                         pow(known_colors[i].b - b, 2) +
+                         pow(known_colors[i].c - c, 2);
+        if (error < min_error) { min_error = error; closest_color = known_colors[i].name; }
+    }
+    return closest_color;
+}
+
+String get_color()
+{
+    return get_color_fast();
+}
+
 // ISR for updating motor pulses
 void ISR1() { bl.updatePulse(); }
 void ISR2() { fl.updatePulse(); }
 void ISR3() { br.updatePulse(); }
 void ISR4() { fr.updatePulse(); }
 
+bool serialPayloadOutOfRange(const char *field, int value, int maxValue)
+{
+    if (!fixIssue74Enabled())
+    {
+        return false;
+    }
+
+    if (value >= 0 && value <= maxValue)
+    {
+        return false;
+    }
+
+    Serial.print("[WARN] ");
+    Serial.print(field);
+    Serial.print(" fuera de rango: ");
+    Serial.println(value);
+    return true;
+}
+
+void maybePrintSerialTelemetry()
+{
+    if (!fixIssue75Enabled() || serialTelemetryTimer < 5000)
+    {
+        return;
+    }
+
+    Serial.print("[TLM] serial_bytes_rx=");
+    Serial.print(serial_bytes_rx);
+    Serial.print(" serial_frames_rx=");
+    Serial.println(serial_frames_rx);
+    serialTelemetryTimer = 0;
+}
+
 // Read Data from Raspberry by Serial TX-RX
 void serialEvent5()
 {
-    if (Serial5.available() > 0)
+    while (Serial5.available() > 0)
     {
         int data = Serial5.read(); // read serial code
+        if (fixIssue75Enabled())
+        {
+            serial_bytes_rx++;
+        }
          
-        if (data == 255) // speed incoming
+        if (data == SERIAL_SYNC_SPEED) // speed incoming
             serial5state = 0;
-        else if (data == 254) // steer incoming
+        else if (data == SERIAL_SYNC_STEER) // steer incoming
             serial5state = 1;
-        else if (data == 253) // task incoming
+        else if (data == SERIAL_SYNC_TASK) // task incoming
             serial5state = 2;
-        else if (data == 252) // line_middle incoming
+        else if (data == SERIAL_SYNC_SILVER) // line_middle incoming
             serial5state = 3;
         else if (serial5state == 0)           // set speed
+        {
+            if (serialPayloadOutOfRange("speed", data, SERIAL_MAX_SPEED))
+                continue;
             speed = (double)data / 100 * 100; // max speed = 100
+        }
         else if (serial5state == 1)           // set steer
+        {
+            if (serialPayloadOutOfRange("angle", data, SERIAL_MAX_ANGLE))
+                continue;
             steer = ((double)data - 90) / 90;
+        }
         else if (serial5state == 2) // set task
+        {
+            if (serialPayloadOutOfRange("green_state", data, SERIAL_MAX_GREEN_STATE))
+                continue;
             green_state = data;
+    Serial.print("[RX] green_state recibido: ");
+    Serial.println(green_state);
+        }
         else if (serial5state == 3) // set line_middle
+        {
+            if (serialPayloadOutOfRange("silver_line", data, SERIAL_MAX_SILVER_LINE))
+                continue;
             silver_line = data;
+            if (fixIssue75Enabled())
+            {
+                serial_frames_rx++;
+            }
+        }
     }
+
+    maybePrintSerialTelemetry();
 }
 
 // HELPER FUNCTIONS //
@@ -414,11 +909,19 @@ void runTime(int speed, int dir, double steer, unsigned long long time)
     while ((millis() - startTime) < time)
     {
         robot.steer(speed, dir, steer);
+        serviceMotionBackgroundTasks();
         digitalWrite(13, HIGH);
         if (Serial5.available() > 0)
         {
-            int lecturas = Serial5.read();
-            Serial.print(lecturas);
+            if (fixIssue63Enabled() )
+            {
+                serialEvent5();
+            }
+            else
+            {
+                int lecturas = Serial5.read();
+                Serial.print(lecturas);
+            }
         }
 
         if (digitalRead(32) == 1)
@@ -437,6 +940,8 @@ void runAngle(int speed, int dir, double angle)
     bno.getEvent(&event);
     float initialAngle = event.orientation.x;
     float targetAngle = initialAngle + angle;
+    unsigned long startTime = millis();
+    unsigned long timeoutMs = computeRunAngleTimeoutMs(angle);
 
     // Normalizar el ángulo objetivo al rango 0-360
     targetAngle = fmod(targetAngle, 360.0);
@@ -447,6 +952,16 @@ void runAngle(int speed, int dir, double angle)
     {
         bno.getEvent(&event);
         float currentAngle = event.orientation.x;
+        serviceMotionBackgroundTasks();
+        if (Serial5.available() > 0 && fixIssue63Enabled())
+        {
+            serialEvent5();
+        }
+        if (fixIssue112Enabled() && (millis() - startTime) >= timeoutMs)
+        {
+            Serial.println("[WARN] runAngle timeout");
+            break;
+        }
         if (digitalRead(32) == 1)
         { // switch is off
             Serial5.clear();
@@ -454,6 +969,7 @@ void runAngle(int speed, int dir, double angle)
             break;
         }
         // Calcular la diferencia más corta entre los ángulos
+       // Calcular la diferencia más corta entre los ángulos
         float error = targetAngle - currentAngle;
         if (error > 180)
             error -= 360;
@@ -529,62 +1045,87 @@ void runAngle(int speed, int dir, double angle)
     robot.steer(0, FORWARD, 0);
 }
 
-
 void runDistance(int speed, int dir, int Distance) {
     runTime(30,BACKWARD,0,20);
     runTime(30,FORWARD,0,20);
     reset_enconder();
     int32_t  encoder = 25*Distance;
-    
+    bool stopOnExit = fixIssue60Enabled();
+    unsigned long startTime = millis();
+    unsigned long timeoutMs = computeRunDistanceTimeoutMs(speed, Distance);
+   
     if (dir == FORWARD) {
         while (true) {
+            if (fixIssue60Enabled() && (millis() - startTime) >= timeoutMs) break;
             int32_t frCount = fr.pulseCount;
             int32_t flCount = fl.pulseCount;
             if (frCount >= encoder || flCount >= encoder) break;
 
             robot.steer(speed, dir, 0);
+            serviceMotionBackgroundTasks();
             Serial.print(flCount);
             Serial.print(" | ");
             Serial.print(frCount);
             //Serial.println(fr.pulseCount);
             digitalWrite(13, HIGH);
             delay(10);
-            
+           
             if (Serial5.available() > 0) {
-                int lecturas = Serial5.read();
-                Serial.print(lecturas);
+                if (fixIssue63Enabled())
+                {
+                    serialEvent5();
+                }
+                else
+                {
+                    int lecturas = Serial5.read();
+                    Serial.print(lecturas);
+                }
             }
-            
+           
             if (digitalRead(32) == 1) { // switch is off
                 Serial5.write(255);
                 break;
             }
         }
     }else{
-         while (true) 
+         while (true)
         {
+            if (fixIssue60Enabled() && (millis() - startTime) >= timeoutMs) break;
             int32_t frCount = fr.pulseCount;
             int32_t flCount = fl.pulseCount;
 
             if (frCount <= -encoder || flCount <= -encoder) break;
             robot.steer(speed, dir, 0);
+            serviceMotionBackgroundTasks();
             Serial.print(flCount);
             Serial.print(" | ");
             Serial.print(frCount);
             //Serial.println(fr.pulseCount);
             delay(10);
             if (Serial5.available() > 0) {
-                int lecturas = Serial5.read();
-                Serial.print(lecturas);
+                if (fixIssue63Enabled())
+                {
+                    serialEvent5();
+                }
+                else
+                {
+                    int lecturas = Serial5.read();
+                    Serial.print(lecturas);
+                }
             }
-            
+           
             if (digitalRead(32) == 1) { // switch is off
                 Serial5.write(255);
                 break;
             }
         }
-        
-        
+         
+         
+    }
+
+    if (stopOnExit)
+    {
+        robot.steer(0, dir, 0);
     }
 }
 
@@ -599,6 +1140,40 @@ void nonBlockingDelay(unsigned long ms)
             serialEvent5();
     }
 }
+
+void accionNegro() {
+    runDistance(30, FORWARD, 5);
+    Serial5.write(249);
+    rutina = "linea";
+    digitalWrite(BUZZER, HIGH);
+    delay(300);
+    digitalWrite(BUZZER, LOW);
+    runTime(30,FORWARD,0,300);
+}
+
+void accionPlateado() {
+    runDistance(30, BACKWARD, 10);
+    runAngle(30, FORWARD, 90);
+    runDistance(30, FORWARD, 2);
+    digitalWrite(BUZZER, HIGH);
+    delay(100);
+    digitalWrite(BUZZER, LOW);
+    digitalWrite(BUZZER, HIGH);
+    delay(100);
+    digitalWrite(BUZZER, LOW);
+    robot.steer(0, FORWARD, 0);
+}
+
+bool detectarNegro() {
+    color_detected = get_color_fresh();
+    return (color_detected == "Negro");
+}
+
+bool detectarPlateado() {
+    color_detected = get_color_fresh();
+    return (color_detected == "Plateado");
+}
+
 #define TARGET_DISTANCE 70.0 // distancia deseada en cm
 #define KP_DISTANCE 0.05     // constante proporcional para la distancia
 #define KP_ANGLE 0.05        // constante proporcional para el ángulo de rotación
@@ -630,7 +1205,7 @@ int ajustarVelocidadPorPendiente(int velocidadBase)
     leer_pitch();
 
     int velocidadAjustada = velocidadBase;
-    if (pitch > 10) 
+    if (pitch > 10)
     {
             velocidadAjustada = 30;
     }
@@ -661,9 +1236,7 @@ void resetear_bno()
 {
     if (!bno.begin())
     {
-        Serial.print("No BNO055 detected ... Check your wiring or I2C ADDR!");
-        while (1)
-            ;
+        handleBnoInitFailure();
     }
     bno.setExtCrystalUse(true);
     delay(200);
@@ -729,7 +1302,7 @@ void lado_pared()
 }
 void pelotita()
 {
-    
+   
 }
 
 
@@ -748,7 +1321,7 @@ void setup()
     pinMode(BUZZER, OUTPUT);       // BUZZER
     pinMode(LED_ROJO, OUTPUT);     // LED ROJO
     pinMode(LED_BUILTIN, OUTPUT);  //  LED BUILT-IN for debugging
-    pinMode(RELAY, OUTPUT);           
+    pinMode(RELAY, OUTPUT);          
 //Serial1.begin(57600);          // for reading IMU
     Serial5.begin(115200);         // for reading data from rpi and state
     delay(200);
@@ -756,22 +1329,38 @@ void setup()
     // Initialise BNO055
     if (!bno.begin())
     {
-        Serial.print("No BNO055 detected ... Check your wiring or I2C ADDR!");
-        while (1)
-            ;
+        handleBnoInitFailure();
     }
     bno.setExtCrystalUse(true);
 
     // Initialise APDS9960 Color Sensor
-    if (!apds.begin())
+    color_sensor_ok = apds.begin();
+    if (!color_sensor_ok)
     {
-        //Serial.println("failed to initialize device! Please check your wiring.");
+        if (fixIssue62Enabled())
+        {
+            notifyOptionalSensorWarning();
+        }
     }
     else
+    {
         //Serial.println("Device initialized!");
+    }
 
     // enable color sensign mode
-    apds.enableColor(true);
+    if (fixIssue61Enabled() || fixIssue62Enabled())
+    {
+        if (color_sensor_ok)
+        {
+            apds.enableColor(true);
+            apds.enableProximity(true);
+        }
+    }
+    else
+    {
+        apds.enableColor(true);
+        apds.enableProximity(true);
+    }
 
     // Initialise TOF
     Wire1.begin(); // Initialize the first I2C bus
@@ -792,9 +1381,17 @@ void setup()
     right_tof.init();
     right_tof.setTimeout(500);
     right_tof.startContinuous();
+    pinMode(FCL, INPUT);
+    pinMode(FCR, INPUT);
 
     // Inicializar la garra después de setup
     claw.begin();
+    for (int i = 0; i < 20; i++)
+    {
+        Serial5.write(0xFA);
+        delay(100);
+    }
+
 }
 
 
@@ -816,15 +1413,21 @@ void loop()
         esquinas_negro[2] = 0;
         first_rescate = 1;
         final_rescate = 1;
+        evacuacion_iniciada = false;
+        evacuacion_straight = false;
         action = 7;
         startUp = false;
+        last_right_distance = 0;
+        right_jump_counter = 0;
         taskDone = true;
         Serial5.write(255);
         while (true)
         {
             robot.steer(0, 0, 0);
                     digitalWrite(RELAY,LOW);
-            claw.open();
+            claw.lift();
+            get_color_fast();
+            serialEvent5();
             centrar = leer_yaw();            
             centrar = fmod(centrar, 360.0);
              if (centrar < 0) centrar += 360;
@@ -833,12 +1436,15 @@ void loop()
             digitalWrite(LED_ROJO, HIGH);
             delay(500);
             robot.steer(0, 0, 0);
+            get_color_fast();
+            Serial.println("FCL: " + String(digitalRead(FCL)));
+            Serial.println("FCR: " + String(digitalRead(FCR)));
             digitalWrite(LED_BUILTIN, LOW);
             digitalWrite(BUZZER, LOW);
             digitalWrite(LED_ROJO, LOW);
-            digitalWrite(RELAY,LOW); 
+            digitalWrite(RELAY,LOW);
 
-
+            claw.open();
             delay(500);
             if (digitalRead(SWITCH) == 0)
             {
@@ -856,6 +1462,9 @@ void loop()
         // Serial5.write(254);
         startUp = true;
         rutina = "linea";
+        evacuacion_iniciada = false;
+        evacuacion_straight = false;
+        rescateAvisado = false;
         claw.lift();
         claw.depositCenter();
         action = 7;
@@ -883,20 +1492,28 @@ void loop()
         */
         while (rutina == "linea" && digitalRead(32) == 0)
         {
+            bool plateadoDetectado = false;
 
-            color_detected = get_color();
+            color_detected = get_color_fast();
             leer_tof();
             leer_ultrasonidos();
-            /*
-            if (color_detected == "Plateado"){
-                runTime(20,FORWARD,0,100);
-                color_detected = get_color();
-                if (color_detected == "Plateado"){
-                rutina = "rescate";
-                break;
+           
+            if (color_detected == "Plateado") {
+
+                    plateadoDetectado = true;
+
+                    if (!rescateAvisado) {
+                        Serial5.write(241);
+                        rescateAvisado = true;
+                    }
             }
+
+            if (color_detected == "Rojo") {
+                    runTime(0, FORWARD, 0, 10000);
+                    break;
+           
             }
-            */
+           
             if (taskDone)
             { // robot is currently not performing any task
 
@@ -922,7 +1539,7 @@ void loop()
                 {
                     action = 1;
                 }
-                
+               
                 if (green_state == 14)
                 {
                     action = 12;
@@ -931,6 +1548,10 @@ void loop()
                 {
                     action = 2;
                 }
+                if (plateadoDetectado) {
+                    action = 2;
+                }
+
 
                 switch (action)
                 {
@@ -948,7 +1569,7 @@ void loop()
                             {
                                 robot.steer(30, FORWARD, -0.35);
                                 // serialEvent5();
-                                if (get_color() == "Negro")
+                                if (get_color_fast() == "Negro")
                                 {
                                     runAngle(30, FORWARD, -90);
                                     break;
@@ -963,20 +1584,22 @@ void loop()
                             {
                                 robot.steer(30, FORWARD, 0.35);
                                 // serialEvent5();
-                                if (get_color() == "Negro")
+                                if (get_color_fast() == "Negro")
                                 {
                                     runAngle(30, FORWARD, 90);
                                     break;
                                 }
                             }
                         }
-                    
+                   
                     break;
                 case 2:
                     digitalWrite(BUZZER, HIGH);
                     delay(100);
                     digitalWrite(BUZZER, LOW);
                     rutina="rescate";
+                    rescateAvisado = true;
+
                     digitalWrite(RELAY,HIGH);
                     ball_counter=0;
                     veces_deposit = 0;
@@ -1013,7 +1636,7 @@ void loop()
                         runTime(60,BACKWARD,0,380);
                         runTime(40,FORWARD,0,800);*/
                         angulo_rescate = leer_yaw();            
-                        angulo_rescate = fmod(angulo_rescate, 360.0); 
+                        angulo_rescate = fmod(angulo_rescate, 360.0);
                         if (angulo_rescate < 0)                        
                         angulo_rescate += 360;
                         runTime(20,FORWARD,0,1500);
@@ -1034,7 +1657,7 @@ void loop()
                         runTime(0,BACKWARD,0,800);
                         runTime(60,BACKWARD,0,200);
                         angulo_rescate = leer_yaw();            
-                        angulo_rescate = fmod(angulo_rescate, 360.0); 
+                        angulo_rescate = fmod(angulo_rescate, 360.0);
                         if (angulo_rescate < 0)                        
                         angulo_rescate += 360;
                         lado_plateado="medio";
@@ -1060,7 +1683,7 @@ void loop()
                     }
                     break;
                 case 7: // linetrack
-                
+               
                     {int velocidadAjustada = ajustarVelocidadPorPendiente(25);
 
                      if (steer < -0.7 || steer > 0.7)
@@ -1072,7 +1695,7 @@ void loop()
                     {
                         robot.steer(velocidadAjustada, FORWARD, steer);
                     }
-                
+               
                     break;
                     }
 
@@ -1084,10 +1707,16 @@ void loop()
                         runAngle(30, FORWARD, diferencia);
                         runTime(30, BACKWARD, 0, 300);
                         runTime(0, FORWARD, 0, 2000);
+                        unsigned long waitStart = millis();
                     while(digitalRead(32) == 0){
                         robot.steer(0, FORWARD, 0);
-                        
+                       
                         serialEvent5();
+
+                        if (fixIssue58Enabled() && (millis() - waitStart) >= 5000)
+                        {
+                            break;
+                        }
 
                         if (green_state == 15)
                         {
@@ -1109,7 +1738,16 @@ void loop()
                             break;
                         }
 
-                        break;}
+                        if (!fixIssue58Enabled())
+                        {
+                            break;
+                        }
+                    }
+                    }
+
+                    if (fixIssue58Enabled())
+                    {
+                        break;
                     }
 
                 case 14: // turn 180 deg for double green squares
@@ -1144,12 +1782,12 @@ void loop()
                 nonBlockingDelay(1400);
                 claw.sortRight();
                 nonBlockingDelay(1000);
-                runDistance(30,FORWARD,5);
+                runDistance(30,FORWARD,8);
                 runTime(0,FORWARD,0,1000);
                 claw.close();
                 nonBlockingDelay(1000);
                 digitalWrite(BUZZER, HIGH);
-                delay(100); 
+                delay(100);
                 digitalWrite(BUZZER, LOW);
                 runTime(0,FORWARD,0,1000);
                 claw.lift();
@@ -1168,12 +1806,12 @@ void loop()
                 nonBlockingDelay(1400);
                 claw.depositCenter();
                 nonBlockingDelay(1000);
-                runDistance(20,FORWARD,5);
+                runDistance(20,FORWARD,8);
                 runTime(0,FORWARD,0,1000);
                 claw.close();
                 nonBlockingDelay(1000);
                 digitalWrite(BUZZER, HIGH);
-                delay(100); 
+                delay(100);
                 digitalWrite(BUZZER, LOW);
                 runTime(0,FORWARD,0,1000);
                 claw.lift();
@@ -1191,16 +1829,24 @@ void loop()
                 Serial5.write(248);
                 depositando=true;
                 serialEvent5();
-                robot.steer(speed, FORWARD, steer);   
+                robot.steer(speed, FORWARD, steer);  
             }
             if(green_state == 9)//verde
                 {
                     digitalWrite(RELAY, HIGH);
                     runAngle(20,FORWARD,180);
-                    runTime(10,BACKWARD,0,2000);
+                    while(digitalRead(32) == 0){
+                        robot.steer(20,BACKWARD,0);
+                        serialEvent5();
+                        if(digitalRead(FCL)==1 && digitalRead(FCR)==1){
+                            break;
+                        }
+                    }
                     claw.depositRight();
                     nonBlockingDelay(2000);
                     claw.depositCenter();
+                    runTime(0,FORWARD,0,500);
+                    runTime(30,BACKWARD,0,500);
                     runTime(0,FORWARD,0,500);
                     runDistance(30,FORWARD,4+60);
                     veces_deposit++;
@@ -1209,70 +1855,140 @@ void loop()
                 {
                     digitalWrite(RELAY, HIGH);
                     runAngle(20,FORWARD,180);
-                    runTime(10,BACKWARD,0,2000);
+                    while(digitalRead(32) == 0){
+                        robot.steer(20,BACKWARD,0);
+                        serialEvent5();
+                        if(digitalRead(FCL)==1 && digitalRead(FCR)==1){
+                            break;
+                        }
+                    }
                     claw.depositLeft();
                     nonBlockingDelay(2000);
                     claw.depositCenter();
                     runTime(0,FORWARD,0,500);
-                    runDistance(30,FORWARD,40);
+                    runTime(0,FORWARD,0,500);
+                    runAngle(20,FORWARD,45);
+                    runTime(30,FORWARD,0,500);
+                    runAngle(20,FORWARD,-45);
+
                     veces_deposit++;
+                    green_state=0;
 
                 }
-            
-            if (veces_deposit == 2)
+            if (veces_deposit >= 2)
             {
-                digitalWrite(RELAY, HIGH);
-                runTime(0,BACKWARD,0,3000);
-                claw.close();
-                runTime(0,FORWARD,0,1000);
-                float diferencia = calcularDiferenciaAngulo(leer_yaw(), angulo_rescate);
-                runAngle(30, FORWARD, diferencia);
-                while(digitalRead(32) == 0){
-                    leer_ultrasonidos();
-                    robot.steer(25, FORWARD, 0); 
+                green_state = 0;
+                if (!evacuacion_iniciada) {
+                    Serial5.write(247);
+                    evacuacion_iniciada = true;
+                    evacuacion_straight = false;
+                }
+                rutina = "evacuacion";
+                break;
+            } // cierra if(veces_deposit >= 2)
 
-                    if(!alineado && front_distance < 12){
-                        digitalWrite(RELAY, HIGH);
-                        runTime(0, FORWARD, 0, 1000); 
-                        if(pared == "left"){
-                           digitalWrite(RELAY, HIGH);
-                            runAngle(25, FORWARD, 90);
-                        }
-                        if(pared == "right"){
-                            digitalWrite(RELAY, HIGH);
-                            runAngle(25, FORWARD, -90);
-                        }
-                        alineado = true; 
-                    }
-                    if(alineado){
-                        digitalWrite(RELAY, HIGH);
-                        leer_ultrasonidos();
-                        robot.steer(25,FORWARD,0);
-                        if(front_distance<12){
-                            leer_ultrasonidos();
-                            runTime(20,FORWARD,0,200);
-                            if(left_distance < right_distance)
-                            {
-                                digitalWrite(RELAY, HIGH);
-                                    
-                                runAngle(25,FORWARD,-90);
-                            }
-                            else if(right_distance<left_distance)
-                            {
-                                    digitalWrite(RELAY, HIGH);
-                                    runAngle(25,FORWARD,-90);
-                            }
-                        }
-                    }
-                } // end inner while
-            }
+        } // end while (rutina == "rescate" && digitalRead(32) == 0)
             /*if(green_state == 10)
-                { 
+                {
                     estado == "salida"
                     runTime(0,BACKWARD,0,3000);
 
                 }*/
-            
-        } // end while (rutina == "rescate" && digitalRead(32) == 0)
+           
+        // end while (rutina == "rescate" && digitalRead(32) == 0)
+        while (rutina == "evacuacion" && digitalRead(32) == 0)
+        {
+            if (!evacuacion_straight)
+            {
+                green_state = 0;
+                runDistance(30, FORWARD, 20);
+                runAngle(30, FORWARD, -135);
+                leer_ultrasonidos();
+
+                if (front_distance != 0 && front_distance < 40) {
+                    runAngle(30, FORWARD, 180);
+                    while (rutina == "evacuacion" && digitalRead(32) == 0) {
+                        robot.steer(30, BACKWARD, 0);
+                        serialEvent5();
+                        if (digitalRead(FCL) == 1 && digitalRead(FCR) == 1)
+                            break;
+                    }
+                    runAngle(30, FORWARD, -90);
+
+                }
+                else
+                {
+                    unsigned long alignStart = millis();
+                    while (rutina == "evacuacion" && digitalRead(32) == 0) {
+                        robot.steer(30, FORWARD, 0);
+                        color_detected = get_color_fast();
+                        if (color_detected == "Negro") {
+                            accionNegro();
+                        }
+                        else if (color_detected == "Plateado") {
+                            accionPlateado();
+
+                        }
+                        serialEvent5();
+                    }
+                }
+
+                evacuacion_straight = true;
+            }
+
+            leer_ultrasonidos();
+
+                while (rutina == "evacuacion" && digitalRead(32) == 0) {
+                    robot.steer(30, FORWARD, 0);
+                    color_detected = get_color_fast();
+                    if (color_detected == "Negro") {
+                        accionNegro();
+                    }
+                    else if (color_detected == "Plateado") {
+                        accionPlateado();
+                    }
+                    serialEvent5();
+                    leer_ultrasonidos();
+
+                    if (left_distance > 40 || left_distance == 0)
+                    {
+                        runAngle(30, FORWARD, -90);
+                        while (rutina == "evacuacion" && digitalRead(32) == 0)
+                        {
+                            robot.steer(30, FORWARD, 0);
+                            color_detected = get_color_fast();
+                            if (color_detected == "Negro") {
+                                accionNegro();
+                            }
+                            else if (color_detected == "Plateado") {
+                                accionPlateado();
+                            }
+                            serialEvent5();
+                            leer_ultrasonidos();
+                            if (front_distance != 0 && front_distance <= 31)
+                                break;
+                        }
+                    } // cierra if(left_distance > 40)
+
+                    if (front_distance != 0 && front_distance <= 31) {
+                        resetear_bno();
+                        runTime(30, BACKWARD, 0, 300);
+                        runAngle(30, FORWARD, 90);
+                        runDistance(30, FORWARD, 27);
+                        runAngle(30, FORWARD, 90);
+
+                        while (rutina == "evacuacion" && digitalRead(32) == 0) {
+                            robot.steer(30, BACKWARD, 0);
+                            serialEvent5();
+                            if (digitalRead(FCL) == 1 && digitalRead(FCR) == 1)
+                                break;
+                        }
+                        runAngle(30, FORWARD, -90);
+                        break;
+                    } // cierra if(front_distance <= 31)
+                }
+            // cierra if(left_distance > right_distance)
+
+        }
     } // end else (principal del loop)
 } // end loop()

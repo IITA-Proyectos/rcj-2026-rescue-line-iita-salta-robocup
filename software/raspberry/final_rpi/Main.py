@@ -12,17 +12,19 @@ import queue
 HEADLESS = os.environ.get("DISPLAY") is None
 DEBUG_VIEW = os.environ.get("DEBUG_VIEW") == "1"
 SHOW_DEBUG_WINDOWS = (not HEADLESS) or DEBUG_VIEW
+ENABLE_CX_BLACK_GUARD = os.environ.get("ENABLE_CX_BLACK_GUARD", "0") == "1"
 
 # PROTOCOLO RPi -> Teensy
 # Frame: [0xFF, speed, 0xFE, angle, 0xFD, green_state, 0xFC, silver_line]
 #
 # CONTRATO DE RANGOS:
-#   speed:       [0, 100]
-#   angle:       [0, 180]   # se envia como angle + 90
-#   green_state: 0..17
-#   silver_line: 0 o 1
+# speed:       [0, 100]
+# angle:       [0, 180]   # se envia como angle + 90
+# green_state: 0..20
+# silver_line: 0 o 1
 #
 # Los payloads NO deben colisionar con los sync bytes 0xFC..0xFF.
+
 SYNC_SPEED = 0xFF
 SYNC_ANGLE = 0xFE
 SYNC_GREEN_STATE = 0xFD
@@ -32,7 +34,8 @@ TEENSY_BOOT = b'\xfa'
 TEENSY_READY = b'\xf9'
 TEENSY_RESCATE_DONE = b'\xf8'
 TEENSY_STOP = b'\xff'
-
+TEENSY_RESCATE = b'\xf1'     # 241 = iniciar modo rescate
+TEENSY_EVACUACION = b'\xf7'  # 247 = termino rescate, iniciar evacuacion
 SERIAL_TIMEOUT_S = 0.05
 FRAME_NONE_RETRY_SLEEP_S = 0.01
 FRAME_NONE_RESTART_THRESHOLD = 30
@@ -52,7 +55,7 @@ debugBlack = True
 debugGreen = True
 debugBlue = False
 debugHori = False
-record = False
+record = True
 noise_blob_threshold = 16
 min_square_size = 150
 min_line_size = 1000
@@ -71,8 +74,10 @@ lower_green   = np.array([120, 90, 100])
 upper_green   = np.array([170, 120, 140])
 lower_silver_hsv = np.array([79, 16, 46])
 upper_silver_hsv = np.array([168, 28, 79])
-lower_red     = np.array([1, 147, 159])
-upper_red     = np.array([7, 205, 216])
+lower_red1 = np.array([0, 84, 54])  # hsv
+upper_red1 = np.array([7, 255, 200])
+lower_red2 = np.array([170, 84, 54])  # hsv
+upper_red2 = np.array([179, 255, 200])
 last_angles   = []
 
 YOLO_IMGSZ  = 256
@@ -90,10 +95,8 @@ green_state_final = 0
 timer_start_time = 0
 silver_line = False
 
-
 def clamp_byte(value):
     return max(0, min(255, int(value)))
-
 
 def send_frame(speed, angle, green_state, silver_line_flag):
     global frames_sent, last_tx_telemetry
@@ -115,6 +118,12 @@ def send_frame(speed, angle, green_state, silver_line_flag):
 
     return output
 
+def stop_teensy_safely(reason):
+    try:
+        print(f"[SAFE-STOP] {reason}: enviando speed=0 al Teensy")
+        send_frame(0, 0, 0, 0)
+    except Exception as exc:
+        print(f"[SAFE-STOP] no se pudo enviar stop: {exc}")
 
 def restart_video_stream():
     global vs
@@ -127,7 +136,6 @@ def restart_video_stream():
     time.sleep(0.1)
     vs = WebcamVideoStream(src=0).start()
     return vs
-
 
 def read_frame_with_recovery(none_count, context):
     frame = vs.read()
@@ -145,7 +153,6 @@ def read_frame_with_recovery(none_count, context):
 
     time.sleep(FRAME_NONE_RETRY_SLEEP_S)
     return None, none_count
-
 
 def handle_control_byte(data, context="serial"):
     global estado
@@ -168,11 +175,22 @@ def handle_control_byte(data, context="serial"):
             return 'linea'
         return 'ready'
 
+    if data == TEENSY_RESCATE:
+        print(f"[INFO] {context}: Llego 241 -> entrando a rescate")
+        estado = 'rescate'
+        return 'rescate'
+
     if data == TEENSY_RESCATE_DONE:
         if estado == 'rescate':
             estado = 'depositar'
             return 'depositar'
         return 'rescate_done'
+
+    if data == TEENSY_EVACUACION:
+        if estado in ('rescate', 'depositar', 'depositar verde'):
+            estado = 'evacuacion'
+            return 'evacuacion'
+        return 'evacuacion_ignored'
 
     return None
 
@@ -182,7 +200,6 @@ for i in range(height):
     for j in range(width):
         x_com[i][j] = (j - cam_x) / (width / 2)
         y_com[i][j] = (cam_y - i) / height
-
 
 # ---- AGCWD ----
 def agcwd(img_bgr, w=0.5):
@@ -195,16 +212,13 @@ def agcwd(img_bgr, w=0.5):
     w_pdf = hist_max * ((hist - hist_min) / (hist_max - hist_min)) ** w
     w_cdf = np.cumsum(w_pdf)
     w_cdf = w_cdf / w_cdf[-1]
-    lut = np.array([
-        int(255 * (i / 255.0) ** (1.0 - w_cdf[i]))
-        for i in range(256)
-    ], dtype=np.uint8)
+    lut = np.array([int(255 * (i / 255.0) ** (1.0 - w_cdf[i]))
+                    for i in range(256)], dtype=np.uint8)
     mean_v = float(np.mean(v))
     if mean_v > 120:
         lut = (lut * 0.3 + np.arange(256, dtype=np.float32) * 0.7).astype(np.uint8)
     hsv[:, :, 2] = cv2.LUT(v, lut)
     return cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
-
 
 # ---- inicializar Zero-DCE si hace falta ----
 if USE_ZERODCE:
@@ -220,12 +234,12 @@ def anti_flash_preprocess(img_bgr, v_flash=215, s_low=60, compress=0.45):
     h, s, v = cv2.split(hsv)
     s = s.astype(np.float32)
     v = v.astype(np.float32)
-    
+
     flash_mask = (v >= v_flash) & (s <= s_low)
-    
+
     if not np.any(flash_mask):
         return img_bgr
-        
+
     mask_blur = flash_mask.astype(np.uint8) * 255
     mask_blur = cv2.GaussianBlur(mask_blur, (5,5), 0)
     alpha = mask_blur.astype(np.float32) / 255.0
@@ -248,7 +262,6 @@ def enhance(img_bgr, use_zerodce=False):
     return agcwd(out)
 
 
-
 # ---- Inicializar TFLite global + warmup ----
 try:
     from tflite_runtime.interpreter import Interpreter as TFLiteInterpreter
@@ -258,16 +271,16 @@ except Exception:
     TFLiteInterpreter = tf.lite.Interpreter
     print("Usando tensorflow.lite.Interpreter (fallback)")
 
-TFLITE_MODEL_PATH = "/home/pi/Downloads/best_float32 (1).tflite"
+TFLITE_MODEL_PATH = "/home/iita/Documentos/best (2)_float32.tflite" #path ruta Raspberry de Robot NO de repo
 NUM_THREADS = 2
 try:
     interpreter = TFLiteInterpreter(model_path=TFLITE_MODEL_PATH, num_threads=NUM_THREADS)
 except TypeError:
     interpreter = TFLiteInterpreter(model_path=TFLITE_MODEL_PATH)
-    try:
-        interpreter.set_num_threads(NUM_THREADS)
-    except Exception:
-        pass
+try:
+    interpreter.set_num_threads(NUM_THREADS)
+except Exception:
+    pass
 
 interpreter.allocate_tensors()
 _input_details  = interpreter.get_input_details()[0]
@@ -286,8 +299,7 @@ interpreter.invoke()
 _ = interpreter.get_tensor(_output_details['index'])
 print("Warmup completado.")
 
-
-def modo_rescate():
+def modo_rescate(evac_mode=False):
     global last_target_box, is_stopped, estado, ser
 
     input_details  = _input_details
@@ -319,6 +331,7 @@ def modo_rescate():
     CENTER_TOLERANCE_PX  = 8
     STOP_WIDTH_RATIO     = 0.21
     STOP_WIDTH_RATIO_BOX = 0.98
+    STOP_EVAC = 0.68
     RESUME_WIDTH_RATIO   = 0.18
     is_stopped           = False
 
@@ -452,55 +465,63 @@ def modo_rescate():
     def infer_thread():
         frame_idx = 0
         while True:
-            frame = frame_q.get()
-            if frame is None:
+            try:
+                frame = frame_q.get()
+                if frame is None:
+                    result_q.put(None)
+                    break
+
+                h, w  = frame.shape[:2]
+                small = cv2.resize(frame, (IMGSZ, IMGSZ))
+
+                if frame_idx % DETECT_EVERY == 0:
+                    small = enhance(small, use_zerodce=USE_ZERODCE)
+                else:
+                    if ENABLE_ANTIFLASH:
+                        small = anti_flash_preprocess(small)
+                    small = agcwd(small)
+                enhanced_frame = cv2.resize(small, (w, h))
+
+                if frame_idx % DETECT_EVERY == 0:
+                    img = cv2.cvtColor(small, cv2.COLOR_BGR2RGB)
+                    if np.issubdtype(input_details['dtype'], np.floating):
+                        inp = (img.astype(np.float32) / 255.0)[np.newaxis, ...].astype(input_details['dtype'])
+                    else:
+                        inp = img[np.newaxis, ...].astype(input_details['dtype'])
+
+                    interpreter.set_tensor(input_details['index'], inp)
+                    interpreter.invoke()
+                    out = interpreter.get_tensor(output_details['index'])[0]
+
+                    detections = []
+                    for det in out:
+                        x1, y1, x2, y2, score, cls_raw = det
+                        score  = float(score)
+                        cls_id = int(round(float(cls_raw)))
+                        if score < CLASS_THRESH.get(cls_id, 0.5):
+                            continue
+                        x1 *= IMGSZ; y1 *= IMGSZ; x2 *= IMGSZ; y2 *= IMGSZ
+                        sx1, sy1, sx2, sy2 = scale_box((x1, y1, x2, y2), w, h, IMGSZ, IMGSZ)
+                        if estado == "rescate":
+                            if cls_id in (2, 3): continue
+                        if estado == "depositar":
+                            if cls_id in (0, 1, 2): continue
+                        if estado == "depositar verde":
+                            if cls_id in (0, 1, 3): continue
+                        if evac_mode:
+                            if cls_id in (0, 1): continue  # ignorar pelotas, solo dejar zonas 2 y 3
+                        detections.append({'xyxy': (sx1, sy1, sx2, sy2), 'score': score, 'cls': cls_id})
+
+                    result_q.put(('det', enhanced_frame, detections))
+                else:
+                    result_q.put(('no_det', enhanced_frame, None))
+
+                frame_idx += 1
+            except Exception as exc:
+                print(f"[ERROR] infer_thread: {exc}")
+                stop_event.set()
                 result_q.put(None)
                 break
-
-            h, w  = frame.shape[:2]
-            small = cv2.resize(frame, (IMGSZ, IMGSZ))
-
-            if frame_idx % DETECT_EVERY == 0:
-                small = enhance(small, use_zerodce=USE_ZERODCE)
-            else:
-                if ENABLE_ANTIFLASH:
-                    small = anti_flash_preprocess(small)
-                small = agcwd(small)
-            enhanced_frame = cv2.resize(small, (w, h))
-
-            if frame_idx % DETECT_EVERY == 0:
-                img = cv2.cvtColor(small, cv2.COLOR_BGR2RGB)
-                if np.issubdtype(input_details['dtype'], np.floating):
-                    inp = (img.astype(np.float32) / 255.0)[np.newaxis, ...].astype(input_details['dtype'])
-                else:
-                    inp = img[np.newaxis, ...].astype(input_details['dtype'])
-
-                interpreter.set_tensor(input_details['index'], inp)
-                interpreter.invoke()
-                out = interpreter.get_tensor(output_details['index'])[0]
-
-                detections = []
-                for det in out:
-                    x1, y1, x2, y2, score, cls_raw = det
-                    score  = float(score)
-                    cls_id = int(round(float(cls_raw)))
-                    if score < CLASS_THRESH.get(cls_id, 0.5):
-                        continue
-                    x1 *= IMGSZ; y1 *= IMGSZ; x2 *= IMGSZ; y2 *= IMGSZ
-                    sx1, sy1, sx2, sy2 = scale_box((x1, y1, x2, y2), w, h, IMGSZ, IMGSZ)
-                    if estado == "rescate":
-                        if cls_id in (2, 3): continue
-                    if estado == "depositar":
-                        if cls_id in (0, 1, 2): continue
-                    if estado == "depositar verde":
-                        if cls_id in (0, 1, 3): continue
-                    detections.append({'xyxy': (sx1, sy1, sx2, sy2), 'score': score, 'cls': cls_id})
-
-                result_q.put(('det', enhanced_frame, detections))
-            else:
-                result_q.put(('no_det', enhanced_frame, None))
-
-            frame_idx += 1
 
     def select_target_from_list(boxes, estado):
         targets = []
@@ -513,6 +534,9 @@ def modo_rescate():
         if estado == 'depositar verde':
             for d in boxes:
                 if d['cls'] in (2,): targets.append(d)
+        if estado == 'evacuacion':
+            for d in boxes:
+                if d['cls'] in (2, 3): targets.append(d)
         if not targets:
             return None
         return targets[0]
@@ -550,6 +574,10 @@ def modo_rescate():
                         break
                     elif action == 'depositar':
                         print("Llego 248 -> terminar rescate y cambiar a depositar")
+                    elif action == 'evacuacion':
+                        print("Llego 247 -> entrando a evacuacion")
+                        stop_rescate = True
+                        break
             except Exception as e:
                 print("serial_monitor_local error:", e)
             time.sleep(0.01)
@@ -612,7 +640,9 @@ def modo_rescate():
                 cv2.putText(frame, f"w_ratio={width_ratio:.3f}", (10, 50),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
 
-                if estado == "depositar" or estado == "depositar verde":
+                if evac_mode:
+                    close_enough = width_ratio >= STOP_EVAC
+                elif estado == "depositar" or estado == "depositar verde":
                     close_enough = width_ratio >= STOP_WIDTH_RATIO_BOX
                 else:
                     close_enough = width_ratio >= STOP_WIDTH_RATIO
@@ -631,7 +661,8 @@ def modo_rescate():
                     elif ball_type == "red_zone":   green_state = 8
                     elif ball_type == "green_zone":
                         green_state = 9
-                        estado = "depositar verde"
+                        if not evac_mode:           # <- agregar esto
+                            estado = "depositar verde"
 
                     if not centered:
                         angle = int(-error_norm * 90)
@@ -659,7 +690,7 @@ def modo_rescate():
                 angle       = 90
                 green_state = 0
 
-            # ---- Envío con ACK ----
+            # ---- Envio con ACK ----
             output = send_frame(speed, angle, green_state, 0)
 
             processed += 1
@@ -687,163 +718,202 @@ def modo_rescate():
     try:
         main_loop()
     finally:
-            stop_event.set()
-            serial_stop_evt.set()
-            stop_rescate = False
-            
-            # --- FIX ZOMBI: Drenar colas para destrabar los hilos ---
-            while not frame_q.empty():
-                try: frame_q.get_nowait()
-                except: pass
-            while not result_q.empty():
-                try: result_q.get_nowait()
-                except: pass
-            # --------------------------------------------------------
+        stop_event.set()
+        serial_stop_evt.set()
+        stop_rescate = False
 
-            tcap.join(timeout=1)
-            tinf.join(timeout=1)
-            t_serial_mon.join(timeout=0.5)
+        # --- FIX ZOMBI: Drenar colas para destrabar los hilos ---
+        while not frame_q.empty():
+            try: frame_q.get_nowait()
+            except: pass
+        while not result_q.empty():
+            try: result_q.get_nowait()
+            except: pass
+        # --------------------------------------------------------
 
+        tcap.join(timeout=1)
+        tinf.join(timeout=1)
+        t_serial_mon.join(timeout=0.5)
 
-# -----------------------------------------------
-# LOOP PRINCIPAL
-# -----------------------------------------------
-while True:
+def main():
+    global estado, silver_line
 
-    while estado == 'esperando':
-        silver_line = False
-        if ser.in_waiting > 0:
-            data = ser.read()
-            handle_control_byte(data, context="esperando")
-        time.sleep(FRAME_NONE_RETRY_SLEEP_S)
+    # -----------------------------------------------
+    # LOOP PRINCIPAL
+    # -----------------------------------------------
+    while True:
 
-    while estado == 'rescate':
-        modo_rescate()
+        while estado == 'esperando':
+            silver_line = False
+            if ser.in_waiting > 0:
+                data = ser.read()
+                handle_control_byte(data, context="esperando")
+            time.sleep(FRAME_NONE_RETRY_SLEEP_S)
 
-    line_none_count = 0
-    while estado == 'linea':
-        frame, line_none_count = read_frame_with_recovery(line_none_count, "linea")
-        if frame is None:
-            continue
+        while estado == 'rescate':
+            modo_rescate()
+        while estado == 'evacuacion':
+            modo_rescate(evac_mode=True)
+        line_none_count = 0
+        while estado == 'linea':
+            frame, line_none_count = read_frame_with_recovery(line_none_count, "linea")
+            if frame is None:
+                continue
 
-        frame = cv2.rotate(frame, cv2.ROTATE_180)
-        frame_resized = cv2.resize(frame, (160, 120), interpolation=cv2.INTER_NEAREST)
+            frame = cv2.rotate(frame, cv2.ROTATE_180)
+            frame_resized = cv2.resize(frame, (160, 120), interpolation=cv2.INTER_NEAREST)
 
-        kernel = np.ones((3, 3), np.uint8)
-        lab    = cv2.cvtColor(frame_resized, cv2.COLOR_BGR2LAB)
+            kernel = np.ones((3, 3), np.uint8)
+            lab    = cv2.cvtColor(frame_resized, cv2.COLOR_BGR2LAB)
 
-        black_mask = cv2.inRange(frame_resized, lower_black, upper_black)
-        black_mask[:55, :] = 0
-        x_black = cv2.bitwise_and(x_com, x_com, mask=black_mask)
-        x_black *= (1 - y_com)
-        y_black = cv2.bitwise_and(y_com, y_com, mask=black_mask)
+            black_mask = cv2.inRange(frame_resized, lower_black, upper_black)
+            black_mask[:55, :] = 0
+            x_black = cv2.bitwise_and(x_com, x_com, mask=black_mask)
+            x_black *= (1 - y_com)
+            y_black = cv2.bitwise_and(y_com, y_com, mask=black_mask)
 
-        green_mask = np.zeros((120, 160), dtype=np.uint8)
-        green_mask[90:, :] = cv2.inRange(lab[90:, :, :], lower_green, upper_green)
+            green_mask = np.zeros((120, 160), dtype=np.uint8)
+            green_mask[90:, :] = cv2.inRange(lab[90:, :, :], lower_green, upper_green)
 
-        cut_line  = np.zeros((120, 160), dtype=np.uint8)
-        hsv_frame = cv2.cvtColor(frame_resized, cv2.COLOR_BGR2HSV)
-        cut_line[62:, :] = cv2.inRange(frame_resized[62:, :, :], lower_black, upper_black)
+            cut_line  = np.zeros((120, 160), dtype=np.uint8)
+            hsv_frame = cv2.cvtColor(frame_resized, cv2.COLOR_BGR2HSV)
+            cut_line[62:, :] = cv2.inRange(frame_resized[62:, :, :], lower_black, upper_black)
 
-        red_mask    = cv2.inRange(hsv_frame, lower_red, upper_red)
-        red_mask[:75, :] = 0
-        silver_mask = cv2.inRange(frame_resized, lower_silver_hsv, upper_silver_hsv)
-        silver_mask[:75, :] = 0
+            red_mask = cv2.bitwise_or(
+                cv2.inRange(hsv_frame, lower_red1, upper_red1),
+                cv2.inRange(hsv_frame, lower_red2, upper_red2)
+            )
+            red_mask[:75, :] = 0
+            silver_mask = cv2.inRange(frame_resized, lower_silver_hsv, upper_silver_hsv)
+            silver_mask[:75, :] = 0
 
-        green_state = 0
-        x_resultant = np.mean(x_black)
-        y_resultant = np.mean(y_black)
-        angle = (math.atan2(y_resultant, x_resultant) / math.pi * 180) - 90
-        speed = 40
+            green_state = 0
+            x_resultant = np.mean(x_black)
+            y_resultant = np.mean(y_black)
+            angle = (math.atan2(y_resultant, x_resultant) / math.pi * 180) - 90
+            speed = 40
 
-        if np.sum(green_mask) > min_square_size * 255:
-            green_pixels = np.amax(green_mask, axis=0)
-            greenIndices = np.where(green_pixels == np.max(green_pixels))
-            leftIndex    = greenIndices[0][0]
-            rightIndex   = greenIndices[0][-1]
-            slicedGreen  = frame_resized[60:90, leftIndex:rightIndex + 1, :]
-            greenCentroidX = (rightIndex + leftIndex) / 2
-            slicedBlackMaskAboveGreen = black_mask[60:90, leftIndex:rightIndex + 1]
-            blackM = cv2.moments(black_mask[90:, :])
+            if np.sum(green_mask) > min_square_size * 255:
+                green_pixels = np.amax(green_mask, axis=0)
+                greenIndices = np.where(green_pixels == np.max(green_pixels))
+                leftIndex    = greenIndices[0][0]
+                rightIndex   = greenIndices[0][-1]
+                slicedGreen  = frame_resized[60:90, leftIndex:rightIndex + 1, :]
+                greenCentroidX = (rightIndex + leftIndex) / 2
+                slicedBlackMaskAboveGreen = black_mask[60:90, leftIndex:rightIndex + 1]
+                blackM = cv2.moments(black_mask[90:, :])
 
-            if np.sum(black_mask[90:, :]):
-                cx_black = int(blackM["m10"] / blackM["m00"])
-
-            if (np.sum(slicedBlackMaskAboveGreen) / (255 * 30 * (rightIndex - leftIndex))) > 0.32:
-                greenSquare = False
-                filtered_green_mask = cv2.erode(green_mask, kernel)
-                filtered_green_mask = cv2.dilate(green_mask, kernel)
-                green_contours, hierarchy = cv2.findContours(filtered_green_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-                if len(green_contours) > 1 and cx_black > leftIndex and cx_black < rightIndex and np.sum(green_mask) > (1.35 * min_square_size * 255):
-                    green_state = 3
-                elif greenCentroidX < cx_black:
-                    green_state = 1
+                if ENABLE_CX_BLACK_GUARD:
+                    cx_black = None
+                    if np.sum(black_mask[90:, :]) and blackM["m00"] != 0:
+                        cx_black = int(blackM["m10"] / blackM["m00"])
+                    valid_green_reference = cx_black is not None
                 else:
-                    green_state = 2
+                    if np.sum(black_mask[90:, :]):
+                        cx_black = int(blackM["m10"] / blackM["m00"])
+                    valid_green_reference = True
+
+                if valid_green_reference and (np.sum(slicedBlackMaskAboveGreen) / (255 * 30 * (rightIndex - leftIndex))) > 0.32:
+                    greenSquare = False
+                    filtered_green_mask = cv2.erode(green_mask, kernel)
+                    filtered_green_mask = cv2.dilate(green_mask, kernel)
+                    green_contours, hierarchy = cv2.findContours(filtered_green_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+                    if len(green_contours) > 1 and cx_black > leftIndex and cx_black < rightIndex and np.sum(green_mask) > (1.35 * min_square_size * 255):
+                        green_state = 3
+                    elif greenCentroidX < cx_black:
+                        green_state = 1
+                    else:
+                        green_state = 2
+                else:
+                    greenSquare = False
+                    green_state = 0
             else:
                 greenSquare = False
                 green_state = 0
-        else:
-            greenSquare = False
-            green_state = 0
 
-        if np.sum(black_mask) < min_line_size:
-            angle = 0
+            if np.sum(black_mask) < min_line_size:
+                angle = 0
 
-        silver_contours, _ = cv2.findContours(silver_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        silver_line = False
-        for contour in silver_contours:
-            area = cv2.contourArea(contour)
-            print(area)
-            if area > 50:
-                silver_line = True
+            silver_contours, _ = cv2.findContours(silver_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            silver_line = False
+            for contour in silver_contours:
+                area = cv2.contourArea(contour)
+                print(area)
+                if area > 50:
+                    silver_line = True
+                    break
+
+            red_line = False
+            double_red_line = False
+
+            red_mask_zone = red_mask.copy()
+            red_mask_zone[:60, :] = 0  # ignorar parte superior
+
+            row_sum = np.sum(red_mask_zone, axis=1)  # shape (120,)
+
+            RED_ROW_THRESHOLD = 1500  # ajustar segun camara
+            red_rows = row_sum > RED_ROW_THRESHOLD
+
+            # Encontrar grupos de filas rojas consecutivas (cada grupo = una linea)
+            in_band = False
+            red_bands = 0
+            for val in red_rows:
+                if val and not in_band:
+                    red_bands += 1
+                    in_band = True
+                elif not val:
+                    in_band = False
+
+            red_line = red_bands >= 1
+            double_red_line = red_bands >= 2
+
+            if double_red_line:
+                green_state = 11  # codigo nuevo para doble linea roja
+            elif red_line:
+                green_state = 10
+
+            output = send_frame(speed, round(angle), green_state, silver_line)
+            # ---- Envio con ACK ----
+
+            if silver_line:
+                estado = 'rescate'
+
+            # FIX: while en lugar de if para drenar el buffer completo cada iteracion.
+            # Con if, si el Teensy envia ~30 ACKs/s y el loop de vision tarda ~25ms,
+            # el buffer se acumula y el watchdog reporta falsos timeouts.
+            # El break al detectar 0xFF es critico: evita procesar bytes de un estado
+            # que ya cambio si el buffer contiene [ACK, ACK, 0xFF, ACK].
+            while ser.in_waiting > 0:
+                data = ser.read()
+                action = handle_control_byte(data, context="linea")
+                if action in ('boot', 'stop'):
+                    print("cambiando estado")
+                    break  # salir inmediatamente: el estado ya cambio
+
+            if SHOW_DEBUG_WINDOWS and debugOriginal:
+                cv2.imshow('Original', frame_resized)
+            if SHOW_DEBUG_WINDOWS and record:
+                cv2.imshow('redd', red_mask)
+            if SHOW_DEBUG_WINDOWS and debugBlack:
+                cv2.imshow('Black Mask', black_mask)
+            if SHOW_DEBUG_WINDOWS and debugGreen:
+                cv2.imshow('Green Mask', green_mask)
+            if SHOW_DEBUG_WINDOWS and debugHori:
+                cv2.imshow('Silver Mask', silver_mask)
+
+            if SHOW_DEBUG_WINDOWS and cv2.waitKey(1) & 0xFF == ord('q'):
                 break
 
-        red_line    = False
-        red_contours, _ = cv2.findContours(red_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        for cont in red_contours:
-            area = cv2.contourArea(cont)
-            if area > 25:
-                red_line = True
-                break
-
-        if red_line:
-            green_state = 10
-
-        output = send_frame(speed, round(angle), green_state, silver_line)
-
-        # ---- Envío con ACK ----
-
-        if silver_line:
-            estado = 'rescate'
-
-        # FIX: while en lugar de if para drenar el buffer completo cada iteracion.
-        # Con if, si el Teensy envia ~30 ACKs/s y el loop de vision tarda ~25ms,
-        # el buffer se acumula y el watchdog reporta falsos timeouts.
-        # El break al detectar 0xFF es critico: evita procesar bytes de un estado
-        # que ya cambio si el buffer contiene [ACK, ACK, 0xFF, ACK].
-        while ser.in_waiting > 0:
-            data = ser.read()
-            action = handle_control_byte(data, context="linea")
-            if action in ('boot', 'stop'):
-                print("cambiando estado")
-                break  # salir inmediatamente: el estado ya cambio
-
-        if SHOW_DEBUG_WINDOWS and debugOriginal:
-            cv2.imshow('Original', frame_resized)
-        if SHOW_DEBUG_WINDOWS and record:
-            cv2.imshow('redd', red_mask)
-        if SHOW_DEBUG_WINDOWS and debugBlack:
-            cv2.imshow('Black Mask', black_mask)
-        if SHOW_DEBUG_WINDOWS and debugGreen:
-            cv2.imshow('Green Mask', green_mask)
-        if SHOW_DEBUG_WINDOWS and debugHori:
-            cv2.imshow('Silver Mask', silver_mask)
-
-        if SHOW_DEBUG_WINDOWS and cv2.waitKey(1) & 0xFF == ord('q'):
+if __name__ == "__main__":
+    while True:
+        try:
+            main()
+        except KeyboardInterrupt:
+            stop_teensy_safely("KeyboardInterrupt")
             break
-
-if SHOW_DEBUG_WINDOWS:
-    cv2.destroyAllWindows()
-vs.stop()
+        except Exception as exc:
+            print(f"[FATAL] Main.py se recupera de excepcion global: {exc}")
+            stop_teensy_safely("excepcion global")
+            estado = 'esperando'
+            time.sleep(1.0)
