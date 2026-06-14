@@ -104,6 +104,7 @@ int veces_deposit=2;
 int ball_counter=2;
 bool evacuacion_iniciada=false;
 bool evacuacion_straight=false;
+bool silver_latch=false;  // true mientras seguimos "sobre" un plateado ya atendido (evita repetir la accion)
 int last_right_distance = 0;
 int right_jump_counter = 0;
 
@@ -559,6 +560,17 @@ void get_filtered_color(uint16_t &r, uint16_t &g, uint16_t &b, uint16_t &c)
     c = c_sum / samples;
 }
 
+// Limpia el historial del filtro de color para no arrastrar muestras viejas
+// (stale) despues de una accion bloqueante en evacuacion. Fuerza que la
+// proxima clasificacion se construya solo con muestras frescas.
+void reset_color_history()
+{
+    color_history_index = 0;
+    color_history_count = 0;
+    last_color_sample_ms = 0;
+    last_color_detected = "Desconocido";
+}
+
 String classify_color(uint16_t r, uint16_t g, uint16_t b, uint16_t c)
 {
     float ratio_rc = c > 0 ? static_cast<float>(r) / static_cast<float>(c) : 0.0f;
@@ -580,7 +592,7 @@ String classify_color(uint16_t r, uint16_t g, uint16_t b, uint16_t c)
     }
 
     String detected = "Desconocido";
-    if (c > 1760 && ratio_rc > 0.250f)
+    if (c > 2220 && ratio_rc > 0.234f)
     {
         detected = "Plateado";
     }
@@ -773,16 +785,15 @@ String get_color_blocking_legacy()
         Serial.print(" | R/B: "); Serial.print(ratio_rb, 3);
 
         Serial.print(" | -> ");
-        if      (c > 1950 && ratio_rc > 0.240)                          Serial.println("Plateado");
+        if      (c > 1950 && ratio_rc > 0.234)                          Serial.println("Plateado");
         else if (c > 1500 && ratio_rc <= 0.235)                         Serial.println("Blanco");
         else if (c >= 300 && c <= 600 && ratio_rg > 1.6f && ratio_rb > 1.5f) Serial.println("Rojo");
         else if (c < 600)                                                Serial.println("Negro");
         else                                                             Serial.println("Verde");
         lastPrint = millis();
     }
-
     // Returns en el mismo orden que el print
-    if (c > 1700 && ratio_rc > 0.240)        return "Plateado";
+    if (c > 1700 && ratio_rc > 0.234)        return "Plateado";
     if (c > 1500 && ratio_rc <= 0.235)       return "Blanco";
     if (c >= 300 && c <= 600 && ratio_rg > 1.62f && ratio_rc > 0.440f) return "Rojo";
 
@@ -1142,26 +1153,21 @@ void nonBlockingDelay(unsigned long ms)
 }
 
 void accionNegro() {
-    runDistance(30, FORWARD, 5);
+    runDistance(30, FORWARD, 10);
     Serial5.write(249);
     rutina = "linea";
-    digitalWrite(BUZZER, HIGH);
-    delay(300);
-    digitalWrite(BUZZER, LOW);
-    runTime(30,FORWARD,0,300);
+    runTime(0,FORWARD,0,3000);
+    reset_color_history();  
+    digitalWrite(RELAY,LOW);
+// descarta muestras previas para no re-disparar con color stale
 }
 
 void accionPlateado() {
     runDistance(30, BACKWARD, 10);
     runAngle(30, FORWARD, 90);
-    runDistance(30, FORWARD, 2);
-    digitalWrite(BUZZER, HIGH);
-    delay(100);
-    digitalWrite(BUZZER, LOW);
-    digitalWrite(BUZZER, HIGH);
-    delay(100);
-    digitalWrite(BUZZER, LOW);
+    runDistance(30, FORWARD, 30);
     robot.steer(0, FORWARD, 0);
+    reset_color_history();  // descarta muestras previas para no re-disparar con color stale
 }
 
 bool detectarNegro() {
@@ -1172,6 +1178,52 @@ bool detectarNegro() {
 bool detectarPlateado() {
     color_detected = get_color_fresh();
     return (color_detected == "Plateado");
+}
+
+// Lecturas frescas consecutivas necesarias para confirmar un color antes de
+// actuar en evacuacion. Subir si hay falsos positivos; bajar si queda lento.
+constexpr uint8_t EVAC_COLOR_CONFIRM_SAMPLES = 3;
+
+// Confirma que el sensor ve 'objetivo' en N lecturas frescas seguidas.
+// Filtra ruido/sombras/reflejos que provocaban falsos "Negro"/"Plateado".
+bool confirmarColor(const String &objetivo)
+{
+    for (uint8_t i = 0; i < EVAC_COLOR_CONFIRM_SAMPLES; i++)
+    {
+        if (get_color_fresh() != objetivo)
+            return false;
+    }
+    return true;
+}
+
+// Detecta color en evacuacion con confirmacion anti-ruido y ejecuta la accion
+// correspondiente. Devuelve true si ejecuto una accion (Negro o Plateado).
+bool procesarColorEvacuacion()
+{
+    color_detected = get_color_fast();
+
+    // El robot se despego del plateado (ve otro color confiable): rehabilita
+    // una futura deteccion. "Desconocido" = sin dato fresco, no cuenta.
+    if (color_detected != "Plateado" && color_detected != "Desconocido")
+    {
+        silver_latch = false;
+    }
+
+    if (color_detected == "Negro" && confirmarColor("Negro"))
+    {
+        accionNegro();
+        return true;
+    }
+
+    if (color_detected == "Plateado" && !silver_latch && confirmarColor("Plateado"))
+    {
+        Serial.println("[EVAC] Plateado confirmado -> accionPlateado");
+        accionPlateado();
+        silver_latch = true;  // ya atendido; no repetir hasta despegarse del plateado
+        return true;
+    }
+
+    return false;
 }
 
 #define TARGET_DISTANCE 70.0 // distancia deseada en cm
@@ -1302,7 +1354,38 @@ void lado_pared()
 }
 void pelotita()
 {
-   
+
+}
+
+// Decide si hay que esquivar en evacuacion. Dos casos separados:
+//  - Esquina de deposito: la camara ve triangulo rojo/verde (green_state 8/9)
+//    Y el ultrasonido confirma cercania (<=31 cm). Fusion camara + ultrasonido.
+//  - Pared frontal lisa: solo ultrasonido, dispara mas cerca (<=18 cm).
+bool debeEsquivar()
+{
+    if ((green_state == 8 || green_state == 9) && front_distance != 0 && front_distance <= 31)
+        return true;
+
+    return false;
+}
+
+// Maniobra de esquive en evacuacion: retrocede, gira 90, avanza paralelo, gira
+// 90, retrocede hasta los finales de carrera y se reacomoda. La usan tanto la
+// esquina de deposito como la pared frontal lisa.
+void maniobraEsquive()
+{
+    resetear_bno();
+    runTime(30, BACKWARD, 0, 300);
+    runAngle(30, FORWARD, 90);
+    runDistance(30, FORWARD, 27);
+    runAngle(30, FORWARD, 90);
+    while (rutina == "evacuacion" && digitalRead(32) == 0) {
+        robot.steer(30, BACKWARD, 0);
+        serialEvent5();
+        if (digitalRead(FCL) == 1 && digitalRead(FCR) == 1)
+            break;
+    }
+    runAngle(30, FORWARD, -90);
 }
 
 
@@ -1415,6 +1498,7 @@ void loop()
         final_rescate = 1;
         evacuacion_iniciada = false;
         evacuacion_straight = false;
+        silver_latch = false;
         action = 7;
         startUp = false;
         last_right_distance = 0;
@@ -1464,6 +1548,7 @@ void loop()
         rutina = "linea";
         evacuacion_iniciada = false;
         evacuacion_straight = false;
+        silver_latch = false;
         rescateAvisado = false;
         claw.lift();
         claw.depositCenter();
@@ -1601,7 +1686,7 @@ void loop()
                     rescateAvisado = true;
 
                     digitalWrite(RELAY,HIGH);
-                    ball_counter=0;
+                    ball_counter=2;
                     veces_deposit = 0;
                     alineado=false;
                     depositando=false;
@@ -1822,7 +1907,6 @@ void loop()
                 runTime(30,BACKWARD,0,200);
                 ball_counter++;
             }
-
             if (ball_counter>= 3 && depositando==false)
             {
                 digitalWrite(RELAY, HIGH);
@@ -1905,7 +1989,7 @@ void loop()
                 runAngle(30, FORWARD, -135);
                 leer_ultrasonidos();
 
-                if (front_distance != 0 && front_distance < 40) {
+                if (front_distance != 0 && front_distance < 120) {
                     runAngle(30, FORWARD, 180);
                     while (rutina == "evacuacion" && digitalRead(32) == 0) {
                         robot.steer(30, BACKWARD, 0);
@@ -1921,71 +2005,56 @@ void loop()
                     unsigned long alignStart = millis();
                     while (rutina == "evacuacion" && digitalRead(32) == 0) {
                         robot.steer(30, FORWARD, 0);
-                        color_detected = get_color_fast();
-                        if (color_detected == "Negro") {
-                            accionNegro();
-                        }
-                        else if (color_detected == "Plateado") {
-                            accionPlateado();
-
-                        }
+                        procesarColorEvacuacion();
                         serialEvent5();
                     }
                 }
-
                 evacuacion_straight = true;
             }
 
             leer_ultrasonidos();
-
                 while (rutina == "evacuacion" && digitalRead(32) == 0) {
                     robot.steer(30, FORWARD, 0);
-                    color_detected = get_color_fast();
-                    if (color_detected == "Negro") {
-                        accionNegro();
-                    }
-                    else if (color_detected == "Plateado") {
-                        accionPlateado();
-                    }
+                    procesarColorEvacuacion();
                     serialEvent5();
                     leer_ultrasonidos();
 
+                    // PRIORIDAD 1: esquina de deposito = camara ve triangulo (green_state
+                    // 8/9) Y el ultrasonido confirma cercania (<=31). Maniobra completa.
+                    if ((green_state == 8 || green_state == 9) && front_distance != 0 && front_distance <= 31)
+                    {
+                        Serial.print("[EVAC] P1 ESQUINA gs="); Serial.print(green_state);
+                        Serial.print(" front="); Serial.println(front_distance);
+                        maniobraEsquive();
+                        green_state = 0;   // evita re-disparo inmediato con valor stale de camara
+                        break;
+                    }
+
+                    // PRIORIDAD 2: pared frontal lisa = solo ultrasonido (<=18). Giro 90 y sigue.
+                    if (front_distance != 0 && front_distance <= 18)
+                    {
+                        Serial.print("[EVAC] P2 PARED front="); Serial.println(front_distance);
+                        runAngle(30, FORWARD, 90);
+                        continue;
+                    }
+
+                    // PRIORIDAD 3: lado izquierdo abierto -> girar a buscar pared.
                     if (left_distance > 40 || left_distance == 0)
                     {
+                        Serial.print("[EVAC] P3 BUSCAR left="); Serial.print(left_distance);
+                        Serial.print(" front="); Serial.println(front_distance);
+                        runDistance(30, FORWARD, 8);
                         runAngle(30, FORWARD, -90);
                         while (rutina == "evacuacion" && digitalRead(32) == 0)
                         {
                             robot.steer(30, FORWARD, 0);
-                            color_detected = get_color_fast();
-                            if (color_detected == "Negro") {
-                                accionNegro();
-                            }
-                            else if (color_detected == "Plateado") {
-                                accionPlateado();
-                            }
+                            procesarColorEvacuacion();
                             serialEvent5();
                             leer_ultrasonidos();
-                            if (front_distance != 0 && front_distance <= 31)
+                            if (debeEsquivar())   // corto la busqueda al toparme con esquina o pared
                                 break;
                         }
-                    } // cierra if(left_distance > 40)
-
-                    if (front_distance != 0 && front_distance <= 31) {
-                        resetear_bno();
-                        runTime(30, BACKWARD, 0, 300);
-                        runAngle(30, FORWARD, 90);
-                        runDistance(30, FORWARD, 27);
-                        runAngle(30, FORWARD, 90);
-
-                        while (rutina == "evacuacion" && digitalRead(32) == 0) {
-                            robot.steer(30, BACKWARD, 0);
-                            serialEvent5();
-                            if (digitalRead(FCL) == 1 && digitalRead(FCR) == 1)
-                                break;
-                        }
-                        runAngle(30, FORWARD, -90);
-                        break;
-                    } // cierra if(front_distance <= 31)
+                    } 
                 }
             // cierra if(left_distance > right_distance)
 

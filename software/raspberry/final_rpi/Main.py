@@ -664,6 +664,10 @@ def modo_rescate(evac_mode=False):
                         if not evac_mode:           # <- agregar esto
                             estado = "depositar verde"
 
+                    if evac_mode and green_state in (8, 9):
+                        print(f"[EVAC-TX] esquina gs={green_state} cls={target['cls']} "
+                              f"w_ratio={width_ratio:.3f} score={target.get('score', 0):.2f}")
+
                     if not centered:
                         angle = int(-error_norm * 90)
                         speed = 5

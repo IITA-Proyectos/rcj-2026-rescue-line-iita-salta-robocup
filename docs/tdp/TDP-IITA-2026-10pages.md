@@ -116,6 +116,14 @@ The **entire structure is original team design** (chassis, motor mounts, wheel h
 
 The architecture centres on the Raspberry Pi 4B (vision, AI, high-level states) and Teensy 4.1 (real-time motors, sensors, servos, safety), plus a custom PCB, 3S LiPo, regulated rails, XT60, five servos, 3× HC-SR04, 2× VL53L0X, BNO055, APDS9960, buzzer, LEDs, relay and switches. Figure 8 shows the team-designed PCB layout and schematic, which make every interface explicit — power input, regulated rails, Teensy pinout, Pi UART, motor/servo outputs, I2C sensors, indicators and switches.
 
+**Sensors used (full sensing suite):**
+- **Camera** — 140° wide-angle USB camera: black line, green markers, red strip, silver, victims and deposit zones.
+- **IMU / gyroscope** — BNO055 9-DOF: controlled turns (`runAngle`) and ramp/seesaw pitch detection.
+- **Motor encoders (×4)** — one per drive motor: calibrated distance moves (`runDistance`, 25 counts/cm).
+- **ToF (×2)** — VL53L0X: lateral wall and rescue-zone distance.
+- **Ultrasonic (×3)** — HC-SR04: obstacle and front-wall detection.
+- **Color / floor** — APDS9960: silver entrance, red stop strip and black exit confirmation.
+
 **Figure 8: Custom PCB layout (a) and schematic (b)**
 
 ![Main PCB layout](assets/pcb-main-layout.svg)
