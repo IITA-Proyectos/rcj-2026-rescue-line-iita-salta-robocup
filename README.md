@@ -175,7 +175,6 @@ The electronics are organized around separated power and control paths:
 Key references:
 
 - [PCB documentation](hardware/electronics/PCB_Main/README.md)
-- [Power tree](hardware/electronics/power-tree/README.md)
 - [Verified component specs](hardware/electronics/PCB_Main/COMPONENT_SPECS_VERIFIED.md)
 - [Hardware change notes](hardware/cambios_de_hardware.md)
 
