@@ -307,7 +307,9 @@ hardware/mechanical/Final_Robot.f3z
 
 ## Project Status
 
-This repository is under active 2026 competition development. Priority fixes, risk notes and validation work are tracked in [AUDIT-ACTION-PLAN.md](AUDIT-ACTION-PLAN.md), [testing/TEST_LOG.md](testing/TEST_LOG.md) and the project backlog.
+This repository is under active 2026 competition development. Current project status and real pending work are tracked through GitHub Issues and the coach/director report in [docs/es/2026-05-31-informe-coach-auditoria-integral.md](docs/es/2026-05-31-informe-coach-auditoria-integral.md). The older [AUDIT-ACTION-PLAN.md](AUDIT-ACTION-PLAN.md) remains available as historical context.
+
+Validation work is documented in [testing/TEST_LOG.md](testing/TEST_LOG.md) and the project backlog.
 
 ## License
 
