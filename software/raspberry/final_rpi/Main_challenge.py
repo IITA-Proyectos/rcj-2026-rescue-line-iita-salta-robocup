@@ -36,6 +36,7 @@ TEENSY_RESCATE_DONE = b'\xf8'
 TEENSY_STOP = b'\xff'
 TEENSY_RESCATE = b'\xf1'     # 241 = iniciar modo rescate
 TEENSY_EVACUACION = b'\xf7'  # 247 = termino rescate, iniciar evacuacion
+TEENSY_LINEA_VICTIMA = b'\xf6'  # 246 = CHALLENGE 2025: volver a linea cargando la victima
 SERIAL_TIMEOUT_S = 0.05
 FRAME_NONE_RETRY_SLEEP_S = 0.01
 FRAME_NONE_RESTART_THRESHOLD = 30
@@ -64,6 +65,32 @@ fixed_angle_start_time = 0
 estado = 'esperando'
 frames_sent = 0
 last_tx_telemetry = time.monotonic()
+
+# =====================================================================
+#  FLAGS DEL DESAFIO TECNICO — cambia SOLO estos segun lo que pidan.
+#  Con los valores por defecto, este archivo se comporta IGUAL que Main.py.
+# ---------------------------------------------------------------------
+#  ESCENARIOS:
+#   NORMAL  : AGARRAR_SOLO_PLATEADA=False  (agarra las 3, deposita las 2 adentro)
+#   2025    : AGARRAR_SOLO_PLATEADA=True   (solo la viva, se deposita AFUERA)
+#   HIBRIDO : AGARRAR_SOLO_PLATEADA=False  (las 3; negras adentro en rojo,
+#                                           plateada AFUERA en verde)
+#  En 2025 e HIBRIDO el deposito de AFUERA lo dispara la Teensy con el codigo
+#  246 (pone carrying_victim=True); la deteccion de zona verde se activa sola.
+#  Sin 246 (corrida normal) nada de esto se dispara.
+# =====================================================================
+AGARRAR_SOLO_PLATEADA      = False   # True = solo victima viva (puro 2025)
+DETECTAR_ZONA_VERDE_LINEA  = True    # buscar la zona verde mientras cargo (2025/hibrido)
+DEPOSITO_ADENTRO_EN_ROJO   = False   # True = HIBRIDO: adentro deposito las negras en el ROJO (cls 2)
+
+SILVER_CLS = 0    # clase YOLO de la plateada. OJO: tu codigo (linea ~658) usa 0=plateada;
+                  # CLASS_NAMES (linea ~324) dice 1. CONFIRMAR viendo detecciones.
+GREEN_CLS  = 3    # clase YOLO de la zona verde (verde_alto)
+YOLO_LINEA_EVERY     = 10     # cada cuantos frames corro YOLO en linea mientras cargo — TUNEAR
+ZONA_VERDE_MIN_ANCHO = 0.30   # ancho minimo (0-1) de la zona para depositar = "estoy cerca" — TUNEAR
+
+carrying_victim = False   # lo activa el codigo 246; lo apaga 249/stop/boot
+yolo_skip = 0
 
 vs = WebcamVideoStream(src=0).start()
 ser = serial.Serial('/dev/serial0', 115200, timeout=SERIAL_TIMEOUT_S, write_timeout=SERIAL_TIMEOUT_S)
@@ -155,7 +182,7 @@ def read_frame_with_recovery(none_count, context):
     return None, none_count
 
 def handle_control_byte(data, context="serial"):
-    global estado
+    global estado, carrying_victim
 
     if not data:
         return None
@@ -163,13 +190,16 @@ def handle_control_byte(data, context="serial"):
     if data == TEENSY_BOOT:
         print(f"[INFO] {context}: Teensy reseteado -> esperando")
         estado = 'esperando'
+        carrying_victim = False
         return 'boot'
 
     if data == TEENSY_STOP:
         estado = 'esperando'
+        carrying_victim = False
         return 'stop'
 
     if data == TEENSY_READY:
+        carrying_victim = False          # 249 = linea normal -> ya no cargo (deposito hecho/cancelado)
         if estado in ('esperando', 'evacuacion'):
             estado = 'linea'
             return 'linea'
@@ -191,6 +221,11 @@ def handle_control_byte(data, context="serial"):
             estado = 'evacuacion'
             return 'evacuacion'
         return 'evacuacion_ignored'
+
+    if data == TEENSY_LINEA_VICTIMA:   # 246 = CHALLENGE 2025: volver a linea CARGANDO la victima
+        estado = 'linea'
+        carrying_victim = True
+        return 'linea_victima'
 
     return None
 
@@ -298,6 +333,28 @@ interpreter.set_tensor(_input_details['index'], _dummy_inp)
 interpreter.invoke()
 _ = interpreter.get_tensor(_output_details['index'])
 print("Warmup completado.")
+
+# === CHALLENGE 2025: deteccion sincronica de la ZONA VERDE para el estado de linea ===
+# Se usa SOLO cuando carrying_victim es True. En ese momento modo_rescate ya termino,
+# asi que el interpreter esta LIBRE (no hay otro hilo invocandolo) -> sin conflicto.
+def hay_zona_verde(frame_bgr, thr=0.6):
+    small = cv2.resize(frame_bgr, (YOLO_IMGSZ, YOLO_IMGSZ))
+    small = enhance(small, use_zerodce=USE_ZERODCE)
+    img   = cv2.cvtColor(small, cv2.COLOR_BGR2RGB)
+    if np.issubdtype(_input_details['dtype'], np.floating):
+        inp = (img.astype(np.float32) / 255.0)[np.newaxis, ...].astype(_input_details['dtype'])
+    else:
+        inp = img[np.newaxis, ...].astype(_input_details['dtype'])
+    interpreter.set_tensor(_input_details['index'], inp)
+    interpreter.invoke()
+    out = interpreter.get_tensor(_output_details['index'])[0]
+    for det in out:
+        cls_id = int(round(float(det[5])))
+        score  = float(det[4])
+        ancho  = float(det[2]) - float(det[0])      # ancho normalizado 0-1 (= cercania)
+        if cls_id == GREEN_CLS and score >= thr and ancho >= ZONA_VERDE_MIN_ANCHO:
+            return True
+    return False
 
 def modo_rescate(evac_mode=False):
     global last_target_box, is_stopped, estado, ser
@@ -504,8 +561,12 @@ def modo_rescate(evac_mode=False):
                         sx1, sy1, sx2, sy2 = scale_box((x1, y1, x2, y2), w, h, IMGSZ, IMGSZ)
                         if estado == "rescate":
                             if cls_id in (2, 3): continue
+                            if AGARRAR_SOLO_PLATEADA and cls_id != SILVER_CLS: continue  # CHALLENGE: que la negra ni entre
                         if estado == "depositar":
-                            if cls_id in (0, 1, 2): continue
+                            if DEPOSITO_ADENTRO_EN_ROJO:
+                                if cls_id in (0, 1, 3): continue   # HIBRIDO: solo zona ROJA (negras)
+                            else:
+                                if cls_id in (0, 1, 2): continue   # normal: solo zona VERDE
                         if estado == "depositar verde":
                             if cls_id in (0, 1, 3): continue
                         if evac_mode:
@@ -526,8 +587,10 @@ def modo_rescate(evac_mode=False):
     def select_target_from_list(boxes, estado):
         targets = []
         if estado == 'rescate':
+            # CHALLENGE: solo plateada (2025) o las 2 pelotas (normal/hibrido), segun flag
+            clases_objetivo = (SILVER_CLS,) if AGARRAR_SOLO_PLATEADA else (0, 1)
             for d in boxes:
-                if d['cls'] in (0, 1): targets.append(d)
+                if d['cls'] in clases_objetivo: targets.append(d)
         if estado == 'depositar':
             for d in boxes:
                 if d['cls'] in (3,): targets.append(d)
@@ -578,8 +641,8 @@ def modo_rescate(evac_mode=False):
                         print("Llego 247 -> entrando a evacuacion")
                         stop_rescate = True
                         break
-                    elif action == 'linea':
-                        print("Llego 249 -> volviendo a linea")
+                    elif action in ('linea', 'linea_victima'):
+                        print("Llego 249/246 -> volviendo a linea")
                         stop_rescate = True
                         break
             except Exception as e:
@@ -740,7 +803,7 @@ def modo_rescate(evac_mode=False):
         t_serial_mon.join(timeout=0.5)
 
 def main():
-    global estado, silver_line
+    global estado, silver_line, yolo_skip, carrying_victim
 
     # -----------------------------------------------
     # LOOP PRINCIPAL
@@ -878,6 +941,14 @@ def main():
                 green_state = 11  # codigo nuevo para doble linea roja
             elif red_line:
                 green_state = 10
+
+            # === CHALLENGE 2025: cargando victima -> busco la ZONA VERDE con YOLO ===
+            # Sincronico, cada YOLO_LINEA_EVERY frames (la zona es grande, no hace falta
+            # mas). modo_rescate NO corre aca -> el interpreter esta libre.
+            if carrying_victim and DETECTAR_ZONA_VERDE_LINEA:
+                yolo_skip = (yolo_skip + 1) % YOLO_LINEA_EVERY
+                if yolo_skip == 0 and hay_zona_verde(frame):
+                    green_state = 9   # zona verde CERCA -> la Teensy deposita (Bloque L)
 
             output = send_frame(speed, round(angle), green_state, silver_line)
             line_frames += 1
