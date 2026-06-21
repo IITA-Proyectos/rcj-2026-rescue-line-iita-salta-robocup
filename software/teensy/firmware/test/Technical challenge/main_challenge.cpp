@@ -19,31 +19,10 @@
 #define INVERTIR_VERDES     false   // D1.1 / 2025: verde izq<->der
 #define MODO_DOBLE_VERDE    0       // 0=180(normal) | 1=ignorar/seguir recto (D1.2)
 #define MODO_ROJO           0       // 0=parar(meta) | 1=girar180(profe) | 2=simple180/doble-parar sensor(2025)
-#define ESQUIVE_POR_PARIDAD false   // D2.2: par=izq, impar=der (false=random normal)
-#define CONTAR_VERDES       false   // D2.1: habilita el contador de verdes
-#define INVERTIR_DEPOSITO   false   // D2.3: impar invierte zonas (necesita CONTAR_VERDES)
-#define SUPERTEAM           0       // SUPER TEMA: 1=puente con ESP32-MINI por Serial8 | 0=corrida normal
+#define ESQUIVE_POR_PARIDAD true   // D2.2: par=izq, impar=der (false=random normal)
+#define CONTAR_VERDES       true   // D2.1: habilita el contador de verdes
+#define INVERTIR_DEPOSITO   true   // D2.3: impar invierte zonas (necesita CONTAR_VERDES)
 // ============================================================================
-
-// ============================================================================
-//  SUPER TEMA — puente Teensy <-> ESP32-MINI por Serial8 (RX=pin34 / TX=pin35, 3.3V)
-//  Cableado: TX8(35)->ESP RX ; RX8(34)<-ESP TX ; GND comun. Sin level shifter.
-//  Teensy -> ESP32 (salientes):  'L'=verde izq  'R'=verde der  'D'=doble  'X'=fin(rojo)
-//  ESP32  -> Teensy (entrante):  'S'=start (arranque del companiero por BLE/BT)
-//  OJO: serialEvent8() se llama A MANO (igual que serialEvent5): el loop se bloquea
-//       en los while largos y el callback automatico casi nunca corre.
-// ============================================================================
-#if SUPERTEAM
-const uint8_t SUPER_VERDE_IZQ   = 'L';
-const uint8_t SUPER_VERDE_DER   = 'R';
-const uint8_t SUPER_VERDE_DOBLE = 'D';
-const uint8_t SUPER_FIN_ROJO    = 'X';
-const uint8_t SUPER_START       = 'S';
-const uint8_t SUPER_REARM       = 'B';  // Teensy reinicio (LoP/stop) -> que la C3 reenvie el start
-bool superStart        = false;   // true cuando el companiero mando 'S'
-bool super_fin_enviado = false;   // one-shot del aviso de rojo/fin
-void serialEvent8();
-#endif
 
 
 
@@ -955,20 +934,6 @@ void serialEvent5()
     maybePrintSerialTelemetry();
 }
 
-#if SUPERTEAM
-// SUPER TEMA: lee el comando de arranque del companiero (llega por la ESP32-MINI).
-// Se llama A MANO donde haga falta escuchar (igual criterio que serialEvent5).
-void serialEvent8()
-{
-    while (Serial8.available() > 0)
-    {
-        int data = Serial8.read();
-        if (data == SUPER_START)
-            superStart = true;
-    }
-}
-#endif
-
 // HELPER FUNCTIONS //
 
 // Do a predefined move by time
@@ -1253,10 +1218,10 @@ void nonBlockingDelay(unsigned long ms)
 void accionNegro() {
     runDistance(30, FORWARD, 10);
     Serial5.write(249);
+    rutina = "linea";
+    runTime(0,FORWARD,0,3000);
     reset_color_history();  
     digitalWrite(RELAY,LOW);
-    rutina = "linea";
-
 // descarta muestras previas para no re-disparar con color stale
 }
 
@@ -1544,13 +1509,6 @@ void actualizarContadorVerdes()
         verdes_total += (verde_confirmado == 3) ? DOBLE_CUENTA_COMO : 1;
         verde_estaba = true;
 
-#if SUPERTEAM
-        // SUPER TEMA: avisar el verde confirmado al companiero (via ESP32-MINI)
-        if      (verde_confirmado == 1) Serial8.write(SUPER_VERDE_IZQ);
-        else if (verde_confirmado == 2) Serial8.write(SUPER_VERDE_DER);
-        else if (verde_confirmado == 3) Serial8.write(SUPER_VERDE_DOBLE);
-#endif
-
         Serial.print("[VERDE CONTADO] gs=");
         Serial.print(verde_confirmado);
         Serial.print(" total=");
@@ -1596,9 +1554,6 @@ void setup()
     pinMode(RELAY, OUTPUT);          
 //Serial1.begin(57600);          // for reading IMU
     Serial5.begin(115200);         // for reading data from rpi and state
-#if SUPERTEAM
-    Serial8.begin(115200);         // SUPER TEMA: puente con la ESP32-MINI (RX=pin34 / TX=pin35)
-#endif
     delay(200);
     //Serial.begin(115200);          // displays ultrasound ping result
     // Initialise BNO055
@@ -1732,21 +1687,6 @@ void loop()
     }
     else if (digitalRead(32) == 0 && !startUp)
     {
-#if SUPERTEAM
-        // SUPER TEMA: ya en modo funcionamiento, esperar el 'start' del companiero
-        // (BLE desde el Spike / BT clasico desde la ESP32). Parpadea el LED rojo.
-        super_fin_enviado = false;
-        Serial8.clear();                    // descartar 'S' viejos del buffer (evita auto-start tras LoP)
-        Serial8.write(SUPER_REARM);         // re-arm: pedir a la C3 que reenvie el start
-        while (!superStart && digitalRead(32) == 0) {
-            serialEvent8();                 // escuchar la ESP32 a mano (el loop se bloquea)
-            digitalWrite(LED_ROJO, HIGH);
-            delay(120);
-            digitalWrite(LED_ROJO, LOW);
-            delay(120);
-        }
-        superStart = false;                 // consumir el comando para la proxima corrida
-#endif
         digitalWrite(LED_BUILTIN, LOW);
         digitalWrite(BUZZER, LOW);
         digitalWrite(LED_ROJO, LOW);
@@ -1791,7 +1731,7 @@ void loop()
             color_detected = get_color_fast();
             leer_tof();
             leer_ultrasonidos();
-            if (CONTAR_VERDES || SUPERTEAM) actualizarContadorVerdes();   // === CHALLENGE D2.1 / SUPER TEMA ===
+            if (CONTAR_VERDES) actualizarContadorVerdes();   // === CHALLENGE D2.1 ===
            
             if (color_detected == "Plateado") {
 
@@ -1805,10 +1745,6 @@ void loop()
 
             // === CHALLENGE: rojo segun MODO_ROJO ===
             if (color_detected == "Rojo" && millis() >= rojo_ignorar_hasta) {
-#if SUPERTEAM
-                // SUPER TEMA: avisar al companiero que llego al rojo / termino (one-shot)
-                if (!super_fin_enviado) { Serial8.write(SUPER_FIN_ROJO); super_fin_enviado = true; }
-#endif
                 if (MODO_ROJO == 0) {
                     runTime(0, FORWARD, 0, 10000);     // parar (meta normal)
                     break;
@@ -2087,8 +2023,7 @@ void loop()
                     serialEvent5();
                     if (green_state == 3)
                     {
-                        runAngle(30, FORWARD, 180);
-                        runTime(30, FORWARD, 0, 500);
+                        runTime(30, FORWARD, 0, 1500);
                     }
                     action = 7;
                     break;
@@ -2268,7 +2203,6 @@ void loop()
                 while (rutina == "evacuacion" && digitalRead(32) == 0) {
                     robot.steer(30, FORWARD, 0);
                     procesarColorEvacuacion();
-                    if (rutina != "evacuacion") break;  
                     serialEvent5();
                     leer_ultrasonidos();
 

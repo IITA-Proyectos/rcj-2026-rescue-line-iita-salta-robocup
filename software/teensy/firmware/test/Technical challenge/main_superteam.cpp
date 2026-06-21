@@ -19,10 +19,10 @@
 #define INVERTIR_VERDES     false   // D1.1 / 2025: verde izq<->der
 #define MODO_DOBLE_VERDE    0       // 0=180(normal) | 1=ignorar/seguir recto (D1.2)
 #define MODO_ROJO           0       // 0=parar(meta) | 1=girar180(profe) | 2=simple180/doble-parar sensor(2025)
-#define ESQUIVE_POR_PARIDAD false   // D2.2: par=izq, impar=der (false=random normal)
-#define CONTAR_VERDES       false   // D2.1: habilita el contador de verdes
-#define INVERTIR_DEPOSITO   false   // D2.3: impar invierte zonas (necesita CONTAR_VERDES)
-#define SUPERTEAM           0       // SUPER TEMA: 1=puente con ESP32-MINI por Serial8 | 0=corrida normal
+#define ESQUIVE_POR_PARIDAD true   // D2.2: par=izq, impar=der (false=random normal)
+#define CONTAR_VERDES       true   // D2.1: habilita el contador de verdes
+#define INVERTIR_DEPOSITO   true   // D2.3: impar invierte zonas (necesita CONTAR_VERDES)
+#define SUPERTEAM           1       // SUPER TEMA: 1=puente con ESP32-MINI por Serial8 | 0=corrida normal
 // ============================================================================
 
 // ============================================================================
@@ -40,6 +40,8 @@ const uint8_t SUPER_VERDE_DOBLE = 'D';
 const uint8_t SUPER_FIN_ROJO    = 'X';
 const uint8_t SUPER_START       = 'S';
 const uint8_t SUPER_REARM       = 'B';  // Teensy reinicio (LoP/stop) -> que la C3 reenvie el start
+const uint8_t SUPER_PLATEADO    = 'P';  // marca de referencia: entro a evacuacion (vio plateado)
+const uint8_t SUPER_EVAC_OUT    = 'E';  // marca de referencia: salio de evacuacion
 bool superStart        = false;   // true cuando el companiero mando 'S'
 bool super_fin_enviado = false;   // one-shot del aviso de rojo/fin
 void serialEvent8();
@@ -1253,10 +1255,13 @@ void nonBlockingDelay(unsigned long ms)
 void accionNegro() {
     runDistance(30, FORWARD, 10);
     Serial5.write(249);
+#if SUPERTEAM
+    Serial8.write(SUPER_EVAC_OUT);   // SUPER TEMA: marca de referencia (salio de evac)
+#endif
+    rutina = "linea";
+    runTime(0,FORWARD,0,3000);
     reset_color_history();  
     digitalWrite(RELAY,LOW);
-    rutina = "linea";
-
 // descarta muestras previas para no re-disparar con color stale
 }
 
@@ -1494,6 +1499,7 @@ void maniobraEsquive()
 #define DOBLE_CUENTA_COMO 2     // un doble verde, suma 2 o 1? (preguntar al arbitro)
 int  verdes_total = 0;
 bool verde_estaba = false;
+bool doble_pendiente = false;   // doble verde CONFIRMADO sin actuar (misma fuente que el aviso al Spike)
 
 bool esMarcaVerde(int gs)
 {
@@ -1543,6 +1549,7 @@ void actualizarContadorVerdes()
     {
         verdes_total += (verde_confirmado == 3) ? DOBLE_CUENTA_COMO : 1;
         verde_estaba = true;
+        if (verde_confirmado == 3) doble_pendiente = true;   // accion del doble = mismo origen que el Spike
 
 #if SUPERTEAM
         // SUPER TEMA: avisar el verde confirmado al companiero (via ESP32-MINI)
@@ -1695,7 +1702,7 @@ void loop()
         startUp = false;
         last_right_distance = 0;
         right_jump_counter = 0;
-        verdes_total = 0; verde_estaba = false; rojo_ignorar_hasta = 0;   // === CHALLENGE: reset al reiniciar ===
+        verdes_total = 0; verde_estaba = false; rojo_ignorar_hasta = 0; doble_pendiente = false;   // === CHALLENGE: reset al reiniciar ===
         taskDone = true;
         Serial5.write(255);
         verdes_total=0;
@@ -1799,6 +1806,9 @@ void loop()
 
                     if (!rescateAvisado) {
                         Serial5.write(241);
+#if SUPERTEAM
+                        Serial8.write(SUPER_PLATEADO);   // SUPER TEMA: marca de referencia (entro a evac)
+#endif
                         rescateAvisado = true;
                     }
             }
@@ -1859,9 +1869,9 @@ void loop()
                 {
                     action = 5; // verde derecha
                 }
-                if (green_state == 3)
+                if (doble_pendiente)
                 {
-                    action = 14;   // === CHALLENGE D1.2: 1=ignorar/recto ===
+                    action = 14;   // doble verde CONFIRMADO (misma fuente que el aviso al Spike)
                 }
                 if (front_distance != 0 && front_distance < 12)
                 {
@@ -2083,13 +2093,12 @@ void loop()
                         break;
                     }
 
-                case 14: // turn 180 deg for double green squares
-                    serialEvent5();
-                    if (green_state == 3)
-                    {
-                        runAngle(30, FORWARD, 180);
-                        runTime(30, FORWARD, 0, 500);
-                    }
+                case 14: // doble verde (accion ya CONFIRMADA por confirmarMarcaVerde)
+                    // NO re-chequear green_state==3 aca: para cuando llegabamos, el valor crudo
+                    // de la camara ya habia parpadeado a 0/1/2 y la maniobra se salteaba
+                    // (por eso "no le llegaba a la Teensy" aunque al Spike si).
+                    runTime(30, FORWARD, 0, 1500);   // accion del doble (recto / D1.2)
+                    doble_pendiente = false;
                     action = 7;
                     break;
 
@@ -2268,7 +2277,7 @@ void loop()
                 while (rutina == "evacuacion" && digitalRead(32) == 0) {
                     robot.steer(30, FORWARD, 0);
                     procesarColorEvacuacion();
-                    if (rutina != "evacuacion") break;  
+                    if (rutina != "evacuacion") break;   // accionNegro salio a linea: NO correr las PRIORIDADES (evita el giro de 90 espurio)
                     serialEvent5();
                     leer_ultrasonidos();
 
