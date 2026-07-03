@@ -3,6 +3,8 @@
 > **Fecha:** 2026-07-03
 > **Contexto:** el robot pierde tracción en la rampa (ver [2026-07-02-auditoria-independiente-rampa-plateado.md](2026-07-02-auditoria-independiente-rampa-plateado.md)). Se investigó qué material de rueda maximiza el grip para un robot de ~1–2 kg sobre pista RCJ (MDF pintado blanco / laminado, rampas de 25°, superficies plateadas/aluminio, ambiente con polvo), tanto en ruedas comerciales como en compuestos para moldear.
 > **Metodología:** deep research multi-agente (21 fuentes, 25 claims sometidos a verificación adversarial de 3 votos: 22 confirmados, 3 refutados). Cada afirmación de este doc lleva su nivel de confianza. **Ningún μ citado fue medido sobre las superficies reales de RCJ** — la validación en banco es obligatoria antes de decidir (regla de oro 3 del repo).
+> **Actualización 2026-07-03 (2ª pasada):** se contrastó un análisis externo (ChatGPT) sobre el mismo tema. Las ideas nuevas se incorporaron **solo tras verificarlas contra fuente primaria** (datasheets reales, páginas de fabricante); lo que no sobrevivió la verificación quedó marcado. Detalle al final en "Contraste con análisis externo".
+> **Restricción reglamentaria:** las [reglas oficiales Rescue Line 2026](https://rescue.rcj.cloud/rules/2026/RCJRescueLine2026-final.pdf) prohíben dañar el campo — descarta cualquier solución que deje residuo, arranque cinta o marque la pista. Toda rueda candidata debe pasar el criterio "rodar sobre papel limpio sin dejar marca".
 
 ---
 
@@ -70,27 +72,38 @@ Un escalón más de grip que el VF20 a costa de desgaste y captación de polvo. 
 
 En la [comparativa del propio JSumo (2015)](https://blog.jsumo.com/wheel-report-2015-our-wheels-slt20-slt20p-against-to-banebots-fingertech-wheels/) rinden levemente arriba de FingerTech en su metodología (μ 0.75 vs 0.70 — números **no comparables** con el 1.75 de FingerTech, metodologías distintas). Dato a chequear: [arsumo.com.ar lista repuestos de silicona para SLT20](https://arsumo.com.ar/productos/par-de-repuesto-silicona-para-rueda-slt20/) — habría stock nacional.
 
-#### 6. Rodillos de fotocopiadora/impresora reciclados
+#### 6. Rodillos de fotocopiadora/impresora reciclados — hipótesis original del equipo, AHORA CON FUENTE
 
-Silicona o uretano blando de calidad industrial, costo cero. Contras: diámetro y eje fijos, hay que mecanizar el acople, dureza desconocida. Buena opción de **prototipo cero-costo**, no la solución final.
+**Verificado 2026-07-03 contra [Yamauchi](https://www.yamauchi-rubber.com/products/copiers_and_printers-paper_feed_transport_rollers/)** (proveedor estándar de la industria de fotocopiadoras): los rodillos de alimentación de papel son **EPDM Shore A20–45**, formulados específicamente para **retener alto coeficiente de fricción incluso con polvo de papel**, con un truco de diseño clave: **ranuras donde se acumula el polvo mientras la superficie se desgasta y se auto-renueva**. Es decir: la hipótesis del equipo era correcta en material (mismo rango de dureza que las FingerTech) y además regala una idea de diseño transferible (ver "Guía de diseño"). Contras siguen: diámetro y eje fijos, mecanizar el acople, dureza puntual desconocida. Buena opción de **prototipo cero-costo**, no la solución final.
 
-#### 7. BaneBots (PU Shore 30A)
+#### 7. Ruedas comerciales de PU Shore 30A: MAXYNOS y BaneBots
 
-Comerciales, robustas, fáciles de conseguir. En la comparativa JSumo quedaron últimas en grip (μ 0.55 en su prueba) por ser más duras. Opción "segura pero mediocre" — se documenta para descartarla con argumento.
+- **MAXYNOS High Traction Robot Wheel** (verificada 2026-07-03): PU Shore **30A** sobre llanta de aluminio 6061 CNC, **51 mm**, eje 6 mm con prisionero M4, pensada para competencia. **USD 13.99 el par (solo neumático)** — más barata que FingerTech. Al momento de verificar estaba **agotada** ("restock coming soon"): [maxynos.net](https://maxynos.net/products/high-traction-robot-wheel-51mm-shore-a30). Alternativa robusta si la A20 se desgasta mucho.
+- **BaneBots (PU ~30A)**: comerciales, robustas, fáciles de conseguir. En la comparativa JSumo quedaron últimas en grip (μ 0.55 en su prueba) por ser más duras. Opción "segura pero mediocre" — se documenta para descartarla con argumento.
 
 #### 8. TPU blando impreso en 3D (Filaflex 60A–70A o similar)
 
 Conveniencia máxima si hay impresora con direct-drive: iterar diseño de banda en horas. Pero 60A imprimible es mucho más duro que 20A moldeado → grip claramente inferior. **Uso recomendado: imprimir la llanta y moldear la banda encima**, no como superficie de tracción.
 
-#### 9. Banda de látex/goma natural sobre llanta impresa
+#### 9. Bandas adhesivas de alto agarre como rodadura experimental (3M / Heskins) — NUEVO, verificado
 
-Tiras de cámara de látex o tubo de látex estirado sobre llanta 3D. Bajo costo, funciona, pero la goma natural rindió μ=1.05 en el benchmark FingerTech — es el piso de la lista.
+Cintas industriales de "gripping" pegadas como banda de rodadura sobre una rueda rígida impresa. Datos verificados contra datasheet:
 
-#### 10. Lo que NO usar, con el porqué
+- **Heskins TackyGrip H3470** ([datasheet](https://www.heskins.com/wp-content/uploads/2024/01/H3470-TackyGrip-Data-Sheet-2019.pdf), leído directo): film elastomérico 0.7 mm sobre PET, **SCoF seco 2.6 (ángulo 69°)** medido por Sotter Engineering, adhesivo acrílico 25 N/25 mm, anchos desde 6 mm. [Página de producto](https://www.heskins.com/products/tackygrip).
+- **3M Gripping Material (familia TB/GM, microreplicada):** para **GM400** una fuente secundaria que espeja el TDS de 3M reporta **COF cinético 3.0 seco Y húmedo** @ 0.0207 MPa ([lookpolymers](https://www.lookpolymers.com/polymer_3M-GM400-Gripping-Material.php)). El TB641 se consigue en [DigiKey](https://www.digikey.com/en/products/detail/3m/TB641-1-X15/7671438) y hay un listing en [MercadoLibre AR](https://www.mercadolibre.com.ar/3m-material-de-agarre-tb641-negro-1-in-x-15-ft/p/MLA27560760) (stock a verificar).
 
-- **Sorbothane:** es amortiguador viscoelástico; desgarro pésimo, se destruye como rueda.
+**Advertencias serias antes de usarlas en competencia:** (a) los COF están medidos como material de agarre estático (guantes, mangos), no como rueda rodando — el desgaste de la microestructura y la captación de polvo en rodadura continua no están caracterizados; (b) la costura de la cinta es un punto de falla; (c) **si el borde adhesivo queda expuesto puede levantar la cinta negra de la pista = descalificación por daño al campo**. Uso recomendado: experimento de banco para conocer el techo de grip, con bordes biselados/sellados, nunca como rueda de competencia sin pasar el criterio "no deja marca".
+
+#### 10. Banda de látex/goma natural sobre llanta impresa
+
+Tiras de cámara de látex o tubo de látex estirado sobre llanta 3D, o **goma caramelo en plancha de 2–5 mm** cortada en bandas y pegada con adhesivo flexible (proveedores AR de plancha: [Gomatex](https://gomatex.com.ar/categoria/goma-en-plancha), [Gomaeme](https://gomaeme.com.ar/producto/planchas-de-goma-y-otros-materiales/plancha-de-goma-caramelo/) — stock/dureza a verificar; la goma caramelo comercial suele rondar A35–A50). Bajo costo, funciona, pero la goma natural rindió μ=1.05 en el benchmark FingerTech — es el piso de la lista. Probar siempre que no marque la pista.
+
+#### Lo que NO usar, con el porqué
+
+- **Sorbothane** — ahora con números del fabricante (Data Sheet 101 oficial, rev. 2021, leído directo): el famoso "μ estático 15.8 / dinámico 3.3 sobre acero pulido" que circula viene de **MatWeb (ASTM D1894), NO del datasheet oficial vigente, que no publica ningún COF**. Y aunque el tack sea real, sus propiedades mecánicas oficiales lo descartan como rueda: Sorbothane 30 Shore **00** tiene tracción a rotura **26 psi** y desgarro **12 lb/in** — 18× y 8× peor que Dragon Skin 10 (475 psi / 102 pli). Es un amortiguador, no una banda de rodadura: se desgarra, y su altísima histéresis (tan δ ≈ 0.7–0.8) lo vuelve una rueda que frena al propio robot (resistencia a rodadura). Además, la física verificada (§1.2) ya mostró que "adhesión de despegue" no se traduce en fricción tangencial. *Único uso legítimo: experimento de laboratorio para entender el techo teórico, o pads de agarre estático.*
 - **Ecoflex 00-30 / siliconas Shore 00 / Dragon Skin FX-Pro (2A):** demasiado blandas — deformación excesiva bajo carga, riesgo de delaminación de la llanta, aspiradora de polvo.
-- **Tratamientos pegajosos superficiales** (belt dressing, adhesivos en spray): grip que muere en metros con polvo, y las sustancias que dejan residuo en la pista suelen estar prohibidas en RCJ — **verificar reglamento vigente antes de considerar cualquier tratamiento**.
+- **Tratamientos pegajosos superficiales** (belt dressing, adhesivos en spray): grip que muere en metros con polvo, y dejan residuo — prohibido por la regla de no dañar el campo ([reglas 2026](https://rescue.rcj.cloud/rules/2026/RCJRescueLine2026-final.pdf)).
+- **Adhesivos secos tipo gecko (microfibras, p. ej. Setex):** tecnología real pero para manipulación/agarre estático direccional; en rodadura continua con polvo pierden la microestructura. No aplicable a ruedas hoy.
 
 ---
 
@@ -113,14 +126,38 @@ Tiras de cámara de látex o tubo de látex estirado sobre llanta 3D. Bajo costo
 - **Contacto directo Duoflex** (Floresta, CABA): tel. **(011) 2124-2732** · WhatsApp **+54 9 11 6850 1010**. Preguntar por **VF 10 y VF 20 en kit chico (~0,9 kg)** y por **Dragon Skin 10/20** — publican en ML solo parte del catálogo.
 - **Todas sus publicaciones:** [Melinterest — DUOFLEX SUDAMERICANA](http://ar.melinterest.com/?r=site/search&seller_id=193135361&seller_nickname=DUOFLEX%20SUDAMERICANA)
 
+### Recubrimiento industrial de ruedas en PU a medida (Argentina) — NUEVO
+
+Talleres que revisten ruedas/rodillos en poliuretano colado. Ventaja: entregamos el hub impreso/mecanizado y vuelve con la banda de PU vulcanizada/colada profesionalmente — sin proceso químico propio. **El punto crítico es la dureza: la mayoría del PU industrial es A70–A95 (inútil para grip); hay que preguntar explícitamente si bajan a Shore A20–A30.**
+
+- **Reyfil SRL** (verificado 2026-07-03 que ofrece el servicio; dureza mínima **sin confirmar**): [revestimiento de ruedas y rodillos en PU](https://www.reyfilsrl.com.ar/productos/piezas-de-poliuretano/revestimiento-de-ruedas-y-rodillos-en-poliuretano/) — Remedios de Escalada, Buenos Aires. WhatsApp +54 9 11 2302-2268, tel. 011 4289-4083 int. 106, ventas@reyfilsrl.com.ar.
+- Otros del mismo rubro (sin verificar individualmente): [PaSet](https://paset.com.ar/), [Poliuretanos.ar](https://poliuretanos.ar/), [Grupo Poliplast](https://grupopoliplast.com.ar/).
+
+Mensaje sugerido para cotizar: *"Necesito recubrir ruedas pequeñas para un robot de competencia: dureza Shore A20–A30 (blando, alto grip), diámetro final 35–55 mm, ancho 12–20 mm, banda de 2,5–4 mm, superficie no marcante y sin aceites migrantes. ¿Trabajan durezas tan blandas? ¿Ficha técnica del material?"*
+
 ### Alternativas de importación
 
 - [FingerTech mini-sumo wheels (Canadá)](https://www.fingertechrobotics.com/proddetail.php?prod=ft-minisumo-wheels-1125) — ruedas terminadas, sin proceso químico.
+- [MAXYNOS PU 30A 51 mm](https://maxynos.net/products/high-traction-robot-wheel-51mm-shore-a30) — USD 13.99 el par (solo neumático); agotada al 2026-07-03, chequear restock.
 - [Amazon — VytaFlex 20, unidad pinta](https://www.amazon.com/-/es/Vytaflex-20-hacer-moldes-uretano/dp/B00IRC0MJW) — vía courier.
+- [Polytek PT Flex 20](https://polytek.com/products/pt-flex-20-liquid-rubber) — PU Shore 20A alternativo a VytaFlex (mismo rol; el blog mcuoneclipse moldeó ruedas de sumo con Polytek Shore 20).
 
 > ⚠️ Precios en ARS: re-cotizar siempre antes de decidir; los montos citados provienen de snippets sin fecha confiable.
 
 ---
+
+## 3b. Guía de diseño para la rueda moldeada
+
+*Criterio de ingeniería + práctica industrial verificada (Yamauchi, guías de casting de sumo). Validar en banco.*
+
+| Parámetro | Recomendación | Fundamento |
+|---|---|---|
+| Banda elastomérica | 2,5–4 mm de espesor sobre hub rígido | Suficiente deformación para copiar la superficie sin flexión masiva que frene el robot |
+| Hub | Rígido (aluminio, nylon, PETG, PA-CF), con **anclaje mecánico**: ranuras circunferenciales, perforaciones transversales o dientes — no confiar solo en adhesión química | El PU/silicona delaminada es el modo de falla típico de rueda casera |
+| Perfil | Levemente convexo, bordes redondeados | Contacto estable en rampa y sobre steps/gaps de 3 mm entre tiles |
+| Textura | Lisa mate, o **microestrías longitudinales/diagonales** | Las ranuras dan lugar donde depositar el polvo y auto-renuevan la superficie — es el diseño que usa Yamauchi en rodillos de fotocopiadora y lo que recomienda Ask Aaron para treads pegajosos |
+| Tacos grandes | NO para Rescue Line | Enganchan cinta, generan vibración sobre speed bumps |
+| Seguridad química (colada PU) | Leer SDS, guantes, ventilación (isocianatos), balanza si la mezcla es por peso, no mezclar sistemas de marcas distintas | Los uretanos parte B contienen isocianatos — esto lo maneja un adulto, no los alumnos |
 
 ## 4. Plan de acción recomendado
 
@@ -128,8 +165,12 @@ Tiras de cámara de látex o tubo de látex estirado sobre llanta 3D. Bajo costo
 2. **En paralelo:** pedir a Duoflex por WhatsApp cotización de **VF20** (y VF10 si lo traen). Si llega, moldear el segundo juego y comparar durezas en la rampa real.
 3. **En paralelo:** cotizar importación de **2 pares FingerTech A20 (50.8 mm)** — plan B comercial probado en competencia.
 4. **Protocolo de pits no negociable** con cualquier compuesto blando: **limpiar las ruedas con alcohol isopropílico antes de cada corrida**. Presupuestar toallitas IPA en el kit.
-5. **Validación en banco obligatoria** (regla de oro 3): plancha de la superficie real (MDF pintado y rampa plateada), robot completo encima, inclinar hasta deslizamiento → **μ = tan(ángulo de deslizamiento)**. Comparar candidatos ahí, no por datasheet. Registrar resultados en [testing/TEST_LOG.md](../../testing/TEST_LOG.md).
+5. **Validación en banco obligatoria** (regla de oro 3), tres ensayos complementarios — registrar todo en [testing/TEST_LOG.md](../../testing/TEST_LOG.md):
+   - **Plano inclinado:** plancha de la superficie real (MDF pintado y rampa plateada), robot completo encima, inclinar hasta deslizamiento → **μ = tan(ángulo)**. Referencias: 25°→0.47, 35°→0.70, 45°→1.00, 55°→1.43, 60°→1.73.
+   - **Tiro horizontal con dinamómetro** (o balanza de equipaje): robot sobre la superficie real, tirar horizontal hasta que deslice, 5 repeticiones → **μ = F/N** con N = peso del robot. Más repetible que el plano inclinado para comparar materiales.
+   - **Repetibilidad con suciedad:** medir μ con ruedas limpias → 5 vueltas de pista → medir de nuevo → 10 vueltas → medir. **Criterio de rechazo: pierde >25% de grip tras 10 vueltas** o deja residuo/marca sobre papel blanco y cinta negra.
 6. **Preguntar en el [foro oficial RCJ](https://junior.forum.robocup.org/t/wheel-recommendations-for-robocup-junior-rescue-maze/5384)** qué usan los equipos top de Rescue Line — la investigación no encontró ninguna fuente verificable sobre esto.
+7. **Consultar a Reyfil** (WhatsApp +54 9 11 2302-2268) si recubren en Shore A20–A30 con el mensaje de la sección 3 — si la respuesta es sí, es la vía de fabricación profesional sin química propia.
 
 ---
 
@@ -144,6 +185,26 @@ Tiras de cámara de látex o tubo de látex estirado sobre llanta 3D. Bajo costo
 
 - Que Shore 10A sea "el estándar" del mini-sumo competitivo (0-3 en contra).
 - Dos claims sobre películas de contaminación líquida como mecanismo dominante de pérdida de grip (1-2 en contra cada uno).
+
+## 7. Contraste con análisis externo (ChatGPT, 2026-07-03)
+
+Se revisó un análisis independiente generado por ChatGPT sobre el mismo tema. Coincidió en el núcleo (PU Shore A20–A30, FingerTech como benchmark, física de dos mecanismos, Sorbothane no apto como rueda). Resultado del contraste de sus ideas nuevas contra fuente primaria:
+
+**Incorporado (verificado):**
+- Heskins TackyGrip H3470 — SCoF 2.6 confirmado leyendo el datasheet real (§2.9).
+- 3M Gripping Material — COF 3.0 (GM400) vía fuente secundaria del TDS; ChatGPT citaba 2.7 para GM110, valor que no pudimos confirmar (§2.9).
+- MAXYNOS PU 30A — producto real, specs y precio confirmados en la página del fabricante (§2.7).
+- Yamauchi EPDM A20–45 con ranuras auto-renovantes — confirmado; valida la hipótesis original del equipo sobre rodillos de fotocopiadora (§2.6) y aporta la idea de microestrías (§3b).
+- Reyfil y el rubro "recubrimiento de ruedas en PU a medida" en Argentina — servicio confirmado, dureza mínima pendiente de consulta (§3).
+- Ensayo de tiro horizontal con dinamómetro y ensayo de repetibilidad con suciedad (§4.5).
+- Link válido a las reglas 2026 y la restricción de no dañar el campo.
+
+**Corregido (el claim de ChatGPT era impreciso):**
+- "Sorbothane: COF estático 15.8 / dinámico 3.3 (ficha MatWeb)" — esos números existen solo en MatWeb (ASTM D1894, acero pulido); el **Data Sheet 101 oficial vigente de Sorbothane no publica ningún COF**. Además sus datos mecánicos oficiales (tracción 26 psi, desgarro 12 lb/in en 30 Shore 00) confirman cuantitativamente que no sirve como rueda. Se mantiene en "NO usar" con mejores fundamentos.
+
+**No incorporado (sin verificar o irrelevante):**
+- Proveedores AR de plancha de goma y PU industrial listados sin verificación individual (PaSet, Poliuretanos.ar, Gomatex, Gomaeme) — quedan citados con marca "a verificar".
+- Adhesivos gecko/microfibra (Setex) — tecnología real pero no aplicable a rodadura continua; queda en "NO usar".
 
 ---
 
@@ -161,6 +222,12 @@ Tiras de cámara de látex o tubo de látex estirado sobre llanta 3D. Bajo costo
 
 **Práctica (blogs/foros — confianza media):**
 - [JSumo Wheel Report 2015](https://blog.jsumo.com/wheel-report-2015-our-wheels-slt20-slt20p-against-to-banebots-fingertech-wheels/) · [mcuoneclipse — DIY sticky sumo tires](https://mcuoneclipse.com/2017/12/28/making-perfect-sticky-diy-sumo-robot-tires/) · [miscircuitos — cast sumo wheels](https://miscircuitos.com/how-to-cast-sumo-wheels-handmade/) · [Ask Aaron — materials](https://runamok.tech/AskAaron/materials.html) · [Foro oficial RCJ — wheel recommendations](https://junior.forum.robocup.org/t/wheel-recommendations-for-robocup-junior-rescue-maze/5384)
+
+**Agregadas en la 2ª pasada (contraste 2026-07-03):**
+- [Reglas oficiales Rescue Line 2026 (PDF)](https://rescue.rcj.cloud/rules/2026/RCJRescueLine2026-final.pdf)
+- [Heskins H3470 TackyGrip — datasheet (PDF)](https://www.heskins.com/wp-content/uploads/2024/01/H3470-TackyGrip-Data-Sheet-2019.pdf) · [3M GM400 — specs (lookpolymers, espejo del TDS)](https://www.lookpolymers.com/polymer_3M-GM400-Gripping-Material.php) · [3M TB641 en DigiKey](https://www.digikey.com/en/products/detail/3m/TB641-1-X15/7671438)
+- [Sorbothane Data Sheet 101 oficial (PDF)](https://www.sorbothane.com/wp-content/uploads/101-sorbothane-material-properties.pdf)
+- [MAXYNOS PU 30A](https://maxynos.net/products/high-traction-robot-wheel-51mm-shore-a30) · [Yamauchi — paper feed rollers](https://www.yamauchi-rubber.com/products/copiers_and_printers-paper_feed_transport_rollers/) · [Reyfil — revestimiento de ruedas en PU](https://www.reyfilsrl.com.ar/productos/piezas-de-poliuretano/revestimiento-de-ruedas-y-rodillos-en-poliuretano/) · [Polytek PT Flex 20](https://polytek.com/products/pt-flex-20-liquid-rubber)
 
 ---
 
