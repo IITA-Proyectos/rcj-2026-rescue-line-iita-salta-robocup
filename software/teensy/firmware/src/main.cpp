@@ -600,15 +600,17 @@ void reset_color_history()
     last_color_sample_ms = 0;
     last_color_detected = "Desconocido";
 }
-
 String classify_color(uint16_t r, uint16_t g, uint16_t b, uint16_t c)
 {
     float ratio_rc = c > 0 ? static_cast<float>(r) / static_cast<float>(c) : 0.0f;
     float ratio_rg = g > 0 ? static_cast<float>(r) / static_cast<float>(g) : 0.0f;
     float ratio_rb = b > 0 ? static_cast<float>(r) / static_cast<float>(b) : 0.0f;
 
+    int diff_bg = static_cast<int>(b) - static_cast<int>(g);
+
     static unsigned long lastPrint = 0;
     bool shouldPrint = (millis() - lastPrint > 500);
+
     if (shouldPrint)
     {
         Serial.print("R: "); Serial.print(r);
@@ -618,39 +620,108 @@ String classify_color(uint16_t r, uint16_t g, uint16_t b, uint16_t c)
         Serial.print(" | R/C: "); Serial.print(ratio_rc, 3);
         Serial.print(" | R/G: "); Serial.print(ratio_rg, 3);
         Serial.print(" | R/B: "); Serial.print(ratio_rb, 3);
+        Serial.print(" | B-G: "); Serial.print(diff_bg);
         Serial.print(" | -> ");
     }
 
     String detected = "Desconocido";
-if (c > 2220 && ratio_rc > 0.234f)
-{
-    detected = "Plateado";
-}
-else if (c > 1500 && ratio_rc <= 0.235f)
-{
-    detected = "Blanco";
-}
-else if (
+
+    bool esRojo =
+        (
+            c >= 380 && c <= 900 &&
+            ratio_rc >= 0.32f &&
+            ratio_rg >= 1.10f &&
+            ratio_rb >= 1.00f
+        )
+        ||
+        (
+            c > 900 && c <= 1300 &&
+            ratio_rc >= 0.255f &&
+            ratio_rg >= 0.75f &&
+            ratio_rb >= 0.67f
+        );
+
+    bool esPlateadoFuerte =
+        (
+            c >= 1500 &&
+            static_cast<int>(b) + 3 >= static_cast<int>(g) &&
+            (
+                ratio_rc >= 0.229f ||
+                (
+                    ratio_rc >= 0.222f &&
+                    ratio_rg >= 0.610f &&
+                    ratio_rb >= 0.585f
+                )
+            )
+        );
+bool esPlateadoDebil =
     (
-        c >= 380 && c <= 900 &&
-        ratio_rc >= 0.32f &&
-        ratio_rg >= 1.10f &&
-        ratio_rb >= 1.00f
-    )
-    ||
-    (
-        c > 900 && c <= 1300 &&
-        ratio_rc >= 0.255f &&
-        ratio_rg >= 0.75f &&
-        ratio_rb >= 0.67f
-    )
-)
-{
-    detected = "Rojo";
-}
+        c >= 1200 &&
+        (
+            // Caso 1: plateado débil real con B-G alto,
+            // pero ahora exige R/G más alto para no confundir blanco.
+            (
+                diff_bg >= 30 &&
+                ratio_rc >= 0.213f &&
+                ratio_rg >= 0.595f &&
+                ratio_rb >= 0.558f
+            )
+            ||
+            // Caso 2: plateado medio
+            (
+                diff_bg >= 22 &&
+                ratio_rc >= 0.220f &&
+                ratio_rg >= 0.600f &&
+                ratio_rb >= 0.575f
+            )
+            ||
+            // Caso 3: plateado evidente
+            (
+                diff_bg >= 18 &&
+                ratio_rc >= 0.225f &&
+                ratio_rg >= 0.610f &&
+                ratio_rb >= 0.585f
+            )
+        )
+    );
+    bool esPlateadoSaturado =
+        (
+            c >= 3300 &&
+            ratio_rc >= 0.245f &&
+            ratio_rg >= 0.620f &&
+            ratio_rb >= 0.620f &&
+            static_cast<int>(b) + 15 >= static_cast<int>(g)
+        );
+
+    bool esPlateado =
+        esPlateadoFuerte ||
+        esPlateadoDebil ||
+        esPlateadoSaturado;
+
+    bool esBlanco =
+        (
+            c >= 430 &&
+            ratio_rc >= 0.195f && ratio_rc <= 0.250f &&
+            ratio_rg >= 0.530f && ratio_rg <= 0.615f &&
+            ratio_rb >= 0.500f && ratio_rb <= 0.635f
+        );
+
+    if (esRojo)
+    {
+        detected = "Rojo";
+    }
+    else if (esPlateado)
+    {
+        detected = "Plateado";
+    }
+    else if (esBlanco)
+    {
+        detected = "Blanco";
+    }
     else
     {
         uint64_t min_error = UINT64_MAX;
+
         for (size_t i = 0; i < sizeof(known_colors) / sizeof(known_colors[0]); i++)
         {
             if (known_colors[i].name == "Blanco" || known_colors[i].name == "Plateado")
@@ -660,6 +731,7 @@ else if (
                              square_error(known_colors[i].g, g) +
                              square_error(known_colors[i].b, b) +
                              square_error(known_colors[i].c, c);
+
             if (error < min_error)
             {
                 min_error = error;
@@ -676,7 +748,6 @@ else if (
 
     return detected;
 }
-
 bool update_color_nonblocking(bool force_poll = false)
 {
     if ((fixIssue61Enabled() || fixIssue62Enabled()) && !color_sensor_ok)
@@ -937,8 +1008,8 @@ void serialEvent5()
             if (serialPayloadOutOfRange("green_state", data, SERIAL_MAX_GREEN_STATE))
                 continue;
             green_state = data;
-    Serial.print("[RX] green_state recibido: ");
-    Serial.println(green_state);
+    // Serial.print("[RX] green_state recibido: ");
+    // Serial.println(green_state);
         }
         else if (serial5state == 3) // set line_middle
         {
@@ -1251,13 +1322,33 @@ void nonBlockingDelay(unsigned long ms)
 }
 
 void accionNegro() {
-    runDistance(30, FORWARD, 10);
+    runDistance(30, FORWARD, 5);
     Serial5.write(249);
-    reset_color_history();  
-    digitalWrite(RELAY,LOW);
-    rutina = "linea";
+    reset_color_history();
+    digitalWrite(RELAY, LOW);
 
-// descarta muestras previas para no re-disparar con color stale
+    // 1) romper la inercia (jiggle corto, como hace runDistance al arrancar)
+    runTime(20, BACKWARD, 0, 300);
+    runTime(20, FORWARD, 0, 300);
+
+    // 2) quedarse QUIETO leyendo serial mientras la RPi sale de evacuacion y
+    //    arranca la vision de linea (teardown ~1-2 s). Asi no se mueve con datos viejos.
+
+    robot.steer(0, FORWARD, 0);
+    unsigned long t0 = millis();
+    while (millis() - t0 < 800) {
+        serialEvent5();
+    }
+
+    // 3) limpiar lo stale de evacuacion para arrancar linea derecho
+
+    green_state = 0;
+    action = 7;
+    steer = 0;
+    speed = 0;
+    taskDone = true;
+
+    rutina = "linea";
 }
 
 void accionPlateado() {
@@ -1280,7 +1371,7 @@ bool detectarPlateado() {
 
 // Lecturas frescas consecutivas necesarias para confirmar un color antes de
 // actuar en evacuacion. Subir si hay falsos positivos; bajar si queda lento.
-constexpr uint8_t EVAC_COLOR_CONFIRM_SAMPLES = 2;
+constexpr uint8_t EVAC_COLOR_CONFIRM_SAMPLES = 1;
 
 // Confirma que el sensor ve 'objetivo' en N lecturas frescas seguidas.
 // Filtra ruido/sombras/reflejos que provocaban falsos "Negro"/"Plateado".
@@ -1339,11 +1430,13 @@ float leer_yaw()
     float yaw = event.orientation.x; // Yaw es el ángulo de rotación (en grados)
     return yaw;
 }
-void leer_pitch()
-{
+float leer_pitch()
+{  
     sensors_event_t event;
     bno.getEvent(&event);
-    pitch = event.orientation.y; // Yaw es el ángulo de rotación (en grados)
+
+    pitch = event.orientation.y; // eje que estás usando para inclinación
+    return pitch;
 }
 void imprimir_yaw()
 {
@@ -1355,12 +1448,17 @@ int ajustarVelocidadPorPendiente(int velocidadBase)
     leer_pitch();
 
     int velocidadAjustada = velocidadBase;
-    if (pitch > 10)
+    if (pitch > 3.9)
     {
-            velocidadAjustada = 30;
+            velocidadAjustada = 45;
+    }
+    else if (pitch > 25)
+    {
+           runTime(100, FORWARD, 0.35, 100);
+           runTime(100, FORWARD, -0.35, 100);
     }
     else{
-        velocidadAjustada= 25;
+        velocidadAjustada= 40;
     }
     return velocidadAjustada;
 }
@@ -1517,7 +1615,6 @@ int confirmarMarcaVerde(unsigned long tiempoMs = 120)
 
         if (green_state == 0)
             return 0;
-
         if (green_state != gsInicial)
             return 0;
 
@@ -1576,6 +1673,102 @@ int trianguloEfectivo(int gs, bool invertir)
 // --- Linea roja simple vs doble por MOVIMIENTO (MODO_ROJO==2) ---
 unsigned long rojo_ignorar_hasta = 0;   // cooldown anti-oscilacion tras el giro 180
 // ============================================================================
+
+
+// ============================================================================
+//  DETECCION DE ATASCO — loma de burro (palos sobre la linea).
+//  DATO DE CALIBRACION: en la loma una rueda queda CLAVADA (~0) y la otra
+//  patina (~45). En recta las DOS giran parejo (~40 c/u). Discriminador:
+//     min(|frD|,|flD|)  ->  ~0 atascado   /   ~40 recta
+//  Atascado = una rueda parada (min < UMBRAL_RUEDA) sostenido >= STUCK_TIME_MS.
+//  La aceleracion NO servia (igual en recta que trabado) -> descartada.
+// ============================================================================
+long          stuck_lastFr    = 0;
+long          stuck_lastFl    = 0;
+unsigned long stuck_since      = 0;
+unsigned long stuck_lastSample = 0;
+unsigned long atascoArmedSince = 0;    // cuando arranco a correr (startUp) -> para el grace period
+const long          UMBRAL_RUEDA    = 15;    // pulsos/100ms: por debajo, una rueda esta "clavada" (TUNEAR)
+const unsigned long STUCK_SAMPLE_MS = 100;   // cada cuanto mido las ruedas
+const unsigned long STUCK_TIME_MS   = 3000;  // 3 s con una rueda parada = atascado
+const unsigned long ATASCO_GRACE_MS = 8000;  // no disparar los primeros 8 s tras arrancar (ponerlo en pista)
+
+// --- Traccion en pendiente: pisar las traseras cuando el pitch esta inclinado ---
+const float  PITCH_RAMPA       = 12.0;  // pitch (grados) desde el cual considero "pendiente" (llano ~±5, rampa ~23)
+const double POTENCIA_TRASERAS = 80;   // potencia (rpm objetivo, 0-159) para las traseras en pendiente
+
+bool chequearAtasco(int comandoVel)
+{
+    unsigned long now = millis();
+
+    // grace: recien arranco / apreto switch -> NO dispara (molesto al ponerlo en pista)
+    if (now - atascoArmedSince < ATASCO_GRACE_MS)
+    {
+        stuck_since = now;
+        return false;
+    }
+
+    // no comandado a avanzar -> no cuenta como atasco
+    if (comandoVel <= 0)
+    {
+        stuck_since = now;
+        return false;
+    }
+
+    // muestreo las ruedas cada STUCK_SAMPLE_MS (no en cada vuelta)
+    if (now - stuck_lastSample >= STUCK_SAMPLE_MS)
+    {
+        stuck_lastSample = now;
+        long frNow = (long)fr.pulseCount, flNow = (long)fl.pulseCount;
+        long frD = labs(frNow - stuck_lastFr);   // giro rueda DERECHA en ~100 ms
+        long flD = labs(flNow - stuck_lastFl);   // giro rueda IZQUIERDA en ~100 ms
+        stuck_lastFr = frNow; stuck_lastFl = flNow;
+        long minRueda = min(frD, flD);
+
+        // telemetria de las TRASERAS (para ver si el boost las mueve en la rampa)
+        static long stuck_lastBl = 0, stuck_lastBr = 0;
+        long blNow = (long)bl.pulseCount, brNow = (long)br.pulseCount;
+        long blD = labs(blNow - stuck_lastBl);
+        long brD = labs(brNow - stuck_lastBr);
+        stuck_lastBl = blNow; stuck_lastBr = brNow;
+
+        // [CAL] atasco silenciado (rampa ya entendida) — reactivar si hace falta
+        // Serial.print("[CAL] frD="); Serial.print(frD);
+        // Serial.print(" flD="); Serial.print(flD);
+        // Serial.print(" blD="); Serial.print(blD);
+        // Serial.print(" brD="); Serial.print(brD);
+        // Serial.print(" min="); Serial.print(minRueda);
+        // Serial.print(" pitch="); Serial.println(pitch, 1);
+
+        // las DOS ruedas giran (recta/curva/pivote) -> avanza bien -> reinicio el timer
+        if (minRueda >= UMBRAL_RUEDA)
+            stuck_since = now;
+        // una rueda clavada (min < umbral) -> no reinicio, acumula tiempo
+    }
+
+    // EN PENDIENTE: NO disparar atasco (la rueda clavada es por la inclinacion;
+    // el retroceso rampa abajo seria peligroso -> lo maneja el boost de traseras).
+    if (pitch > PITCH_RAMPA)
+    {
+        stuck_since = now;
+        return false;
+    }
+
+    // una rueda parada sostenido por >= STUCK_TIME_MS -> atascado
+    return (now - stuck_since >= STUCK_TIME_MS);
+}
+
+void recuperarAtasco()
+{
+    Serial.println("[ATASCO] rueda clavada -> retro + avance brusco");
+    runTime(90,  BACKWARD, 0, 150);   // retroceso corto (bajar de la loma)
+    runTime(100, FORWARD,  0, 250);   // avance a full para saltarla
+    // reiniciar el detector
+    stuck_lastFr = (long)fr.pulseCount;
+    stuck_lastFl = (long)fl.pulseCount;
+    stuck_since  = millis();
+    stuck_lastSample = millis();
+}
 
 
 void setup()
@@ -1714,16 +1907,18 @@ void loop()
             digitalWrite(LED_ROJO, HIGH);
             delay(500);
             robot.steer(0, 0, 0);
-            get_color_fast();
-            Serial.println("FCL: " + String(digitalRead(FCL)));
-            Serial.println("FCR: " + String(digitalRead(FCR)));
+            //Serial.println(leer_pitch()); // para imprimirlo
+           get_color_fast();
+           //Serial.println("FCL: " + String(digitalRead(FCL)));
+            //Serial.println("FCR: " + String(digitalRead(FCR)));
             digitalWrite(LED_BUILTIN, LOW);
             digitalWrite(BUZZER, LOW);
             digitalWrite(LED_ROJO, LOW);
             digitalWrite(RELAY,LOW);
-
             claw.open();
             delay(500);
+            get_color_fast();
+
             if (digitalRead(SWITCH) == 0)
             {
                 break;
@@ -1754,6 +1949,7 @@ void loop()
         runTime(20, FORWARD, 0, 300);
         // Serial5.write(254);
         startUp = true;
+        atascoArmedSince = millis();   // arranca el grace: no dispara el anti-atasco al ponerlo en pista
         rutina = "linea";
         evacuacion_iniciada = false;
         evacuacion_straight = false;
@@ -1763,6 +1959,7 @@ void loop()
         claw.depositCenter();
         action = 7;
         Serial5.write(249);
+
 
     }
     else
@@ -1793,7 +1990,7 @@ void loop()
             leer_ultrasonidos();
             if (CONTAR_VERDES || SUPERTEAM) actualizarContadorVerdes();   // === CHALLENGE D2.1 / SUPER TEMA ===
            
-            if (color_detected == "Plateado") {
+            if (color_detected == "Plateado" && confirmarColor("Plateado")) {   // confirmo 2 lecturas -> filtra brillos aislados
 
                     plateadoDetectado = true;
 
@@ -1864,7 +2061,18 @@ void loop()
                     action = 14;   // === CHALLENGE D1.2: 1=ignorar/recto ===
                 }
                 if (front_distance != 0 && front_distance < 12)
+
                 {
+                get_color_fast();
+            if (color_detected == "Plateado" && confirmarColor("Plateado")) {   // confirmo 2 lecturas -> filtra brillos aislados
+
+                    plateadoDetectado = true;
+
+                    if (!rescateAvisado) {
+                        Serial5.write(241);
+                        rescateAvisado = true;
+                    }
+            }
                     action = 1;
                 }
                
@@ -1887,6 +2095,8 @@ void loop()
                     digitalWrite(BUZZER, HIGH);
                     delay(100);
                     digitalWrite(BUZZER, LOW);
+
+                    
                         // === CHALLENGE D2.2: esquive por paridad ===
                         if (ESQUIVE_POR_PARIDAD) {
                             RanNumber = ladoEsquiveParidad();   // par->izq(1), impar->der(2)
@@ -1897,14 +2107,34 @@ void loop()
                         if (RanNumber == 1)
                         {
                             runAngle(25, FORWARD, -95);
+                                                        get_color_fast();
+            if (color_detected == "Plateado" && confirmarColor("Plateado")) {   // confirmo 2 lecturas -> filtra brillos aislados
+
+                    plateadoDetectado = true;
+
+                    if (!rescateAvisado) {
+                        Serial5.write(241);
+                        rescateAvisado = true;
+                    }
+            }
                             runTime(30, FORWARD, -0.35, 1000);
-                            while (digitalRead(32) == 0)
+                            get_color_fast();
+            if (color_detected == "Plateado" && confirmarColor("Plateado")) {   // confirmo 2 lecturas -> filtra brillos aislados
+
+                    plateadoDetectado = true;
+
+                    if (!rescateAvisado) {
+                        Serial5.write(241);
+                        rescateAvisado = true;
+                    }
+            }
+                                        while (digitalRead(32) == 0)
                             {
-                                robot.steer(30, FORWARD, -0.35);
+                                robot.steer(77, FORWARD, -0.38);
                                 // serialEvent5();
                                 if (get_color_fast() == "Negro")
                                 {
-                                    runAngle(30, FORWARD, -90);
+                                    runAngle(70, FORWARD, -90);
                                     break;
                                 }
                             }
@@ -1912,14 +2142,34 @@ void loop()
                         if (RanNumber == 2)
                         {
                             runAngle(25, FORWARD, 95);
+                                                        get_color_fast();
+            if (color_detected == "Plateado" && confirmarColor("Plateado")) {   // confirmo 2 lecturas -> filtra brillos aislados
+
+                    plateadoDetectado = true;
+
+                    if (!rescateAvisado) {
+                        Serial5.write(241);
+                        rescateAvisado = true;
+                    }
+            }
                             runTime(30, FORWARD, 0.35, 1000);
+                            get_color_fast();
+                                        if (color_detected == "Plateado" && confirmarColor("Plateado")) {   // confirmo 2 lecturas -> filtra brillos aislados
+
+                    plateadoDetectado = true;
+
+                    if (!rescateAvisado) {
+                        Serial5.write(241);
+                        rescateAvisado = true;
+                    }
+            }
                             while (digitalRead(32) == 0)
                             {
-                                robot.steer(30, FORWARD, 0.35);
+                                robot.steer(77, FORWARD, 0.38);
                                 // serialEvent5();
                                 if (get_color_fast() == "Negro")
                                 {
-                                    runAngle(30, FORWARD, 90);
+                                    runAngle(70, FORWARD, 90);
                                     break;
                                 }
                             }
@@ -1938,7 +2188,14 @@ void loop()
                     veces_deposit = 0;
                     alineado=false;
                     depositando=false;
+                    runTime(30, BACKWARD, 0,800);
                     runTime(0, FORWARD, 0, 1000);
+                    leer_ultrasonidos();
+                    if(left_distance>right_distance){
+                        runAngle(30,FORWARD,-20);
+                    }
+                    if(right_distance>left_distance){
+                        runAngle(30,FORWARD,20);}
                      runTime(30,FORWARD,0,2000);
 
 
@@ -2017,7 +2274,12 @@ void loop()
                     break;
                 case 7: // linetrack
                
-                    {int velocidadAjustada = ajustarVelocidadPorPendiente(25);
+                    {int velocidadAjustada = ajustarVelocidadPorPendiente(45);
+
+                     if (chequearAtasco(velocidadAjustada)) {   // obstaculo alto: no avanza -> recupero
+                         recuperarAtasco();
+                         break;
+                     }
 
                      if (steer < -0.7 || steer > 0.7)
                     {
@@ -2028,7 +2290,15 @@ void loop()
                     {
                         robot.steer(velocidadAjustada, FORWARD, steer);
                     }
-               
+
+                    // PENDIENTE: si el pitch esta inclinado, piso las traseras a full para
+                    // que agarren y no resbale (fr/br usan dir invertida, igual que en steer).
+                    if (pitch > PITCH_RAMPA)
+                    {
+                        bl.setSpeed(FORWARD,  POTENCIA_TRASERAS);   // trasera izquierda
+                        br.setSpeed(!FORWARD, POTENCIA_TRASERAS);   // trasera derecha
+                    }
+
                     break;
                     }
 
@@ -2115,7 +2385,7 @@ void loop()
                 nonBlockingDelay(1400);
                 claw.sortRight();
                 nonBlockingDelay(1000);
-                runDistance(30,FORWARD,8);
+                runDistance(30,FORWARD,9);
                 runTime(0,FORWARD,0,1000);
                 claw.close();
                 nonBlockingDelay(1000);
@@ -2127,8 +2397,12 @@ void loop()
                 nonBlockingDelay(1000);
                 claw.open();
                 nonBlockingDelay(1000);
-                runTime(30,FORWARD,0,200);
-                runTime(30,BACKWARD,0,200);
+                claw.sortCenter();
+                nonBlockingDelay(1000);
+                claw.sortRight();
+                nonBlockingDelay(1000);
+                runTime(70,FORWARD,0,200);
+                runTime(70,BACKWARD,0,200);
                  ball_counter++;
             }
             if (green_state == 7)            { // Recoleccion Pelota platea
@@ -2151,12 +2425,17 @@ void loop()
                 nonBlockingDelay(1000);
                 claw.open();
                 nonBlockingDelay(1000);
-                runTime(30,FORWARD,0,200);
-                runTime(30,BACKWARD,0,200);
+                claw.sortCenter();
+                nonBlockingDelay(1000);
+                claw.sortLeft();
+                nonBlockingDelay(1000);
+                runTime(70,FORWARD,0,200);
+                runTime(70,BACKWARD,0,200);
                 ball_counter++;
             }
             if (ball_counter>= 3 && depositando==false)
             {
+                claw.sortCenter();
                 digitalWrite(RELAY, HIGH);
                 Serial5.write(248);
                 depositando=true;
@@ -2178,8 +2457,12 @@ void loop()
                     }
                     claw.depositRight();
                     nonBlockingDelay(2000);
-                    runTime(30,FORWARD,0,200);
-                    runTime(30,BACKWARD,0,250);
+                    runTime(80,FORWARD,0,100);
+                    
+                    runTime(80,BACKWARD,0,250);
+                    runTime(80,FORWARD,0,100);
+                    
+                    runTime(80,BACKWARD,0,250);
                     runTime(0,FORWARD,0,500);
                     claw.depositCenter();
                     runTime(0,FORWARD,0,500);
@@ -2199,9 +2482,12 @@ void loop()
                     }
                     claw.depositLeft();
                     nonBlockingDelay(2000);
-                    runTime(30,FORWARD,0,200);
-                    runTime(30,BACKWARD,0,250);
+                    runTime(80,FORWARD,0,100);
+                    runTime(80,BACKWARD,0,250);
                     runTime(0,FORWARD,0,500);
+                    runTime(80,FORWARD,0,100);
+                    
+                    runTime(80,BACKWARD,0,250);
                     claw.depositCenter();
                     runAngle(20,FORWARD,45);
                     runTime(30,FORWARD,0,500);
@@ -2263,7 +2549,6 @@ void loop()
                 }
                 evacuacion_straight = true;
             }
-
             leer_ultrasonidos();
                 while (rutina == "evacuacion" && digitalRead(32) == 0) {
                     robot.steer(30, FORWARD, 0);
@@ -2271,7 +2556,23 @@ void loop()
                     if (rutina != "evacuacion") break;  
                     serialEvent5();
                     leer_ultrasonidos();
-
+                                        // PRIORIDAD 3: lado izquierdo abierto -> girar a buscar pared.
+                    if (left_distance > 40 || left_distance == 0)
+                    {
+                        Serial.print("[EVAC] P3 BUSCAR left="); Serial.print(left_distance);
+                        Serial.print(" front="); Serial.println(front_distance);
+                        runDistance(30, FORWARD, 8);
+                        runAngle(30, FORWARD, -90);
+                        while (rutina == "evacuacion" && digitalRead(32) == 0)
+                        {
+                            robot.steer(30, FORWARD, 0);
+                            procesarColorEvacuacion();
+                            serialEvent5();
+                            leer_ultrasonidos();
+                            if (debeEsquivar())   // corto la busqueda al toparme con esquina o pared
+                                break;
+                        }
+                    } 
                     // PRIORIDAD 1: esquina de deposito = camara ve triangulo (green_state
                     // 8/9) Y el ultrasonido confirma cercania (<=31). Maniobra completa.
                     if ((green_state == 8 || green_state == 9) && front_distance != 0 && front_distance <= 31)
@@ -2291,23 +2592,7 @@ void loop()
                         continue;
                     }
 
-                    // PRIORIDAD 3: lado izquierdo abierto -> girar a buscar pared.
-                    if (left_distance > 40 || left_distance == 0)
-                    {
-                        Serial.print("[EVAC] P3 BUSCAR left="); Serial.print(left_distance);
-                        Serial.print(" front="); Serial.println(front_distance);
-                        runDistance(30, FORWARD, 8);
-                        runAngle(30, FORWARD, -90);
-                        while (rutina == "evacuacion" && digitalRead(32) == 0)
-                        {
-                            robot.steer(30, FORWARD, 0);
-                            procesarColorEvacuacion();
-                            serialEvent5();
-                            leer_ultrasonidos();
-                            if (debeEsquivar())   // corto la busqueda al toparme con esquina o pared
-                                break;
-                        }
-                    } 
+
                 }
             // cierra if(left_distance > right_distance)
 
