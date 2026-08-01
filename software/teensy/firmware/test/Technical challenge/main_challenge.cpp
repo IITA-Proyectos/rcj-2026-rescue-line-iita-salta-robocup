@@ -1676,7 +1676,7 @@ void loop()
             digitalWrite(BUZZER, LOW);
             digitalWrite(LED_ROJO, LOW);
             digitalWrite(RELAY,LOW);
-
+            runDistance(100, FORWARD, 20);
             claw.open();
             delay(500);
             if (digitalRead(SWITCH) == 0)

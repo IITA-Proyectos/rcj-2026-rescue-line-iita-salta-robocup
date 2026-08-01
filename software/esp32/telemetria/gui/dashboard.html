@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RescueBot · Telemetría IITA</title>
+<style>
+  :root{
+    --bg:#0b0f14; --panel:#131a22; --panel2:#0f151c; --line:#22303d;
+    --txt:#e6edf3; --dim:#7d8ea0; --accent:#3ea6ff; --accent2:#22d3a6;
+    --ok:#2ecc71; --warn:#f1c40f; --bad:#e74c3c; --idle:#3a4756;
+    --mono:ui-monospace,"SF Mono","Cascadia Code",Consolas,"Roboto Mono",monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--txt);font-family:var(--sans);-webkit-font-smoothing:antialiased}
+  body{padding:0 14px 40px}
+
+  /* ---------- Topbar ---------- */
+  header{position:sticky;top:0;z-index:20;background:linear-gradient(180deg,#0b0f14 70%,rgba(11,15,20,.85));
+    display:flex;align-items:center;gap:14px;padding:12px 4px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .logo{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:.3px}
+  .logo .dot{width:11px;height:11px;border-radius:50%;background:var(--bad);box-shadow:0 0 10px var(--bad);transition:.3s}
+  .logo .dot.on{background:var(--ok);box-shadow:0 0 12px var(--ok)}
+  .logo b{color:var(--accent)}
+  .logo small{color:var(--dim);font-weight:500}
+  .stats{display:flex;gap:10px;margin-left:auto;flex-wrap:wrap}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px 11px;font-family:var(--mono);font-size:12px;min-width:74px}
+  .stat span{display:block;color:var(--dim);font-size:9.5px;text-transform:uppercase;letter-spacing:.7px;font-family:var(--sans)}
+  .stat b{font-size:15px;font-weight:600}
+  .demo-badge{display:none;background:var(--warn);color:#000;font-weight:700;font-size:11px;padding:4px 9px;border-radius:8px;letter-spacing:.5px}
+  .demo .demo-badge{display:inline-block}
+
+  /* ---------- Grid ---------- */
+  .grid{display:grid;gap:12px;margin-top:14px;
+    grid-template-columns:repeat(auto-fill,minmax(290px,1fr))}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 15px 16px;min-width:0}
+  .card h2{margin:0 0 12px;font-size:12px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--dim);
+    display:flex;align-items:center;gap:8px}
+  .card h2::before{content:"";width:4px;height:14px;border-radius:3px;background:var(--accent)}
+  .card.c-color h2::before{background:#e056fd}
+  .card.c-us h2::before{background:#22d3a6}
+  .card.c-tof h2::before{background:#f39c12}
+  .card.c-imu h2::before{background:#3ea6ff}
+  .card.c-enc h2::before{background:#00d2d3}
+  .card.c-fsm h2::before{background:#ff9f43}
+  .card.c-io h2::before{background:#ee5253}
+  .card.c-claw h2::before{background:#a29bfe}
+  .span2{grid-column:span 2}
+  @media(max-width:640px){.span2{grid-column:span 1}}
+
+  /* value rows */
+  .kv{display:flex;justify-content:space-between;align-items:baseline;padding:4px 0;border-bottom:1px dashed rgba(125,142,160,.14)}
+  .kv:last-child{border-bottom:none}
+  .kv .k{color:var(--dim);font-size:12.5px}
+  .kv .v{font-family:var(--mono);font-size:14px;font-weight:600}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:2px 16px}
+
+  /* bars */
+  .bar{height:9px;border-radius:6px;background:var(--panel2);overflow:hidden;border:1px solid var(--line)}
+  .bar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .12s linear}
+  .bar.center{position:relative}
+  .bar.center>i{position:absolute;left:50%;width:0;background:var(--accent)}
+  .bar.center::after{content:"";position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--dim)}
+  .barlabel{display:flex;justify-content:space-between;font-family:var(--mono);font-size:12px;margin:8px 0 3px}
+  .barlabel .dim{color:var(--dim)}
+
+  /* big number */
+  .big{font-family:var(--mono);font-size:30px;font-weight:700;line-height:1}
+  .big small{font-size:14px;color:var(--dim);font-weight:500}
+
+  /* color chip */
+  .swatch{width:100%;height:52px;border-radius:10px;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;
+    font-weight:700;font-size:17px;letter-spacing:.5px;text-shadow:0 1px 2px rgba(0,0,0,.6);transition:background .2s}
+  .rgbbars{display:grid;grid-template-columns:14px 1fr 44px;gap:6px 8px;align-items:center;margin-top:11px;font-family:var(--mono);font-size:12px}
+  .rgbbars .lab{color:var(--dim);text-align:center;font-weight:700}
+
+  /* LED indicators */
+  .leds{display:grid;grid-template-columns:1fr 1fr;gap:9px 12px}
+  .led{display:flex;align-items:center;gap:9px;font-size:13px}
+  .led .b{width:14px;height:14px;border-radius:50%;background:var(--idle);border:1px solid #000;flex:none;transition:.15s}
+  .led.on .b{background:var(--ok);box-shadow:0 0 9px var(--ok)}
+  .led.on.danger .b{background:var(--bad);box-shadow:0 0 9px var(--bad)}
+  .led .t{color:var(--dim)}
+  .led.on .t{color:var(--txt)}
+
+  /* badge */
+  .badge{display:inline-block;padding:4px 12px;border-radius:20px;font-weight:700;font-size:13px;letter-spacing:.4px;border:1px solid var(--line)}
+  .badge.linea{background:rgba(62,166,255,.16);color:#7cc5ff;border-color:#2b5c86}
+  .badge.rescate{background:rgba(255,159,67,.16);color:#ffbe76;border-color:#8a5a1f}
+  .badge.evacuacion{background:rgba(34,211,166,.16);color:#6ff3d0;border-color:#1c6b57}
+
+  /* compass */
+  .compass-wrap{display:flex;gap:14px;align-items:center}
+  .compass{flex:none}
+  .tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+  .tag{font-family:var(--mono);font-size:11.5px;background:var(--panel2);border:1px solid var(--line);border-radius:7px;padding:3px 8px;color:var(--dim)}
+  .tag b{color:var(--txt);font-weight:600}
+
+  /* radar */
+  .radar{display:block;margin:0 auto}
+  .foot{margin-top:20px;text-align:center;color:var(--dim);font-size:11.5px;font-family:var(--mono)}
+
+  /* calibración de color + diagnóstico de verdes */
+  .card.c-cal h2::before{background:#e056fd}
+  .card.c-grn h2::before{background:#2ecc71}
+  .btn{background:var(--accent);color:#04121f;border:none;border-radius:9px;padding:8px 13px;font-weight:700;font-size:13px;cursor:pointer;font-family:var(--sans)}
+  .btn:active{transform:translateY(1px)}
+  .btn.ghost{background:transparent;color:var(--dim);border:1px solid var(--line)}
+  .sel{background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:13px;font-family:var(--sans)}
+  .calout{width:100%;margin-top:11px;min-height:92px;background:#08111a;color:#b9e5d4;border:1px solid var(--line);border-radius:10px;
+    padding:10px;font-family:var(--mono);font-size:12px;resize:vertical;white-space:pre-wrap;word-break:break-word;overflow:auto}
+  .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--accent2);color:#04121f;font-weight:700;
+    padding:9px 16px;border-radius:20px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:50}
+  .toast.show{opacity:1}
+  .gtab{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:14px;margin-top:2px}
+  .gtab th{color:var(--dim);font-weight:600;font-family:var(--sans);font-size:11px;text-transform:uppercase;letter-spacing:.6px;text-align:right;padding:5px 8px}
+  .gtab th:first-child{text-align:left}
+  .gtab td{padding:6px 8px;text-align:right;border-top:1px solid rgba(125,142,160,.12)}
+  .gtab td:first-child{text-align:left;color:var(--dim)}
+  .gtab td.act{color:var(--ok);font-weight:700}
+  .gtab td.kill{color:var(--bad);font-weight:700}
+  .glog{margin-top:12px;background:#08111a;border:1px solid var(--line);border-radius:10px;padding:9px 11px;font-family:var(--mono);
+    font-size:12px;line-height:1.75;min-height:44px;max-height:158px;overflow:auto}
+  .glog .ok{color:#4ade80}
+  .glog .bad{color:#f87171}
+  .glog .dim{color:var(--dim)}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">
+    <span class="dot" id="conn"></span>
+    <span>Rescue<b>Bot</b> · Telemetría <small>IITA Salta</small></span>
+    <span class="demo-badge">MODO DEMO (sin robot)</span>
+  </div>
+  <div class="stats">
+    <div class="stat"><span>Estado</span><b id="s-link">—</b></div>
+    <div class="stat"><span>Frames/s</span><b id="s-fps">0</b></div>
+    <div class="stat"><span>Uptime robot</span><b id="s-up">—</b></div>
+    <div class="stat"><span>Latencia</span><b id="s-age">—</b></div>
+  </div>
+</header>
+
+<div class="grid">
+
+  <!-- ENLACE RPi -->
+  <section class="card c-rpi">
+    <h2>Enlace Raspberry Pi</h2>
+    <div class="barlabel"><span>Velocidad</span><span class="dim"><b id="rpi-speed">0</b>/100</span></div>
+    <div class="bar"><i id="bar-speed"></i></div>
+    <div class="barlabel"><span>Steer (giro)</span><span class="dim" id="rpi-steer">0.00</span></div>
+    <div class="bar center"><i id="bar-steer"></i></div>
+    <div class="grid2" style="margin-top:12px">
+      <div class="kv"><span class="k">green_state</span><span class="v" id="rpi-green">0</span></div>
+      <div class="kv"><span class="k">silver</span><span class="v" id="rpi-silver">0</span></div>
+      <div class="kv"><span class="k">bytes rx</span><span class="v" id="rpi-rxb">0</span></div>
+      <div class="kv"><span class="k">frames rx</span><span class="v" id="rpi-rxf">0</span></div>
+    </div>
+    <div class="tags"><span class="tag">acción cámara: <b id="rpi-green-txt">—</b></span><span class="tag">parser st: <b id="rpi-st">0</b></span></div>
+  </section>
+
+  <!-- DIAGNÓSTICO DE VERDES -->
+  <section class="card c-grn span2">
+    <h2>Diagnóstico de Verdes (green_state)</h2>
+    <div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+      <span style="color:var(--dim);font-size:13px">Recibido ahora:</span>
+      <span class="badge" id="grn-live">—</span>
+      <span class="tag">último: <b id="grn-last">nunca</b></span>
+      <span class="tag">re-check gs: <b id="grn-lrc">—</b></span>
+    </div>
+    <table class="gtab">
+      <tr><th>Verde</th><th>Recibidos</th><th>Giró ✓</th><th>Matados ✗</th></tr>
+      <tr><td>IZQ (1)</td><td id="g-rx1">0</td><td class="act" id="g-act1">0</td><td class="kill" id="g-kill1">0</td></tr>
+      <tr><td>DER (2)</td><td id="g-rx2">0</td><td class="act" id="g-act2">0</td><td class="kill" id="g-kill2">0</td></tr>
+      <tr><td>DOBLE (3)</td><td id="g-rx3">0</td><td class="act" id="g-act3">0</td><td class="kill" id="g-kill3">0</td></tr>
+    </table>
+    <div class="glog" id="grn-log"><span class="dim">Esperando eventos de verde… (recibidos = llegó de la RPi · giró = confirmó y giró · matado = el re-chequeo lo descartó)</span></div>
+  </section>
+
+  <!-- SENSOR COLOR -->
+  <section class="card c-color">
+    <h2>Sensor de Color · APDS9960</h2>
+    <div class="swatch" id="col-swatch">—</div>
+    <div class="rgbbars">
+      <span class="lab" style="color:#ff6b6b">R</span><div class="bar"><i id="bar-r" style="background:#ff6b6b"></i></div><span id="col-r">0</span>
+      <span class="lab" style="color:#2ecc71">G</span><div class="bar"><i id="bar-g" style="background:#2ecc71"></i></div><span id="col-g">0</span>
+      <span class="lab" style="color:#5aa9ff">B</span><div class="bar"><i id="bar-b" style="background:#5aa9ff"></i></div><span id="col-b">0</span>
+      <span class="lab" style="color:#e6edf3">C</span><div class="bar"><i id="bar-c" style="background:#e6edf3"></i></div><span id="col-c">0</span>
+    </div>
+    <div class="tags"><span class="tag">sensor: <b id="col-ok">—</b></span></div>
+  </section>
+
+  <!-- CALIBRACIÓN DE COLOR -->
+  <section class="card c-cal span2">
+    <h2>Calibración de Color</h2>
+    <div style="display:flex;gap:14px;flex-wrap:wrap">
+      <div class="swatch" id="cal-swatch" style="flex:1;min-width:150px;height:auto;min-height:66px">—</div>
+      <div style="flex:2;min-width:230px" class="grid2">
+        <div class="kv"><span class="k">R</span><span class="v" id="cal-r">0</span></div>
+        <div class="kv"><span class="k">R/C</span><span class="v" id="cal-rc">0.000</span></div>
+        <div class="kv"><span class="k">G</span><span class="v" id="cal-g">0</span></div>
+        <div class="kv"><span class="k">R/G</span><span class="v" id="cal-rg">0.000</span></div>
+        <div class="kv"><span class="k">B</span><span class="v" id="cal-b">0</span></div>
+        <div class="kv"><span class="k">R/B</span><span class="v" id="cal-rb">0.000</span></div>
+        <div class="kv"><span class="k">C</span><span class="v" id="cal-c">0</span></div>
+        <div class="kv"><span class="k">B-G</span><span class="v" id="cal-bg">0</span></div>
+        <div class="kv"><span class="k">detectado</span><span class="v" id="cal-d">—</span></div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px">
+      <span style="color:var(--dim);font-size:13px">Es:</span>
+      <select id="cal-label" class="sel">
+        <option>Plateado</option><option>Negro</option><option>Verde</option>
+        <option>Rojo</option><option>Blanco</option><option value="">(otro)</option>
+      </select>
+      <button class="btn" id="cal-capture">＋ Capturar muestra</button>
+      <button class="btn" id="cal-copy">📋 Copiar todo (para IA)</button>
+      <button class="btn ghost" id="cal-clear">Limpiar</button>
+    </div>
+    <textarea id="cal-out" class="calout" readonly placeholder="Poné una superficie bajo el sensor, elegí qué es y tocá «Capturar muestra». Se juntan acá listas para pegar a una IA y pedirle los umbrales de classify_color."></textarea>
+  </section>
+
+  <!-- ULTRASONIDOS -->
+  <section class="card c-us">
+    <h2>Ultrasonidos (cm)</h2>
+    <svg class="radar" id="radar" width="180" height="128" viewBox="0 0 180 128"></svg>
+    <div class="grid2" style="margin-top:6px">
+      <div class="kv"><span class="k">frente</span><span class="v" id="us-f">0</span></div>
+      <div class="kv"><span class="k">izq</span><span class="v" id="us-l">0</span></div>
+      <div class="kv"><span class="k">der</span><span class="v" id="us-r">0</span></div>
+    </div>
+  </section>
+
+  <!-- ToF -->
+  <section class="card c-tof">
+    <h2>ToF · VL53L0X (mm)</h2>
+    <div class="barlabel"><span>Izquierdo</span><span class="dim"><b id="tof-l">0</b> mm</span></div>
+    <div class="bar"><i id="bar-tofl" style="background:linear-gradient(90deg,#f39c12,#f1c40f)"></i></div>
+    <div class="barlabel"><span>Derecho</span><span class="dim"><b id="tof-r">0</b> mm</span></div>
+    <div class="bar"><i id="bar-tofr" style="background:linear-gradient(90deg,#f39c12,#f1c40f)"></i></div>
+  </section>
+
+  <!-- IMU -->
+  <section class="card c-imu">
+    <h2>IMU · BNO055</h2>
+    <div class="compass-wrap">
+      <svg class="compass" id="compass" width="104" height="104" viewBox="0 0 104 104"></svg>
+      <div style="flex:1">
+        <div class="big"><span id="imu-yaw">0</span><small>° yaw</small></div>
+        <div class="barlabel" style="margin-top:12px"><span>Pitch (pendiente)</span><span class="dim" id="imu-pit">0°</span></div>
+        <div class="bar center"><i id="bar-pit" style="background:#3ea6ff"></i></div>
+      </div>
+    </div>
+    <div class="tags"><span class="tag">roll: <b id="imu-rol">0</b>°</span><span class="tag">centrar ref: <b id="imu-cen">0</b>°</span></div>
+  </section>
+
+  <!-- ENCODERS -->
+  <section class="card c-enc">
+    <h2>Encoders / Ruedas</h2>
+    <svg id="wheels" width="100%" height="96" viewBox="0 0 260 96" preserveAspectRatio="xMidYMid meet"></svg>
+    <div class="grid2" style="margin-top:8px">
+      <div class="kv"><span class="k">FL</span><span class="v" id="enc-fl">0</span></div>
+      <div class="kv"><span class="k">FR</span><span class="v" id="enc-fr">0</span></div>
+      <div class="kv"><span class="k">BL</span><span class="v" id="enc-bl">0</span></div>
+      <div class="kv"><span class="k">BR</span><span class="v" id="enc-br">0</span></div>
+    </div>
+  </section>
+
+  <!-- MAQUINA DE ESTADOS -->
+  <section class="card c-fsm span2">
+    <h2>Máquina de Estados</h2>
+    <div style="margin-bottom:10px">Rutina actual: <span class="badge linea" id="fsm-rut">—</span></div>
+    <div class="grid2">
+      <div class="kv"><span class="k">action</span><span class="v" id="fsm-act">0</span></div>
+      <div class="kv"><span class="k">rescateState</span><span class="v" id="fsm-resc">IDLE</span></div>
+      <div class="kv"><span class="k">taskDone</span><span class="v" id="fsm-task">—</span></div>
+      <div class="kv"><span class="k">startUp</span><span class="v" id="fsm-up">—</span></div>
+      <div class="kv"><span class="k">pelotas (ball)</span><span class="v" id="fsm-balls">0</span></div>
+      <div class="kv"><span class="k">depósitos</span><span class="v" id="fsm-dep">0</span></div>
+      <div class="kv"><span class="k">verdes total</span><span class="v" id="fsm-verd">0</span></div>
+      <div class="kv"><span class="k">RanNumber</span><span class="v" id="fsm-ran">0</span></div>
+      <div class="kv"><span class="k">evac iniciada</span><span class="v" id="fsm-evi">—</span></div>
+      <div class="kv"><span class="k">evac recto</span><span class="v" id="fsm-evs">—</span></div>
+      <div class="kv"><span class="k">silver latch</span><span class="v" id="fsm-slatch">—</span></div>
+      <div class="kv"><span class="k">pared / lado</span><span class="v" id="fsm-pared">—</span></div>
+    </div>
+  </section>
+
+  <!-- IO DIGITAL -->
+  <section class="card c-io">
+    <h2>E/S Digital</h2>
+    <div class="leds">
+      <div class="led" id="io-sw"><span class="b"></span><span class="t">Switch (run)</span></div>
+      <div class="led" id="io-rel"><span class="b"></span><span class="t">Relay (LED 12V)</span></div>
+      <div class="led" id="io-fcl"><span class="b"></span><span class="t">Final carrera IZQ</span></div>
+      <div class="led" id="io-fcr"><span class="b"></span><span class="t">Final carrera DER</span></div>
+      <div class="led danger" id="io-buz"><span class="b"></span><span class="t">Buzzer</span></div>
+      <div class="led danger" id="io-led"><span class="b"></span><span class="t">LED Rojo</span></div>
+    </div>
+  </section>
+
+  <!-- GARRA -->
+  <section class="card c-claw">
+    <h2>Garra</h2>
+    <div class="big" style="margin:6px 0 12px"><span id="claw-state">LIBRE</span></div>
+    <div class="leds"><div class="led" id="claw-busy"><span class="b"></span><span class="t">Ejecutando maniobra</span></div></div>
+  </section>
+
+</div>
+
+<div class="foot">RescueBot Telemetría · Serial8 → ESP32-MINI (AP WiFi) · IITA Salta — RoboCup Junior Rescue Line 2026</div>
+
+<script>
+"use strict";
+const pageT0 = performance.now();
+let lastCol = {};          // última lectura de color (para capturar en calibración)
+const caps = [];           // muestras de calibración capturadas
+// ---------- decodificadores ----------
+const GREEN = {0:"—",1:"Verde IZQ",2:"Verde DER",3:"Doble verde",5:"Giro DER (case5)",6:"Giro IZQ (case6)",
+  7:"Pelota plateada",8:"Depósito ROJO",9:"Depósito VERDE",12:"Cruce",14:"Doble → 180°",
+  15:"Cruce IZQ",16:"Cruce DER",17:"Cruce recto",20:"—"};
+const COLORS = {"Negro":"#101418","Blanco":"#e9edf0","Verde":"#2ecc71","Rojo":"#e74c3c",
+  "Plateado":"#b7c2cc","Desconocido":"#39434f","":"#39434f"};
+function rescateName(s){
+  if(s===0) return "IDLE";
+  if(s>=1&&s<=8) return "NEGRA "+s;
+  if(s>=9&&s<=16) return "PLATEADA "+(s-8);
+  return String(s);
+}
+function fmtUp(ms){ if(ms==null) return "—"; let s=Math.floor(ms/1000); const m=Math.floor(s/60); s%=60;
+  return (m>0? m+"m ":"")+s+"s"; }
+
+// ---------- helpers DOM ----------
+const $=id=>document.getElementById(id);
+const set=(id,v)=>{const e=$(id); if(e&&e.textContent!==String(v)) e.textContent=v;};
+const barW=(id,pct)=>{const e=$(id); if(e) e.style.width=Math.max(0,Math.min(100,pct))+"%";};
+function centerBar(id,val){ // val -1..1
+  const e=$(id); if(!e) return; const v=Math.max(-1,Math.min(1,val));
+  if(v>=0){ e.style.left="50%"; e.style.width=(v*50)+"%"; }
+  else{ e.style.width=(-v*50)+"%"; e.style.left=(50+v*50)+"%"; }
+}
+function pitchBar(id,deg){ const e=$(id); if(!e) return; const v=Math.max(-45,Math.min(45,deg))/45;
+  if(v>=0){ e.style.left="50%"; e.style.width=(v*50)+"%"; e.style.background="#3ea6ff"; }
+  else{ e.style.width=(-v*50)+"%"; e.style.left=(50+v*50)+"%"; e.style.background="#f39c12"; } }
+function led(id,on,danger){ const e=$(id); if(!e) return; e.classList.toggle("on",!!on);
+  if(danger!==undefined) e.classList.toggle("danger",!!danger); }
+
+// ---------- SVG estáticos ----------
+function buildCompass(){
+  const s=$("compass"); const cx=52,cy=52,r=44;
+  let h=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="#0f151c" stroke="#22303d"/>`;
+  for(let a=0;a<360;a+=30){ const rad=(a-90)*Math.PI/180; const r1=r-4,r2=r-(a%90===0?11:7);
+    h+=`<line x1="${cx+r1*Math.cos(rad)}" y1="${cy+r1*Math.sin(rad)}" x2="${cx+r2*Math.cos(rad)}" y2="${cy+r2*Math.sin(rad)}" stroke="#3a4756" stroke-width="1.4"/>`; }
+  h+=`<text x="${cx}" y="14" fill="#7d8ea0" font-size="9" text-anchor="middle" font-family="monospace">0</text>`;
+  h+=`<g id="needle"><polygon points="${cx},${cy-r+8} ${cx-6},${cy} ${cx+6},${cy}" fill="#3ea6ff"/>
+      <polygon points="${cx},${cy+r-14} ${cx-5},${cy} ${cx+5},${cy}" fill="#40506088"/></g>`;
+  h+=`<circle cx="${cx}" cy="${cy}" r="4" fill="#e6edf3"/>`;
+  s.innerHTML=h;
+}
+function buildWheels(){
+  const s=$("wheels");
+  const pos=[[52,20,"FL","w-fl"],[208,20,"FR","w-fr"],[52,68,"BL","w-bl"],[208,68,"BR","w-br"]];
+  let h=`<rect x="92" y="14" width="76" height="60" rx="9" fill="#0f151c" stroke="#22303d"/>
+         <text x="130" y="48" fill="#3a4756" font-size="10" text-anchor="middle" font-family="monospace">CHASIS</text>`;
+  for(const [x,y,lab,id] of pos){
+    h+=`<rect x="${x-20}" y="${y-9}" width="40" height="18" rx="4" fill="#131a22" stroke="#2a3a49"/>
+        <rect id="${id}" x="${x-20}" y="${y-9}" width="0" height="18" rx="4" fill="#00d2d3" opacity=".85"/>
+        <text x="${x}" y="${y+4}" fill="#c7d2dc" font-size="10" text-anchor="middle" font-family="monospace">${lab}</text>`;
+  }
+  s.innerHTML=h;
+}
+function buildRadar(){
+  const s=$("radar");
+  let h=`<defs><radialGradient id="rg" cx="50%" cy="100%" r="100%">
+     <stop offset="0%" stop-color="#12303a"/><stop offset="100%" stop-color="#0f151c"/></radialGradient></defs>`;
+  h+=`<path d="M90 118 L14 30 A96 96 0 0 1 166 30 Z" fill="url(#rg)" stroke="#22303d"/>`;
+  for(const rr of [30,60,90]) h+=`<path d="M${90-rr*.8} ${118-rr} A${rr} ${rr} 0 0 1 ${90+rr*.8} ${118-rr}" fill="none" stroke="#22303d" stroke-dasharray="3 4"/>`;
+  h+=`<circle cx="90" cy="118" r="5" fill="#22d3a6"/>`;
+  h+=`<line id="ray-l" x1="90" y1="118" x2="20" y2="60" stroke="#22d3a6" stroke-width="2" opacity=".8"/>
+      <line id="ray-f" x1="90" y1="118" x2="90" y2="18" stroke="#22d3a6" stroke-width="2.4" opacity=".9"/>
+      <line id="ray-r" x1="90" y1="118" x2="160" y2="60" stroke="#22d3a6" stroke-width="2" opacity=".8"/>`;
+  s.innerHTML=h;
+}
+function ray(id,dist,ang){ // dist cm (0=sin eco -> max), ang deg from vertical
+  const e=$(id); if(!e) return; const MAX=100;
+  const d=(!dist||dist===0)?MAX:Math.min(dist,MAX);
+  const len=18+ (d/MAX)*96;
+  const rad=(ang-90)*Math.PI/180;
+  e.setAttribute("x2",90+len*Math.cos(rad)); e.setAttribute("y2",118+len*Math.sin(rad));
+  e.setAttribute("stroke", d<15?"#e74c3c": d<30?"#f1c40f":"#22d3a6");
+}
+
+// ---------- render ----------
+let encPrev=null, encPrevT=0;
+function render(d){
+  set("s-up",fmtUp(d.t));
+  // RPi
+  const r=d.rpi||{};
+  set("rpi-speed",r.speed??0); barW("bar-speed",(r.speed??0));
+  set("rpi-steer",(r.steer??0).toFixed(2)); centerBar("bar-steer",r.steer??0);
+  set("rpi-green",r.green??0); set("rpi-green-txt",GREEN[r.green]??("gs="+(r.green??0)));
+  set("rpi-silver",r.silver??0); set("rpi-rxb",r.rxb??0); set("rpi-rxf",r.rxf??0); set("rpi-st",r.st??0);
+  // Color
+  const c=d.col||{};
+  const sw=$("col-swatch"); const cc=COLORS[c.d]!==undefined?COLORS[c.d]:"#39434f";
+  sw.style.background=cc; sw.textContent=c.d||"—";
+  sw.style.color=(c.d==="Blanco"||c.d==="Plateado")?"#101418":"#fff";
+  set("col-r",c.r??0); set("col-g",c.g??0); set("col-b",c.b??0); set("col-c",c.c??0);
+  barW("bar-r",(c.r??0)/1200*100); barW("bar-g",(c.g??0)/1200*100);
+  barW("bar-b",(c.b??0)/1200*100); barW("bar-c",(c.c??0)/3000*100);
+  set("col-ok",(c.ok?"OK":"FALLA"));
+  // Calibración de color (usa 'c' y 'cc' del bloque de color)
+  lastCol=c;
+  { const rr=ratios(c);
+    set("cal-r",c.r??0); set("cal-g",c.g??0); set("cal-b",c.b??0); set("cal-c",c.c??0);
+    set("cal-rc",rr.rc.toFixed(3)); set("cal-rg",rr.rg.toFixed(3)); set("cal-rb",rr.rb.toFixed(3)); set("cal-bg",rr.bg);
+    set("cal-d",c.d||"—");
+    const cs=$("cal-swatch"); cs.style.background=cc; cs.textContent=c.d||"—";
+    cs.style.color=(c.d==="Blanco"||c.d==="Plateado")?"#101418":"#fff";
+  }
+  // US
+  const u=d.us||{}; set("us-f",u.f??0); set("us-l",u.l??0); set("us-r",u.r??0);
+  ray("ray-f",u.f,0); ray("ray-l",u.l,-52); ray("ray-r",u.r,52);
+  // ToF
+  const t=d.tof||{}; set("tof-l",t.l??0); set("tof-r",t.r??0);
+  barW("bar-tofl",(t.l??0)/1000*100); barW("bar-tofr",(t.r??0)/1000*100);
+  // IMU
+  const im=d.imu||{};
+  set("imu-yaw",Math.round(im.yaw??0)); set("imu-pit",(im.pit??0).toFixed(1)+"°");
+  set("imu-rol",Math.round(im.rol??0)); set("imu-cen",Math.round(im.cen??0));
+  const nd=$("needle"); if(nd) nd.setAttribute("transform",`rotate(${im.yaw??0} 52 52)`);
+  pitchBar("bar-pit",im.pit??0);
+  // Encoders
+  const e=d.enc||{};
+  const now=performance.now();
+  if(encPrev){ const dt=(now-encPrevT)/1000||1;
+    for(const w of ["fl","fr","bl","br"]){
+      const rate=Math.abs(((e[w]??0)-(encPrev[w]??0))/dt);
+      const el=$("w-"+w); if(el) el.setAttribute("width",Math.min(40,rate/60*40));
+    }
+  }
+  encPrev={...e}; encPrevT=now;
+  set("enc-fl",e.fl??0); set("enc-fr",e.fr??0); set("enc-bl",e.bl??0); set("enc-br",e.br??0);
+  // FSM
+  const f=d.fsm||{};
+  const rb=$("fsm-rut"); rb.textContent=f.rut||"—"; rb.className="badge "+(f.rut||"linea");
+  set("fsm-act",f.act??0); set("fsm-resc",rescateName(f.resc??0));
+  set("fsm-task",f.task?"sí":"no"); set("fsm-up",f.up?"sí":"no");
+  set("fsm-balls",f.balls??0); set("fsm-dep",f.dep??0); set("fsm-verd",f.verd??0); set("fsm-ran",f.ran??0);
+  set("fsm-evi",f.evi?"sí":"no"); set("fsm-evs",f.evs?"sí":"no"); set("fsm-slatch",f.slatch?"sí":"no");
+  set("fsm-pared",(f.pared||"—")+" / "+(f.lado||"—"));
+  // IO
+  const io=d.io||{};
+  led("io-sw",io.sw===0); // switch 0 = corriendo
+  led("io-rel",io.rel); led("io-fcl",io.fcl); led("io-fcr",io.fcr);
+  led("io-buz",io.buz,true); led("io-led",io.led,true);
+  // Garra
+  const cl=d.claw||{};
+  led("claw-busy",cl.busy); set("claw-state",cl.busy?"OCUPADA":"LIBRE");
+  // Diagnóstico de verdes
+  { const g=d.grn||{}; const rx=g.rx||[0,0,0,0], act=g.act||[0,0,0,0], kill=g.kill||[0,0,0,0];
+    for(let i=1;i<=3;i++){ set("g-rx"+i,rx[i]??0); set("g-act"+i,act[i]??0); set("g-kill"+i,kill[i]??0); }
+    const gv=(d.rpi&&d.rpi.green)||0; const isG=(gv>=1&&gv<=3);
+    const gl=$("grn-live"); gl.textContent=isG?GREEN[gv]:"—"; gl.className="badge"+(isG?" linea":"");
+    set("grn-last", g.lt? (GREEN[g.lt]+(g.age>=0?" · hace "+g.age+" ms":"")) : "nunca");
+    set("grn-lrc", (g.lrc===undefined||g.lrc===null)?"—":(g.lrc===0?"0 (se apagó)":g.lrc));
+    updateGreenLog(act,kill,g.lrc);
+  }
+}
+
+// ---------- loop de datos + FPS + estado de conexión ----------
+// Modelo de estado:
+//  - CONECTADO (punto verde): llegó un frame real hace < 1.5 s.
+//  - SIN SEÑAL (punto rojo): ya hubo datos reales pero se cortaron > 1.5 s.
+//  - DEMO (badge amarillo): nunca llegó un frame real (GUI abierta sin robot).
+// Una vez que llega el PRIMER frame real, NUNCA se vuelve a mostrar mock: un
+// corte real muestra "SIN SEÑAL" con el último dato real congelado, no datos falsos.
+let frames=0, lastFpsT=performance.now();
+let lastReal=0, everReal=false, demo=false;
+function updateStatus(){
+  const now=performance.now();
+  const alive = everReal && (now-lastReal) < 1500;
+  if(demo){
+    $("conn").classList.add("on");           // demo: punto verde (preview intencional)
+    set("s-link","DEMO");
+    document.body.classList.add("demo");
+  } else {
+    document.body.classList.remove("demo");
+    $("conn").classList.toggle("on",alive);  // verde si hay frame real reciente, rojo si no
+    set("s-link", alive ? "CONECTADO" : "SIN SEÑAL");
+  }
+}
+async function tick(){
+  try{
+    const res=await fetch("/data",{cache:"no-store"});
+    const d=await res.json();
+    if(d && d.t!==undefined){
+      demo=false; everReal=true; lastReal=performance.now();
+      render(d); frames++; updateStatus(); return;
+    }
+    throw 0;
+  }catch(_){
+    // Sin frame válido. Si NUNCA hubo datos reales -> preview con mock.
+    // Si ya los hubo -> NO pisar con datos falsos; el watchdog marca SIN SEÑAL.
+    if(!everReal){ demo=true; render(mock()); frames++; }
+    updateStatus();
+  }
+}
+async function pollInfo(){
+  const now=performance.now();
+  const alive = everReal && (now-lastReal) < 1500;
+  try{
+    const r=await fetch("/info",{cache:"no-store"}); const j=await r.json();
+    set("s-age", demo ? "demo" : (alive && j.lastMs!==undefined ? j.lastMs+" ms" : "—"));
+  }catch(_){ set("s-age", demo?"demo":"—"); }
+}
+setInterval(()=>{ const now=performance.now();
+  set("s-fps",Math.round(frames*1000/(now-lastFpsT))); frames=0; lastFpsT=now;
+  updateStatus();   // asegura que SIN SEÑAL aparezca ~1 s tras un corte real
+},1000);
+
+// ---------- generador de demo ----------
+let mt=0;
+function mock(){
+  mt+=0.06; const s=Math.sin(mt), s2=Math.sin(mt*1.7), s3=Math.sin(mt*0.5);
+  const routines=["linea","rescate","evacuacion"];
+  return {t:Date.now()%600000,
+    rpi:{speed:Math.round(45+35*s), steer:+(s2*0.8).toFixed(3), green:[0,0,0,1,2,3,7][Math.floor((mt*0.3)%7)], silver:s3>0.9?1:0,
+      rxb:Math.floor(mt*230), rxf:Math.floor(mt*40), st:Math.floor((mt)%4)},
+    col:{d:["Blanco","Negro","Verde","Rojo","Plateado","Desconocido"][Math.floor((mt*0.4)%6)],
+      r:Math.round(400+300*s), g:Math.round(600+300*s2), b:Math.round(600+250*s3), c:Math.round(1800+800*s), ok:1},
+    us:{f:Math.round(60+50*s), l:Math.round(45+40*s2), r:Math.round(45+40*s3)},
+    tof:{l:Math.round(500+400*s2), r:Math.round(500+400*s3)},
+    imu:{yaw:Math.round((mt*20)%360), pit:+(14*s).toFixed(1), rol:+(6*s2).toFixed(1), cen:180},
+    enc:{fl:Math.floor(mt*640), fr:Math.floor(mt*655), bl:Math.floor(mt*610), br:Math.floor(mt*648)},
+    fsm:{rut:routines[Math.floor((mt*0.1)%3)], act:7, task:1, up:1, resc:Math.floor((mt*0.5)%17),
+      balls:Math.floor((mt*0.05)%3), dep:Math.floor((mt*0.03)%3), verd:Math.floor((mt*0.08)%6),
+      evi:s>0?1:0, evs:s2>0?1:0, slatch:s3>0.5?1:0, pared:s>0?"left":"right", lado:s>0?"derecha":"izquierda", ran:1+Math.floor((mt)%2)},
+    io:{sw:0, fcl:s>0.7?1:0, fcr:s2>0.7?1:0, rel:s3>0?1:0, buz:Math.abs(s)>0.95?1:0, led:1},
+    claw:{busy:s2>0.6?1:0},
+    grn:{ rx:[0,Math.floor(mt*0.35),Math.floor(mt*0.22),Math.floor(mt*0.12)],
+          act:[0,Math.floor(mt*0.22),Math.floor(mt*0.16),Math.floor(mt*0.08)],
+          kill:[0,Math.floor(mt*0.12),Math.floor(mt*0.06),Math.floor(mt*0.04)],
+          lt:[1,2,3][Math.floor(mt)%3], age:Math.floor((mt*90)%2600), lrc:[0,1,2,3][Math.floor(mt)%4] }};
+}
+
+// ---------- calibración de color ----------
+function ratios(c){ const C=c.c||0, G=c.g||0, B=c.b||0;
+  return { rc: C>0?(c.r/C):0, rg: G>0?(c.r/G):0, rb: B>0?(c.r/B):0, bg: B-G }; }
+function calLine(label,c){ const r=ratios(c);
+  return "["+(label||"?")+"] R: "+(c.r??0)+" | G: "+(c.g??0)+" | B: "+(c.b??0)+" | C: "+(c.c??0)
+    +" | R/C: "+r.rc.toFixed(3)+" | R/G: "+r.rg.toFixed(3)+" | R/B: "+r.rb.toFixed(3)+" | B-G: "+r.bg
+    +"  -> detectado: "+(c.d||"?"); }
+function capsText(){
+  const header="Estoy calibrando el sensor de color APDS9960 de mi robot (RoboCup Rescue Line). El clasificador es classify_color y usa el canal C y los ratios R/C, R/G, R/B. Estas son lecturas REALES (valores ya filtrados, los mismos que usa el robot) con la superficie que representan. ¿Como quedarian los umbrales de classify_color para separarlas bien?\n\n";
+  return header + (caps.length ? caps.join("\n") : calLine($("cal-label").value, lastCol)); }
+function renderCaps(){ $("cal-out").value = caps.join("\n"); }
+function toast(msg){ let t=$("toast"); if(!t){ t=document.createElement("div"); t.id="toast"; t.className="toast"; document.body.appendChild(t);}
+  t.textContent=msg; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),1400); }
+async function copyText(t){
+  try{ await navigator.clipboard.writeText(t); toast("¡Copiado!"); return; }catch(e){}
+  const ta=$("cal-out"); const prev=ta.value; ta.value=t; ta.removeAttribute("readonly"); ta.focus(); ta.select();
+  let ok=false; try{ ok=document.execCommand("copy"); }catch(e){}
+  ta.setAttribute("readonly",""); ta.value=prev;
+  toast(ok?"¡Copiado!":"Seleccioná el texto y copiá a mano"); }
+$("cal-capture").onclick=()=>{ caps.push(calLine($("cal-label").value,lastCol)); renderCaps();
+  toast("Muestra capturada ("+caps.length+")"); };
+$("cal-copy").onclick=()=>copyText(capsText());
+$("cal-clear").onclick=()=>{ caps.length=0; renderCaps(); };
+
+// ---------- log de eventos de verde ----------
+let gPrevAct=[0,0,0,0], gPrevKill=[0,0,0,0], gLogInit=false; const gLog=[];
+function gstamp(){ return ((performance.now()-pageT0)/1000).toFixed(1)+"s"; }
+function updateGreenLog(act,kill,lrc){
+  if(!gLogInit){ gPrevAct=act.slice(); gPrevKill=kill.slice(); gLogInit=true; return; }  // no loguear el estado inicial
+  for(let i=1;i<=3;i++){
+    for(let k=gPrevAct[i]||0; k<(act[i]||0); k++)  gLog.unshift('<span class="ok">'+gstamp()+" · "+GREEN[i]+" → GIRÓ ✓</span>");
+    for(let k=gPrevKill[i]||0; k<(kill[i]||0); k++) gLog.unshift('<span class="bad">'+gstamp()+" · "+GREEN[i]+" → MATADO ✗ (re-check gs="+lrc+")</span>");
+  }
+  gPrevAct=act.slice(); gPrevKill=kill.slice();
+  if(gLog.length>14) gLog.length=14;
+  if(gLog.length) $("grn-log").innerHTML=gLog.join("<br>");
+}
+
+buildCompass(); buildWheels(); buildRadar();
+tick(); setInterval(tick,100); setInterval(pollInfo,700);
+</script>
+</body>
+</html>

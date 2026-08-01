@@ -14,6 +14,7 @@
 #include <Wire.h>
 #include <VL53L0X.h>
 #include "priority_fix_flags.h"
+#include <telemetria.h>
 
 // ============================================================================
 #define INVERTIR_VERDES     false   // D1.1 / 2025: verde izq<->der
@@ -23,7 +24,68 @@
 #define CONTAR_VERDES       false   // D2.1: habilita el contador de verdes
 #define INVERTIR_DEPOSITO   false   // D2.3: impar invierte zonas (necesita CONTAR_VERDES)
 #define SUPERTEAM           0       // SUPER TEMA: 1=puente con ESP32-MINI por Serial8 | 0=corrida normal
+#define TELEMETRIA          1       // TELEMETRIA: 1=envia TODOS los valores por Serial8 a la ESP32-MINI (AP+GUI) | 0=off
 // ============================================================================
+//  TELEMETRIA — Teensy -> ESP32-MINI por Serial8 (RX=pin34 / TX=pin35, 3.3V, 115200)
+//  La ESP32-MINI monta un AP WiFi y sirve una GUI web con TODOS los valores de
+//  control. Es 100% NO INTRUSIVA: escribe una linea JSON por Serial8 a 10 Hz y,
+//  si el buffer TX no tiene lugar, DESCARTA el frame (nunca frena el control).
+//  Firmware ESP32 + GUI: software/esp32/telemetria/  (ver README ahi).
+//  NOTA: TELEMETRIA y SUPERTEAM comparten Serial8 -> no activar ambos a la vez.
+// ============================================================================
+#if SUPERTEAM && TELEMETRIA
+#error "SUPERTEAM y TELEMETRIA comparten Serial8: activar solo uno (poner el otro en 0)."
+#endif
+#if TELEMETRIA
+Telemetria telemetria(Serial8, 100);   // 100 ms => 10 Hz
+void enviarTelemetria();
+
+// ============================================================================
+//  DIAGNOSTICO DE VERDES — para VER si el green_state llega y se confirma en la
+//  Teensy (el problema de los verdes 1/2/3). Cuenta, por tipo (1=izq,2=der,3=doble):
+//    g_rx   : cuantos verdes DISTINTOS llegaron de la RPi (flanco, no repeticion)
+//    g_act  : cuantos se CONFIRMARON en el re-chequeo y ejecutaron el giro
+//    g_kill : cuantos MATO el re-chequeo (el verde se apago/cambio durante el avance)
+//  g_last_recheck_gs = green_state visto en el ultimo re-chequeo (0 = se apago).
+//  Son contadores PUROS: no cambian en nada el comportamiento del robot.
+// ============================================================================
+unsigned long g_rx[4]   = {0, 0, 0, 0};
+unsigned long g_act[4]  = {0, 0, 0, 0};
+unsigned long g_kill[4] = {0, 0, 0, 0};
+int  g_last_type = 0;              // ultimo verde recibido (1/2/3)
+unsigned long g_last_ms = 0;       // millis de la ultima llegada
+int  g_last_recheck_gs = -1;       // green_state en el ultimo re-chequeo
+int  g_prev_seen = 0;              // estado previo para detectar flancos
+
+// Llamar donde la RPi setea green_state: cuenta cada verde nuevo (flanco).
+inline void telemGreenRx(int gs)
+{
+    if (gs != g_prev_seen)
+    {
+        if (gs >= 1 && gs <= 3)
+        {
+            g_rx[gs]++;
+            g_last_type = gs;
+            g_last_ms = millis();
+        }
+        g_prev_seen = gs;
+    }
+}
+
+// Llamar en el re-chequeo de las maniobras de verde (case 5/6/14), con el
+// green_state que se vio al re-chequear. Registra si giro o si lo mato.
+inline void telemGreenResultado(int tipo, int gsEnRecheck)
+{
+    if (tipo < 1 || tipo > 3) return;
+    g_last_recheck_gs = gsEnRecheck;
+    if (gsEnRecheck == tipo) g_act[tipo]++;
+    else                     g_kill[tipo]++;
+}
+#else
+inline void enviarTelemetria() {}
+inline void telemGreenRx(int) {}
+inline void telemGreenResultado(int, int) {}
+#endif
 
 // ============================================================================
 //  SUPER TEMA — puente Teensy <-> ESP32-MINI por Serial8 (RX=pin34 / TX=pin35, 3.3V)
@@ -68,6 +130,7 @@ elapsedMillis steertimer; // Cuenta el tiempo transcurrido
 bool contador = false;    // Para saber si estamos contando el tiempo o no
 bool retroceder = false;  // Para saber si debe retroceder
 bool rescateAvisado = false;
+bool verde_accion = false;
 // INITIALISE BNO055 //
 Adafruit_BNO055 bno = Adafruit_BNO055(55, 0x28);
 // INITIALISE ACTUATORS //
@@ -111,6 +174,7 @@ bool taskDone = false; // if true, update current_task
 int angle0;            // initial IMU reading
 bool startUp = false;
 float frontUSReading;
+bool verde_stop=false;
 int RanNumber;
 String rutina = "linea";
 bool first_rescate = 1;
@@ -131,7 +195,7 @@ String pared="";
 bool alineado=false;
 bool depositando=false;
 int veces_deposit=2;
-int ball_counter=2;
+int ball_counter=1;
 bool evacuacion_iniciada=false;
 bool evacuacion_straight=false;
 bool silver_latch=false;  // true mientras seguimos "sobre" un plateado ya atendido (evita repetir la accion)
@@ -255,6 +319,11 @@ void notifyOptionalSensorWarning()
 
 void serviceMotionBackgroundTasks()
 {
+    // Telemetria primero: asi sigue fluyendo aunque el fix59 este desactivado y
+    // durante TODAS las maniobras bloqueantes (runTime/runAngle/runDistance...).
+    // Es rate-limited y no bloqueante: costo despreciable.
+    enviarTelemetria();
+
     if (!fixIssue59Enabled())
     {
         return;
@@ -600,15 +669,17 @@ void reset_color_history()
     last_color_sample_ms = 0;
     last_color_detected = "Desconocido";
 }
-
 String classify_color(uint16_t r, uint16_t g, uint16_t b, uint16_t c)
 {
     float ratio_rc = c > 0 ? static_cast<float>(r) / static_cast<float>(c) : 0.0f;
     float ratio_rg = g > 0 ? static_cast<float>(r) / static_cast<float>(g) : 0.0f;
     float ratio_rb = b > 0 ? static_cast<float>(r) / static_cast<float>(b) : 0.0f;
 
+    int diff_bg = static_cast<int>(b) - static_cast<int>(g);
+
     static unsigned long lastPrint = 0;
     bool shouldPrint = (millis() - lastPrint > 500);
+
     if (shouldPrint)
     {
         Serial.print("R: "); Serial.print(r);
@@ -618,39 +689,57 @@ String classify_color(uint16_t r, uint16_t g, uint16_t b, uint16_t c)
         Serial.print(" | R/C: "); Serial.print(ratio_rc, 3);
         Serial.print(" | R/G: "); Serial.print(ratio_rg, 3);
         Serial.print(" | R/B: "); Serial.print(ratio_rb, 3);
+        Serial.print(" | B-G: "); Serial.print(diff_bg);
         Serial.print(" | -> ");
     }
 
     String detected = "Desconocido";
-if (c > 2220 && ratio_rc > 0.234f)
-{
-    detected = "Plateado";
-}
-else if (c > 1500 && ratio_rc <= 0.235f)
-{
-    detected = "Blanco";
-}
-else if (
+
+    bool esRojo =
+        (
+            c >= 380 && c <= 900 &&
+            ratio_rc >= 0.32f &&
+            ratio_rg >= 1.10f &&
+            ratio_rb >= 1.00f
+        )
+        ||
+        (
+            c > 900 && c <= 1300 &&
+            ratio_rc >= 0.255f &&
+            ratio_rg >= 0.75f &&
+            ratio_rb >= 0.67f
+        );
+
+bool esPlateado =
     (
-        c >= 380 && c <= 900 &&
-        ratio_rc >= 0.32f &&
-        ratio_rg >= 1.10f &&
-        ratio_rb >= 1.00f
-    )
-    ||
+        c >= 1300 &&
+        ratio_rc >= 0.246f &&
+        ratio_rc <= 0.290f
+    );
+
+bool esBlanco =
     (
-        c > 900 && c <= 1300 &&
-        ratio_rc >= 0.255f &&
-        ratio_rg >= 0.75f &&
-        ratio_rb >= 0.67f
-    )
-)
-{
-    detected = "Rojo";
-}
+        c >= 430 &&
+        ratio_rc >= 0.195f &&
+        ratio_rc <  0.246f
+    );
+
+    if (esRojo)
+    {
+        detected = "Rojo";
+    }
+    else if (esPlateado)
+    {
+        detected = "Plateado";
+    }
+    else if (esBlanco)
+    {
+        detected = "Blanco";
+    }
     else
     {
         uint64_t min_error = UINT64_MAX;
+
         for (size_t i = 0; i < sizeof(known_colors) / sizeof(known_colors[0]); i++)
         {
             if (known_colors[i].name == "Blanco" || known_colors[i].name == "Plateado")
@@ -660,6 +749,7 @@ else if (
                              square_error(known_colors[i].g, g) +
                              square_error(known_colors[i].b, b) +
                              square_error(known_colors[i].c, c);
+
             if (error < min_error)
             {
                 min_error = error;
@@ -676,7 +766,6 @@ else if (
 
     return detected;
 }
-
 bool update_color_nonblocking(bool force_poll = false)
 {
     if ((fixIssue61Enabled() || fixIssue62Enabled()) && !color_sensor_ok)
@@ -937,8 +1026,9 @@ void serialEvent5()
             if (serialPayloadOutOfRange("green_state", data, SERIAL_MAX_GREEN_STATE))
                 continue;
             green_state = data;
-    Serial.print("[RX] green_state recibido: ");
-    Serial.println(green_state);
+            telemGreenRx(data);   // TELEMETRIA: cuenta verdes que llegan de la RPi
+    // Serial.print("[RX] green_state recibido: ");
+    // Serial.println(green_state);
         }
         else if (serial5state == 3) // set line_middle
         {
@@ -1251,21 +1341,63 @@ void nonBlockingDelay(unsigned long ms)
 }
 
 void accionNegro() {
-    runDistance(30, FORWARD, 10);
+    runDistance(30, FORWARD, 5);
     Serial5.write(249);
-    reset_color_history();  
-    digitalWrite(RELAY,LOW);
-    rutina = "linea";
+    reset_color_history();
+    digitalWrite(RELAY, LOW);
 
-// descarta muestras previas para no re-disparar con color stale
+    // 1) romper la inercia (jiggle corto, como hace runDistance al arrancar)
+    runTime(20, BACKWARD, 0, 300);
+    runTime(20, FORWARD, 0, 300);
+
+    // 2) quedarse QUIETO leyendo serial mientras la RPi sale de evacuacion y
+    //    arranca la vision de linea (teardown ~1-2 s). Asi no se mueve con datos viejos.
+
+    robot.steer(0, FORWARD, 0);
+    unsigned long t0 = millis();
+    while (millis() - t0 < 800) {
+        serialEvent5();
+    }
+
+    // 3) limpiar lo stale de evacuacion para arrancar linea derecho
+
+    green_state = 0;
+    action = 7;
+    steer = 0;
+    speed = 0;
+    taskDone = true;
+
+    rutina = "linea";
 }
 
 void accionPlateado() {
-    runDistance(30, BACKWARD, 10);
-    runAngle(30, FORWARD, 90);
-    runDistanceEvacuacion(30, 30);   // avanza 30 cm pero corta si hay pared a <=18 cm
+    runDistance(30, FORWARD,3);
+    Serial5.write(249);
+    reset_color_history();
+    digitalWrite(RELAY, LOW);
+
+    // 1) romper la inercia (jiggle corto, como hace runDistance al arrancar)
+    runTime(20, BACKWARD, 0, 300);
+    runTime(20, FORWARD, 0, 300);
+
+    // 2) quedarse QUIETO leyendo serial mientras la RPi sale de evacuacion y
+    //    arranca la vision de linea (teardown ~1-2 s). Asi no se mueve con datos viejos.
+
     robot.steer(0, FORWARD, 0);
-    reset_color_history();  // descarta muestras previas para no re-disparar con color stale
+    unsigned long t0 = millis();
+    while (millis() - t0 < 800) {
+        serialEvent5();
+    }
+
+    // 3) limpiar lo stale de evacuacion para arrancar linea derecho
+
+    green_state = 0;
+    action = 7;
+    steer = 0;
+    speed = 0;
+    taskDone = true;
+
+    rutina = "linea";
 }
 
 bool detectarNegro() {
@@ -1309,14 +1441,13 @@ bool procesarColorEvacuacion()
 
     if (color_detected == "Negro" && confirmarColor("Negro"))
     {
-        accionNegro();
-        return true;
+        return false;
     }
 
     if (color_detected == "Plateado" && !silver_latch && confirmarColor("Plateado"))
     {
         Serial.println("[EVAC] Plateado confirmado -> accionPlateado");
-        accionPlateado();
+        accionNegro();
         silver_latch = true;  // ya atendido; no repetir hasta despegarse del plateado
         return true;
     }
@@ -1339,11 +1470,13 @@ float leer_yaw()
     float yaw = event.orientation.x; // Yaw es el ángulo de rotación (en grados)
     return yaw;
 }
-void leer_pitch()
-{
+float leer_pitch()
+{  
     sensors_event_t event;
     bno.getEvent(&event);
-    pitch = event.orientation.y; // Yaw es el ángulo de rotación (en grados)
+
+    pitch = event.orientation.y; // eje que estás usando para inclinación
+    return pitch;
 }
 void imprimir_yaw()
 {
@@ -1355,12 +1488,17 @@ int ajustarVelocidadPorPendiente(int velocidadBase)
     leer_pitch();
 
     int velocidadAjustada = velocidadBase;
-    if (pitch > 10)
+    if (pitch > 3.9)
     {
-            velocidadAjustada = 30;
+            velocidadAjustada = 45;
+    }
+    else if (pitch > 25)
+    {
+           runTime(100, FORWARD, 0.35, 100);
+           runTime(100, FORWARD, -0.35, 100);
     }
     else{
-        velocidadAjustada= 25;
+        velocidadAjustada= 40;
     }
     return velocidadAjustada;
 }
@@ -1517,7 +1655,6 @@ int confirmarMarcaVerde(unsigned long tiempoMs = 120)
 
         if (green_state == 0)
             return 0;
-
         if (green_state != gsInicial)
             return 0;
 
@@ -1578,6 +1715,198 @@ unsigned long rojo_ignorar_hasta = 0;   // cooldown anti-oscilacion tras el giro
 // ============================================================================
 
 
+// ============================================================================
+//  DETECCION DE ATASCO — loma de burro (palos sobre la linea).
+//  DATO DE CALIBRACION: en la loma una rueda queda CLAVADA (~0) y la otra
+//  patina (~45). En recta las DOS giran parejo (~40 c/u). Discriminador:
+//     min(|frD|,|flD|)  ->  ~0 atascado   /   ~40 recta
+//  Atascado = una rueda parada (min < UMBRAL_RUEDA) sostenido >= STUCK_TIME_MS.
+//  La aceleracion NO servia (igual en recta que trabado) -> descartada.
+// ============================================================================
+long          stuck_lastFr    = 0;
+long          stuck_lastFl    = 0;
+unsigned long stuck_since      = 0;
+unsigned long stuck_lastSample = 0;
+unsigned long atascoArmedSince = 0;    // cuando arranco a correr (startUp) -> para el grace period
+const long          UMBRAL_RUEDA    = 15;    // pulsos/100ms: por debajo, una rueda esta "clavada" (TUNEAR)
+const unsigned long STUCK_SAMPLE_MS = 100;   // cada cuanto mido las ruedas
+const unsigned long STUCK_TIME_MS   = 3000;  // 3 s con una rueda parada = atascado
+const unsigned long ATASCO_GRACE_MS = 8000;  // no disparar los primeros 8 s tras arrancar (ponerlo en pista)
+
+// --- Traccion en pendiente: pisar las traseras cuando el pitch esta inclinado ---
+const float  PITCH_RAMPA       = 12.0;  // pitch (grados) desde el cual considero "pendiente" (llano ~±5, rampa ~23)
+const double POTENCIA_TRASERAS = 80;   // potencia (rpm objetivo, 0-159) para las traseras en pendiente
+
+bool chequearAtasco(int comandoVel)
+{
+
+    unsigned long now = millis();
+
+    // grace: recien arranco / apreto switch -> NO dispara (molesto al ponerlo en pista)
+    if (now - atascoArmedSince < ATASCO_GRACE_MS)
+    {
+        stuck_since = now;
+        return false;
+    }
+
+    // no comandado a avanzar -> no cuenta como atasco
+    if (comandoVel <= 0)
+    {
+        stuck_since = now;
+        return false;
+    }
+
+    // muestreo las ruedas cada STUCK_SAMPLE_MS (no en cada vuelta)
+    if (now - stuck_lastSample >= STUCK_SAMPLE_MS)
+    {
+        stuck_lastSample = now;
+        long frNow = (long)fr.pulseCount, flNow = (long)fl.pulseCount;
+        long frD = labs(frNow - stuck_lastFr);   // giro rueda DERECHA en ~100 ms
+        long flD = labs(flNow - stuck_lastFl);   // giro rueda IZQUIERDA en ~100 ms
+        stuck_lastFr = frNow; stuck_lastFl = flNow;
+        long minRueda = min(frD, flD);
+
+        // telemetria de las TRASERAS (para ver si el boost las mueve en la rampa)
+        static long stuck_lastBl = 0, stuck_lastBr = 0;
+        long blNow = (long)bl.pulseCount, brNow = (long)br.pulseCount;
+        long blD = labs(blNow - stuck_lastBl);
+        long brD = labs(brNow - stuck_lastBr);
+        stuck_lastBl = blNow; stuck_lastBr = brNow;
+
+        // [CAL] atasco silenciado (rampa ya entendida) — reactivar si hace falta
+        // Serial.print("[CAL] frD="); Serial.print(frD);
+        // Serial.print(" flD="); Serial.print(flD);
+        // Serial.print(" blD="); Serial.print(blD);
+        // Serial.print(" brD="); Serial.print(brD);
+        // Serial.print(" min="); Serial.print(minRueda);
+        // Serial.print(" pitch="); Serial.println(pitch, 1);
+
+        // las DOS ruedas giran (recta/curva/pivote) -> avanza bien -> reinicio el timer
+        if (minRueda >= UMBRAL_RUEDA)
+            stuck_since = now;
+        // una rueda clavada (min < umbral) -> no reinicio, acumula tiempo
+    }
+
+    // EN PENDIENTE: NO disparar atasco (la rueda clavada es por la inclinacion;
+    // el retroceso rampa abajo seria peligroso -> lo maneja el boost de traseras).
+    if (pitch > PITCH_RAMPA)
+    {
+        stuck_since = now;
+        return false;
+    }
+
+    // una rueda parada sostenido por >= STUCK_TIME_MS -> atascado
+    return (now - stuck_since >= STUCK_TIME_MS);
+}
+
+void recuperarAtasco()
+{
+    Serial.println("[ATASCO] rueda clavada -> retro + avance brusco");
+    runTime(90,  BACKWARD, 0, 150);   // retroceso corto (bajar de la loma)
+    runTime(100, FORWARD,  0, 250);   // avance a full para saltarla
+    // reiniciar el detector
+    stuck_lastFr = (long)fr.pulseCount;
+    stuck_lastFl = (long)fl.pulseCount;
+    stuck_since  = millis();
+    stuck_lastSample = millis();
+}
+
+
+#if TELEMETRIA
+// ============================================================================
+//  enviarTelemetria() — arma UNA linea JSON con TODOS los valores de control y
+//  la manda por Serial8 a la ESP32-MINI. Rate-limited (10 Hz) y NO BLOQUEANTE
+//  (si no hay lugar en el TX, descarta el frame). Se puede llamar desde
+//  cualquier lado del loop sin miedo: el rate-limit y la guardia lo protegen.
+//
+//  Esquema (agrupado por subsistema, claves cortas para ahorrar ancho de banda):
+//   t                          millis del Teensy
+//   rpi  {speed,steer,green,silver,rxb,rxf,st}   enlace con la Raspberry (Serial5)
+//   col  {d,r,g,b,c,ok}         sensor de color APDS9960 (filtrado) + estado
+//   us   {f,l,r}                ultrasonidos frente/izq/der (cm)
+//   tof  {l,r}                  ToF VL53L0X izq/der (mm)
+//   imu  {yaw,pit,rol,cen}      BNO055 (grados) + angulo de referencia 'centrar'
+//   enc  {fl,fr,bl,br}          contadores de encoder de las 4 ruedas
+//   fsm  {rut,act,task,up,resc,balls,dep,verd,evi,evs,slatch,pared,lado,ran}
+//   io   {sw,fcl,fcr,rel,buz,led}  entradas/salidas digitales
+//   claw {busy}                garra ocupada (maquina de estados no bloqueante)
+// ============================================================================
+// Sanea floats para que el JSON SIEMPRE sea valido: un NaN/inf (p.ej. BNO sin
+// calibrar o desconectado) imprimiria "nan"/"inf" y JSON.parse() en la GUI
+// fallaria -> se quedaria en modo demo silenciosamente. Con esto, 0.0 en su lugar.
+static float sanef(float v)
+{
+    return (isnan(v) || isinf(v)) ? 0.0f : v;
+}
+
+void enviarTelemetria()
+{
+    if (!telemetria.debeEnviar())
+    {
+        return;
+    }
+
+    // IMU fresco (una sola lectura I2C por frame, ~2 ms cada 100 ms: despreciable).
+    sensors_event_t ev;
+    bno.getEvent(&ev);
+    float t_yaw = sanef(ev.orientation.x);
+    float t_pit = sanef(ev.orientation.y);
+    float t_rol = sanef(ev.orientation.z);
+    float t_cen = sanef(centrar);
+
+    // Color filtrado actual (lee los buffers de historial, no dispara el sensor).
+    uint16_t cr = 0, cg = 0, cb = 0, cc = 0;
+    get_filtered_color(cr, cg, cb, cc);
+
+    // NOTA: los %s (color_detected/rutina/pared/lado_plateado) SOLO deben contener
+    // literales cerrados sin comillas ni backslash (ver known_colors y las rutinas),
+    // asi el JSON queda valido sin necesidad de escaparlos.
+    long g_age = g_last_ms ? (long)(millis() - g_last_ms) : -1L;   // ms desde el ultimo verde (-1 = nunca)
+    static char buf[896];
+    int n = snprintf(
+        buf, sizeof(buf),
+        "{\"t\":%lu,"
+        "\"rpi\":{\"speed\":%d,\"steer\":%.3f,\"green\":%d,\"silver\":%d,\"rxb\":%lu,\"rxf\":%lu,\"st\":%d},"
+        "\"col\":{\"d\":\"%s\",\"r\":%u,\"g\":%u,\"b\":%u,\"c\":%u,\"ok\":%d},"
+        "\"us\":{\"f\":%d,\"l\":%d,\"r\":%d},"
+        "\"tof\":{\"l\":%d,\"r\":%d},"
+        "\"imu\":{\"yaw\":%.1f,\"pit\":%.1f,\"rol\":%.1f,\"cen\":%.1f},"
+        "\"enc\":{\"fl\":%ld,\"fr\":%ld,\"bl\":%ld,\"br\":%ld},"
+        "\"fsm\":{\"rut\":\"%s\",\"act\":%d,\"task\":%d,\"up\":%d,\"resc\":%d,\"balls\":%d,\"dep\":%d,\"verd\":%d,\"evi\":%d,\"evs\":%d,\"slatch\":%d,\"pared\":\"%s\",\"lado\":\"%s\",\"ran\":%d},"
+        "\"io\":{\"sw\":%d,\"fcl\":%d,\"fcr\":%d,\"rel\":%d,\"buz\":%d,\"led\":%d},"
+        "\"claw\":{\"busy\":%d},"
+        "\"grn\":{\"rx\":[%lu,%lu,%lu,%lu],\"act\":[%lu,%lu,%lu,%lu],\"kill\":[%lu,%lu,%lu,%lu],\"lt\":%d,\"age\":%ld,\"lrc\":%d}}\n",
+        millis(),
+        (int)speed, steer, green_state, silver_line, serial_bytes_rx, serial_frames_rx, serial5state,
+        color_detected.c_str(), (unsigned)cr, (unsigned)cg, (unsigned)cb, (unsigned)cc, color_sensor_ok ? 1 : 0,
+        front_distance, left_distance, right_distance,
+        distance_left_tof, distance_right_tof,
+        t_yaw, t_pit, t_rol, t_cen,
+        (long)fl.pulseCount, (long)fr.pulseCount, (long)bl.pulseCount, (long)br.pulseCount,
+        rutina.c_str(), action, taskDone ? 1 : 0, startUp ? 1 : 0, (int)rescateState,
+        ball_counter, veces_deposit, verdes_total,
+        evacuacion_iniciada ? 1 : 0, evacuacion_straight ? 1 : 0, silver_latch ? 1 : 0,
+        pared.c_str(), lado_plateado.c_str(), RanNumber,
+        digitalRead(SWITCH), digitalRead(FCL), digitalRead(FCR),
+        digitalRead(RELAY), digitalRead(BUZZER), digitalRead(LED_ROJO),
+        claw.busy() ? 1 : 0,
+        g_rx[0], g_rx[1], g_rx[2], g_rx[3],
+        g_act[0], g_act[1], g_act[2], g_act[3],
+        g_kill[0], g_kill[1], g_kill[2], g_kill[3],
+        g_last_type, g_age, g_last_recheck_gs);
+
+    if (n < 0)
+    {
+        return;   // error de formato: no enviar
+    }
+    if (n >= (int)sizeof(buf))
+    {
+        n = sizeof(buf) - 1;   // snprintf trunco: clamp para no leer fuera de buf en enviar()
+    }
+    telemetria.enviar(buf, n);
+}
+#endif // TELEMETRIA
+
 void setup()
 {
 
@@ -1598,6 +1927,9 @@ void setup()
     Serial5.begin(115200);         // for reading data from rpi and state
 #if SUPERTEAM
     Serial8.begin(115200);         // SUPER TEMA: puente con la ESP32-MINI (RX=pin34 / TX=pin35)
+#endif
+#if TELEMETRIA
+    telemetria.begin(115200);      // TELEMETRIA: abre Serial8 hacia la ESP32-MINI (AP + GUI)
 #endif
     delay(200);
     //Serial.begin(115200);          // displays ultrasound ping result
@@ -1677,6 +2009,7 @@ void loop()
     claw.update();
     // Actualizar máquina de estados de rescate no-bloqueante
     actualizarRescate();
+    enviarTelemetria();   // TELEMETRIA (rate-limited + no bloqueante)
     if (digitalRead(32) == 1)
     {                               // switch is off
         robot.steer(0, FORWARD, 0); // stop moving
@@ -1693,6 +2026,7 @@ void loop()
         silver_latch = false;
         action = 7;
         startUp = false;
+        verde_stop=false;
         last_right_distance = 0;
         right_jump_counter = 0;
         verdes_total = 0; verde_estaba = false; rojo_ignorar_hasta = 0;   // === CHALLENGE: reset al reiniciar ===
@@ -1701,6 +2035,7 @@ void loop()
         verdes_total=0;
         while (true)
         {
+            enviarTelemetria();   // TELEMETRIA en idle (util para calibrar en banco)
             robot.steer(0, 0, 0);
                     digitalWrite(RELAY,LOW);
             claw.lift();
@@ -1714,16 +2049,19 @@ void loop()
             digitalWrite(LED_ROJO, HIGH);
             delay(500);
             robot.steer(0, 0, 0);
-            get_color_fast();
-            Serial.println("FCL: " + String(digitalRead(FCL)));
-            Serial.println("FCR: " + String(digitalRead(FCR)));
+            //Serial.println(leer_pitch()); // para imprimirlo
+           get_color_fast();
+           //Serial.println("FCL: " + String(digitalRead(FCL)));
+            //Serial.println("FCR: " + String(digitalRead(FCR)));
             digitalWrite(LED_BUILTIN, LOW);
             digitalWrite(BUZZER, LOW);
             digitalWrite(LED_ROJO, LOW);
             digitalWrite(RELAY,LOW);
-
             claw.open();
             delay(500);
+         
+            get_color_fast();
+
             if (digitalRead(SWITCH) == 0)
             {
                 break;
@@ -1754,6 +2092,7 @@ void loop()
         runTime(20, FORWARD, 0, 300);
         // Serial5.write(254);
         startUp = true;
+        atascoArmedSince = millis();   // arranca el grace: no dispara el anti-atasco al ponerlo en pista
         rutina = "linea";
         evacuacion_iniciada = false;
         evacuacion_straight = false;
@@ -1762,7 +2101,9 @@ void loop()
         claw.lift();
         claw.depositCenter();
         action = 7;
+        verde_accion=false;
         Serial5.write(249);
+
 
     }
     else
@@ -1786,14 +2127,14 @@ void loop()
         */
         while (rutina == "linea" && digitalRead(32) == 0)
         {
+            enviarTelemetria();   // TELEMETRIA (seguimiento de linea)
             bool plateadoDetectado = false;
-
             color_detected = get_color_fast();
             leer_tof();
             leer_ultrasonidos();
             if (CONTAR_VERDES || SUPERTEAM) actualizarContadorVerdes();   // === CHALLENGE D2.1 / SUPER TEMA ===
            
-            if (color_detected == "Plateado") {
+            if (color_detected == "Plateado") {   // confirmo 2 lecturas -> filtra brillos aislados
 
                     plateadoDetectado = true;
 
@@ -1851,19 +2192,21 @@ void loop()
                 {
                     action = 7;
                 }
-                if (green_state == 1)
-                {
-                    action = 6; // verde izquierda  
-                }
-                if (green_state == 2)
-                {
-                    action = 5; // verde derecha
-                }
+if (green_state == 1)
+{
+    action = (verdes_total < 4) ? 6 : 20;   // <3 verdes: giro (case 6) | >=3: "otra cosa"
+}
+if (green_state == 2)
+{
+    action = (verdes_total < 4) ? 5 : 20;   // <3 verdes: giro (case 5) | >=3: "otra cos
+}
+
                 if (green_state == 3)
                 {
                     action = 14;   // === CHALLENGE D1.2: 1=ignorar/recto ===
                 }
                 if (front_distance != 0 && front_distance < 12)
+
                 {
                     action = 1;
                 }
@@ -1887,6 +2230,8 @@ void loop()
                     digitalWrite(BUZZER, HIGH);
                     delay(100);
                     digitalWrite(BUZZER, LOW);
+
+                    
                         // === CHALLENGE D2.2: esquive por paridad ===
                         if (ESQUIVE_POR_PARIDAD) {
                             RanNumber = ladoEsquiveParidad();   // par->izq(1), impar->der(2)
@@ -1897,14 +2242,14 @@ void loop()
                         if (RanNumber == 1)
                         {
                             runAngle(25, FORWARD, -95);
-                            runTime(30, FORWARD, -0.35, 1000);
-                            while (digitalRead(32) == 0)
+                                                        get_color_fast();
+                                        while (digitalRead(32) == 0)
                             {
-                                robot.steer(30, FORWARD, -0.35);
+                                robot.steer(77, FORWARD, -0.38);
                                 // serialEvent5();
                                 if (get_color_fast() == "Negro")
                                 {
-                                    runAngle(30, FORWARD, -90);
+                                    runAngle(70, FORWARD, -90);
                                     break;
                                 }
                             }
@@ -1912,14 +2257,14 @@ void loop()
                         if (RanNumber == 2)
                         {
                             runAngle(25, FORWARD, 95);
-                            runTime(30, FORWARD, 0.35, 1000);
+                            get_color_fast();
                             while (digitalRead(32) == 0)
                             {
-                                robot.steer(30, FORWARD, 0.35);
+                                robot.steer(77, FORWARD, 0.38);
                                 // serialEvent5();
                                 if (get_color_fast() == "Negro")
                                 {
-                                    runAngle(30, FORWARD, 90);
+                                    runAngle(70, FORWARD, 90);
                                     break;
                                 }
                             }
@@ -2002,6 +2347,7 @@ void loop()
                 case 6:
                     runTime(20, FORWARD, 0, 800);
                     serialEvent5();
+                    telemGreenResultado(1, green_state);   // TELEMETRIA: giro o matado por re-chequeo
                     if (green_state == 1)
                     {
                         runAngle(35, FORWARD, INVERTIR_VERDES ? 60 : -60);   // === CHALLENGE D1.1 ===
@@ -2010,6 +2356,7 @@ void loop()
                 case 5:
                     runTime(20, FORWARD, 0, 800);
                     serialEvent5();
+                    telemGreenResultado(2, green_state);   // TELEMETRIA: giro o matado por re-chequeo
                     if (green_state == 2)
                     {
                         runAngle(25, FORWARD, INVERTIR_VERDES ? -60 : 60);   // === CHALLENGE D1.1 ===
@@ -2017,7 +2364,12 @@ void loop()
                     break;
                 case 7: // linetrack
                
-                    {int velocidadAjustada = ajustarVelocidadPorPendiente(25);
+                    {int velocidadAjustada = ajustarVelocidadPorPendiente(45);
+
+                     if (chequearAtasco(velocidadAjustada)) {   // obstaculo alto: no avanza -> recupero
+                         recuperarAtasco();
+                         break;
+                     }
 
                      if (steer < -0.7 || steer > 0.7)
                     {
@@ -2028,7 +2380,15 @@ void loop()
                     {
                         robot.steer(velocidadAjustada, FORWARD, steer);
                     }
-               
+
+                    // PENDIENTE: si el pitch esta inclinado, piso las traseras a full para
+                    // que agarren y no resbale (fr/br usan dir invertida, igual que en steer).
+                    if (pitch > PITCH_RAMPA)
+                    {
+                        bl.setSpeed(FORWARD,  POTENCIA_TRASERAS);   // trasera izquierda
+                        br.setSpeed(!FORWARD, POTENCIA_TRASERAS);   // trasera derecha
+                    }
+
                     break;
                     }
 
@@ -2085,6 +2445,7 @@ void loop()
 
                 case 14: // turn 180 deg for double green squares
                     serialEvent5();
+                    telemGreenResultado(3, green_state);   // TELEMETRIA: giro o matado por re-chequeo
                     if (green_state == 3)
                     {
                         runAngle(30, FORWARD, 180);
@@ -2099,6 +2460,7 @@ void loop()
         }
         while (rutina == "rescate" && digitalRead(32) == 0)
         {
+            enviarTelemetria();   // TELEMETRIA (rescate)
             digitalWrite(RELAY, HIGH);
            digitalWrite(LED_BUILTIN, LOW);
             serialEvent5();
@@ -2115,7 +2477,7 @@ void loop()
                 nonBlockingDelay(1400);
                 claw.sortRight();
                 nonBlockingDelay(1000);
-                runDistance(30,FORWARD,8);
+                runDistance(30,FORWARD,9);
                 runTime(0,FORWARD,0,1000);
                 claw.close();
                 nonBlockingDelay(1000);
@@ -2127,8 +2489,12 @@ void loop()
                 nonBlockingDelay(1000);
                 claw.open();
                 nonBlockingDelay(1000);
-                runTime(30,FORWARD,0,200);
-                runTime(30,BACKWARD,0,200);
+                claw.sortCenter();
+                nonBlockingDelay(1000);
+                claw.sortRight();
+                nonBlockingDelay(1000);
+                runTime(70,FORWARD,0,200);
+                runTime(70,BACKWARD,0,200);
                  ball_counter++;
             }
             if (green_state == 7)            { // Recoleccion Pelota platea
@@ -2151,17 +2517,23 @@ void loop()
                 nonBlockingDelay(1000);
                 claw.open();
                 nonBlockingDelay(1000);
-                runTime(30,FORWARD,0,200);
-                runTime(30,BACKWARD,0,200);
+                claw.sortCenter();
+                nonBlockingDelay(1000);
+                claw.sortLeft();
+                nonBlockingDelay(1000);
+                runTime(70,FORWARD,0,200);
+                runTime(70,BACKWARD,0,200);
                 ball_counter++;
             }
-            if (ball_counter>= 3 && depositando==false)
+            if (ball_counter>=  2 && depositando==false)
             {
+                claw.sortCenter();
                 digitalWrite(RELAY, HIGH);
                 Serial5.write(248);
                 depositando=true;
                 serialEvent5();
                 robot.steer(speed, FORWARD, steer);  
+                veces_deposit=2;
             }
             // === CHALLENGE D2.3: invertir zonas si es impar (necesita CONTAR_VERDES) ===
             int gs_dep = INVERTIR_DEPOSITO ? trianguloEfectivo(green_state, verdesImpar()) : green_state;
@@ -2178,8 +2550,12 @@ void loop()
                     }
                     claw.depositRight();
                     nonBlockingDelay(2000);
-                    runTime(30,FORWARD,0,200);
-                    runTime(30,BACKWARD,0,250);
+                    runTime(80,FORWARD,0,100);
+                    
+                    runTime(80,BACKWARD,0,250);
+                    runTime(80,FORWARD,0,100);
+                    
+                    runTime(80,BACKWARD,0,250);
                     runTime(0,FORWARD,0,500);
                     claw.depositCenter();
                     runTime(0,FORWARD,0,500);
@@ -2199,9 +2575,12 @@ void loop()
                     }
                     claw.depositLeft();
                     nonBlockingDelay(2000);
-                    runTime(30,FORWARD,0,200);
-                    runTime(30,BACKWARD,0,250);
+                    runTime(80,FORWARD,0,100);
+                    runTime(80,BACKWARD,0,250);
                     runTime(0,FORWARD,0,500);
+                    runTime(80,FORWARD,0,100);
+                    
+                    runTime(80,BACKWARD,0,250);
                     claw.depositCenter();
                     runAngle(20,FORWARD,45);
                     runTime(30,FORWARD,0,500);
@@ -2234,11 +2613,11 @@ void loop()
         // end while (rutina == "rescate" && digitalRead(32) == 0)
         while (rutina == "evacuacion" && digitalRead(32) == 0)
         {
+            enviarTelemetria();   // TELEMETRIA (evacuacion)
             if (!evacuacion_straight)
             {
                 green_state = 0;
-                runDistance(30, FORWARD, 20);
-                runAngle(30, FORWARD, -135);
+
                 leer_ultrasonidos();
 
                 if (front_distance != 0 && front_distance < 120) {
@@ -2263,7 +2642,6 @@ void loop()
                 }
                 evacuacion_straight = true;
             }
-
             leer_ultrasonidos();
                 while (rutina == "evacuacion" && digitalRead(32) == 0) {
                     robot.steer(30, FORWARD, 0);
@@ -2271,7 +2649,7 @@ void loop()
                     if (rutina != "evacuacion") break;  
                     serialEvent5();
                     leer_ultrasonidos();
-
+ 
                     // PRIORIDAD 1: esquina de deposito = camara ve triangulo (green_state
                     // 8/9) Y el ultrasonido confirma cercania (<=31). Maniobra completa.
                     if ((green_state == 8 || green_state == 9) && front_distance != 0 && front_distance <= 31)
@@ -2284,14 +2662,13 @@ void loop()
                     }
 
                     // PRIORIDAD 2: pared frontal lisa = solo ultrasonido (<=18). Giro 90 y sigue.
-                    if (front_distance != 0 && front_distance <= 18)
+                    if (front_distance != 0 && front_distance <= 14)
                     {
                         Serial.print("[EVAC] P2 PARED front="); Serial.println(front_distance);
                         runAngle(30, FORWARD, 90);
                         continue;
                     }
-
-                    // PRIORIDAD 3: lado izquierdo abierto -> girar a buscar pared.
+                                                            // PRIORIDAD 3: lado izquierdo abierto -> girar a buscar pared.
                     if (left_distance > 40 || left_distance == 0)
                     {
                         Serial.print("[EVAC] P3 BUSCAR left="); Serial.print(left_distance);
@@ -2307,7 +2684,9 @@ void loop()
                             if (debeEsquivar())   // corto la busqueda al toparme con esquina o pared
                                 break;
                         }
-                    } 
+                    }
+
+
                 }
             // cierra if(left_distance > right_distance)
 

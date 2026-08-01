@@ -1,8 +1,8 @@
 import cv2
-from camthreader import *
 import numpy as np
 import math
 import time
+from camthreader import *
 import serial
 import sys
 import os
@@ -67,7 +67,7 @@ frames_sent = 0
 last_tx_telemetry = time.monotonic()
 
 # =====================================================================
-#  FLAGS DEL DESAFIO TECNICO — cambia SOLO estos segun lo que pidan.
+#  FLAGS DEL DESAFIO TECNICO â€” cambia SOLO estos segun lo que pidan.
 #  Con los valores por defecto, este archivo se comporta IGUAL que Main.py.
 # ---------------------------------------------------------------------
 #  ESCENARIOS:
@@ -79,15 +79,15 @@ last_tx_telemetry = time.monotonic()
 #  246 (pone carrying_victim=True); la deteccion de zona verde se activa sola.
 #  Sin 246 (corrida normal) nada de esto se dispara.
 # =====================================================================
-AGARRAR_SOLO_PLATEADA      = False   # True = solo victima viva (puro 2025)
+AGARRAR_SOLO_PLATEADA      = True   # True = solo victima viva (puro 2025)
 DETECTAR_ZONA_VERDE_LINEA  = True    # buscar la zona verde mientras cargo (2025/hibrido)
 DEPOSITO_ADENTRO_EN_ROJO   = False   # True = HIBRIDO: adentro deposito las negras en el ROJO (cls 2)
 
-SILVER_CLS = 0    # clase YOLO de la plateada. OJO: tu codigo (linea ~658) usa 0=plateada;
+SILVER_CLS = 1    # clase YOLO de la plateada. OJO: tu codigo (linea ~658) usa 0=plateada;
                   # CLASS_NAMES (linea ~324) dice 1. CONFIRMAR viendo detecciones.
 GREEN_CLS  = 3    # clase YOLO de la zona verde (verde_alto)
-YOLO_LINEA_EVERY     = 10     # cada cuantos frames corro YOLO en linea mientras cargo — TUNEAR
-ZONA_VERDE_MIN_ANCHO = 0.30   # ancho minimo (0-1) de la zona para depositar = "estoy cerca" — TUNEAR
+YOLO_LINEA_EVERY     = 3     # cada cuantos frames corro YOLO en linea mientras cargo â€” TUNEAR
+ZONA_VERDE_MIN_ANCHO = 0.50   # ancho minimo (0-1) de la zona para depositar = "estoy cerca" â€” TUNEAR
 
 carrying_victim = False   # lo activa el codigo 246; lo apaga 249/stop/boot
 yolo_skip = 0
@@ -296,7 +296,6 @@ def enhance(img_bgr, use_zerodce=False):
         out = anti_flash_preprocess(out)
     return agcwd(out)
 
-
 # ---- Inicializar TFLite global + warmup ----
 try:
     from tflite_runtime.interpreter import Interpreter as TFLiteInterpreter
@@ -337,7 +336,9 @@ print("Warmup completado.")
 # === CHALLENGE 2025: deteccion sincronica de la ZONA VERDE para el estado de linea ===
 # Se usa SOLO cuando carrying_victim es True. En ese momento modo_rescate ya termino,
 # asi que el interpreter esta LIBRE (no hay otro hilo invocandolo) -> sin conflicto.
-def hay_zona_verde(frame_bgr, thr=0.6):
+SHOW_YOLO_LINEA = True   # debug: ventana + print de lo que ve el YOLO en linea. Apagar en competencia.
+
+def hay_zona_verde(frame_bgr, thr=0.45):
     small = cv2.resize(frame_bgr, (YOLO_IMGSZ, YOLO_IMGSZ))
     small = enhance(small, use_zerodce=USE_ZERODCE)
     img   = cv2.cvtColor(small, cv2.COLOR_BGR2RGB)
@@ -348,13 +349,45 @@ def hay_zona_verde(frame_bgr, thr=0.6):
     interpreter.set_tensor(_input_details['index'], inp)
     interpreter.invoke()
     out = interpreter.get_tensor(_output_details['index'])[0]
+
+    encontrada  = False
+    mejor_verde = (0.0, 0.0)   # (score, ancho) de la mejor deteccion clase verde
+    dbg = small.copy() if SHOW_YOLO_LINEA else None
+
     for det in out:
-        cls_id = int(round(float(det[5])))
+        x1, y1, x2, y2 = float(det[0]), float(det[1]), float(det[2]), float(det[3])
         score  = float(det[4])
-        ancho  = float(det[2]) - float(det[0])      # ancho normalizado 0-1 (= cercania)
-        if cls_id == GREEN_CLS and score >= thr and ancho >= ZONA_VERDE_MIN_ANCHO:
-            return True
-    return False
+        cls_id = int(round(float(det[5])))
+        ancho  = x2 - x1                            # ancho normalizado 0-1 (= cercania)
+
+        es_zona = (cls_id == GREEN_CLS and score >= thr and ancho >= ZONA_VERDE_MIN_ANCHO)
+        if es_zona:
+            encontrada = True
+        if cls_id == GREEN_CLS and score > mejor_verde[0]:
+            mejor_verde = (score, ancho)
+
+        if dbg is not None and score >= 0.30:      # dibujo todo lo que pase 0.30 para ver
+            px1, py1 = int(x1 * YOLO_IMGSZ), int(y1 * YOLO_IMGSZ)
+            px2, py2 = int(x2 * YOLO_IMGSZ), int(y2 * YOLO_IMGSZ)
+            if   es_zona:               color = (0, 255, 0)     # VERDE = dispara gs9
+            elif cls_id == GREEN_CLS:   color = (0, 255, 255)   # AMARILLO = es verde pero no llega
+            else:                       color = (180, 180, 180) # GRIS = otra clase
+            cv2.rectangle(dbg, (px1, py1), (px2, py2), color, 2)
+            cv2.putText(dbg, f"c{cls_id} s{score:.2f} w{ancho:.2f}",
+                        (px1, max(12, py1 - 4)), cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
+
+    # headless: siempre imprimo el mejor verde (aunque no haya monitor)
+    print(f"[ZONA] verde score={mejor_verde[0]:.2f} ancho={mejor_verde[1]:.2f} "
+          f"(need s>={thr} w>={ZONA_VERDE_MIN_ANCHO}) -> {'DISPARA gs9' if encontrada else 'no'}")
+
+    if dbg is not None:
+        cv2.putText(dbg, f"ZONA={'SI' if encontrada else 'no'}",
+                    (5, 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                    (0, 255, 0) if encontrada else (0, 0, 255), 2)
+        cv2.imshow("YOLO linea (zona verde)", dbg)
+        cv2.waitKey(1)
+
+    return encontrada
 
 def modo_rescate(evac_mode=False):
     global last_target_box, is_stopped, estado, ser
@@ -718,8 +751,8 @@ def modo_rescate(evac_mode=False):
                     speed = 0
                     angle = 0
                     ball_type = None
-                    if target['cls'] == 0:   ball_type = "silver"
-                    elif target['cls'] == 1: ball_type = "black"
+                    if target['cls'] == 0:   ball_type = "black"
+                    elif target['cls'] == 1: ball_type = "silver"
                     elif target['cls'] == 2: ball_type = "red_zone"
                     elif target['cls'] == 3: ball_type = "green_zone"
 
@@ -909,8 +942,23 @@ def main():
             for contour in silver_contours:
                 area = cv2.contourArea(contour)
                 print(area)
-                if area > 50:
-                    silver_line = True
+                if area > 4600:
+                    # candidato de plateada: enderezar, esperar y RECONFIRMAR con frame fresco
+                    angle = 0
+                    send_frame(speed, 0, green_state, False)  # que el angle=0 tenga efecto durante el sleep
+                    time.sleep(0.5)
+
+                    # frame nuevo despues del sleep (el silver_mask anterior es viejo)
+                    frame2, line_none_count = read_frame_with_recovery(line_none_count, "linea-silver")
+                    if frame2 is not None:
+                        frame2 = cv2.rotate(frame2, cv2.ROTATE_180)
+                        fr2 = cv2.resize(frame2, (160, 120), interpolation=cv2.INTER_NEAREST)
+                        silver_mask2 = cv2.inRange(fr2, lower_silver_hsv, upper_silver_hsv)
+                        silver_mask2[:75, :] = 0
+                        silver_px = int(np.sum(silver_mask2))
+                        print(f"[SILVER] px_despues_sleep={silver_px} (need <40000 para confirmar)")
+                        if silver_px < 40000:
+                            silver_line = True
                     break
 
             red_line = False
@@ -941,7 +989,8 @@ def main():
                 green_state = 11  # codigo nuevo para doble linea roja
             elif red_line:
                 green_state = 10
-
+            if line_frames % 15 == 0:
+                print(f"[LINEA] carrying_victim={carrying_victim} gs={green_state}")
             # === CHALLENGE 2025: cargando victima -> busco la ZONA VERDE con YOLO ===
             # Sincronico, cada YOLO_LINEA_EVERY frames (la zona es grande, no hace falta
             # mas). modo_rescate NO corre aca -> el interpreter esta libre.
