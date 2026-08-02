@@ -2,11 +2,14 @@
 #include <Servo.h>
 #include "claw.h"
 
+// =========================
+// DFServo
+// =========================
+
 DFServo::DFServo(int pin, double minMicroseconds, double maxMicroseconds, double angularRange)
 {
     _pin = pin;
-    // Do not attach here to avoid global initialization issues
-    // _servo.attach(_pin);
+    _angle = 0;
     _minMicroseconds = minMicroseconds;
     _maxMicroseconds = maxMicroseconds;
     _angularRange = angularRange;
@@ -20,35 +23,49 @@ void DFServo::begin()
 void DFServo::setAngle(double angle)
 {
     _angle = angle;
-    _servo.writeMicroseconds(_minMicroseconds + ((_maxMicroseconds - _minMicroseconds) / _angularRange * _angle));
+
+    double microseconds = _minMicroseconds +
+                          ((_maxMicroseconds - _minMicroseconds) / _angularRange * _angle);
+
+    _servo.writeMicroseconds(microseconds);
 }
 
-double DFServo::getAngle() { return _angle; }
-
-Claw::Claw(DFServo *liftDFServo, DFServo *leftDFServo, DFServo *rightDFServo, DFServo *sortDFServo, DFServo *depositDFServo)
+double DFServo::getAngle()
 {
-    this->_liftDFServo = liftDFServo;
-    this->_leftDFServo = leftDFServo;
-    this->_rightDFServo = rightDFServo;
-    this->_sortDFServo = sortDFServo;
-    this->_depositDFServo = depositDFServo;
-    this-> reset();
-    this->_state = CL_IDLE;
-    this->_stateStartedAt = 0;
-    this->_concurrentRequested = false;
+    return _angle;
+}
+
+// =========================
+// Claw
+// =========================
+
+Claw::Claw(DFServo *liftDFServo,
+           DFServo *leftDFServo,
+           DFServo *rightDFServo,
+           DFServo *sortDFServo,
+           DFServo *depositDFServo)
+{
+    _liftDFServo = liftDFServo;
+    _leftDFServo = leftDFServo;
+    _rightDFServo = rightDFServo;
+    _sortDFServo = sortDFServo;
+    _depositDFServo = depositDFServo;
+
+    _lastAction = 0;
+    _state = CL_IDLE;
+    _stateStartedAt = 0;
+    _concurrentRequested = false;
 }
 
 void Claw::begin()
 {
-    // Attach all servos first
     _liftDFServo->begin();
     _leftDFServo->begin();
     _rightDFServo->begin();
     _sortDFServo->begin();
     _depositDFServo->begin();
-    
-    reset();  // Initialize claw positions after setup
 
+    reset();
 }
 
 bool Claw::available()
@@ -56,70 +73,119 @@ bool Claw::available()
     return (millis() - _lastAction) > 1000;
 }
 
-void Claw::open(bool concurrent = false)
+// =========================
+// Movimientos básicos
+// =========================
+
+void Claw::open(bool concurrent)
 {
     _leftDFServo->setAngle(120);
     _rightDFServo->setAngle(180);
-    if (!concurrent) _lastAction = millis();
+
+    if (!concurrent)
+        _lastAction = millis();
 }
 
-void Claw::close(bool concurrent = false)
+void Claw::close(bool concurrent)
 {
-    _leftDFServo->setAngle(200);
-    _rightDFServo->setAngle(80);
-    if (!concurrent) _lastAction = millis();
+    _leftDFServo->setAngle(190);
+    _rightDFServo->setAngle(85);
+
+    if (!concurrent)
+        _lastAction = millis();
 }
 
-void Claw::lift(bool concurrent = false)
+void Claw::lift(bool concurrent)
 {
-    _liftDFServo->setAngle(210);
-    if (!concurrent) _lastAction = millis();
+    _liftDFServo->setAngle(190);
+
+    if (!concurrent)
+        _lastAction = millis();
 }
 
-void Claw::lower(bool concurrent = false)
+void Claw::lower(bool concurrent)
 {
-    _liftDFServo->setAngle(85);
-    if (!concurrent) _lastAction = millis();
+    _liftDFServo->setAngle(48);
+
+    if (!concurrent)
+        _lastAction = millis();
 }
 
-void Claw::sortLeft(bool concurrent = false)
+// =========================
+// Sort
+// =========================
+
+void Claw::sortLeft(bool concurrent)
 {
     _sortDFServo->setAngle(170);
-    if (!concurrent) _lastAction = millis();
+
+    if (!concurrent)
+        _lastAction = millis();
 }
 
-void Claw::sortRight(bool concurrent = false)
+void Claw::sortRight(bool concurrent)
 {
     _sortDFServo->setAngle(90);
-    if (!concurrent) _lastAction = millis();
+
+    if (!concurrent)
+        _lastAction = millis();
 }
 
-void Claw::depositLeft(bool concurrent = false)
+void Claw::sortCenter(bool concurrent)
+{
+    _sortDFServo->setAngle(130); // Si mecánicamente queda mejor, probá 135
+
+    if (!concurrent)
+        _lastAction = millis();
+}
+
+// =========================
+// Deposit
+// =========================
+
+void Claw::depositLeft(bool concurrent)
 {
     _depositDFServo->setAngle(190);
-    if (!concurrent) _lastAction = millis();
+
+    if (!concurrent)
+        _lastAction = millis();
 }
-void Claw::depositCenter(bool concurrent = false)
+
+void Claw::depositCenter(bool concurrent)
 {
     _depositDFServo->setAngle(130);
-    if (!concurrent) _lastAction = millis();
+
+    if (!concurrent)
+        _lastAction = millis();
 }
 
-void Claw::depositRight(bool concurrent = false)
+void Claw::depositRight(bool concurrent)
 {
     _depositDFServo->setAngle(85);
-    if (!concurrent) _lastAction = millis();
+
+    if (!concurrent)
+        _lastAction = millis();
 }
 
-void Claw::reset(bool concurrent = false)
+// =========================
+// Reset
+// =========================
+
+void Claw::reset(bool concurrent)
 {
-    this->lower();
-    _sortDFServo->setAngle(135);
-    this->open();
-    if (!concurrent) _lastAction = millis();
+    lower(true);
+    sortCenter(true);
+    open(true);
+
+    if (!concurrent)
+        _lastAction = millis();
 }
-// Non-blocking pickup: start sequences and advance via update()
-void Claw::pickupLeft(bool concurrent = false)
+
+// =========================
+// Secuencias no bloqueantes
+// =========================
+
+void Claw::pickupLeft(bool concurrent)
 {
     if (_state == CL_IDLE)
     {
@@ -129,7 +195,7 @@ void Claw::pickupLeft(bool concurrent = false)
     }
 }
 
-void Claw::pickupRight(bool concurrent = false)
+void Claw::pickupRight(bool concurrent)
 {
     if (_state == CL_IDLE)
     {
@@ -146,77 +212,82 @@ bool Claw::busy()
 
 void Claw::update()
 {
-    const unsigned long STEP_DELAY = 500; // ms between steps
+    const unsigned long STEP_DELAY = 500;
     unsigned long now = millis();
 
     switch (_state)
     {
     case CL_IDLE:
-        // nothing to do
         break;
+
     case CL_PICKUP_LEFT_STEP1:
-        // step1: close
-        this->close();
+        close(true);
         _state = CL_PICKUP_LEFT_STEP2;
         _stateStartedAt = now;
         break;
+
     case CL_PICKUP_LEFT_STEP2:
         if (now - _stateStartedAt >= STEP_DELAY)
         {
-            // step2: sort left + lift
-            this->sortLeft();
-            this->lift();
+            sortLeft(true);
+            lift(true);
+
             _state = CL_PICKUP_LEFT_STEP3;
             _stateStartedAt = now;
         }
         break;
+
     case CL_PICKUP_LEFT_STEP3:
         if (now - _stateStartedAt >= STEP_DELAY)
         {
-            // step3: open
-            this->open();
+            open(true);
+
             _state = CL_PICKUP_LEFT_STEP4;
             _stateStartedAt = now;
         }
         break;
+
     case CL_PICKUP_LEFT_STEP4:
-        // finish
-        if (now - _stateStartedAt >= 0)
-        {
-            _state = CL_IDLE;
-            if (!_concurrentRequested)
-                _lastAction = now;
-        }
+        _state = CL_IDLE;
+
+        if (!_concurrentRequested)
+            _lastAction = now;
+
         break;
+
     case CL_PICKUP_RIGHT_STEP1:
-        this->close();
+        close(true);
         _state = CL_PICKUP_RIGHT_STEP2;
         _stateStartedAt = now;
         break;
+
     case CL_PICKUP_RIGHT_STEP2:
         if (now - _stateStartedAt >= STEP_DELAY)
         {
-            this->sortRight();
-            this->lift();
+            sortRight(true);
+            lift(true);
+
             _state = CL_PICKUP_RIGHT_STEP3;
             _stateStartedAt = now;
         }
         break;
+
     case CL_PICKUP_RIGHT_STEP3:
         if (now - _stateStartedAt >= STEP_DELAY)
         {
-            this->open();
+            open(true);
+
             _state = CL_PICKUP_RIGHT_STEP4;
             _stateStartedAt = now;
         }
         break;
+
     case CL_PICKUP_RIGHT_STEP4:
-        if (now - _stateStartedAt >= 0)
-        {
-            _state = CL_IDLE;
-            if (!_concurrentRequested)
-                _lastAction = now;
-        }
+        _state = CL_IDLE;
+
+        if (!_concurrentRequested)
+            _lastAction = now;
+
         break;
     }
 }
