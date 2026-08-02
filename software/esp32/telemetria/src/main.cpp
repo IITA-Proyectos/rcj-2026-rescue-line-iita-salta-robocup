@@ -35,9 +35,16 @@ static const char *AP_PASS = "rescate2026";   // >= 8 caracteres (requisito WPA2
 
 // Pines UART hacia el Teensy. Son GPIOs libres del ESP32-C3 Super Mini.
 // Conecta el TX8 del Teensy (pin 35) al UART_RX_PIN de aca.
-#define UART_RX_PIN   4     // <- Teensy TX8 (pin 35)   [dato de telemetria]
-#define UART_TX_PIN   5     // -> Teensy RX8 (pin 34)   [opcional]
+// CABLEADO REAL DEL ROBOT (verificado con el escaneo de pines, 2026-08-01):
+// el TX8 del Teensy (pin 35) llega al GPIO20 de la ESP32-C3 (RX0 por defecto),
+// que es el mismo cable que ya se usaba con el MicroPython del ex-SuperTema.
+#define UART_RX_PIN   20    // <- Teensy TX8 (pin 35)   [dato de telemetria]
+#define UART_TX_PIN   21    // -> Teensy RX8 (pin 34)   [opcional, TX0 del C3]
 #define UART_BAUD     115200
+
+// DIAGNOSTICO: 1 = en vez de arrancar el AP, escanea los GPIOs buscando en cual
+// llega el UART del Teensy (imprime el resultado por USB). Poner en 0 para operar.
+#define UART_PIN_SCAN 0
 
 // --------------------------------------------------------------------------
 WebServer server(80);
@@ -74,10 +81,54 @@ void handleInfo()
     server.send(200, "application/json", b);
 }
 
+#if UART_PIN_SCAN
+// Escanea GPIOs candidatos del ESP32-C3 buscando en cual llega el UART del Teensy.
+// El pin correcto muestra bytes > 0, con '{' y '\n' (es el JSON de telemetria).
+static const int SCAN_PINS[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 21};
+void runPinScan()
+{
+    Serial.println("\n===== [SCAN] buscando el pin RX del Teensy (Serial8 -> ESP32) =====");
+    int mejor = -1, mejorBraces = -1;
+    for (unsigned i = 0; i < sizeof(SCAN_PINS) / sizeof(SCAN_PINS[0]); i++)
+    {
+        int pin = SCAN_PINS[i];
+        Serial1.begin(115200, SERIAL_8N1, pin, -1);   // solo RX en este GPIO
+        delay(60);
+        while (Serial1.available()) Serial1.read();   // vaciar
+        unsigned long t0 = millis();
+        int bytes = 0, braces = 0, nl = 0;
+        while (millis() - t0 < 2500)                   // 2.5 s (el Teensy en idle manda ~1/s)
+        {
+            while (Serial1.available())
+            {
+                char c = (char)Serial1.read();
+                bytes++;
+                if (c == '{') braces++;
+                if (c == '\n') nl++;
+            }
+        }
+        Serial1.end();
+        bool esEste = (braces > 0 && nl > 0);
+        Serial.printf("[SCAN] GPIO%-2d : bytes=%-4d  '{'=%-3d  nl=%-3d  %s\n",
+                      pin, bytes, braces, nl, esEste ? "<<<<< TEENSY ACA" : "");
+        if (esEste && braces > mejorBraces) { mejorBraces = braces; mejor = pin; }
+        delay(40);
+    }
+    if (mejor >= 0)
+        Serial.printf("[SCAN] >>> Pon  #define UART_RX_PIN %d  y reflashea con UART_PIN_SCAN 0\n", mejor);
+    else
+        Serial.println("[SCAN] No llego nada en ningun pin. Revisar: GND comun, que el Teensy este mandando, y el cable de datos.");
+}
+#endif
+
 // ------------------------------ Setup --------------------------------------
 void setup()
 {
     Serial.begin(115200);
+#if UART_PIN_SCAN
+    delay(1800);                 // dar tiempo a que el USB-CDC enumere
+    return;                      // en modo scan no arrancamos WiFi ni el server
+#endif
 
     // Buffer RX grande: evita perder frames mientras handleClient() sirve la
     // pagina (la lectura del UART es por interrupcion, en segundo plano).
@@ -99,6 +150,11 @@ void setup()
 // ------------------------------- Loop --------------------------------------
 void loop()
 {
+#if UART_PIN_SCAN
+    runPinScan();
+    delay(1200);
+    return;
+#endif
     server.handleClient();
 
     // Drena todo lo disponible del UART y arma lineas terminadas en '\n'.

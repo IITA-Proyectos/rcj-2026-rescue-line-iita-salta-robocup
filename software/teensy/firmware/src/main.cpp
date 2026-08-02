@@ -25,6 +25,7 @@
 #define INVERTIR_DEPOSITO   false   // D2.3: impar invierte zonas (necesita CONTAR_VERDES)
 #define SUPERTEAM           0       // SUPER TEMA: 1=puente con ESP32-MINI por Serial8 | 0=corrida normal
 #define TELEMETRIA          1       // TELEMETRIA: 1=envia TODOS los valores por Serial8 a la ESP32-MINI (AP+GUI) | 0=off
+#define TELEMETRIA_DEBUG_USB 0      // DIAGNOSTICO: 1=imprime por USB (COM del Teensy) cuantos frames salieron por Serial8. Util si la GUI queda en "MODO DEMO".
 // ============================================================================
 //  TELEMETRIA — Teensy -> ESP32-MINI por Serial8 (RX=pin34 / TX=pin35, 3.3V, 115200)
 //  La ESP32-MINI monta un AP WiFi y sirve una GUI web con TODOS los valores de
@@ -1867,7 +1868,7 @@ void enviarTelemetria()
         buf, sizeof(buf),
         "{\"t\":%lu,"
         "\"rpi\":{\"speed\":%d,\"steer\":%.3f,\"green\":%d,\"silver\":%d,\"rxb\":%lu,\"rxf\":%lu,\"st\":%d},"
-        "\"col\":{\"d\":\"%s\",\"r\":%u,\"g\":%u,\"b\":%u,\"c\":%u,\"ok\":%d},"
+        "\"col\":{\"d\":\"%s\",\"dc\":\"%s\",\"r\":%u,\"g\":%u,\"b\":%u,\"c\":%u,\"ok\":%d},"
         "\"us\":{\"f\":%d,\"l\":%d,\"r\":%d},"
         "\"tof\":{\"l\":%d,\"r\":%d},"
         "\"imu\":{\"yaw\":%.1f,\"pit\":%.1f,\"rol\":%.1f,\"cen\":%.1f},"
@@ -1878,7 +1879,10 @@ void enviarTelemetria()
         "\"grn\":{\"rx\":[%lu,%lu,%lu,%lu],\"act\":[%lu,%lu,%lu,%lu],\"kill\":[%lu,%lu,%lu,%lu],\"lt\":%d,\"age\":%ld,\"lrc\":%d}}\n",
         millis(),
         (int)speed, steer, green_state, silver_line, serial_bytes_rx, serial_frames_rx, serial5state,
-        color_detected.c_str(), (unsigned)cr, (unsigned)cg, (unsigned)cb, (unsigned)cc, color_sensor_ok ? 1 : 0,
+        // d  = lo que el sensor ve AHORA (se refresca con cada muestra) -> para CALIBRAR.
+        // dc = lo que esta usando el control (solo se asigna en las rutinas de marcha).
+        last_color_detected.c_str(), color_detected.c_str(),
+        (unsigned)cr, (unsigned)cg, (unsigned)cb, (unsigned)cc, color_sensor_ok ? 1 : 0,
         front_distance, left_distance, right_distance,
         distance_left_tof, distance_right_tof,
         t_yaw, t_pit, t_rol, t_cen,
@@ -1904,8 +1908,45 @@ void enviarTelemetria()
         n = sizeof(buf) - 1;   // snprintf trunco: clamp para no leer fuera de buf en enviar()
     }
     telemetria.enviar(buf, n);
+
+#if TELEMETRIA_DEBUG_USB
+    // DIAGNOSTICO: una linea/seg por USB con cuantos frames salieron por Serial8.
+    // env sube  -> el Teensy transmite (el problema es el cable/pin del lado ESP32).
+    // env queda -> revisar Serial8/firmware.
+    static unsigned long lastDbg = 0;
+    if (millis() - lastDbg >= 1000)
+    {
+        lastDbg = millis();
+        Serial.print("[TLM] env=");
+        Serial.print(telemetria.framesEnviados());
+        Serial.print(" desc=");
+        Serial.print(telemetria.framesDescartados());
+        Serial.print(" avail=");
+        Serial.println(Serial8.availableForWrite());
+    }
+#endif
 }
 #endif // TELEMETRIA
+
+#if TELEMETRIA
+// Espera 'ms' (MISMA duracion que delay(ms)) pero aprovechando la pausa para
+// mandar telemetria y refrescar el muestreo de color. Se usa SOLO en el loop de
+// idle (switch apagado): ahi es donde se calibra el sensor y hace falta ver los
+// valores fluidos, no una foto por segundo. No altera el timing del parpadeo.
+void delayTelemetria(unsigned long ms)
+{
+    unsigned long t0 = millis();
+    while (millis() - t0 < ms)
+    {
+        enviarTelemetria();
+        get_color_fast();   // muestra fresca para el panel de calibracion
+        yield();            // conserva la semantica de delay() (serialEventN, USB)
+        delay(2);
+    }
+}
+#else
+inline void delayTelemetria(unsigned long ms) { delay(ms); }
+#endif
 
 void setup()
 {
@@ -2047,7 +2088,7 @@ void loop()
             digitalWrite(LED_BUILTIN, HIGH);
             // digitalWrite(BUZZER, HIGH);
             digitalWrite(LED_ROJO, HIGH);
-            delay(500);
+            delayTelemetria(500);   // misma pausa, pero con telemetria/color fluidos (calibracion)
             robot.steer(0, 0, 0);
             //Serial.println(leer_pitch()); // para imprimirlo
            get_color_fast();
@@ -2058,8 +2099,8 @@ void loop()
             digitalWrite(LED_ROJO, LOW);
             digitalWrite(RELAY,LOW);
             claw.open();
-            delay(500);
-         
+            delayTelemetria(500);   // idem: telemetria fluida en idle
+
             get_color_fast();
 
             if (digitalRead(SWITCH) == 0)
