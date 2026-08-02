@@ -206,6 +206,7 @@
         <div class="kv"><span class="k">C</span><span class="v" id="cal-c">0</span></div>
         <div class="kv"><span class="k">B-G</span><span class="v" id="cal-bg">0</span></div>
         <div class="kv"><span class="k">detectado</span><span class="v" id="cal-d">—</span></div>
+        <div class="kv"><span class="k">usa el control</span><span class="v" id="cal-dc">—</span></div>
       </div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px">
@@ -415,7 +416,7 @@ function render(d){
   { const rr=ratios(c);
     set("cal-r",c.r??0); set("cal-g",c.g??0); set("cal-b",c.b??0); set("cal-c",c.c??0);
     set("cal-rc",rr.rc.toFixed(3)); set("cal-rg",rr.rg.toFixed(3)); set("cal-rb",rr.rb.toFixed(3)); set("cal-bg",rr.bg);
-    set("cal-d",c.d||"—");
+    set("cal-d",c.d||"—"); set("cal-dc",c.dc||"—");
     const cs=$("cal-swatch"); cs.style.background=cc; cs.textContent=c.d||"—";
     cs.style.color=(c.d==="Blanco"||c.d==="Plateado")?"#101418":"#fff";
   }
@@ -529,6 +530,7 @@ function mock(){
     rpi:{speed:Math.round(45+35*s), steer:+(s2*0.8).toFixed(3), green:[0,0,0,1,2,3,7][Math.floor((mt*0.3)%7)], silver:s3>0.9?1:0,
       rxb:Math.floor(mt*230), rxf:Math.floor(mt*40), st:Math.floor((mt)%4)},
     col:{d:["Blanco","Negro","Verde","Rojo","Plateado","Desconocido"][Math.floor((mt*0.4)%6)],
+      dc:["Blanco","Negro","Verde","Rojo","Plateado","Desconocido"][Math.floor((mt*0.4)%6)],
       r:Math.round(400+300*s), g:Math.round(600+300*s2), b:Math.round(600+250*s3), c:Math.round(1800+800*s), ok:1},
     us:{f:Math.round(60+50*s), l:Math.round(45+40*s2), r:Math.round(45+40*s3)},
     tof:{l:Math.round(500+400*s2), r:Math.round(500+400*s3)},
