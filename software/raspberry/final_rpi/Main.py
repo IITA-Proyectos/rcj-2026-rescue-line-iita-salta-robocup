@@ -1,5 +1,5 @@
 import cv2
-from camthreader import *
+from software.raspberry.final_rpi.mainenviar import *
 import numpy as np
 import math
 import time
@@ -69,8 +69,9 @@ vs = WebcamVideoStream(src=0).start()
 ser = serial.Serial('/dev/serial0', 115200, timeout=SERIAL_TIMEOUT_S, write_timeout=SERIAL_TIMEOUT_S)
 lower_black   = np.array([0, 0, 0])
 upper_black   = np.array([90, 90, 90])
-lower_green = np.array([80, 87, 85])
-upper_green = np.array([205, 123, 120])
+
+lower_green = np.array([70, 85, 138])  # lab
+upper_green = np.array([104, 102, 158])
 lower_silver_hsv = np.array([79, 16, 46])
 upper_silver_hsv = np.array([168, 28, 79])
 lower_red1 = np.array([0, 84, 54])  # hsv
@@ -329,7 +330,7 @@ def modo_rescate(evac_mode=False):
 
     last_target_box      = None
     CENTER_TOLERANCE_PX  = 8
-    STOP_WIDTH_RATIO     = 0.21
+    STOP_WIDTH_RATIO     = 0.25
     STOP_WIDTH_RATIO_BOX = 0.98
     STOP_EVAC = 0.68
     RESUME_WIDTH_RATIO   = 0.18
@@ -825,7 +826,7 @@ def main():
                     filtered_green_mask = cv2.dilate(filtered_green_mask, kernel, iterations=2)
                     green_contours, hierarchy = cv2.findContours(filtered_green_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-                    if len(green_contours) > 1 and cx_black > leftIndex and cx_black < rightIndex and np.sum(green_mask) > (1.25 * min_square_size * 255):
+                    if len(green_contours) > 1 and cx_black > leftIndex and cx_black < rightIndex and np.sum(green_mask) > (1.2 * min_square_size * 255):
                         green_state = 3
                     elif greenCentroidX < cx_black:
                         green_state = 1

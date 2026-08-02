@@ -1413,7 +1413,7 @@ bool detectarPlateado() {
 
 // Lecturas frescas consecutivas necesarias para confirmar un color antes de
 // actuar en evacuacion. Subir si hay falsos positivos; bajar si queda lento.
-constexpr uint8_t EVAC_COLOR_CONFIRM_SAMPLES = 2;
+constexpr uint8_t EVAC_COLOR_CONFIRM_SAMPLES = 1;
 
 // Confirma que el sensor ve 'objetivo' en N lecturas frescas seguidas.
 // Filtra ruido/sombras/reflejos que provocaban falsos "Negro"/"Plateado".
@@ -2249,6 +2249,16 @@ if (green_state == 2)
                 if (front_distance != 0 && front_distance < 12)
 
                 {
+                get_color_fast();
+            if (color_detected == "Plateado" && confirmarColor("Plateado")) {   // confirmo 2 lecturas -> filtra brillos aislados
+
+                    plateadoDetectado = true;
+
+                    if (!rescateAvisado) {
+                        Serial5.write(241);
+                        rescateAvisado = true;
+                    }
+            }
                     action = 1;
                 }
                
@@ -2324,7 +2334,14 @@ if (green_state == 2)
                     veces_deposit = 0;
                     alineado=false;
                     depositando=false;
+                    runTime(30, BACKWARD, 0,800);
                     runTime(0, FORWARD, 0, 1000);
+                    leer_ultrasonidos();
+                    if(left_distance>right_distance){
+                        runAngle(30,FORWARD,-20);
+                    }
+                    if(right_distance>left_distance){
+                        runAngle(30,FORWARD,20);}
                      runTime(30,FORWARD,0,2000);
 
 
