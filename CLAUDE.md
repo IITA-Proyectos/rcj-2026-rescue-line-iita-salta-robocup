@@ -27,7 +27,7 @@ Este archivo es leído automáticamente por Claude Code y otros asistentes que a
 2. **Todo cambio se vincula a un Issue.** No hay PRs huérfanos.
 3. **Antes de mergear un fix de firmware, probar en banco.** Mínimo: el robot enciende, los motores responden, no hay watchdog reset. Resultado documentado en [`testing/TEST_LOG.md`](testing/TEST_LOG.md).
 4. **No tocar lo que funciona "porque suena mejor".** Si una mejora teórica rompe un subsistema validado, se revierte. Los alumnos llevan meses tuneando — respetá su trabajo.
-5. **Idioma fuente: español.** Todo PR, issue, doc, comentario de código y commit message va en español. La carpeta `docs/en/` se autotraduce por CI (no editar a mano).
+5. **Idioma fuente: español.** Todo PR, issue, doc, comentario de código y commit message va en español. ⏸ **La autotraducción de `docs/en/` está SUSPENDIDA desde el 2026-08-02** (no hay documentación rumbo a campeonato internacional). `docs/en/` quedó **congelada** en su último estado: no la edites a mano y no confíes en que esté al día — la fuente de verdad es `docs/es/`. Para reactivar la traducción automática, seguí las instrucciones al tope de [`.github/workflows/translate-docs.yml`](.github/workflows/translate-docs.yml).
 6. **Hardware versionado.** Cambios físicos van en `hardware/cambios_de_hardware.md` con fecha y razón.
 7. **Conventional Commits** en español: `fix(teensy): agregar volatile a contadores de encoder`, `feat(rpi): cargar YOLO una sola vez al arranque`.
 

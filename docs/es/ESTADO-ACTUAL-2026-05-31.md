@@ -61,7 +61,7 @@ Tabla "documento → qué es → vigente/histórico → dónde está". **Si dos 
 | **Análisis resiliencia / correctitud (18-may)** | `2026-05-18-auditoria-resiliencia.md`, `2026-05-18-analisis-correctitud-oportunidades.md` | 🟠 Histórico (insumo de la integral) | `docs/es/` |
 | **Journal / decisiones** | Check-in semanal W20 + decisión "objetivo confiabilidad 8/10" | 🟡 Vigente (registro) | `journal/2026-W20-checkin.md`, `journal/decisiones/` |
 | **CLAUDE.md / README / REFERENCE** | Contexto técnico para IA + stack + reglas de oro | 🟢 Vigente (CLAUDE.md ya apunta a este doc) | raíz del repo |
-| `docs/en/**` | Traducción automática por CI | — **No editar a mano** | `docs/en/` |
+| `docs/en/**` | Traducción automática por CI — ⏸ **SUSPENDIDA el 2026-08-02** (no hay doc rumbo a mundial). Reactivación: ver cabecera de `.github/workflows/translate-docs.yml` | 🟠 **CONGELADA** en su último estado — no editar a mano, no asumir que está al día | `docs/en/` |
 
 > **Dónde está cada cosa (para no confundirse):**
 > - **El índice de código** vive en `docs/es/propuestas-codigo/README.md` (mapa navegable). **Los archivos de código** (`programa-*.md` por persona) viven en `project/backlog/staging/` — el índice apunta a ellos.

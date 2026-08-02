@@ -8,7 +8,7 @@ Este repositorio sigue el estándar ICRS v1.1 L2 (IITA Competition Repository St
 - `software/raspberry/`: Código Python para Raspberry Pi 4B
 - `hardware/`: Electrónica (PCB, esquemáticos) y mecánica (CAD, STL)
 - `docs/es/`: Documentación fuente en español
-- `docs/en/`: Mirror auto-generado en inglés (NO EDITAR)
+- `docs/en/`: Mirror auto-generado en inglés (NO EDITAR). ⏸ **Autotraducción SUSPENDIDA el 2026-08-02** — la carpeta quedó congelada y está desactualizada respecto de `docs/es/`. Cómo reactivarla: cabecera de `.github/workflows/translate-docs.yml`.
 
 ## Reglas
 

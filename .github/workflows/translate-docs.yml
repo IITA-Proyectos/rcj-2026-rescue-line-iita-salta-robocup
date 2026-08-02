@@ -1,9 +1,45 @@
 name: Auto Translate Spanish Docs to English (L2)
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# ⏸  SUSPENDIDO el 2026-08-02 — la traducción automática ES→EN está APAGADA.
+#
+# Por qué se apagó:
+#   No hay documentación en preparación para campeonatos internacionales
+#   (Incheon 2026 ya pasó). Cada push que tocaba docs/es/ disparaba una corrida
+#   de 15–34 min de GitHub Actions (repo privado = consume cuota) que
+#   retraducía TODO docs/es/ con gpt-4o-mini y abría un PR bot/translate-docs
+#   para triar. Costo permanente sin destinatario.
+#
+# Qué NO se borró: el workflow entero, scripts/translate_docs.py y el secret
+#   OPENAI_API_KEY siguen intactos. Solo se sacó el disparo automático.
+#
+# ─── CÓMO RE-HABILITARLO (cuando vuelva a haber mundial) ──────────────────────
+#   1. En el bloque `on:` de abajo: borrar la línea `workflow_dispatch:` y
+#      descomentar las 4 líneas marcadas "REACTIVAR".
+#   2. Confirmar que el secret sigue cargado:
+#        gh secret list -R IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup
+#      Si no aparece OPENAI_API_KEY:
+#        gh secret set OPENAI_API_KEY -R IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup
+#   3. Revertir la regla de oro #5 de CLAUDE.md: hoy dice que docs/en/ está
+#      CONGELADA; volver a "se autotraduce por CI (no editar a mano)".
+#   4. Verificar de verdad: pushear un cambio chico a docs/es/ y confirmar que
+#      aparece el PR bot/translate-docs. Que el YAML sea válido NO prueba que
+#      corrió.
+#
+# ─── CORRERLO A MANO SIN RE-HABILITAR NADA ────────────────────────────────────
+#   Para una traducción puntual (ej. un solo entregable antes de una fecha):
+#     gh workflow run "Auto Translate Spanish Docs to English (L2)" \
+#       -R IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup --ref main
+#   Ojo: retraduce TODO docs/es/, no hay filtro por archivo. Los ~17–34 min y
+#   el gasto de OpenAI se pagan igual.
+# ═══════════════════════════════════════════════════════════════════════════════
+
 on:
-  push:
-    paths:
-      - 'docs/es/**'
+  workflow_dispatch:          # disparo MANUAL únicamente — ver bloque de arriba
+  # REACTIVAR: descomentar estas 4 líneas para volver a la traducción automática
+  # push:
+  #   paths:
+  #     - 'docs/es/**'
 
 permissions:
   contents: write
