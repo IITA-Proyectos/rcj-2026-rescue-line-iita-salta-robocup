@@ -8,6 +8,9 @@ import sys
 import os
 import threading
 import queue
+# Registro por frame del lado de la vision. Apagado salvo que exista la
+# variable de entorno TLM_VISION; sin ella no abre archivo ni cuesta nada.
+from telemetria_vision import tlmv
 
 HEADLESS = os.environ.get("DISPLAY") is None
 DEBUG_VIEW = os.environ.get("DEBUG_VIEW") == "1"
@@ -58,6 +61,8 @@ record = True
 noise_blob_threshold = 16
 min_square_size = 550
 min_line_size = 50000
+line_lost_search_speed = 12
+line_lost_search_angle = 65
 fixed_angle_value = 0
 fixed_angle_active = False
 fixed_angle_start_time = 0
@@ -762,7 +767,10 @@ def main():
         line_none_count = 0
         line_t0 = time.time()
         line_frames = 0
+        last_line_angle = 0
+        last_line_search_dir = 1
         while estado == 'linea':
+            tlm_t_frame = time.monotonic()   # TLM: para medir proc_ms
             frame, line_none_count = read_frame_with_recovery(line_none_count, "linea")
             if frame is None:
                 continue
@@ -795,10 +803,18 @@ def main():
             silver_mask[:75, :] = 0
 
             green_state = 0
+            black_sum = np.sum(black_mask)
             x_resultant = np.mean(x_black)
             y_resultant = np.mean(y_black)
             angle = (math.atan2(y_resultant, x_resultant) / math.pi * 180) - 90
             speed = 40
+            # TLM: el angulo TAL COMO salio del atan2, antes de cualquier
+            # override. Y si la mascara quedo vacia, atan2(0,0)-90 da -90:
+            # un angulo que NO significa nada y que igual se usa mas abajo
+            # para elegir hacia donde buscar la linea.
+            tlm_ang_crudo = angle
+            tlm_degenerado = 1 if (x_resultant == 0 and y_resultant == 0) else 0
+            tlm_perdida = 0
 
             if np.sum(green_mask) > min_square_size * 255:
                 green_pixels = np.amax(green_mask, axis=0)
@@ -839,8 +855,18 @@ def main():
                 greenSquare = False
                 green_state = 0
 
-            if np.sum(black_mask) < min_line_size:
-                angle = 0
+            if black_sum >= min_line_size:
+                last_line_angle = angle
+                if abs(angle) > 8:
+                    last_line_search_dir = 1 if angle > 0 else -1
+            else:
+                if abs(angle) > 8:
+                    last_line_search_dir = 1 if angle > 0 else -1
+                elif abs(last_line_angle) > 8:
+                    last_line_search_dir = 1 if last_line_angle > 0 else -1
+                angle = last_line_search_dir * line_lost_search_angle
+                speed = line_lost_search_speed
+                tlm_perdida = 1
 
             silver_contours, _ = cv2.findContours(silver_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             silver_line = False
@@ -881,6 +907,26 @@ def main():
                 green_state = 10
 
             output = send_frame(speed, round(angle), green_state, silver_line)
+            # TLM: una linea por frame. `i` = frames_sent, que es la MISMA
+            # cuenta que el Teensy graba como `rxf`: esa es la clave con la
+            # que se cruzan los dos registros.
+            tlmv.frame(i=frames_sent,
+                       proc_ms=int((time.monotonic() - tlm_t_frame) * 1000),
+                       estado=0,
+                       black_sum=int(black_sum),
+                       valida=1 if black_sum >= min_line_size else 0,
+                       degenerado=tlm_degenerado,
+                       xr=int(x_resultant * 1000),
+                       yr=int(y_resultant * 1000),
+                       ang_crudo=int(round(tlm_ang_crudo)),
+                       ang_env=int(round(angle)),
+                       vel_env=int(speed),
+                       perdida=tlm_perdida,
+                       dir_busq=int(last_line_search_dir),
+                       green=int(green_state),
+                       silver=1 if silver_line else 0,
+                       rojo_bandas=int(red_bands),
+                       fps=0)
             line_frames += 1
             if time.time() - line_t0 >= 30:
                 print(f"[LINE-FPS] avg={line_frames / (time.time() - line_t0):.2f}")
