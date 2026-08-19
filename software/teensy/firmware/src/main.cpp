@@ -17,6 +17,79 @@
 #include <telemetria.h>
 
 // ============================================================================
+//  MODO_DIAGNOSTICO va ACA ARRIBA porque de el dependen las macros DBG_*, que
+//  se usan en todo el archivo. Lo define el entorno `diagnostico` por -D.
+// ============================================================================
+// ============================================================================
+//  FIX_CURVA_CONTINUA - saca el escalon de `rotation` del case 7
+//
+//  EL PROBLEMA (medido con las constantes del propio case 7):
+//    camara 23,3 deg -> steerCmd 0,350 -> rama `curva`       -> rotation 0,350
+//                       rueda interna = 26 * (1-2*0,350) =  +7,8 rpm  ADELANTE
+//    camara 23,4 deg -> steerCmd 0,351 -> rama `curva dura`  -> rotation 0,800
+//                       rueda interna = 22 * (1-2*0,800) = -13,2 rpm  REVERSA
+//  UNA DECIMA DE GRADO de camara da vuelta la rueda interna: un salto de 21 rpm.
+//  Con las omni traseras eso se absorbia deslizando de costado. Con 4 fijas de
+//  silicona se convierte en un escalon de par contra la friccion estatica: el
+//  robot se carga sin girar y despues gira de golpe.
+//
+//  QUE HACE EL FIX: `rotation` pasa a ser una funcion CONTINUA de steerCmd, y la
+//  velocidad tambien. No hay ningun punto donde un cambio infinitesimal del
+//  angulo produzca un cambio finito del comando.
+//
+//  Y SACA steerAxleBias: pedirle 55% al eje delantero no lo hace girar mas
+//  despacio -eso lo impone la geometria del chasis rigido-, sino que hace que su
+//  RPM medida supere a la pedida. Como el PID solo ve magnitudes, le baja el PWM
+//  y el eje delantero queda sin par. Es el mismo mecanismo del problema central,
+//  aplicado a mano.
+//
+//  0 por defecto: no cambia el binario de competencia. Lo enciende el entorno
+//  `diagnostico_fix` para poder comparar la MISMA curva con y sin el.
+// ============================================================================
+#ifndef FIX_CURVA_CONTINUA
+#define FIX_CURVA_CONTINUA 0
+#endif
+
+// ============================================================================
+//  MODO_BANCO - barrido automatico de actuacion. SIN pista y SIN vision.
+//
+//  QUE MIDE: como responde el tren motriz a cada valor de `rotation`, que es
+//  el discriminador entre las dos hipotesis que compiten:
+//    - si el giro real MEJORA hacia rotation = 1 -> PID CIEGO AL SIGNO. En
+//      rotation = 1 la consigna de la rueda interna es la velocidad COMPLETA,
+//      asi que el lazo no puede colapsar (haria falta que el chasis avance mas
+//      rapido que la rueda de afuera).
+//    - si EMPEORA hacia rotation = 1 -> TECHO DE PAR. rotation = 1 es el caso
+//      de scrub MAXIMO: si ahi no gira, la silicona es el limite y no hay
+//      firmware que lo arregle.
+//  Las dos hipotesis predicen ORDENES OPUESTOS. Por eso este barrido decide.
+//
+//  POR QUE NO HACE FALTA PISTA: el radio de giro es track*(1-r)/(2r), asi que
+//  todo el barrido entra en un circulo de ~25 cm. El robot pivotea en el lugar
+//  y alcanza con un cable USB corto.
+//
+//  SEGURIDAD: se corta apenas se apaga el switch, en cualquier punto.
+// ============================================================================
+#ifndef MODO_BANCO
+#define MODO_BANCO 0
+#endif
+
+#ifndef MODO_DIAGNOSTICO
+#define MODO_DIAGNOSTICO 0
+#endif
+
+// En modo diagnostico el USB transporta UNICAMENTE el CSV: cualquier print
+// suelto se mete adentro de una linea de datos y la corrompe en silencio.
+// Por eso los prints de depuracion se apagan enteros, no se reordenan.
+#if MODO_DIAGNOSTICO
+  #define DBG_PRINT(...)   do { } while (0)
+  #define DBG_PRINTLN(...) do { } while (0)
+#else
+  #define DBG_PRINT(...)   Serial.print(__VA_ARGS__)
+  #define DBG_PRINTLN(...) Serial.println(__VA_ARGS__)
+#endif
+
+// ============================================================================
 #define INVERTIR_VERDES     false   // D1.1 / 2025: verde izq<->der
 #define MODO_DOBLE_VERDE    0       // 0=180(normal) | 1=ignorar/seguir recto (D1.2)
 #define MODO_ROJO           0       // 0=parar(meta) | 1=girar180(profe) | 2=simple180/doble-parar sensor(2025)
@@ -24,7 +97,9 @@
 #define CONTAR_VERDES       false   // D2.1: habilita el contador de verdes
 #define INVERTIR_DEPOSITO   false   // D2.3: impar invierte zonas (necesita CONTAR_VERDES)
 #define SUPERTEAM           0       // SUPER TEMA: 1=puente con ESP32-MINI por Serial8 | 0=corrida normal
-#define TELEMETRIA          1       // TELEMETRIA: 1=envia TODOS los valores por Serial8 a la ESP32-MINI (AP+GUI) | 0=off
+#ifndef TELEMETRIA          // el entorno `diagnostico` la apaga por -D
+#define TELEMETRIA          1
+#endif       // TELEMETRIA: 1=envia TODOS los valores por Serial8 a la ESP32-MINI (AP+GUI) | 0=off
 #define TELEMETRIA_DEBUG_USB 0      // DIAGNOSTICO: 1=imprime por USB (COM del Teensy) cuantos frames salieron por Serial8. Util si la GUI queda en "MODO DEMO".
 // ============================================================================
 //  TELEMETRIA — Teensy -> ESP32-MINI por Serial8 (RX=pin34 / TX=pin35, 3.3V, 115200)
@@ -34,10 +109,77 @@
 //  Firmware ESP32 + GUI: software/esp32/telemetria/  (ver README ahi).
 //  NOTA: TELEMETRIA y SUPERTEAM comparten Serial8 -> no activar ambos a la vez.
 // ============================================================================
+// ============================================================================
+//  GLOBALES DE DIAGNOSTICO - fuera de cualquier #if.
+//  Los usan TANTO la telemetria JSON (entorno normal) COMO el registrador CSV
+//  de alta frecuencia (entorno `diagnostico`, que apaga TELEMETRIA). Si viven
+//  adentro de #if TELEMETRIA, el binario de diagnostico no compila.
+// ============================================================================
+// DIAGNOSTICO DE CURVAS: que rama del case 7 se ejecuto en la ultima vuelta.
+//   0 = recto  1 = curva  2 = curva dura  3 = pivot  9 = atasco
+// Sin esto, en la telemetria no hay forma de saber por que rama paso el robot
+// cuando se fue de la linea: se ve el steer que llego pero no que se hizo con el.
+//  -1 = el movimiento en curso NO viene del case 7 (es un runAngle/runTime de
+//       una maniobra: verde, 180, esquive). Sin esta marca el valor queda
+//       PEGADO del ultimo linetrack y el analizador cree que la curva la pidio
+//       la vision cuando en realidad fue una maniobra programada.
+int g_line_branch = 0;
+
+// millis() de la ULTIMA trama COMPLETA recibida de la RPi (los 4 pares
+// sync+dato). Si la vision se cuelga, la Teensy NO se entera: sigue usando el
+// ultimo `steer` para siempre y el robot se va derecho creyendo que obedece.
+// Con esto, en la telemetria se ve al instante si el comando esta rancio.
+unsigned long g_last_rx_ms = 0;
+
+// Copia INTOCABLE del ultimo angulo que mando la RPi. La global `steer` la
+// pisa el propio firmware (por ejemplo la alineacion por IMU), asi que no
+// sirve para responder 'que le pidio la vision'. Solo la escribe serialEvent5.
+double g_rx_steer = 0;
+
+// Periodo del loop(): el actual y el PICO desde el ultimo frame de telemetria.
+// El control de ruedas vive dentro del loop(); si el loop se traba, las ruedas
+// se quedan con la ultima consigna. El pico es lo que delata esos parones.
+unsigned long g_loop_dt = 0, g_loop_dt_max = 0;
+
+// En MODO_BANCO el BNO055 deja de ser obligatorio: si no responde, el barrido
+// corre igual y esto queda en 1. La columna de giro va a salir en cero, pero
+// la de colapso de la rueda interna -que es la que decide- sigue valiendo, y
+// el analizador ya sabe degradar. Antes esto era un while(1) mudo.
+int g_banco_sin_imu = 0;
+
 #if SUPERTEAM && TELEMETRIA
 #error "SUPERTEAM y TELEMETRIA comparten Serial8: activar solo uno (poner el otro en 0)."
 #endif
+
+// Con DIAG_PUERTO=1 el CSV del registrador sale por Serial8, que es el MISMO
+// cable por el que la telemetria manda su JSON. Los dos flujos se entrelazan y
+// el resultado no es ni un CSV ni un JSON: es basura que ninguna herramienta
+// avisa que esta mal. Se rompe el build antes de que pase.
+#if defined(DIAG_PUERTO) && DIAG_PUERTO && TELEMETRIA
+#error "DIAG_PUERTO=1 y TELEMETRIA=1 comparten Serial8: los dos flujos se mezclan. Dejar uno solo."
+#endif
 #if TELEMETRIA
+// ============================================================================
+//  VELOCIDAD DEL ENLACE Teensy -> ESP32  (Serial8)
+//
+//  >>> SI CAMBIAS ESTE NUMERO, CAMBIA TAMBIEN  UART_BAUD  EN
+//  >>> software/esp32/telemetria/src/main.cpp  Y FLASHEA LAS DOS PLACAS. <<<
+//  Si quedan distintos, la ESP32 recibe basura y la telemetria muere entera
+//  (el control no se entera: Serial8 es SOLO telemetria).
+//
+//  POR QUE 230400 Y NO 115200: el frame v2 mide ~1000 bytes. A 115200 (1152
+//  bytes utiles por cada 100 ms) eso es el 87% del enlace, y con el buffer TX
+//  tan lleno cualquier demora hace que enviar() descarte el frame. Ese descarte
+//  es SILENCIOSO -la telemetria es best-effort por diseño- asi que se ve como
+//  datos que faltan, no como un error: es exactamente el sintoma que ya medimos
+//  (7,7 Hz en vez de 10 y huecos de 1 s). A 230400 el mismo frame usa el 43% y
+//  queda margen para crecer.
+//  230400 y no mas: es el salto conservador, sigue siendo un baud estandar que
+//  cualquier adaptador USB-TTL levanta si algun dia hay que pinchar el cable
+//  para diagnosticar, y el cable es corto y a 3.3 V adentro del robot.
+// ============================================================================
+#define TLM_BAUD 230400
+
 Telemetria telemetria(Serial8, 100);   // 100 ms => 10 Hz
 void enviarTelemetria();
 
@@ -50,6 +192,8 @@ void enviarTelemetria();
 //  g_last_recheck_gs = green_state visto en el ultimo re-chequeo (0 = se apago).
 //  Son contadores PUROS: no cambian en nada el comportamiento del robot.
 // ============================================================================
+
+
 unsigned long g_rx[4]   = {0, 0, 0, 0};
 unsigned long g_act[4]  = {0, 0, 0, 0};
 unsigned long g_kill[4] = {0, 0, 0, 0};
@@ -82,10 +226,61 @@ inline void telemGreenResultado(int tipo, int gsEnRecheck)
     if (gsEnRecheck == tipo) g_act[tipo]++;
     else                     g_kill[tipo]++;
 }
+
+// ============================================================================
+//  QUE PRIMITIVA DE MOVIMIENTO ESTA CORRIENDO  ->  campo "prim" del frame
+//
+//  POR QUE HACE FALTA: cuando en la telemetria se ve que el robot se quedo
+//  quieto, hoy no hay forma de saber si estaba en un runDistance esperando los
+//  pulsos, en un runAngle que no llega al angulo, o directamente trabado.
+//
+//  POR QUE RAII Y NO UNA ASIGNACION A MANO: las primitivas SE ANIDAN. La cadena
+//  real es runDistance -> serviceMotionBackgroundTasks -> actualizarRescate ->
+//  runTime, o sea hasta 4 niveles. Si al salir de runTime pusieramos g_prim = "",
+//  le borrariamos el nombre al runDistance que TODAVIA esta corriendo. Por eso
+//  cada primitiva GUARDA el valor anterior al entrar y lo RESTAURA al salir.
+//
+//  El destructor corre en toda salida de scope: por break, por timeout y por
+//  return temprano. Hoy estas funciones tienen una sola salida, pero el return
+//  temprano es idioma corriente en este archivo (ver get_color_fresh), asi que
+//  esto es inmune por construccion al dia que alguien agregue uno.
+//
+//  const char* a un literal, NUNCA String: un String aca metería alloc/free de
+//  heap adentro del lazo de movimiento (fragmentacion y jitter en el control).
+//  Con const char* el costo es UN store de puntero por LLAMADA -no por vuelta
+//  del while-, o sea ~2 ciclos. En un Cortex-M7 de un solo nucleo y sin
+//  preemption, un store alineado de 32 bits es atomico: no hace falta volatile
+//  ni seccion critica (ninguna ISR toca esto).
+// ============================================================================
+const char *g_prim = "";
+
+struct PrimScope
+{
+    const char *prev;
+    explicit PrimScope(const char *n) : prev(g_prim) { g_prim = n; }
+    ~PrimScope() { g_prim = prev; }
+};
+#define PRIM(nombre) PrimScope _prim_(nombre)
+
+// ============================================================================
+//  CABECERA DE CORRIDA (campo "hdr")  ->  con que firmware se hizo esta corrida
+//
+//  TLM_COMMIT lo define git_commit.py en tiempo de compilacion. Como es un
+//  string LITERAL, se concatena aca abajo dentro de la cadena y NO gasta un
+//  argumento del snprintf: sale gratis en tiempo de ejecucion.
+//  El #ifndef es la red por si alguien compila sin el extra_script.
+// ============================================================================
+#ifndef TLM_COMMIT
+#define TLM_COMMIT "nodef"
+#endif
+static const char HDR_JSON[] = "\"hdr\":{\"commit\":\"" TLM_COMMIT "\",\"tlm\":2},";
 #else
 inline void enviarTelemetria() {}
 inline void telemGreenRx(int) {}
 inline void telemGreenResultado(int, int) {}
+// Con TELEMETRIA en 0 el marcador desaparece en el preprocesador: no queda ni
+// la variable ni el objeto. No depende de que el optimizador lo saque.
+#define PRIM(nombre) ((void)0)
 #endif
 
 // ============================================================================
@@ -301,7 +496,7 @@ void fatalSensorInitLoop()
 
 void handleBnoInitFailure()
 {
-    Serial.print("No BNO055 detected ... Check your wiring or I2C ADDR!");
+    DBG_PRINT("No BNO055 detected ... Check your wiring or I2C ADDR!");
     if (fixIssue62Enabled())
     {
         fatalSensorInitLoop();
@@ -318,8 +513,321 @@ void notifyOptionalSensorWarning()
     }
 }
 
+
+// ============================================================================
+//  MODO_DIAGNOSTICO - registrador de alta frecuencia de la REACCION DE MOTORES
+//
+//  QUE ES: un SEGUNDO BINARIO construido desde ESTE MISMO archivo (entorno
+//  `diagnostico` en platformio.ini). A proposito NO es una copia de main.cpp:
+//  una copia se despega del original en una semana y ahi el diagnostico deja de
+//  describir al robot que compite. Con MODO_DIAGNOSTICO=0 (el entorno normal)
+//  nada de esto entra al binario.
+//
+//  POR QUE HACE FALTA: la telemetria JSON manda a 10 Hz. El PID corre a 50 Hz
+//  (SampleTime = 20 ms) y el desplome de PWM de la rueda interna dura decenas
+//  de milisegundos. Muestrear a 10 Hz es submuestrear el fenomeno: se ve el
+//  antes y el despues, nunca el momento en que pasa. Aca se muestrea a 200 Hz,
+//  cuatro veces el lazo de control.
+//
+//  COMO NO PIERDE MUESTRAS EN LOS GIROS: runTime/runAngle/runDistance son
+//  bucles BLOQUEANTES - el loop() no vuelve a correr hasta que terminan. Por eso
+//  el muestreo se engancha ADEMAS en serviceMotionBackgroundTasks(), que es el
+//  unico punto por el que pasan los cinco bucles bloqueantes. Y si aun asi
+//  quedara un hueco NO se disimula: cada linea lleva su `dt` real medido y hay
+//  un contador `drop` de muestras perdidas por anillo lleno.
+//
+//  SALIDA: una linea CSV por muestra, con cabecera, para que el archivo se
+//  explique solo. Se graba con tools/registrar_diagnostico.py.
+// ============================================================================
+#if MODO_DIAGNOSTICO
+
+// Puerto de salida:
+//   0 = USB del Teensy (por defecto). No hay que cablear nada y no hay limite de
+//       ancho de banda: es el que conviene para el banco de motores.
+//   1 = Serial8 a DIAG_BAUD, para correr SUELTO en la pista con un adaptador
+//       USB-TTL colgado del TX. OJO: la ESP32 de telemetria espera JSON y esto
+//       es CSV, asi que en modo diagnostico la ESP32 no se usa.
+#ifndef DIAG_PUERTO
+#define DIAG_PUERTO 0
+#endif
+#define DIAG_BAUD       921600
+#define DIAG_HZ         200
+#define DIAG_PERIODO_US (1000000UL / DIAG_HZ)
+#define DIAG_RING       1024     // 1024 a 200 Hz = 5 s. Mas margen que antes porque
+
+#if DIAG_PUERTO
+  #define DIAG_OUT Serial8
+#else
+  #define DIAG_OUT Serial
+#endif
+
+struct DiagMuestra {
+    uint32_t us;          // micros() de la muestra
+    uint16_t dt;          // us desde la muestra anterior (delata los huecos)
+    int16_t  rxsteer;     // el ANGULO que llego de la RPi, x1000
+    uint8_t  rxspeed;
+    int16_t  rxage;       // ms desde la ultima trama completa (-1 = nunca llego)
+    uint32_t rxf;         // contador de tramas completas (uint16 daba la vuelta a los ~22 min)
+    int16_t  rot;         // DriveBase::_rotation x1000
+    int16_t  ls, rs;      // consignas por lado, ya calculadas
+    uint8_t  ddir;        // direccion pedida
+    int16_t  ram;         // rama del case 7. TIENE QUE SER CON SIGNO: vale -1
+                          // cuando el giro lo pidio un runAngle/runTime y no la
+                          // vision. Con uint8_t el -1 llegaba como 255 y el
+                          // analizador no reconocia ninguno de los dos casos.
+    uint8_t  dir[4];      // FL FR BL BR - sentido COMANDADO
+    int16_t  set[4];      // consigna de RPM por rueda
+    int16_t  rpm[4];      // RPM medida (MAGNITUD: el encoder no informa sentido)
+    uint8_t  pwm[4];      // esfuerzo aplicado
+    int32_t  enc[4];      // pulseCount
+    uint32_t tog[4];      // toggles del pin de direccion. uint16 daba la vuelta
+                          // en ~33 s a la frecuencia del loop, y un delta negativo
+                          // apagaba la deteccion C justo en la rueda que oscila.
+    uint32_t raw[4];      // flancos CRUDOS: movimiento fisico sin suposiciones
+    int16_t  yaw, pit;    // x10
+    int16_t  gx, gy, gz;  // velocidad angular REAL x10
+    uint32_t drop;        // perdidas AL MOMENTO DE LA MUESTRA. Antes se leia la
+                          // global al DRENAR, hasta 2,5 s despues: la columna
+                          // quedaba estampada sobre la fila equivocada.
+};
+
+// el DRENAJE depende de que el lazo principal lo visite, y el lazo de linea
+// puede tardar decenas de ms por vuelta.
+DMAMEM DiagMuestra diagRing[DIAG_RING];
+IntervalTimer diagTimer;
+// Productor unico (el ISR del timer) escribe diagCabeza; consumidor unico
+// (diagDrenar, desde el lazo) escribe diagCola. Con indices de 16 bits
+// alineados eso es atomico en un Cortex-M7: no hace falta candado.
+volatile uint16_t diagCabeza = 0, diagCola = 0;
+volatile unsigned long diagDropIsr = 0;
+unsigned long diagDrop = 0;
+static uint32_t diagUltimaUs = 0;
+// Cache de la IMU: la lectura es I2C (~2 ms) y NO puede correr a 200 Hz. El
+// BNO055 se actualiza a 100 Hz internamente, asi que refrescarla a 50 Hz no
+// pierde informacion y saca el I2C del camino del muestreo.
+static int16_t diagYaw = 0, diagPit = 0, diagGx = 0, diagGy = 0, diagGz = 0;
+
+static inline int16_t diagSat(double v)
+{
+    if (isnan(v) || isinf(v)) return 0;
+    if (v >  32000.0) return  32000;
+    if (v < -32000.0) return -32000;
+    return (int16_t)v;
+}
+
+void diagRefrescarImu()
+{
+    static unsigned long ult = 0;
+    if (millis() - ult < 20) return;   // 50 Hz
+    ult = millis();
+    sensors_event_t ev;
+    bno.getEvent(&ev);
+    diagYaw = diagSat(ev.orientation.x * 10.0);
+    diagPit = diagSat(ev.orientation.y * 10.0);
+    imu::Vector<3> g = bno.getVector(Adafruit_BNO055::VECTOR_GYROSCOPE);
+    diagGx = diagSat(g.x() * 10.0);
+    diagGy = diagSat(g.y() * 10.0);
+    diagGz = diagSat(g.z() * 10.0);
+}
+
+// Toma una foto si ya paso el periodo. SOLO copia valores que ya estan en RAM:
+// nada de I2C ni de cuentas, para que el costo sea despreciable y no altere el
+// comportamiento que estamos tratando de medir.
+// ============================================================================
+//  MUESTREO POR TIMER DE HARDWARE - NO colgado del lazo.
+//
+//  POR QUE: el seguimiento de linea corre dentro de un while(rutina=="linea")
+//  que esta ADENTRO de loop(), y el case 7 NO llama a
+//  serviceMotionBackgroundTasks(). O sea que ningun enganche del lazo se
+//  alcanzaba durante una curva: el registrador grababa CERO muestras justo
+//  del fenomeno que se quiere medir. Con el timer, 200 Hz pase lo que pase.
+//
+//  Este ISR SOLO COPIA valores que ya estan en RAM: nada de I2C, nada de
+//  formateo, nada que pueda bloquear. Formatear y escribir al puerto sigue
+//  en el lazo (diagDrenar), que es donde puede esperar.
+//
+//  Lectura rota de un double mientras el lazo lo escribe: posible. Da un
+//  valor absurdo que diagSat acota. Es dato de diagnostico, no de control:
+//  se prefiere eso a frenar el lazo con noInterrupts() 200 veces por segundo.
+// ============================================================================
+void diagMuestrear()
+{
+    uint32_t ahora = micros();
+    if (diagUltimaUs && (ahora - diagUltimaUs) < DIAG_PERIODO_US) return;
+    uint32_t dt = diagUltimaUs ? (ahora - diagUltimaUs) : 0;
+    diagUltimaUs = ahora;
+
+    uint16_t sig = (uint16_t)((diagCabeza + 1) % DIAG_RING);
+    if (sig == diagCola) { diagDropIsr++; return; }   // anillo lleno: se anota, no se miente
+
+    DiagMuestra &m = diagRing[diagCabeza];
+    m.us = ahora;
+    m.dt = (dt > 65535UL) ? 65535 : (uint16_t)dt;
+    m.rxsteer = diagSat(g_rx_steer * 1000.0);   // lo que MANDO la RPi, no la global pisada
+    m.rxspeed = (uint8_t)constrain(speed, 0.0, 255.0);
+    long edad = g_last_rx_ms ? (long)(millis() - g_last_rx_ms) : -1L;
+    m.rxage = (edad > 32000L) ? 32000 : (int16_t)edad;
+    m.rxf = (uint32_t)serial_frames_rx;
+    m.rot = diagSat(robot._rotation * 1000.0);
+    m.ls = diagSat(robot._leftspeed);
+    m.rs = diagSat(robot._rightspeed);
+    m.ddir = (uint8_t)robot._direction;
+    m.ram = (int16_t)g_line_branch;
+    Moto *mt[4] = { &fl, &fr, &bl, &br };
+    for (int i = 0; i < 4; i++)
+    {
+        m.dir[i] = (uint8_t)mt[i]->_dir;
+        m.set[i] = diagSat(mt[i]->_rpm);
+        m.rpm[i] = diagSat(mt[i]->_realrpm);
+        m.pwm[i] = (uint8_t)constrain(mt[i]->_pwmTotal, 0.0, 255.0);   // el que sale por el pin
+        m.enc[i] = (int32_t)mt[i]->pulseCount;
+        m.tog[i] = (uint32_t)mt[i]->dirToggles;
+        m.raw[i] = (uint32_t)mt[i]->pulsesRaw;
+    }
+    m.yaw = diagYaw; m.pit = diagPit;
+    m.gx = diagGx; m.gy = diagGy; m.gz = diagGz;
+    m.drop = diagDrop + diagDropIsr;
+    diagCabeza = sig;
+}
+
+// Vacia el anillo hacia el puerto SIN bloquear: escribe solo mientras haya lugar
+// en el buffer de salida. Si no lo hay, la muestra espera en el anillo. Nunca
+// frena el control - misma regla que la telemetria JSON.
+// SENAL FISICA de que el registro esta vivo: el LED de la placa parpadea con
+// cada volcado. Sin esto, un USB sin nadie leyendo deja availableForWrite() en 0,
+// el anillo se llena, diagDrop sube y NO SE GRABA NADA - con el robot corriendo
+// normal y sin ninguna pista hasta abrir el archivo a la noche.
+// Si ademas se estan perdiendo muestras, el parpadeo pasa a ser rapido.
+void diagLatido(bool perdiendo)
+{
+    static unsigned long ult = 0;
+    static bool on = false;
+    unsigned long periodo = perdiendo ? 60 : 400;
+    if (millis() - ult < periodo) return;
+    ult = millis();
+    on = !on;
+    digitalWriteFast(LED_BUILTIN, on);
+}
+
+void diagDrenar()
+{
+    // 384 = el largo maximo de una linea. Comparar contra un numero magico mas
+    // chico dejaba pasar escrituras que despues bloqueaban, o -con el buffer de
+    // 40 B de un Serial de Teensy 4- no dejaba pasar ninguna.
+    unsigned long escritas = 0;
+    while (diagCola != diagCabeza && DIAG_OUT.availableForWrite() >= 384)
+    {
+        const DiagMuestra &m = diagRing[diagCola];
+        char l[384];   // peor caso medido ~321 B: con 256 truncaba en silencio
+        int n = snprintf(l, sizeof(l),
+            "%lu,%u,%lu,%d,%u,%d,%lu,%d,%d,%d,%u,%d,"
+            "%u,%d,%d,%u,%ld,%lu,%lu,"
+            "%u,%d,%d,%u,%ld,%lu,%lu,"
+            "%u,%d,%d,%u,%ld,%lu,%lu,"
+            "%u,%d,%d,%u,%ld,%lu,%lu,"
+            "%d,%d,%d,%d,%d\n",
+            (unsigned long)m.us, m.dt, (unsigned long)m.drop, m.rxsteer, m.rxspeed, m.rxage,
+            (unsigned long)m.rxf, m.rot, m.ls, m.rs, m.ddir, m.ram,
+            m.dir[0], m.set[0], m.rpm[0], m.pwm[0], (long)m.enc[0], (unsigned long)m.tog[0], (unsigned long)m.raw[0],
+            m.dir[1], m.set[1], m.rpm[1], m.pwm[1], (long)m.enc[1], (unsigned long)m.tog[1], (unsigned long)m.raw[1],
+            m.dir[2], m.set[2], m.rpm[2], m.pwm[2], (long)m.enc[2], (unsigned long)m.tog[2], (unsigned long)m.raw[2],
+            m.dir[3], m.set[3], m.rpm[3], m.pwm[3], (long)m.enc[3], (unsigned long)m.tog[3], (unsigned long)m.raw[3],
+            m.yaw, m.pit, m.gx, m.gy, m.gz);
+        if (n > 0 && n < (int)sizeof(l)) DIAG_OUT.write((const uint8_t *)l, n);
+        else diagDrop++;   // no entro: se cuenta como perdida, no se pierde callado
+        diagCola = (uint16_t)((diagCola + 1) % DIAG_RING);
+        escritas++;
+    }
+    static unsigned long dropPrev = 0;
+    unsigned long dropAhora = diagDrop + diagDropIsr;
+    diagLatido(dropAhora != dropPrev);
+    dropPrev = dropAhora;
+}
+
+// La cabecera se REEMITE cada 2 s: asi el stream se explica solo desde
+// cualquier punto en el que uno se enganche. Cuesta ~300 B cada 2 s contra los
+// 40 kB/s de datos (0,4%). Abrir el USB no resetea un Teensy 4.1, asi que sin
+// esto el que arranca el registrador tarde se pierde la unica cabecera que hubo.
+static const char *DIAG_CABECERA =
+    "us,dt,drop,rxsteer,rxspeed,rxage,rxf,rot,ls,rs,ddir,ram,"
+    "fl_dir,fl_set,fl_rpm,fl_pwm,fl_enc,fl_tog,fl_raw,"
+    "fr_dir,fr_set,fr_rpm,fr_pwm,fr_enc,fr_tog,fr_raw,"
+    "bl_dir,bl_set,bl_rpm,bl_pwm,bl_enc,bl_tog,bl_raw,"
+    "br_dir,br_set,br_rpm,br_pwm,br_enc,br_tog,br_raw,"
+    "yaw,pit,gx,gy,gz";
+
+// Reemite cabecera + procedencia. El `ult` se actualiza DESPUES del guard:
+// si no habia lugar en el buffer, se reintenta en el proximo tick en vez de
+// quemar la ventana entera de 2 s.
+// La procedencia viaja CON cada cabecera. Si solo se emitiera al arrancar, el
+// que engancha el registrador tarde graba un CSV sin saber con que binario se
+// hizo, y entonces no sirve para comparar historico contra fix.
+// Emite TODOS los flags que cambian comportamiento. Antes solo salia `lazo=`,
+// asi que dos CSV podian diferir en el arbol del case 7, en las ganancias del
+// feedforward o en el puerto y parecer perfectamente comparables. Un A/B entre
+// corridas que difieren en mas de una cosa no es atribuible.
+void diagProcedencia()
+{
+    DIAG_OUT.print("# hz="); DIAG_OUT.print(DIAG_HZ);
+    DIAG_OUT.print(" ticks_vuelta="); DIAG_OUT.print(TICKS_VUELTA);
+    DIAG_OUT.print(" fix_lazo="); DIAG_OUT.print(FIX_LAZO_MOTOR);
+    DIAG_OUT.print(" fix_curva="); DIAG_OUT.print(FIX_CURVA_CONTINUA);
+    DIAG_OUT.print(" ks="); DIAG_OUT.print(MOTO_KS, 2);
+    DIAG_OUT.print(" kv="); DIAG_OUT.print(MOTO_KV, 3);
+    DIAG_OUT.print(" piso="); DIAG_OUT.print(MOTO_PISO, 2);
+    DIAG_OUT.print(" anticoast="); DIAG_OUT.print(MOTO_PWM_ANTICOAST, 1);
+    DIAG_OUT.print(" diag_puerto="); DIAG_OUT.print(DIAG_PUERTO);
+    // si la IMU no arranco, la columna de giro va a estar en cero y NO significa
+    // que el robot no giro. Queda escrito en el archivo para no confundirlo.
+    DIAG_OUT.print(" sin_imu="); DIAG_OUT.print(g_banco_sin_imu);
+    // `lazo=` se mantiene por compatibilidad con los CSV ya grabados
+    DIAG_OUT.print(" lazo="); DIAG_OUT.print(FIX_LAZO_MOTOR ? "nuevo" : "historico");
+    DIAG_OUT.print(" commit=");
+#ifdef TLM_COMMIT
+    DIAG_OUT.println(TLM_COMMIT);
+#else
+    DIAG_OUT.println("nogit");
+#endif
+}
+
+void diagCabeceraPeriodica()
+{
+    static unsigned long ult = 0;
+    if (millis() - ult < 2000) return;
+    if (DIAG_OUT.availableForWrite() < 420) return;   // cabecera + procedencia
+    ult = millis();
+    diagProcedencia();
+    DIAG_OUT.println(DIAG_CABECERA);
+}
+
+void diagInicio()
+{
+#if DIAG_PUERTO
+    DIAG_OUT.begin(DIAG_BAUD);
+    // El buffer TX por defecto de un Serial de Teensy 4 son 40 bytes: con eso
+    // el guard de diagDrenar NUNCA se cumple y no se escribe una sola linea.
+    static uint8_t txbuf[4096];
+    DIAG_OUT.addMemoryForWrite(txbuf, sizeof(txbuf));
+#endif
+    DIAG_OUT.println("# RescueBot IITA - diagnostico de reaccion de motores");
+    diagProcedencia();
+    DIAG_OUT.println(DIAG_CABECERA);
+    // 200 Hz DE VERDAD, independientes de donde este parado el programa.
+    diagTimer.begin(diagMuestrear, DIAG_PERIODO_US);
+    diagTimer.priority(200);   // por debajo de las ISR de encoder, que son EL dato
+}
+
+// El muestreo NO esta aca: lo hace diagTimer a 200 Hz reales. Aca queda lo que
+// SI puede esperar y lo que NO puede correr en un ISR (I2C de la IMU, formateo
+// de texto, escritura al puerto).
+#define DIAG_TICK()  do { diagRefrescarImu(); diagCabeceraPeriodica(); diagDrenar(); } while (0)
+#else
+#define DIAG_TICK()  do { } while (0)
+#endif // MODO_DIAGNOSTICO
+
 void serviceMotionBackgroundTasks()
 {
+    DIAG_TICK();   // muestreo de alta frecuencia DURANTE las maniobras bloqueantes
     // Telemetria primero: asi sigue fluyendo aunque el fix59 este desactivado y
     // durante TODAS las maniobras bloqueantes (runTime/runAngle/runDistance...).
     // Es rate-limited y no bloqueante: costo despreciable.
@@ -553,9 +1061,9 @@ void leer_ultrasonidos()
 
 void imprimir_ultrasonidos()
 {
-    Serial.print("|D: ");
-    Serial.print(right_distance);
-    //Serial.println("cm ");
+    DBG_PRINT("|D: ");
+    DBG_PRINT(right_distance);
+    //DBG_PRINTLN("cm ");
 }
 
 // TOF
@@ -567,22 +1075,22 @@ void leer_tof()
 
 void imprimir_tof()
 {
-    Serial.print("Distance Left: ");
-    Serial.print(distance_left_tof);
-    Serial.print("mm");
+    DBG_PRINT("Distance Left: ");
+    DBG_PRINT(distance_left_tof);
+    DBG_PRINT("mm");
 
     if (left_tof.timeoutOccurred())
     {
-        Serial.print(" TIMEOUT");
+        DBG_PRINT(" TIMEOUT");
     }
 
-    Serial.print("   Distance Right: ");
-    Serial.print(distance_right_tof);
-    Serial.print("mm");
+    DBG_PRINT("   Distance Right: ");
+    DBG_PRINT(distance_right_tof);
+    DBG_PRINT("mm");
 
     if (right_tof.timeoutOccurred())
     {
-        Serial.print(" TIMEOUT");
+        DBG_PRINT(" TIMEOUT");
     }
 }
 void reset_enconder(){
@@ -683,15 +1191,15 @@ String classify_color(uint16_t r, uint16_t g, uint16_t b, uint16_t c)
 
     if (shouldPrint)
     {
-        Serial.print("R: "); Serial.print(r);
-        Serial.print(" | B: "); Serial.print(b);
-        Serial.print(" | G: "); Serial.print(g);
-        Serial.print(" | C: "); Serial.print(c);
-        Serial.print(" | R/C: "); Serial.print(ratio_rc, 3);
-        Serial.print(" | R/G: "); Serial.print(ratio_rg, 3);
-        Serial.print(" | R/B: "); Serial.print(ratio_rb, 3);
-        Serial.print(" | B-G: "); Serial.print(diff_bg);
-        Serial.print(" | -> ");
+        DBG_PRINT("R: "); DBG_PRINT(r);
+        DBG_PRINT(" | B: "); DBG_PRINT(b);
+        DBG_PRINT(" | G: "); DBG_PRINT(g);
+        DBG_PRINT(" | C: "); DBG_PRINT(c);
+        DBG_PRINT(" | R/C: "); DBG_PRINT(ratio_rc, 3);
+        DBG_PRINT(" | R/G: "); DBG_PRINT(ratio_rg, 3);
+        DBG_PRINT(" | R/B: "); DBG_PRINT(ratio_rb, 3);
+        DBG_PRINT(" | B-G: "); DBG_PRINT(diff_bg);
+        DBG_PRINT(" | -> ");
     }
 
     String detected = "Desconocido";
@@ -761,7 +1269,7 @@ bool esBlanco =
 
     if (shouldPrint)
     {
-        Serial.println(detected);
+        DBG_PRINTLN(detected);
         lastPrint = millis();
     }
 
@@ -862,14 +1370,14 @@ String get_color_old()
 
     // Imprimir los valores de R, G, B y Clear
     /*
-    Serial.print("red: ");
-    Serial.print(r);
-    Serial.print(" green: ");
-    Serial.print(g);
-    Serial.print(" blue: ");
-    Serial.print(b);
-    Serial.print(" clear: ");
-    //Serial.println(c);
+    DBG_PRINT("red: ");
+    DBG_PRINT(r);
+    DBG_PRINT(" green: ");
+    DBG_PRINT(g);
+    DBG_PRINT(" blue: ");
+    DBG_PRINT(b);
+    DBG_PRINT(" clear: ");
+    //DBG_PRINTLN(c);
     */
 
     return closest_color;
@@ -910,20 +1418,20 @@ String get_color_blocking_legacy()
     static unsigned long lastPrint = 0;
     if (millis() - lastPrint > 500)
     {
-        Serial.print("R: "); Serial.print(r);
-        Serial.print(" | B: "); Serial.print(b);
-        Serial.print(" | G: "); Serial.print(g);
-        Serial.print(" | C: "); Serial.print(c);
-        Serial.print(" | R/C: "); Serial.print(ratio_rc, 3);
-        Serial.print(" | R/G: "); Serial.print(ratio_rg, 3);
-        Serial.print(" | R/B: "); Serial.print(ratio_rb, 3);
+        DBG_PRINT("R: "); DBG_PRINT(r);
+        DBG_PRINT(" | B: "); DBG_PRINT(b);
+        DBG_PRINT(" | G: "); DBG_PRINT(g);
+        DBG_PRINT(" | C: "); DBG_PRINT(c);
+        DBG_PRINT(" | R/C: "); DBG_PRINT(ratio_rc, 3);
+        DBG_PRINT(" | R/G: "); DBG_PRINT(ratio_rg, 3);
+        DBG_PRINT(" | R/B: "); DBG_PRINT(ratio_rb, 3);
 
-        Serial.print(" | -> ");
-        if      (c > 1950 && ratio_rc > 0.234)                          Serial.println("Plateado");
-        else if (c > 1500 && ratio_rc <= 0.235)                         Serial.println("Blanco");
-        else if (c >= 300 && c <= 600 && ratio_rg > 1.6f && ratio_rb > 1.5f) Serial.println("Rojo");
-        else if (c < 600)                                                Serial.println("Negro");
-        else                                                             Serial.println("Verde");
+        DBG_PRINT(" | -> ");
+        if      (c > 1950 && ratio_rc > 0.234)                          DBG_PRINTLN("Plateado");
+        else if (c > 1500 && ratio_rc <= 0.235)                         DBG_PRINTLN("Blanco");
+        else if (c >= 300 && c <= 600 && ratio_rg > 1.6f && ratio_rb > 1.5f) DBG_PRINTLN("Rojo");
+        else if (c < 600)                                                DBG_PRINTLN("Negro");
+        else                                                             DBG_PRINTLN("Verde");
         lastPrint = millis();
     }
     // Returns en el mismo orden que el print
@@ -970,10 +1478,10 @@ bool serialPayloadOutOfRange(const char *field, int value, int maxValue)
         return false;
     }
 
-    Serial.print("[WARN] ");
-    Serial.print(field);
-    Serial.print(" fuera de rango: ");
-    Serial.println(value);
+    DBG_PRINT("[WARN] ");
+    DBG_PRINT(field);
+    DBG_PRINT(" fuera de rango: ");
+    DBG_PRINTLN(value);
     return true;
 }
 
@@ -984,10 +1492,10 @@ void maybePrintSerialTelemetry()
         return;
     }
 
-    Serial.print("[TLM] serial_bytes_rx=");
-    Serial.print(serial_bytes_rx);
-    Serial.print(" serial_frames_rx=");
-    Serial.println(serial_frames_rx);
+    DBG_PRINT("[TLM] serial_bytes_rx=");
+    DBG_PRINT(serial_bytes_rx);
+    DBG_PRINT(" serial_frames_rx=");
+    DBG_PRINTLN(serial_frames_rx);
     serialTelemetryTimer = 0;
 }
 
@@ -1021,6 +1529,7 @@ void serialEvent5()
             if (serialPayloadOutOfRange("angle", data, SERIAL_MAX_ANGLE))
                 continue;
             steer = ((double)data - 90) / 90;
+            g_rx_steer = steer;   // copia para la telemetria: nadie mas la toca
         }
         else if (serial5state == 2) // set task
         {
@@ -1028,8 +1537,8 @@ void serialEvent5()
                 continue;
             green_state = data;
             telemGreenRx(data);   // TELEMETRIA: cuenta verdes que llegan de la RPi
-    // Serial.print("[RX] green_state recibido: ");
-    // Serial.println(green_state);
+    // DBG_PRINT("[RX] green_state recibido: ");
+    // DBG_PRINTLN(green_state);
         }
         else if (serial5state == 3) // set line_middle
         {
@@ -1040,6 +1549,7 @@ void serialEvent5()
             {
                 serial_frames_rx++;
             }
+            g_last_rx_ms = millis();   // trama completa: el comando esta fresco
         }
     }
 
@@ -1065,6 +1575,8 @@ void serialEvent8()
 // Do a predefined move by time
 void runTime(int speed, int dir, double steer, unsigned long long time)
 {
+    g_line_branch = -1;   // este giro no lo pidio el case 7
+    PRIM("runTime");
     unsigned long long startTime = millis();
     while ((millis() - startTime) < time)
     {
@@ -1080,7 +1592,7 @@ void runTime(int speed, int dir, double steer, unsigned long long time)
             else
             {
                 int lecturas = Serial5.read();
-                Serial.print(lecturas);
+                DBG_PRINT(lecturas);
             }
         }
 
@@ -1096,6 +1608,8 @@ void runTime(int speed, int dir, double steer, unsigned long long time)
 }
 void runAngle(int speed, int dir, double angle)
 {
+    g_line_branch = -1;   // este giro no lo pidio el case 7
+    PRIM("runAngle");
     sensors_event_t event;
     bno.getEvent(&event);
     float initialAngle = event.orientation.x;
@@ -1119,7 +1633,7 @@ void runAngle(int speed, int dir, double angle)
         }
         if (fixIssue112Enabled() && (millis() - startTime) >= timeoutMs)
         {
-            Serial.println("[WARN] runAngle timeout");
+            DBG_PRINTLN("[WARN] runAngle timeout");
             break;
         }
         if (digitalRead(32) == 1)
@@ -1135,8 +1649,8 @@ void runAngle(int speed, int dir, double angle)
             error -= 360;
         if (error < -180)
             error += 360;
-        Serial.print("Error actual: ");
-        //Serial.println(fabs(error));
+        DBG_PRINT("Error actual: ");
+        //DBG_PRINTLN(fabs(error));
         if (fabs(error) <= 1.0)
             break;
         // Lógica para manejar los 5 valores de ángulo específicos
@@ -1206,6 +1720,7 @@ void runAngle(int speed, int dir, double angle)
 }
 
 void runDistance(int speed, int dir, int Distance) {
+    PRIM("runDistance");
     runTime(30,BACKWARD,0,20);
     runTime(30,FORWARD,0,20);
     reset_enconder();
@@ -1223,10 +1738,10 @@ void runDistance(int speed, int dir, int Distance) {
 
             robot.steer(speed, dir, 0);
             serviceMotionBackgroundTasks();
-            Serial.print(flCount);
-            Serial.print(" | ");
-            Serial.print(frCount);
-            //Serial.println(fr.pulseCount);
+            DBG_PRINT(flCount);
+            DBG_PRINT(" | ");
+            DBG_PRINT(frCount);
+            //DBG_PRINTLN(fr.pulseCount);
             digitalWrite(13, HIGH);
             delay(10);
            
@@ -1238,7 +1753,7 @@ void runDistance(int speed, int dir, int Distance) {
                 else
                 {
                     int lecturas = Serial5.read();
-                    Serial.print(lecturas);
+                    DBG_PRINT(lecturas);
                 }
             }
            
@@ -1257,10 +1772,10 @@ void runDistance(int speed, int dir, int Distance) {
             if (frCount <= -encoder || flCount <= -encoder) break;
             robot.steer(speed, dir, 0);
             serviceMotionBackgroundTasks();
-            Serial.print(flCount);
-            Serial.print(" | ");
-            Serial.print(frCount);
-            //Serial.println(fr.pulseCount);
+            DBG_PRINT(flCount);
+            DBG_PRINT(" | ");
+            DBG_PRINT(frCount);
+            //DBG_PRINTLN(fr.pulseCount);
             delay(10);
             if (Serial5.available() > 0) {
                 if (fixIssue63Enabled())
@@ -1270,7 +1785,7 @@ void runDistance(int speed, int dir, int Distance) {
                 else
                 {
                     int lecturas = Serial5.read();
-                    Serial.print(lecturas);
+                    DBG_PRINT(lecturas);
                 }
             }
            
@@ -1291,6 +1806,7 @@ void runDistance(int speed, int dir, int Distance) {
 
 
 void runDistanceEvacuacion(int speed, int Distance) {
+    PRIM("runDistEvac");
     runTime(30, BACKWARD, 0, 20);
     runTime(30, FORWARD, 0, 20);
     reset_enconder();
@@ -1315,7 +1831,7 @@ void runDistanceEvacuacion(int speed, int Distance) {
                 serialEvent5();
             else {
                 int lecturas = Serial5.read();
-                Serial.print(lecturas);
+                DBG_PRINT(lecturas);
             }
         }
 
@@ -1447,7 +1963,7 @@ bool procesarColorEvacuacion()
 
     if (color_detected == "Plateado" && !silver_latch && confirmarColor("Plateado"))
     {
-        Serial.println("[EVAC] Plateado confirmado -> accionPlateado");
+        DBG_PRINTLN("[EVAC] Plateado confirmado -> accionPlateado");
         accionNegro();
         silver_latch = true;  // ya atendido; no repetir hasta despegarse del plateado
         return true;
@@ -1481,8 +1997,8 @@ float leer_pitch()
 }
 void imprimir_yaw()
 {
-    Serial.print("Yaw: ");
-    //Serial.println(yaw);
+    DBG_PRINT("Yaw: ");
+    //DBG_PRINTLN(yaw);
 }
 int ajustarVelocidadPorPendiente(int velocidadBase)
 {
@@ -1553,8 +2069,8 @@ void avance_recto(String pared)
         robot.steer(45, FORWARD, steer);
 
         // Imprimir para depuración
-        Serial.print("Corrigiendo con ángulo. Steer: ");
-        //Serial.println(steer);
+        DBG_PRINT("Corrigiendo con ángulo. Steer: ");
+        //DBG_PRINTLN(steer);
     }
     else
     {
@@ -1573,8 +2089,8 @@ void avance_recto(String pared)
         robot.steer(45, FORWARD, steer);
 
         // Imprimir para depuración
-        Serial.print("Corrigiendo con TOF. Steer: ");
-        //Serial.println(steer);
+        DBG_PRINT("Corrigiendo con TOF. Steer: ");
+        //DBG_PRINTLN(steer);
     }
 }
 
@@ -1689,10 +2205,10 @@ void actualizarContadorVerdes()
         else if (verde_confirmado == 3) Serial8.write(SUPER_VERDE_DOBLE);
 #endif
 
-        Serial.print("[VERDE CONTADO] gs=");
-        Serial.print(verde_confirmado);
-        Serial.print(" total=");
-        Serial.println(verdes_total);
+        DBG_PRINT("[VERDE CONTADO] gs=");
+        DBG_PRINT(verde_confirmado);
+        DBG_PRINT(" total=");
+        DBG_PRINTLN(verdes_total);
 
         digitalWrite(BUZZER, HIGH);
         delay(40);
@@ -1775,12 +2291,12 @@ bool chequearAtasco(int comandoVel)
         stuck_lastBl = blNow; stuck_lastBr = brNow;
 
         // [CAL] atasco silenciado (rampa ya entendida) — reactivar si hace falta
-        // Serial.print("[CAL] frD="); Serial.print(frD);
-        // Serial.print(" flD="); Serial.print(flD);
-        // Serial.print(" blD="); Serial.print(blD);
-        // Serial.print(" brD="); Serial.print(brD);
-        // Serial.print(" min="); Serial.print(minRueda);
-        // Serial.print(" pitch="); Serial.println(pitch, 1);
+        // DBG_PRINT("[CAL] frD="); DBG_PRINT(frD);
+        // DBG_PRINT(" flD="); DBG_PRINT(flD);
+        // DBG_PRINT(" blD="); DBG_PRINT(blD);
+        // DBG_PRINT(" brD="); DBG_PRINT(brD);
+        // DBG_PRINT(" min="); DBG_PRINT(minRueda);
+        // DBG_PRINT(" pitch="); DBG_PRINTLN(pitch, 1);
 
         // las DOS ruedas giran (recta/curva/pivote) -> avanza bien -> reinicio el timer
         if (minRueda >= UMBRAL_RUEDA)
@@ -1802,7 +2318,7 @@ bool chequearAtasco(int comandoVel)
 
 void recuperarAtasco()
 {
-    Serial.println("[ATASCO] rueda clavada -> retro + avance brusco");
+    DBG_PRINTLN("[ATASCO] rueda clavada -> retro + avance brusco");
     runTime(90,  BACKWARD, 0, 150);   // retroceso corto (bajar de la loma)
     runTime(100, FORWARD,  0, 250);   // avance a full para saltarla
     // reiniciar el detector
@@ -1854,6 +2370,15 @@ void enviarTelemetria()
     float t_pit = sanef(ev.orientation.y);
     float t_rol = sanef(ev.orientation.z);
     float t_cen = sanef(centrar);
+    // VELOCIDAD ANGULAR REAL, medida por el giroscopo (no derivada del yaw:
+    // a 10 Hz derivar el yaw da ruido, y ademas el yaw envuelve en 0/360).
+    // Es EL dato que faltaba: dice cuanto giro el robot DE VERDAD, para poder
+    // contrastarlo con cuanto se le pidio. Si se comanda curva y esto queda
+    // cerca de cero, el robot no esta girando aunque las ruedas 'obedezcan'.
+    // Se mandan los tres ejes porque cual es el yaw depende del montaje y eso
+    // se identifica en banco (ver la skill imu-bno055).
+    imu::Vector<3> gv = bno.getVector(Adafruit_BNO055::VECTOR_GYROSCOPE);
+    float t_gx = sanef(gv.x()), t_gy = sanef(gv.y()), t_gz = sanef(gv.z());
 
     // Color filtrado actual (lee los buffers de historial, no dispara el sensor).
     uint16_t cr = 0, cg = 0, cb = 0, cc = 0;
@@ -1863,21 +2388,94 @@ void enviarTelemetria()
     // literales cerrados sin comillas ni backslash (ver known_colors y las rutinas),
     // asi el JSON queda valido sin necesidad de escaparlos.
     long g_age = g_last_ms ? (long)(millis() - g_last_ms) : -1L;   // ms desde el ultimo verde (-1 = nunca)
-    static char buf[896];
+
+    // ---- PWM y RPM por rueda ------------------------------------------------
+    // OJO: aca NO se llama a getSpeed(). Esa funcion ESCRIBE _rpmlist[3] y
+    // _realrpm, y _realrpm es el input del PID (ver drivebase.h: PID(&_realrpm,
+    // &_pwmVal, &_rpm, ...)). Llamarla desde la telemetria le meteria al control
+    // una muestra fuera de fase y le corromperia el promedio movil. La regla es
+    // que la telemetria MIRA, no toca.
+    // _realrpm y _pwmVal son los ultimos valores que YA calculo el lazo: leerlos
+    // es una lectura pura. Tampoco hace falta noInterrupts(): la unica ISR que
+    // existe (updatePulse) toca _begin/_end/_rpmlist/pulseCount, nunca estos dos.
+    // getPWM() si es puro (solo devuelve _pwmVal) y _pwmVal ya viene acotado a
+    // 0..255 por SetOutputLimits del PID.
+    // _realrpm en cambio NO esta acotado (es 111111.0/promedio, puede dar ~444444
+    // con el motor casi parado), asi que se satura y se pasa por sanef() para que
+    // un NaN no invalide el JSON entero del frame.
+    const int pwm_fl = (int)fl.getPWM(), pwm_fr = (int)fr.getPWM();
+    const int pwm_bl = (int)bl.getPWM(), pwm_br = (int)br.getPWM();
+    const float r_fl = sanef(fl._realrpm), r_fr = sanef(fr._realrpm);
+    const float r_bl = sanef(bl._realrpm), r_br = sanef(br._realrpm);
+    const int rpm_fl = (int)constrain(r_fl, -9999.0f, 99999.0f);
+    const int rpm_fr = (int)constrain(r_fr, -9999.0f, 99999.0f);
+    const int rpm_bl = (int)constrain(r_bl, -9999.0f, 99999.0f);
+    const int rpm_br = (int)constrain(r_br, -9999.0f, 99999.0f);
+
+    // ---- Ventana de la cabecera --------------------------------------------
+    // El "hdr" NO va en todos los frames: iria 10 veces por segundo y cada uno
+    // le cuesta al colector un SELECT y dos UPDATE sobre la tabla de corridas.
+    // Va solo durante los primeros 2 s despues de que el switch arranca, que a
+    // 10 Hz son ~20 frames: mas que suficiente para que el colector lo vea aunque
+    // pierda alguno.
+    // El flanco se detecta con estaticas ACA ADENTRO, y no tocando loop(): asi
+    // este cambio no agrega ni una linea al lazo de control. No se puede perder
+    // el flanco porque para llegar a startUp=true el robot pasa si o si por dos
+    // runTime de 300 ms (600 ms), seis veces el periodo de muestreo.
+    // Resta unsigned, que es el idioma del archivo y sobrevive al wrap de millis().
+    static bool prevUp = false;
+    static unsigned long hdrDesde = 0;
+    if (startUp && !prevUp) { hdrDesde = millis(); }
+    prevUp = startUp;
+    const bool hdrOn = startUp && (millis() - hdrDesde < 2000UL);
+
+#define TSAT(v) (int)constrain(sanef(v), -9999.0f, 99999.0f)
+    static unsigned long tlm_trunc = 0;   // frames descartados por no entrar en buf
+    static char buf[1664];   // subido de 1152: el frame v3 agrega dir/set/tog/drv/loop
     int n = snprintf(
         buf, sizeof(buf),
-        "{\"t\":%lu,"
+        "{\"t\":%lu,%s"
         "\"rpi\":{\"speed\":%d,\"steer\":%.3f,\"green\":%d,\"silver\":%d,\"rxb\":%lu,\"rxf\":%lu,\"st\":%d},"
         "\"col\":{\"d\":\"%s\",\"dc\":\"%s\",\"r\":%u,\"g\":%u,\"b\":%u,\"c\":%u,\"ok\":%d},"
         "\"us\":{\"f\":%d,\"l\":%d,\"r\":%d},"
         "\"tof\":{\"l\":%d,\"r\":%d},"
         "\"imu\":{\"yaw\":%.1f,\"pit\":%.1f,\"rol\":%.1f,\"cen\":%.1f},"
         "\"enc\":{\"fl\":%ld,\"fr\":%ld,\"bl\":%ld,\"br\":%ld},"
-        "\"fsm\":{\"rut\":\"%s\",\"act\":%d,\"task\":%d,\"up\":%d,\"resc\":%d,\"balls\":%d,\"dep\":%d,\"verd\":%d,\"evi\":%d,\"evs\":%d,\"slatch\":%d,\"pared\":\"%s\",\"lado\":\"%s\",\"ran\":%d},"
+        // flancos CRUDOS: siempre incrementan, sin mirar _dir. Es la unica
+        // medida de movimiento fisico que no depende de ninguna suposicion,
+        // y sin ella la causa G (el estimador miente) no se puede evaluar.
+        "\"raw\":{\"fl\":%lu,\"fr\":%lu,\"bl\":%lu,\"br\":%lu},"
+        "\"pwm\":{\"fl\":%d,\"fr\":%d,\"bl\":%d,\"br\":%d},"
+        "\"rpm\":{\"fl\":%d,\"fr\":%d,\"bl\":%d,\"br\":%d},"
+        // ---- DIAGNOSTICO DE CURVAS (frame v3) ----
+        // dir = sentido COMANDADO a cada rueda. Sin esto, `rpm` es una MAGNITUD
+        //       y no se puede distinguir una rueda que va en reversa de una que
+        //       va hacia adelante: es justo el dato que falta para ver por que
+        //       la rueda interna no toma la curva.
+        // set = consigna de RPM de cada rueda. Junto con rpm da el error QUE VE
+        //       EL PID, que es lo unico que el lazo usa para decidir el PWM.
+        // tog = veces que se disparo el toggle `if (_pwmVal < 10) _dir = !_dir`.
+        // drv = lo que recibio DriveBase y por que rama del case 7 se paso.
+        "\"dir\":{\"fl\":%d,\"fr\":%d,\"bl\":%d,\"br\":%d},"
+        "\"set\":{\"fl\":%d,\"fr\":%d,\"bl\":%d,\"br\":%d},"
+        "\"tog\":{\"fl\":%lu,\"fr\":%lu,\"bl\":%lu,\"br\":%lu},"
+        "\"drv\":{\"rot\":%.3f,\"ls\":%d,\"rs\":%d,\"dir\":%d,\"ram\":%d},"
+        "\"loop\":{\"ms\":%lu,\"max\":%lu},"
+        // ENVOLVENTE de la ventana de 100 ms: min y max de PWM y RPM por rueda.
+        // pmin bajo con consigna viva = el esfuerzo se desplomo en algun momento
+        // de la ventana. rmax alto = la rueda giro mas rapido de lo pedido (la
+        // estan arrastrando). Los instantaneos solos se pierden los transitorios.
+        "\"pmin\":{\"fl\":%d,\"fr\":%d,\"bl\":%d,\"br\":%d},"
+        "\"pmax\":{\"fl\":%d,\"fr\":%d,\"bl\":%d,\"br\":%d},"
+        "\"rmin\":{\"fl\":%d,\"fr\":%d,\"bl\":%d,\"br\":%d},"
+        "\"rmax\":{\"fl\":%d,\"fr\":%d,\"bl\":%d,\"br\":%d},"
+        "\"gyr\":{\"x\":%.1f,\"y\":%.1f,\"z\":%.1f},"
+        "\"rxage\":%ld,"
+        "\"fsm\":{\"rut\":\"%s\",\"act\":%d,\"task\":%d,\"up\":%d,\"resc\":%d,\"balls\":%d,\"dep\":%d,\"verd\":%d,\"evi\":%d,\"evs\":%d,\"slatch\":%d,\"pared\":\"%s\",\"lado\":\"%s\",\"prim\":\"%s\",\"ran\":%d},"
         "\"io\":{\"sw\":%d,\"fcl\":%d,\"fcr\":%d,\"rel\":%d,\"buz\":%d,\"led\":%d},"
         "\"claw\":{\"busy\":%d},"
         "\"grn\":{\"rx\":[%lu,%lu,%lu,%lu],\"act\":[%lu,%lu,%lu,%lu],\"kill\":[%lu,%lu,%lu,%lu],\"lt\":%d,\"age\":%ld,\"lrc\":%d}}\n",
-        millis(),
+        millis(), hdrOn ? HDR_JSON : "",
         (int)speed, steer, green_state, silver_line, serial_bytes_rx, serial_frames_rx, serial5state,
         // d  = lo que el sensor ve AHORA (se refresca con cada muestra) -> para CALIBRAR.
         // dc = lo que esta usando el control (solo se asigna en las rutinas de marcha).
@@ -1887,10 +2485,27 @@ void enviarTelemetria()
         distance_left_tof, distance_right_tof,
         t_yaw, t_pit, t_rol, t_cen,
         (long)fl.pulseCount, (long)fr.pulseCount, (long)bl.pulseCount, (long)br.pulseCount,
+        (unsigned long)fl.pulsesRaw, (unsigned long)fr.pulsesRaw,
+        (unsigned long)bl.pulsesRaw, (unsigned long)br.pulsesRaw,
+        pwm_fl, pwm_fr, pwm_bl, pwm_br,
+        rpm_fl, rpm_fr, rpm_bl, rpm_br,
+        fl._dir, fr._dir, bl._dir, br._dir,
+        (int)fl._rpm, (int)fr._rpm, (int)bl._rpm, (int)br._rpm,
+        (unsigned long)fl.dirToggles, (unsigned long)fr.dirToggles,
+        (unsigned long)bl.dirToggles, (unsigned long)br.dirToggles,
+        robot._rotation, (int)robot._leftspeed, (int)robot._rightspeed,
+        robot._direction, g_line_branch,
+        g_loop_dt, g_loop_dt_max,
+        TSAT(fl._pwmMin), TSAT(fr._pwmMin), TSAT(bl._pwmMin), TSAT(br._pwmMin),
+        TSAT(fl._pwmMax), TSAT(fr._pwmMax), TSAT(bl._pwmMax), TSAT(br._pwmMax),
+        TSAT(fl._rpmMin), TSAT(fr._rpmMin), TSAT(bl._rpmMin), TSAT(br._rpmMin),
+        TSAT(fl._rpmMax), TSAT(fr._rpmMax), TSAT(bl._rpmMax), TSAT(br._rpmMax),
+        t_gx, t_gy, t_gz,
+        g_last_rx_ms ? (long)(millis() - g_last_rx_ms) : -1L,
         rutina.c_str(), action, taskDone ? 1 : 0, startUp ? 1 : 0, (int)rescateState,
         ball_counter, veces_deposit, verdes_total,
         evacuacion_iniciada ? 1 : 0, evacuacion_straight ? 1 : 0, silver_latch ? 1 : 0,
-        pared.c_str(), lado_plateado.c_str(), RanNumber,
+        pared.c_str(), lado_plateado.c_str(), g_prim, RanNumber,
         digitalRead(SWITCH), digitalRead(FCL), digitalRead(FCR),
         digitalRead(RELAY), digitalRead(BUZZER), digitalRead(LED_ROJO),
         claw.busy() ? 1 : 0,
@@ -1899,15 +2514,24 @@ void enviarTelemetria()
         g_kill[0], g_kill[1], g_kill[2], g_kill[3],
         g_last_type, g_age, g_last_recheck_gs);
 
-    if (n < 0)
+    // ---- Un frame que no entero NO SE MANDA ---------------------------------
+    // Antes esto clampeaba n y mandaba igual los 895 bytes cortados al medio.
+    // Eso es peor que no mandar nada, y la cadena entera lo demuestra: un frame
+    // truncado sale SIN el '\n' final (es el ultimo caracter del formato), la
+    // ESP32 lo concatena con el frame siguiente, la linea se pasa de
+    // TLM_LINE_MAX y descarta LOS DOS. O sea: por mandar basura se pierde
+    // ademas un frame sano, y se gasta el 78% del ancho de banda del enlace en
+    // algo que ningun JSON.parse va a poder leer.
+    // Descartar de este lado preserva la unica invariante que importa: todo lo
+    // que sale del Teensy es una linea JSON completa y valida.
+    // El contador se incrementa ANTES del bloque de diagnostico por USB: si no,
+    // el dia que TODOS los frames truncaran no se imprimiria nunca el numero que
+    // explica por que se apago la telemetria.
+    const bool trunco = (n < 0 || n >= (int)sizeof(buf));
+    if (trunco)
     {
-        return;   // error de formato: no enviar
+        tlm_trunc++;
     }
-    if (n >= (int)sizeof(buf))
-    {
-        n = sizeof(buf) - 1;   // snprintf trunco: clamp para no leer fuera de buf en enviar()
-    }
-    telemetria.enviar(buf, n);
 
 #if TELEMETRIA_DEBUG_USB
     // DIAGNOSTICO: una linea/seg por USB con cuantos frames salieron por Serial8.
@@ -1917,14 +2541,33 @@ void enviarTelemetria()
     if (millis() - lastDbg >= 1000)
     {
         lastDbg = millis();
-        Serial.print("[TLM] env=");
-        Serial.print(telemetria.framesEnviados());
-        Serial.print(" desc=");
-        Serial.print(telemetria.framesDescartados());
-        Serial.print(" avail=");
-        Serial.println(Serial8.availableForWrite());
+        DBG_PRINT("[TLM] env=");
+        DBG_PRINT(telemetria.framesEnviados());
+        DBG_PRINT(" desc=");
+        DBG_PRINT(telemetria.framesDescartados());
+        // trunc = frames que no entraron en buf[] y se descartaron ACA. Si este
+        // numero sube, el frame crecio mas que el buffer: hay que agrandar buf
+        // (y TLM_LINE_MAX del lado ESP32) o acortar campos. len = el tamanio del
+        // ultimo frame que salio, para ver cuanto margen queda de verdad.
+        DBG_PRINT(" trunc=");
+        DBG_PRINT(tlm_trunc);
+        DBG_PRINT(" len=");
+        DBG_PRINT(n);
+        DBG_PRINT(" avail=");
+        DBG_PRINTLN(Serial8.availableForWrite());
     }
 #endif
+
+    if (trunco)
+    {
+        return;
+    }
+    telemetria.enviar(buf, n);
+    g_loop_dt_max = 0;
+
+    // el min/max es POR VENTANA: se rearma recien despues de mandarlo
+    fl.resetEnvolvente(); fr.resetEnvolvente();
+    bl.resetEnvolvente(); br.resetEnvolvente();   // el pico es POR FRAME, no acumulado desde el arranque
 }
 #endif // TELEMETRIA
 
@@ -1950,11 +2593,15 @@ inline void delayTelemetria(unsigned long ms) { delay(ms); }
 
 void setup()
 {
+#if MODO_DIAGNOSTICO
+    Serial.begin(115200);
+    diagInicio();
+#endif
 
     robot.steer(0, 0, 0);
     // claw.lift();  // Moved to begin()
     angulo_rescate = fmod(20, 360.0);
-    //Serial.println(angulo_rescate);
+    //DBG_PRINTLN(angulo_rescate);
     attachInterrupt(digitalPinToInterrupt(27), ISR1, CHANGE);
     attachInterrupt(digitalPinToInterrupt(5), ISR2, CHANGE);
     attachInterrupt(digitalPinToInterrupt(38), ISR3, CHANGE);
@@ -1970,17 +2617,26 @@ void setup()
     Serial8.begin(115200);         // SUPER TEMA: puente con la ESP32-MINI (RX=pin34 / TX=pin35)
 #endif
 #if TELEMETRIA
-    telemetria.begin(115200);      // TELEMETRIA: abre Serial8 hacia la ESP32-MINI (AP + GUI)
+    telemetria.begin(TLM_BAUD);    // TELEMETRIA: abre Serial8 hacia la ESP32-MINI (AP + GUI)
 #endif
     delay(200);
     //Serial.begin(115200);          // displays ultrasound ping result
     // Initialise BNO055
     if (!bno.begin())
     {
+#if MODO_BANCO
+        // NO se cuelga: el barrido no necesita la IMU para decidir.
+        g_banco_sin_imu = 1;
+#else
         handleBnoInitFailure();
+#endif
     }
+#if MODO_BANCO
+    if (!g_banco_sin_imu)
+#endif
     bno.setExtCrystalUse(true);
 
+#if !MODO_BANCO   // el barrido no usa color, ni ToF, ni garra, ni el 0xFA
     // Initialise APDS9960 Color Sensor
     color_sensor_ok = apds.begin();
     if (!color_sensor_ok)
@@ -1992,7 +2648,7 @@ void setup()
     }
     else
     {
-        //Serial.println("Device initialized!");
+        //DBG_PRINTLN("Device initialized!");
     }
 
     // enable color sensign mode
@@ -2029,23 +2685,127 @@ void setup()
     right_tof.init();
     right_tof.setTimeout(500);
     right_tof.startContinuous();
+#endif   // !MODO_BANCO
     pinMode(FCL, INPUT);
     pinMode(FCR, INPUT);
 
     // Inicializar la garra después de setup
+#if !MODO_BANCO
     claw.begin();
     for (int i = 0; i < 20; i++)
     {
         Serial5.write(0xFA);
         delay(100);
     }
+#endif   // !MODO_BANCO: la garra y los 2 s de 0xFA no hacen falta en el barrido
 
 }
 
 
 
+#if MODO_BANCO
+// Marcas que van a la columna `ram` del CSV para que el analizador sepa que
+// tramo es cual. 0 = pausa entre segmentos.
+#define BANCO_ROT   50   // barrido de rotation a velocidad fija
+#define BANCO_VEL   60   // barrido de velocidad a rotation = 1
+
+static bool bancoTerminado = false;
+
+// Mantiene una consigna `ms` milisegundos, drenando el registrador y cortando
+// si se apaga el switch. Devuelve false si hubo que cortar.
+bool bancoSostener(int vel, double rot, int marca, unsigned long ms)
+{
+    g_line_branch = marca;
+    unsigned long t0 = millis();
+    while (millis() - t0 < ms)
+    {
+        if (digitalRead(SWITCH) == 1)      // switch apagado: parar YA
+        {
+            robot.steer(0, FORWARD, 0);
+            g_line_branch = 0;
+            return false;
+        }
+        robot.steer(vel, FORWARD, rot);
+        DIAG_TICK();
+    }
+    return true;
+}
+
+bool bancoPausa(unsigned long ms)
+{
+    return bancoSostener(0, 0.0, 0, ms);
+}
+
+void bancoBarrido()
+{
+    // Cada segmento: 1,5 s de consigna + 1,0 s quieto. Los dos signos, porque
+    // una asimetria izquierda/derecha es en si misma un hallazgo (rueda en el
+    // aire, un motor distinto, la trocha mal repartida).
+    static const double ROTS[] = { 0.40, 0.50, 0.60, 0.70, 0.85, 1.00 };
+    static const int    VELS[] = { 25, 35, 45, 55, 70 };
+    const int VEL_BASE = 45;
+    const unsigned long SOSTEN = 1500, PAUSA = 1000;
+
+    for (int rep = 0; rep < 2; rep++)          // dos pasadas: repetibilidad
+    {
+        for (unsigned i = 0; i < sizeof(ROTS) / sizeof(ROTS[0]); i++)
+        {
+            if (!bancoPausa(PAUSA)) return;
+            if (!bancoSostener(VEL_BASE,  ROTS[i], BANCO_ROT, SOSTEN)) return;
+            if (!bancoPausa(PAUSA)) return;
+            if (!bancoSostener(VEL_BASE, -ROTS[i], BANCO_ROT, SOSTEN)) return;
+        }
+    }
+    // Fase 2: a rotation = 1, barrer la velocidad. Si los grados por segundo se
+    // APLANAN al subir la velocidad, el techo es de par y el problema es mecanico.
+    for (int rep = 0; rep < 2; rep++)
+    {
+        for (unsigned i = 0; i < sizeof(VELS) / sizeof(VELS[0]); i++)
+        {
+            if (!bancoPausa(PAUSA)) return;
+            if (!bancoSostener(VELS[i], 1.0, BANCO_VEL, SOSTEN)) return;
+        }
+    }
+    robot.steer(0, FORWARD, 0);
+    g_line_branch = 0;
+    bancoTerminado = true;
+}
+#endif   // MODO_BANCO
+
 void loop()
 {
+#if MODO_BANCO
+    // El barrido REEMPLAZA al programa normal: no hay maquina de estados, no hay
+    // vision, no hay serial de la RPi. Solo consignas al tren motriz y registro.
+    DIAG_TICK();
+    if (digitalRead(SWITCH) == 0 && !bancoTerminado)
+    {
+        bancoBarrido();
+    }
+    else
+    {
+        robot.steer(0, FORWARD, 0);
+        if (bancoTerminado)
+        {
+            // terminado: LED fijo. Apagar y prender el switch para repetir.
+            digitalWriteFast(LED_BUILTIN, HIGH);
+            if (digitalRead(SWITCH) == 1) bancoTerminado = false;
+        }
+    }
+    return;
+#endif
+
+    DIAG_TICK();
+    // DIAGNOSTICO: periodo del loop y su pico (se resetea al mandar el frame).
+    {
+        static unsigned long _lastLoopUs = 0;
+        unsigned long _nowUs = micros();
+        if (_lastLoopUs) {
+            g_loop_dt = (_nowUs - _lastLoopUs) / 1000UL;
+            if (g_loop_dt > g_loop_dt_max) g_loop_dt_max = g_loop_dt;
+        }
+        _lastLoopUs = _nowUs;
+    }
     // Advance non-blocking claw state machine each loop
     claw.update();
     // Actualizar máquina de estados de rescate no-bloqueante
@@ -2090,10 +2850,10 @@ void loop()
             digitalWrite(LED_ROJO, HIGH);
             delayTelemetria(500);   // misma pausa, pero con telemetria/color fluidos (calibracion)
             robot.steer(0, 0, 0);
-            //Serial.println(leer_pitch()); // para imprimirlo
+            //DBG_PRINTLN(leer_pitch()); // para imprimirlo
            get_color_fast();
-           //Serial.println("FCL: " + String(digitalRead(FCL)));
-            //Serial.println("FCR: " + String(digitalRead(FCR)));
+           //DBG_PRINTLN("FCL: " + String(digitalRead(FCL)));
+            //DBG_PRINTLN("FCR: " + String(digitalRead(FCR)));
             digitalWrite(LED_BUILTIN, LOW);
             digitalWrite(BUZZER, LOW);
             digitalWrite(LED_ROJO, LOW);
@@ -2168,6 +2928,8 @@ void loop()
         */
         while (rutina == "linea" && digitalRead(32) == 0)
         {
+            serialEvent5();
+            DIAG_TICK();   // drenaje del registrador DURANTE el seguimiento de linea
             enviarTelemetria();   // TELEMETRIA (seguimiento de linea)
             bool plateadoDetectado = false;
             color_detected = get_color_fast();
@@ -2177,7 +2939,7 @@ void loop()
            
             if (color_detected == "Plateado") {   // confirmo 2 lecturas -> filtra brillos aislados
 
-                    plateadoDetectado = true;
+                    plateadoDetectado = false;
 
                     if (!rescateAvisado) {
                         Serial5.write(241);
@@ -2227,8 +2989,8 @@ void loop()
             if (taskDone)
             { // robot is currently not performing any task
 
-                // //Serial.println("Incoming Task: ");
-                // //Serial.println(green_state);
+                // //DBG_PRINTLN("Incoming Task: ");
+                // //DBG_PRINTLN(green_state);
                 if (green_state == 0)
                 {
                     action = 7;
@@ -2247,12 +3009,11 @@ if (green_state == 2)
                     action = 14;   // === CHALLENGE D1.2: 1=ignorar/recto ===
                 }
                 if (front_distance != 0 && front_distance < 12)
-
                 {
                 get_color_fast();
             if (color_detected == "Plateado" && confirmarColor("Plateado")) {   // confirmo 2 lecturas -> filtra brillos aislados
 
-                    plateadoDetectado = true;
+                    plateadoDetectado = false;
 
                     if (!rescateAvisado) {
                         Serial5.write(241);
@@ -2425,19 +3186,84 @@ if (green_state == 2)
                     {int velocidadAjustada = ajustarVelocidadPorPendiente(45);
 
                      if (chequearAtasco(velocidadAjustada)) {   // obstaculo alto: no avanza -> recupero
+                         g_line_branch = 9;
                          recuperarAtasco();
                          break;
                      }
+                    const double LINE_STEER_GAIN = 1.35;
+                    const double LINE_CURVE_STEER = 0.08;
+                    const double LINE_HARD_CURVE_STEER = 0.35;
+                    const double LINE_PIVOT_STEER = 0.92;
+                    const double LINE_HARD_ROTATION_MIN = 0.8;
+                    const double LINE_HARD_ROTATION_MAX = 0.90;
+                    const double LINE_TURN_FRONT_SCALE = 0.55;
+                    const double LINE_TURN_REAR_SCALE = 1.00;
+                    const int LINE_CURVE_SPEED = 26;
+                    const int LINE_HARD_CURVE_SPEED = 22;
+                    const int LINE_PIVOT_SPEED = 20;
 
-                     if (steer < -0.7 || steer > 0.7)
+                    double steerCmd = constrain(steer * LINE_STEER_GAIN, -1.0, 1.0);
+                    double absSteer = fabs(steerCmd);
+
+#if FIX_CURVA_CONTINUA
+                    // --- rotation CONTINUA: identidad hasta la curva dura, y de ahi una rampa
+                    //     hasta el pivote. Vale 0,350 en 0,350 y 1,000 en 0,920, asi que empalma
+                    //     por los dos lados sin escalon.
+                    double rot;
+                    if (absSteer <= LINE_HARD_CURVE_STEER)
+                        rot = absSteer;
+                    else if (absSteer >= LINE_PIVOT_STEER)
+                        rot = 1.0;
+                    else
+                        rot = LINE_HARD_CURVE_STEER
+                            + (absSteer - LINE_HARD_CURVE_STEER)
+                            / (LINE_PIVOT_STEER - LINE_HARD_CURVE_STEER)
+                            * (1.0 - LINE_HARD_CURVE_STEER);
+
+                    // --- la velocidad tambien continua: de la de recta a la de pivote. Un
+                    //     escalon de velocidad tambien es un tiron, aunque menos grave que dar
+                    //     vuelta una rueda.
+                    double k = constrain(absSteer / LINE_PIVOT_STEER, 0.0, 1.0);
+                    int vel = (int)(velocidadAjustada + k * (LINE_PIVOT_SPEED - velocidadAjustada));
+
+                    // rama solo para la TELEMETRIA (que se lee igual que antes), no para decidir
+                    g_line_branch = (absSteer > LINE_PIVOT_STEER) ? 3
+                                  : (absSteer > LINE_HARD_CURVE_STEER) ? 2
+                                  : (absSteer > LINE_CURVE_STEER) ? 1 : 0;
+                    robot.steer(vel, FORWARD, steerCmd > 0 ? rot : -rot);
+
+#else   // ---------------- arbol de ramas historico ----------------------
+
+                    if (absSteer > LINE_PIVOT_STEER)
                     {
-                            robot.steer(55, FORWARD, steer);
+                        g_line_branch = 3;
+                        robot.steerAxleBias(LINE_PIVOT_SPEED, FORWARD,
+                                            steerCmd > 0 ? 1.0 : -1.0,
+                                            LINE_TURN_FRONT_SCALE, LINE_TURN_REAR_SCALE);
                     }
-
+                    else if (absSteer > LINE_HARD_CURVE_STEER)
+                    {
+                        g_line_branch = 2;
+                        double mix = (absSteer - LINE_HARD_CURVE_STEER) /
+                                     (LINE_PIVOT_STEER - LINE_HARD_CURVE_STEER);
+                        double rotation = LINE_HARD_ROTATION_MIN +
+                                          mix * (LINE_HARD_ROTATION_MAX - LINE_HARD_ROTATION_MIN);
+                        robot.steerAxleBias(LINE_HARD_CURVE_SPEED, FORWARD,
+                                            steerCmd > 0 ? rotation : -rotation,
+                                            LINE_TURN_FRONT_SCALE, LINE_TURN_REAR_SCALE);
+                    }
+                    else if (absSteer > LINE_CURVE_STEER)
+                    {
+                        g_line_branch = 1;
+                        robot.steer(LINE_CURVE_SPEED, FORWARD, steerCmd);
+                    }
                     else
                     {
-                        robot.steer(velocidadAjustada, FORWARD, steer);
+                        g_line_branch = 0;
+                        robot.steer(velocidadAjustada, FORWARD, steerCmd);
                     }
+
+#endif
 
                     // PENDIENTE: si el pitch esta inclinado, piso las traseras a full para
                     // que agarren y no resbale (fr/br usan dir invertida, igual que en steer).
@@ -2712,8 +3538,8 @@ if (green_state == 2)
                     // 8/9) Y el ultrasonido confirma cercania (<=31). Maniobra completa.
                     if ((green_state == 8 || green_state == 9) && front_distance != 0 && front_distance <= 31)
                     {
-                        Serial.print("[EVAC] P1 ESQUINA gs="); Serial.print(green_state);
-                        Serial.print(" front="); Serial.println(front_distance);
+                        DBG_PRINT("[EVAC] P1 ESQUINA gs="); DBG_PRINT(green_state);
+                        DBG_PRINT(" front="); DBG_PRINTLN(front_distance);
                         maniobraEsquive();
                         green_state = 0;   // evita re-disparo inmediato con valor stale de camara
                         break;
@@ -2722,15 +3548,15 @@ if (green_state == 2)
                     // PRIORIDAD 2: pared frontal lisa = solo ultrasonido (<=18). Giro 90 y sigue.
                     if (front_distance != 0 && front_distance <= 14)
                     {
-                        Serial.print("[EVAC] P2 PARED front="); Serial.println(front_distance);
+                        DBG_PRINT("[EVAC] P2 PARED front="); DBG_PRINTLN(front_distance);
                         runAngle(30, FORWARD, 90);
                         continue;
                     }
                                                             // PRIORIDAD 3: lado izquierdo abierto -> girar a buscar pared.
                     if (left_distance > 40 || left_distance == 0)
                     {
-                        Serial.print("[EVAC] P3 BUSCAR left="); Serial.print(left_distance);
-                        Serial.print(" front="); Serial.println(front_distance);
+                        DBG_PRINT("[EVAC] P3 BUSCAR left="); DBG_PRINT(left_distance);
+                        DBG_PRINT(" front="); DBG_PRINTLN(front_distance);
                         runDistance(30, FORWARD, 8);
                         runAngle(30, FORWARD, -90);
                         while (rutina == "evacuacion" && digitalRead(32) == 0)

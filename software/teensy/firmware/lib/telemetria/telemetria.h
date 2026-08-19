@@ -17,7 +17,9 @@
 
   Cableado (ya existente del ex-SuperTema):
     Teensy TX8 (pin 35) -> ESP32 RX   |   Teensy RX8 (pin 34) <- ESP32 TX (opcional)
-    GND comun. 3.3V ambos lados, sin level shifter. 115200 baud.
+    GND comun. 3.3V ambos lados, sin level shifter.
+    Velocidad: la fija TLM_BAUD en src/main.cpp (hoy 230400) y TIENE QUE
+    coincidir con UART_BAUD del firmware de la ESP32.
 */
 #ifndef TELEMETRIA_H
 #define TELEMETRIA_H
@@ -35,6 +37,7 @@ public:
 
     // Abre el puerto y agranda el buffer TX para que write() nunca bloquee
     // mientras entre un frame completo. Idempotente.
+    // El default es historico: main.cpp SIEMPRE pasa TLM_BAUD explicito.
     void begin(unsigned long baud = 115200);
 
     // true cuando ya paso el intervalo desde el ultimo envio (marca el tiempo).
@@ -57,8 +60,13 @@ private:
     bool _iniciado;
 
     // Buffer extra para el TX de Serial8 (garantiza escritura no bloqueante de
-    // un frame completo). ~1 KB alcanza y sobra para el frame JSON (~0.5 KB).
-    static const size_t TX_EXTRA = 1024;
+    // un frame completo).
+    // OJO: availableForWrite() nunca devuelve mas que (40 + TX_EXTRA - 1), y la
+    // guarda de enviar() descarta el frame si no entra entero. O sea que este
+    // numero es un TECHO DURO del tamanio del frame: si el frame lo pasa, la
+    // telemetria se apaga del todo y en silencio.
+    // 1536 deja margen sobre el frame v2 (~825 B en el peor caso con hdr).
+    static const size_t TX_EXTRA = 1536;
     uint8_t _txExtra[TX_EXTRA];
 };
 

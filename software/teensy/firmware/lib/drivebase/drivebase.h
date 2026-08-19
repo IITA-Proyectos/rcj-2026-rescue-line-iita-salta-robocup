@@ -8,6 +8,86 @@
 #ifndef drivebase_h
 #define drivebase_h
 
+
+// ============================================================================
+//  FIX_LAZO_MOTOR - el lazo de velocidad por rueda
+//
+//  1 = lazo nuevo (feedforward + integrador acotado + piso de esfuerzo)
+//  0 = lazo historico, el que compitio (integral pura + toggle de direccion)
+//
+//  DEJAR EL INTERRUPTOR: esto cambia el comportamiento de TODOS los movimientos,
+//  incluidos los que hoy funcionan. Sin poder volver atras en una linea no se
+//  puede saber si una corrida mejoro por el fix o empeoro por el fix.
+//
+//  QUE ARREGLA (los tres defectos verificados en el codigo historico):
+//
+//  a) EL LAZO ES CIEGO AL SENTIDO. `_realrpm` sale de 111111/promedio(intervalos)
+//     -> siempre positiva. La consigna tambien llega en magnitud (DriveBase le
+//     saca el signo y se lo da a un pin). Entonces, cuando el chasis ARRASTRA a
+//     la rueda interna hacia adelante mientras se le pidio ir en reversa, el
+//     encoder reporta un numero sano, el error da chico o negativo, y el lazo
+//     BAJA el PWM. Como el FIT0441 a PWM bajo hace COAST (medido en banco por el
+//     equipo el 2026-08-08), la rueda queda SUELTA y el robot gira menos todavia.
+//     Se realimenta hacia el fallo.
+//
+//  b) NO HAY FEEDFORWARD. Con kp = 0 y kd = 0 el lazo es un integrador puro: el
+//     PWM sale ENTERAMENTE de la medicion. Si la medicion miente (a), no hay
+//     nada que sostenga el esfuerzo. El feedforward ancla el PWM al COMANDO.
+//
+//  c) EL TOGGLE DE DIRECCION. `if (_pwmVal < 10) _dir = !_dir;` invierte el pin
+//     de direccion en CADA llamada mientras el esfuerzo sea bajo, o sea a la
+//     frecuencia del loop(). Ademas ensucia pulseCount, que cuenta segun _dir.
+//
+//  EL PUNTO CLAVE ES MOTO_PISO: el integrador ya no puede llevar el esfuerzo a
+//  cero mientras haya consigna. Sin ese piso, el feedforward solo retrasa el
+//  desplome en vez de impedirlo. Dicho en una frase: el encoder no sabe para
+//  donde gira la rueda, asi que no lo dejamos apagar el motor.
+// ============================================================================
+// POR DEFECTO 0 - A PROPOSITO. El binario de competencia NO cambia de
+// comportamiento por un fix que todavia no corrio en el robot, y el entorno de
+// diagnostico mide EL ROBOT ACTUAL, que es de lo que hay que sacar el veredicto.
+// El fix se enciende explicitamente con el entorno `diagnostico_fix`.
+#ifndef FIX_LAZO_MOTOR
+#define FIX_LAZO_MOTOR 0
+#endif
+
+// PWM de arranque: lo que hace falta para vencer la friccion estatica.
+#define MOTO_KS   8.0
+// PWM por RPM de consigna. 215/159: el motor da 159 RPM a 12 V y necesita ~215
+// de PWM para llegar. PROVISORIO - sale del banco (ensayo de escalones).
+#define MOTO_KV   1.35
+// El esfuerzo total nunca baja de esta fraccion del feedforward mientras haya
+// consigna viva. No es 1.0 a proposito: si kV quedo alto, el integrador tiene
+// que poder recortar. 0.5 deja recortar la mitad y no mas.
+#define MOTO_PISO 0.5
+// PISO ABSOLUTO ANTI-COAST. El de arriba es una FRACCION del feedforward, y el
+// feedforward es proporcional a la consigna: en curva cerrada la consigna de la
+// rueda interna es MINIMA (7,3 rpm en la rama de curva dura), asi que ese piso
+// caia a 8,9 sobre 255 = 3,5% de PWM, apenas 11% por encima de MOTO_KS, que es
+// lo que hace falta SOLO para vencer la friccion estatica SIN carga. O sea que
+// el fix no sostenia nada justo en el caso que ataca.
+// Este es un piso en unidades ABSOLUTAS de PWM y se MIDE en banco: el esfuerzo
+// mas bajo al que el FIT0441 todavia empuja en vez de soltar (mismo ensayo que
+// dio COAST el 2026-08-08). Tiene que quedar POR ENCIMA de COLAPSO_PWM=30 del
+// analizador: si no, la corrida con el fix y la corrida sin el dan el mismo
+// veredicto [A] y no se pueden distinguir.
+#define MOTO_PWM_ANTICOAST 45.0   // [PROVISORIO: banco] > COLAPSO_PWM del analizador
+// Por debajo de esta consigna se considera "parar" y se suelta (no hay freno).
+#define MOTO_RPM_MIN 0.5
+
+// ============================================================================
+//  LA CADENA DEL ENCODER, EN UN SOLO LUGAR.
+//  Estaba duplicada y en dos formas: el 111111 hardcodeado aca adentro y un
+//  TICKS_VUELTA = 540 escrito a mano en analizar_diagnostico.py. Si el numero
+//  real fuera otro, `rpm_real` -que es la UNICA referencia fisica del analisis-
+//  sale con factor de escala y la causa G dispara (o no dispara) en todas las
+//  ruedas, sin que nada se vea incoherente en el CSV.
+//  SE VERIFICA EN BANCO: girar la rueda 10 vueltas a mano y leer el delta de
+//  fl_raw. Tiene que dar TICKS_VUELTA*10 +/- 20, en las cuatro.
+// ============================================================================
+#define TICKS_VUELTA   540UL              // 6 pulsos/vuelta x 2 flancos x 45
+#define US_POR_RPM     (60000000UL / TICKS_VUELTA)   // el historico 111111
+
 class Moto
 {
 public:
@@ -22,11 +102,44 @@ public:
 
 public:
     volatile long pulseCount;
+    // DIAGNOSTICO (telemetria): cuenta cuantas veces se ejecuto el toggle
+    // `if (_pwmVal < 10) _dir = !_dir;` de setSpeed. Ese toggle invierte el pin
+    // de direccion en CADA llamada mientras el esfuerzo sea bajo, o sea a la
+    // frecuencia del loop(). Si este contador sube durante una curva, la rueda
+    // interna esta con el pin de direccion oscilando en vez de quieto.
+    // Es un contador PURO: no cambia el comportamiento.
+    volatile unsigned long dirToggles = 0;
+
+    // CONTEO CRUDO de flancos del encoder: SIEMPRE incrementa, sin mirar _dir.
+    // Hace falta porque pulseCount suma o resta segun _dir, y cuando se dispara
+    // el toggle `if (_pwmVal < 10) _dir = !_dir` el signo alterna y el conteo
+    // queda sucio JUSTO en el momento que queremos medir. Este contador dice si
+    // la rueda se movio FISICAMENTE, sin depender de ninguna suposicion.
+    // Es la referencia contra la que se chequea si _realrpm esta mintiendo.
+    volatile unsigned long pulsesRaw = 0;
+
+    // Esfuerzo TOTAL aplicado (feedforward + integrador, ya con el piso y el
+    // clamp). Con el lazo historico coincide con _pwmVal; con el nuevo NO,
+    // porque _pwmVal pasa a ser solo la parte integral. La telemetria tiene
+    // que mostrar este, que es el que realmente sale por el pin.
+    double _pwmTotal = 0;
+
+    // ENVOLVENTE del ciclo de telemetria. La telemetria manda a 10 Hz (cada
+    // 100 ms) pero el control corre a la frecuencia del loop(): una foto cada
+    // 100 ms se pierde los transitorios, que es JUSTO donde vive el fallo de
+    // la curva (el PWM se desploma en decenas de ms). Estos cuatro guardan el
+    // minimo y el maximo vistos desde el ultimo frame, asi cada envio resume
+    // la ventana entera en vez de dar un instante suelto.
+    // Los actualiza setSpeed(); los resetea resetEnvolvente() al mandar.
+    double _pwmMin = 0, _pwmMax = 0, _rpmMin = 0, _rpmMax = 0;
+    bool   _envVirgen = true;
+    void resetEnvolvente();
     int _pwmPin, _dirPin, _encPin;
     int _nAvg; // samples to take for speed computation
     int _dir;  // direction of rotation for setSpeed
     double _rpm, _pwmVal, _realrpm, _begin, _end, _now;
-    double _rpmlist[4] = {111111, 111111, 111111, 111111};
+    double _rpmlist[4] = {(double)US_POR_RPM, (double)US_POR_RPM,
+                          (double)US_POR_RPM, (double)US_POR_RPM};
     double _kp = 0, _ki = 22, _kd = 0;
     PID _motoPID = PID(&_realrpm, &_pwmVal, &_rpm, _kp, _ki, _kd, DIRECT);
 };
@@ -36,6 +149,16 @@ class DriveBase
 public:
     DriveBase(Moto *fl, Moto *fr, Moto *bl, Moto *br);
     void steer(double speed, int direction, double rotation);
+    // Igual que steer(), pero escala la consigna de cada EJE por separado.
+    // frontScale/rearScale en 0..1 multiplican la RPM pedida a las ruedas
+    // delanteras y traseras. Sirve para correr el centro de rotacion hacia
+    // un eje, que es lo que hacian las omni traseras.
+    // RECUPERADA del desensamblado de .pio/build/teensy_hid_device/firmware.elf
+    // (build del 2026-08-15 21:04, el que esta flasheado): la implementacion
+    // se perdio al revertir drivebase.cpp el 16-ago y nunca estuvo commiteada,
+    // dejando main.cpp llamando a una funcion inexistente -> no compilaba.
+    void steerAxleBias(double speed, int direction, double rotation,
+                       double frontScale, double rearScale);
     void reset();
 
 public:
