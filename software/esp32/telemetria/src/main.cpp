@@ -40,7 +40,14 @@ static const char *AP_PASS = "rescate2026";   // >= 8 caracteres (requisito WPA2
 // que es el mismo cable que ya se usaba con el MicroPython del ex-SuperTema.
 #define UART_RX_PIN   20    // <- Teensy TX8 (pin 35)   [dato de telemetria]
 #define UART_TX_PIN   21    // -> Teensy RX8 (pin 34)   [opcional, TX0 del C3]
-#define UART_BAUD     115200
+// >>> TIENE QUE COINCIDIR CON  TLM_BAUD  DE
+// >>> software/teensy/firmware/src/main.cpp. Si quedan distintos, aca llega
+// >>> basura y la telemetria no anda (el control del robot NO se ve afectado:
+// >>> este enlace es solo telemetria). Al cambiarlo, flashear LAS DOS placas.
+// Subido de 115200 a 230400 porque el frame v2 (~1000 B a 10 Hz) usaba el 87%
+// del enlace viejo y se perdian frames en silencio. Ver el comentario largo en
+// el main.cpp del Teensy.
+#define UART_BAUD     230400
 
 // DIAGNOSTICO: 1 = en vez de arrancar el AP, escanea los GPIOs buscando en cual
 // llega el UART del Teensy (imprime el resultado por USB). Poner en 0 para operar.
@@ -50,7 +57,18 @@ static const char *AP_PASS = "rescate2026";   // >= 8 caracteres (requisito WPA2
 WebServer server(80);
 HardwareSerial &Teensy = Serial1;   // UART1 del ESP32
 
-static const size_t TLM_LINE_MAX = 900;      // > frame JSON del Teensy (~0.5 KB)
+// TECHO DE LINEA. Tiene que ser MAYOR que el frame que manda el Teensy, si no
+// esta linea se descarta entera y la telemetria se apaga sin avisar (la GUI
+// sigue mostrando el ultimo frame bueno, congelado, y en verde).
+// El frame v2 del Teensy mide ~825 B en el peor caso (con la cabecera hdr).
+// Se mueve junto con el buf[] de enviarTelemetria() y el TX_EXTRA de
+// lib/telemetria/telemetria.h: si se toca uno solo, el techo se muda al otro.
+static const size_t TLM_LINE_MAX = 1792;     // frame v3 del Teensy (~1380 B) + margen.
+// SUBIDO de 1200 al agregar dir/set/tog/drv/loop del lado Teensy. TIENE QUE SER
+// MAYOR que el buf[] de enviarTelemetria() en main.cpp del Teensy (hoy 1408):
+// si queda por debajo, las lineas largas se descartan ACA y en silencio, y se
+// ve como telemetria que 'se muere' sin ningun error. Las dos placas se
+// flashean juntas.
 static char lineBuf[TLM_LINE_MAX];           // acumulador de la linea en curso
 static size_t lineLen = 0;
 static char latest[TLM_LINE_MAX] = "{}";     // ultimo frame completo recibido
@@ -67,7 +85,13 @@ void handleRoot()
 void handleData()
 {
     server.sendHeader("Cache-Control", "no-store");
-    server.send(200, "application/json", haveData ? latest : "{}");
+    // Un frame VIEJO no es un frame. Si el Teensy dejo de mandar (cable de TX8
+    // suelto, reset, baud distinto), servir el ultimo bueno para siempre hace
+    // que todo el que consume /data -la GUI y tambien colector.py, que graba a
+    // SQLite- lea datos de hace minutos como si fueran de ahora. Es la clase de
+    // dato mal etiquetado que lleva a una conclusion equivocada con confianza.
+    const bool fresco = haveData && (millis() - lastFrameMs) <= 1500;
+    server.send(200, "application/json", fresco ? latest : "{}");
 }
 
 void handleInfo()
@@ -92,7 +116,7 @@ void runPinScan()
     for (unsigned i = 0; i < sizeof(SCAN_PINS) / sizeof(SCAN_PINS[0]); i++)
     {
         int pin = SCAN_PINS[i];
-        Serial1.begin(115200, SERIAL_8N1, pin, -1);   // solo RX en este GPIO
+        Serial1.begin(UART_BAUD, SERIAL_8N1, pin, -1);   // solo RX en este GPIO
         delay(60);
         while (Serial1.available()) Serial1.read();   // vaciar
         unsigned long t0 = millis();
@@ -132,7 +156,12 @@ void setup()
 
     // Buffer RX grande: evita perder frames mientras handleClient() sirve la
     // pagina (la lectura del UART es por interrupcion, en segundo plano).
-    Teensy.setRxBufferSize(1024);
+    // 4096 y no 1024: el frame v3 mide ~1200 B, asi que con 1024 CUALQUIER
+    // demora del loop mayor a ~44 ms (WiFi, HTTP, un cliente que se conecta)
+    // desborda el buffer y parte la linea al medio. Una linea partida se
+    // descarta -o peor, se pega con la siguiente- y la telemetria se degrada
+    // sin avisar. 4096 son ~3 frames de colchon.
+    Teensy.setRxBufferSize(4096);
     Teensy.begin(UART_BAUD, SERIAL_8N1, UART_RX_PIN, UART_TX_PIN);
 
     WiFi.mode(WIFI_AP);

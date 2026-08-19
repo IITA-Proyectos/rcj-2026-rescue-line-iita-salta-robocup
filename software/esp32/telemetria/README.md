@@ -15,7 +15,7 @@ sin cables, sin depender del monitor serie.
 ## 1. Arquitectura
 
 ```
-  ┌─────────────┐  Serial8 (UART 115200, 3.3V)   ┌──────────────┐   WiFi AP    ┌────────────┐
+  ┌─────────────┐  Serial8 (UART 230400, 3.3V)   ┌──────────────┐   WiFi AP    ┌────────────┐
   │   TEENSY    │  TX8 pin35 ─────────────────►   │  ESP32-MINI  │  192.168.4.1 │  Celular / │
   │   4.1       │  RX8 pin34 ◄───(opcional)────   │  (la "C3")   │ ◄──────────► │  Laptop    │
   │ enviarTele- │  1 línea JSON/frame (~10 Hz)    │ "tubo tonto" │   HTTP/GUI   │ (navegador)│
@@ -163,8 +163,10 @@ en el último re-chequeo.
 
 - **Nunca bloquea:** `Telemetria::enviar()` escribe solo si
   `Serial8.availableForWrite() >= len`; si no, descarta el frame y sigue.
-- **Buffer TX ampliado** (`addMemoryForWrite`, ~1 KB) para que un frame completo
-  entre sin esperar; a 115200 baud drena en ~42 ms, mucho antes del próximo (100 ms).
+- **Buffer TX ampliado** (`addMemoryForWrite`, 1,5 KB) para que un frame completo
+  entre sin esperar; el frame v2 (~1000 B) drena en ~43 ms a 230400 baud, mucho
+  antes del próximo (100 ms). A los 115200 viejos tardaba ~87 ms de los 100
+  disponibles: por eso se subió la velocidad del enlace.
 - **Rate-limited** a 10 Hz: cualquier cantidad de llamadas a `enviarTelemetria()`
   desde el loop es inofensiva (solo chequea un timer).
 - **Apagable:** `#define TELEMETRIA 0` en `main.cpp` la saca por completo.
