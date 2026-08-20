@@ -68,10 +68,37 @@
 // el fix no sostenia nada justo en el caso que ataca.
 // Este es un piso en unidades ABSOLUTAS de PWM y se MIDE en banco: el esfuerzo
 // mas bajo al que el FIT0441 todavia empuja en vez de soltar (mismo ensayo que
-// dio COAST el 2026-08-08). Tiene que quedar POR ENCIMA de COLAPSO_PWM=30 del
-// analizador: si no, la corrida con el fix y la corrida sin el dan el mismo
-// veredicto [A] y no se pueden distinguir.
-#define MOTO_PWM_ANTICOAST 45.0   // [PROVISORIO: banco] > COLAPSO_PWM del analizador
+// dio COAST el 2026-08-08).
+//
+// ESTUVO EN 45,0 Y ERA UN ERROR, por dos razones distintas:
+//
+//  1) 45 es MAS que el feedforward completo de TODA la curva. ff = 8 + 1,35*rpm
+//     llega a 45 recien en 27,4 rpm, y el case 7 corre las curvas a 26 / 22 / 20
+//     rpm. O sea que con el fix encendido las CUATRO ruedas se iban al piso en
+//     cada curva y la consigna de rotation dejaba de significar algo: el piso
+//     tapaba al lazo justo donde el lazo tenia que trabajar.
+//
+//  2) El comentario viejo decia que el piso tenia que quedar POR ENCIMA del
+//     COLAPSO_PWM=30 del analizador "para poder distinguir las dos corridas".
+//     Eso es al reves: con el piso en 45 la condicion pw < 30 no puede ocurrir
+//     NUNCA, asi que la causa [A] es IMPOSIBLE POR CONSTRUCCION y el A/B entre
+//     `diagnostico` y `diagnostico_lazo` da "[A] desaparecio" siempre, aunque
+//     el control no haya mejorado nada. La herramienta no podia distinguir
+//     ARREGLADO de TAPADO.
+//     El orden correcto es el otro: el piso es una propiedad del FIT0441 y se
+//     mide; el umbral del analizador es una propiedad del analisis y se ajusta
+//     a lo que el piso resulte ser. Nunca al reves.
+#define MOTO_PWM_ANTICOAST 20.0   // [PROVISORIO: lo fija el barrido del sabado]
+// La consigna mas lenta que pide el seguidor de linea (LINE_PIVOT_SPEED del
+// case 7). Vive aca y no en main.cpp para que el static_assert de abajo la vea.
+#define MOTO_RPM_CURVA_MIN 20.0
+// EL INVARIANTE, en el compilador y no en un comentario: el piso tiene que
+// quedar por DEBAJO del feedforward de la consigna de curva mas lenta. Si no,
+// el piso manda sobre el lazo en todas las curvas. Que el build falle es
+// justamente el punto: este numero ya se subio de mas una vez.
+static_assert(MOTO_PWM_ANTICOAST < MOTO_KS + MOTO_KV * MOTO_RPM_CURVA_MIN,
+              "MOTO_PWM_ANTICOAST quedo por encima del feedforward de la curva "
+              "mas lenta: el piso tapa al lazo en toda curva. Bajalo.");
 // Por debajo de esta consigna se considera "parar" y se suelta (no hay freno).
 #define MOTO_RPM_MIN 0.5
 
