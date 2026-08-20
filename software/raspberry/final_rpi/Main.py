@@ -10,7 +10,29 @@ import threading
 import queue
 # Registro por frame del lado de la vision. Apagado salvo que exista la
 # variable de entorno TLM_VISION; sin ella no abre archivo ni cuesta nada.
-from telemetria_vision import tlmv
+#
+# EL IMPORT VA PROTEGIDO, y no es paranoia. telemetria_vision.py promete en su
+# docstring que NUNCA levanta una excepcion hacia el lazo de vision, y sus
+# METODOS lo cumplen. Pero el import no estaba cubierto: lo que corre en la
+# Raspberry es un archivo suelto del Desktop, asi que alcanzaba con copiar
+# Main.py y olvidarse de copiar telemetria_vision.py al lado para que la VISION
+# NO ARRANCARA. Un registro no puede voltear una corrida: si no esta, se usa un
+# objeto nulo y el robot corre igual, sin telemetria de vision y sin enterarse.
+try:
+    from telemetria_vision import tlmv
+except Exception as _e:                      # ImportError, y tambien cualquier otra
+    print("[TLM-VISION] no se pudo importar (%s): sigo SIN registro de vision" % _e)
+
+    class _TlmvNulo(object):
+        activa = False
+
+        def frame(self, **k):
+            pass
+
+        def cerrar(self):
+            pass
+
+    tlmv = _TlmvNulo()
 
 HEADLESS = os.environ.get("DISPLAY") is None
 DEBUG_VIEW = os.environ.get("DEBUG_VIEW") == "1"
