@@ -138,19 +138,33 @@ archivo del Desktop, **no el del repo**: el enganche de telemetría de visión q
 ### Los dos fixes (por defecto APAGADOS)
 
 - **`FIX_LAZO_MOTOR`** — feedforward (`kS + kV·rpm`), anti-windup acotado al rango útil,
-  **piso absoluto `MOTO_PWM_ANTICOAST = 45`** `[PROVISORIO: banco]`, reset del integrador al
-  invertir, apagado inmediato con consigna 0, y sin el toggle del pin.
+  **piso absoluto `MOTO_PWM_ANTICOAST = 20`** `[PROVISORIO: lo fija el barrido]`, reset del
+  integrador al invertir, apagado inmediato con consigna 0, y sin el toggle del pin.
   Simulación de la aritmética exacta contra el lazo histórico:
   ```
   DENTRO de la curva:  historico cae de 53.8 a 0.0 -> COAST, rueda suelta
-                       nuevo     cae de 28.8 a 17.5 -> sostiene el esfuerzo
+                       nuevo     cae de 28.8 a 20.0 -> sostiene el esfuerzo
   ```
+  **El piso estuvo en 45 y era un error** (corregido el 20-ago): `ff = 8 + 1,35·rpm` llega
+  a 45 recién en **27,4 rpm**, y las curvas corren a **26 / 22 / 20**. O sea que las cuatro
+  ruedas se iban al piso en cada curva y el ratio de `rotation` dejaba de significar algo —
+  y en recta, que es lo que anda bien, el fix no tocaba nada. Además `COLAPSO_PWM` del
+  analizador es 30: con el piso en 45 la causa **[A] era imposible por construcción** y el
+  A/B `diagnostico` vs `diagnostico_lazo` iba a dar "[A] desapareció" siempre. El invariante
+  ahora vive en un `static_assert`, no en un comentario.
+
 - **`FIX_CURVA_CONTINUA`** — `rotation` como función continua de `steerCmd`, sin
   `steerAxleBias`:
   ```
   PEOR SALTO con 0,1 grado de camara:   historico 21.0 rpm  ->  continuo 0.2 rpm
   CONFLICTO ENTRE EJES:                 historico  9.0 rpm  ->  continuo 0.0 rpm
   ```
+  **OJO AL LEER EL SÁBADO:** la rampa continua pide bastante **menos** `rotation` que el
+  árbol de ramas en todo el tramo 0,35–0,92. En `absSteer = 0,36` el árbol manda `0,80`
+  (rueda interna en **reversa**) y la rampa manda `0,36` (interna hacia **adelante**).
+  El robot va a girar **más abierto** con el fix, no más cerrado. Si el sábado corta menos
+  las curvas, eso **no prueba que el fix falló**: es la consecuencia geométrica esperada.
+  Lo que hay que mirar es la columna `colapso`, no el radio.
 
 ### Nueve herramientas en `software/teensy/firmware/tools/`
 
@@ -196,16 +210,35 @@ los primeros 35 minutos se gastan en **saber qué se está arreglando**.
 
 ### El barrido decide porque las dos hipótesis predicen ÓRDENES OPUESTOS
 
-- el giro **mejora** hacia `rotation = 1` → **PID ciego al signo**. En `rotation=1` la
-  consigna de la interna es la velocidad completa y el lazo **no puede** colapsar.
-- el giro **empeora** hacia `rotation = 1` → **techo de par**. `rotation=1` es el scrub
+Lo que se compara **NO son los grados por segundo**, sino el **rendimiento de giro**: cuánto
+giro se obtiene *por unidad de consigna*. Los d/s crudos no son comparables entre consignas
+distintas, porque la consigna misma crece con `rotation` (la diferencia entre los dos lados
+vale `2·rotation·velocidad`). **Hasta el 20-ago el analizador comparaba d/s crudos** y por
+eso un robot cinemáticamente **perfecto** disparaba *"SE ARREGLA POR FIRMWARE"* y un techo de
+par moderado salía *"el problema está en la VISIÓN"*. Los dos casos están ahora en
+`probar_analizador.py` como regresión.
+
+En un robot sano el rendimiento es **plano**. Cada hipótesis lo deforma distinto:
+
+- el rendimiento **se hunde** donde la consigna de la interna es chica (`vel·|1−2·rot|`, que
+  se anula en `rot = 0,5`) → **PID ciego al signo**. En `rotation=1` la consigna de la interna
+  es la velocidad completa y el lazo **no puede** colapsar.
+- el rendimiento **cae** hacia `rotation = 1` → **techo de par**. `rotation=1` es el scrub
   máximo. **Es mecánico.**
+- el rendimiento es **plano** → la actuación está sana. Eso **no** dice que el problema sea la
+  visión: este banco corre sin cámara y sin pista, lo único que midió es la actuación.
 - **en el aire obedece y en el piso se apaga** → el problema **depende de la carga**: la
   prueba directa de toda la hipótesis.
 
-El robot pivotea dentro de **25 cm** (radio = `trocha·(1−r)/(2r)`), así que **alcanza un
-cable USB corto**. No hace falta uno de 3 m — y sería contraproducente: tironea del chasis
-justo en las curvas. Lo que importa es que esté **flojo**.
+El umbral **sale de los datos**: son 4 segmentos por cada `rotation` (dos signos × dos
+pasadas) y cuánto se parecen entre sí *es* el ruido de este banco. Si la diferencia entre
+zonas no lo supera por dos desvíos, el analizador **se niega a dar veredicto**.
+
+El robot gira dentro de un radio de `trocha·(1−r)/(2r)`, así que **alcanza un cable USB
+corto**. No hace falta uno de 3 m — y sería contraproducente: tironea del chasis justo en las
+curvas. Lo que importa es que esté **flojo**. Ojo igual: **pivotea en el lugar sólo en
+`rotation = 1`**; en los escalones de 0,40 y 0,50 las dos ruedas van para adelante y el robot
+*avanza* describiendo un arco. Dejarle **más de un metro** de pista libre por delante.
 
 ### El barrido va sobre la PISTA, no sobre el piso del taller
 
@@ -247,10 +280,17 @@ cerámico del taller no es el MDF pintado de la pista. Entra en una baldosa limp
 
 ## Lo que falta hacer y NO es código
 
-- **Compilar los 9 entornos en la notebook que va a la sede** (`pio run`). Si nunca compiló
-  un entorno, recompila el framework Teensy: 2-5 min **por entorno**.
+- ~~**Compilar los 9 entornos en la notebook que va a la sede**~~ — **hecho el 20-ago: 9/9 OK.**
+  El peor entorno deja 408 KB libres de los 512 de RAM1.
 - **Traer por SSH el `main.py` que realmente corre en la Pi** (está en el Desktop, no en el
-  repo) y aplicarle ahí el enganche de `telemetria_vision.py`.
+  repo) y aplicarle ahí el enganche de `telemetria_vision.py`. **Copiar los DOS archivos**:
+  desde el 20-ago el import está protegido con un objeto nulo, así que si falta
+  `telemetria_vision.py` el robot corre igual y avisa por consola — pero sin telemetría de
+  visión no se puede separar la causa **[F]** de la **[A]**.
+  Ojo: el `Main.py` **del repo no se puede correr** — la línea 2 importa
+  `software.raspberry.final_rpi.mainenviar` (paquete absoluto) y el enganche importa
+  `telemetria_vision` (relativo al script): son mutuamente excluyentes, siempre falla una.
+  El import que se le ponga al archivo de la Pi tiene que ser el estilo de **ese** archivo.
 - **Una cuna** para el barrido al aire: dos tacos o una caja recortada, con el cable saliendo
   sin tensión. Antes de grabar, **girar las cuatro ruedas con el dedo**: una rozando la cuna
   simula exactamente el colapso que se busca.
@@ -262,14 +302,36 @@ cerámico del taller no es el MDF pintado de la pista. Entra en una baldosa limp
 
 ## Historial de auditorías
 
-Tres auditorías adversariales con verificación independiente. Hallazgos que habrían
+Cuatro auditorías adversariales con verificación independiente. Hallazgos que habrían
 arruinado el sábado y ya están cerrados:
+
+**De la cuarta pasada (20-ago), los tres reproducidos con CSV sintéticos:**
+
+- **El veredicto estaba sesgado a "es firmware".** Comparaba d/s **crudos** entre zonas de
+  `rotation`, y como la consigna misma crece con `rotation`, un robot **cinemáticamente
+  perfecto** disparaba *"MEJORA hacia rotation=1 → SE ARREGLA POR FIRMWARE"* (el cociente
+  ideal alto/banda es 1,43 y el umbral era 1,3: se cumplía sola). Un techo de par **moderado**
+  salía *"el problema está en la VISIÓN"*. → **rendimiento de giro** normalizado por la
+  consigna, y umbral tomado de la dispersión entre repeticiones.
+- **El analizador se contradecía a sí mismo.** `giro_sirve` imprimía "el VEREDICTO queda
+  anulado" y sólo se aplicaba a la fase 2; doce líneas más abajo el veredicto salía igual.
+  El otro guard (`max < 3 d/s`) no lo tapa: cuando el robot **tirita** `|gz|` es grande y la
+  rotación **neta** es ~0 — que es justo lo que predice el techo de par con la silicona.
+- **El piso anti-coast de 45 tapaba al lazo en toda curva** y volvía la causa **[A]**
+  imposible por construcción. → 20, con `static_assert`. Ver la sección de los fixes.
+- **`plateadoDetectado` había quedado cableado a `false`** en las dos ramas de detección: el
+  disparo local de zona de evacuación de la Teensy era código muerto y no estaba detrás de
+  ningún `#if`. → restaurado.
+- **El import de `telemetria_vision` no estaba protegido**: copiar `Main.py` a la Pi sin el
+  módulo al lado dejaba **la visión sin arrancar**. → objeto nulo.
+
+**De las tres primeras pasadas:**
 
 - El registrador **grababa cero muestras** durante el seguimiento de línea (`DIAG_TICK` no se
   alcanzaba). → `IntervalTimer`.
 - El piso de esfuerzo del fix quedaba en **3,5 % de PWM** justo en la curva cerrada, por
   debajo del umbral del analizador: las dos corridas habrían dado **el mismo veredicto**. →
-  piso absoluto.
+  piso absoluto (que después hubo que **bajar de 45 a 20**: ver arriba).
 - La comparación **piso vs aire** comparaba la guiñada del chasis — que en el aire es cero
   por física — y decía **siempre lo contrario**. → compara el colapso de la rueda interna.
 - El selector de eje del giroscopio elegía **el eje que más vibra**. → media **con signo**
@@ -294,7 +356,21 @@ arruinado el sábado y ya están cerrados:
 
 ## Estado al cerrar
 
-**9 entornos + ESP32 compilan · 9 herramientas parsean · 16/16 de regresión.**
+**9 entornos compilan en la notebook de la sede · 9 herramientas parsean · 19/19 de
+regresión · todo commiteado y tagueado (`diagnostico-curvas-2026-08-19`).**
 
 **Nada corrió en el robot.** El sábado es la primera vez, y por eso el plan del día es
 medir, no arreglar a ciegas.
+
+### Lo que sigue abierto y no se verificó
+
+La cuarta pasada se quedó sin presupuesto antes de refutar dos superficies. Quedan
+**4 hallazgos sin confirmar ni descartar** — nadie los refutó y nadie los verificó:
+
+- la **ISR de 200 Hz** del `IntervalTimer`: `volatile` en las globales que lee, lecturas
+  partidas de la trama de la RPi, y prioridad PIT contra los `attachInterrupt` de encoder;
+- parte del **contrato de columnas** entre `wifi_a_csv.py` y el analizador (`--comparar` y
+  la procedencia del CSV convertido).
+
+No se tocaron **a propósito**: cambiar el instrumento a tres días de la única ventana es
+peor que convivir con una duda declarada. Si el sábado el CSV viene raro, mirar ahí primero.
