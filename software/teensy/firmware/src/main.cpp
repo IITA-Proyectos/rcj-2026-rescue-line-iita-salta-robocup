@@ -2939,7 +2939,13 @@ void loop()
            
             if (color_detected == "Plateado") {   // confirmo 2 lecturas -> filtra brillos aislados
 
-                    plateadoDetectado = false;
+                    // Estuvo en `false` y era una regresion: con las dos ramas de
+                    // deteccion poniendolo en false y la variable inicializada en
+                    // false, el `if (plateadoDetectado)` de mas abajo era codigo
+                    // MUERTO. La Teensy habia perdido su disparo local de zona de
+                    // evacuacion y dependia 100% de que la camara mandara
+                    // silver_line == 1. Restaurado a lo que estaba en afeb995.
+                    plateadoDetectado = true;
 
                     if (!rescateAvisado) {
                         Serial5.write(241);
@@ -3013,7 +3019,7 @@ if (green_state == 2)
                 get_color_fast();
             if (color_detected == "Plateado" && confirmarColor("Plateado")) {   // confirmo 2 lecturas -> filtra brillos aislados
 
-                    plateadoDetectado = false;
+                    plateadoDetectado = true;   // ver el comentario de la otra rama
 
                     if (!rescateAvisado) {
                         Serial5.write(241);
