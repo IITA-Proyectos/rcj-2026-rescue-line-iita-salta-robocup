@@ -312,12 +312,71 @@ def bar_incompleto(d):
     return c.guardar(d), "BARRIDO INCOMPLETO"
 
 
+def bar_sano(d):
+    """EL FALSO POSITIVO. Robot cinematicamente PERFECTO: el yaw es exactamente
+    proporcional a rotation (40 d/s por unidad) y ninguna rueda colapsa.
+
+    Con la metrica vieja -d/s CRUDOS por zona- esto imprimia:
+        MEJORA hacia rotation = 1 ... SE ARREGLA POR FIRMWARE
+    porque el cociente ideal alto/banda es 1,00/0,70 = 1,43 y el umbral era 1,3:
+    la condicion se cumplia SOLA. El sesgo era sistematico hacia "es firmware",
+    o sea hacia gastar las semanas siguientes reescribiendo un lazo que anda.
+    """
+    c = Barrido()
+    c.completo(lambda r, col: 40.0 * r, lambda r: False)
+    return c.guardar(d), "PLANO"
+
+
+def bar_par_moderado(d):
+    """EL FALSO NEGATIVO. Techo de par REAL pero moderado: el yaw sigue la
+    consigna hasta que satura en 26 d/s y de ahi no sube mas.
+
+    Con la metrica vieja salia "PAREJO -> el problema esta en la VISION", que es
+    lo unico que este banco NO puede concluir (corre sin camara y sin pista).
+    Para que la version vieja dijera MECANICO hacia falta que el yaw en rot=1
+    cayera por debajo del 54% de su prediccion cinematica: solo un techo
+    catastrofico se detectaba.
+    """
+    c = Barrido()
+    c.completo(lambda r, col: min(40.0 * r, 26.0), lambda r: False)
+    return c.guardar(d), "TECHO DE PAR"
+
+
+def bar_tirita(d):
+    """El robot VIBRA en el eje del yaw y no gira: |gz| = 26 d/s con rotacion
+    NETA ~0. Es justo lo que predice el techo de par con la silicona, o sea el
+    caso mas probable de todos.
+
+    El guard `giro_sirve` ya detectaba esto e imprimia "el VEREDICTO queda
+    anulado"... y doce lineas mas abajo el veredicto salia igual, porque el
+    guard solo se aplicaba a la fase 2. El otro guard (`max(...) < 3.0`) no lo
+    tapa: |gz| es grande. El caso `bar_vibracion` no lo cubria porque mete el
+    ruido en gx y deja gz limpio, asi que lo salvaba el guard de los 3 d/s.
+    """
+    c = Barrido()
+    c.completo(lambda r, col: 26.0, lambda r: False)
+    n = 0
+    for i, ln in enumerate(c.f):
+        if ln.startswith("#") or ln.startswith("us,"):
+            continue
+        campos = ln.split(",")
+        campos[-3] = "1" if n % 2 == 0 else "-1"        # gx: ruido chico, neto 0
+        campos[-2] = "2" if n % 2 == 0 else "-2"        # gy: idem
+        campos[-1] = "260" if n % 2 == 0 else "-255"    # gz: |26| d/s, neto 0,25
+        c.f[i] = ",".join(campos)
+        n += 1
+    return c.guardar(d), "NO HAY VEREDICTO POR GIRO"
+
+
 CASOS_BARRIDO = [
     ("barrido: firma del PID", bar_pid),
     ("barrido: techo de par", bar_par),
     ("barrido: IMU muda", bar_imu_muda),
     ("barrido: vibracion tapa el yaw", bar_vibracion),
     ("barrido: cortado sin rotation=1", bar_incompleto),
+    ("barrido: robot SANO (falso positivo)", bar_sano),
+    ("barrido: techo de par MODERADO", bar_par_moderado),
+    ("barrido: tirita sin girar", bar_tirita),
 ]
 
 
