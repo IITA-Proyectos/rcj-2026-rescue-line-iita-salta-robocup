@@ -1,0 +1,263 @@
+# -*- coding: utf-8 -*-
+"""
+parche_planner.py - Enchufa el planner al Main.py que corre en la Raspberry,
+                    y le agrega grabacion de video con lo que el robot ve.
+
+POR QUE UN PARCHE Y NO UN Main.py NUEVO
+---------------------------------------
+El Main.py que corre en la Pi vive fuera de git y tiene cosas que el del repo no
+tiene. Reescribirlo entero es la forma mas facil de perder algo sin darse cuenta.
+Esto toca TRES lugares, hace backup antes, y se puede revertir con un comando.
+
+USO
+---
+    python3 parche_planner.py            aplica el parche (deja Main.py.bak)
+    python3 parche_planner.py --revertir  vuelve atras
+    python3 parche_planner.py --ver       muestra que cambiaria, sin tocar nada
+
+DESPUES, PARA CORRER
+--------------------
+    sudo systemctl stop iita-robot           el servicio tiene la camara tomada
+
+    PLANNER=1 GRABAR=~/Desktop/corrida.avi python3 Main.py     con el planner
+    PLANNER=0 GRABAR=~/Desktop/viejo.avi   python3 Main.py     como estaba
+
+Las dos variables son independientes: se puede grabar sin planner y viceversa.
+Sin GRABAR no graba nada y no cuesta nada. Sin PLANNER=1 usa el metodo de
+siempre, asi que el parche aplicado NO cambia el comportamiento por si solo.
+
+QUE GRABA
+---------
+El frame de 160x120 que el robot realmente proceso, escalado x2, con encima:
+  - el angulo del metodo VIEJO (amarillo) y el del PLANNER (verde)
+  - la ruta que armo el planner, punto por punto
+  - la linea del recorte del ROI
+  - un aviso cuando el planner esta extrapolando de memoria
+O sea que en el video se ve lo que el robot vio Y lo que decidio, juntos.
+"""
+import io
+import os
+import re
+import sys
+
+RUTA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Main.py")
+
+# ---------------------------------------------------------------- bloque 1 ---
+# Va despues de los imports. Todo protegido: si el planner no esta, el robot
+# sigue andando con el metodo de siempre y lo dice por consola. Un experimento
+# no puede dejar al robot sin arrancar.
+BLOQUE_IMPORT = '''
+# ===================== PLANNER DE LINEA (parche IITA) =====================
+# Se enciende con la variable de entorno PLANNER=1. Apagado, el robot se
+# comporta EXACTAMENTE como antes: el parche no cambia nada por si solo.
+USAR_PLANNER = os.environ.get("PLANNER", "0") == "1"
+RUTA_VIDEO   = os.environ.get("GRABAR", "")
+
+_seguidor = None
+if USAR_PLANNER:
+    try:
+        from seguidor_linea import Seguidor
+        _seguidor = Seguidor()
+        print("[PLANNER] encendido")
+    except Exception as _e:
+        # Que falte el archivo no puede impedir que el robot arranque.
+        print("[PLANNER] no se pudo cargar (%s): sigo con el metodo de siempre" % _e)
+        USAR_PLANNER = False
+
+_video = None
+_video_n = 0
+def _grabar(frame_bgr, ang_viejo, ang_planner, r):
+    """Una imagen por frame con lo que el robot vio y lo que decidio.
+
+    Nunca levanta una excepcion hacia el lazo de vision: si la grabacion falla,
+    se apaga sola y el robot sigue. Un registro no puede voltear una corrida.
+    """
+    global _video, _video_n
+    if not RUTA_VIDEO:
+        return
+    try:
+        vis = cv2.resize(frame_bgr, (320, 240), interpolation=cv2.INTER_NEAREST)
+        cv2.line(vis, (0, 120), (319, 120), (0, 255, 255), 1)      # el recorte del ROI
+        if r is not None and r.get("puntos"):
+            p = [(int(x * 2), int(y * 2)) for x, y in r["puntos"]]
+            for u, v in zip(p, p[1:]):
+                cv2.line(vis, u, v, (0, 255, 0), 2)
+            if r.get("mira"):
+                mx, my = r["mira"]
+                cv2.circle(vis, (int(mx * 2), int(my * 2)), 5, (0, 128, 255), 2)
+        cv2.putText(vis, "viejo %+.0f" % ang_viejo, (4, 14),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 255, 255), 1)
+        if ang_planner is not None:
+            cv2.putText(vis, "planner %+.0f" % ang_planner, (4, 32),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 255, 0), 1)
+        if r is not None and not r.get("ok"):
+            cv2.putText(vis, "MEMORIA: " + str(r.get("motivo", ""))[:14], (4, 232),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 165, 255), 1)
+        if _video is None:
+            _video = cv2.VideoWriter(os.path.expanduser(RUTA_VIDEO),
+                                     cv2.VideoWriter_fourcc(*"MJPG"), 20.0, (320, 240))
+            print("[GRABAR] escribiendo en %s" % RUTA_VIDEO)
+        _video.write(vis)
+        _video_n += 1
+    except Exception as _e:
+        print("[GRABAR] se apaga por error: %s" % _e)
+        globals()["RUTA_VIDEO"] = ""
+# =========================================================================
+'''
+
+ANCLA_IMPORT = "import threading\nimport queue"
+
+# ---------------------------------------------------------------- bloque 2 ---
+# El calculo del angulo. Se deja el viejo SIEMPRE, para poder compararlos en el
+# mismo frame y en el mismo video: sin eso no hay forma de saber si el planner
+# mejoro o si cambio la pista.
+VIEJO_ANGULO = (
+    "            green_state = 0\n"
+    "            x_resultant = np.mean(x_black)\n"
+    "            y_resultant = np.mean(y_black)\n"
+    "            angle = (math.atan2(y_resultant, x_resultant) / math.pi * 180) - 90\n"
+    "            speed = 40\n"
+)
+NUEVO_ANGULO = (
+    "            green_state = 0\n"
+    "            x_resultant = np.mean(x_black)\n"
+    "            y_resultant = np.mean(y_black)\n"
+    "            angle = (math.atan2(y_resultant, x_resultant) / math.pi * 180) - 90\n"
+    "            speed = 40\n"
+    "\n"
+    "            # ---- PLANNER (parche IITA) ----\n"
+    "            # El angulo viejo se calculo igual, arriba: queda como referencia\n"
+    "            # para el video y para poder comparar los dos en el MISMO frame.\n"
+    "            _ang_viejo = angle\n"
+    "            _r = None\n"
+    "            if USAR_PLANNER:\n"
+    "                try:\n"
+    "                    _r = _seguidor.paso(frame_resized, ya_procesado=True)\n"
+    "                    angle = _r[\"angle_filtrado\"]\n"
+    "                except Exception as _e:\n"
+    "                    # Si el planner explota, se sigue con el angulo viejo.\n"
+    "                    print(\"[PLANNER] error, uso el metodo viejo: %s\" % _e)\n"
+    "                    _r = None\n"
+    "            # -------------------------------\n"
+)
+
+# ---------------------------------------------------------------- bloque 3 ---
+# La guarda vieja. Usa black_mask, que es la mascara del metodo VIEJO (inRange
+# fijo + recorte en 60). El planner usa su propia mascara adaptativa, asi que
+# dejar la guarda activa significaria pisar con 0 un angulo que el planner
+# calculo bien. Solo debe aplicarse cuando el planner NO esta manejando.
+VIEJA_GUARDA = (
+    "            if np.sum(black_mask) < min_line_size:\n"
+    "                angle = 0\n"
+)
+NUEVA_GUARDA = (
+    "            if (not USAR_PLANNER) and np.sum(black_mask) < min_line_size:\n"
+    "                angle = 0\n"
+)
+
+# ---------------------------------------------------------------- bloque 4 ---
+ANCLA_ENVIO = (
+    "            output = send_frame(speed, round(angle), green_state, silver_line)\n"
+)
+NUEVO_ENVIO = (
+    "            output = send_frame(speed, round(angle), green_state, silver_line)\n"
+    "            _grabar(frame_resized, _ang_viejo, angle if USAR_PLANNER else None, _r)\n"
+)
+
+CAMBIOS = [
+    ("los imports y el arranque del planner", ANCLA_IMPORT, ANCLA_IMPORT + "\n" + BLOQUE_IMPORT),
+    ("el calculo del angulo", VIEJO_ANGULO, NUEVO_ANGULO),
+    ("la guarda de min_line_size", VIEJA_GUARDA, NUEVA_GUARDA),
+    ("la grabacion, despues del envio", ANCLA_ENVIO, NUEVO_ENVIO),
+]
+
+
+def leer(ruta):
+    with io.open(ruta, encoding="utf-8", newline="") as fh:
+        return fh.read()
+
+
+def escribir(ruta, txt):
+    with io.open(ruta, "w", encoding="utf-8", newline="") as fh:
+        fh.write(txt)
+
+
+def normalizar(txt):
+    """Los saltos de linea no pueden decidir si el parche entra o no."""
+    return txt.replace("\r\n", "\n")
+
+
+def main():
+    if not os.path.exists(RUTA):
+        print("*** No encuentro Main.py al lado de este script (%s)" % RUTA)
+        print("    Copia parche_planner.py a la MISMA carpeta que Main.py.")
+        return 2
+
+    bak = RUTA + ".bak"
+
+    if "--revertir" in sys.argv:
+        if not os.path.exists(bak):
+            print("*** No hay Main.py.bak: no puedo revertir.")
+            return 2
+        escribir(RUTA, leer(bak))
+        print("Revertido: Main.py volvio a como estaba (desde Main.py.bak).")
+        return 0
+
+    s = normalizar(leer(RUTA))
+
+    if "PLANNER DE LINEA (parche IITA)" in s:
+        print("El parche YA ESTA aplicado. Nada que hacer.")
+        print("Para volver atras: python3 parche_planner.py --revertir")
+        return 0
+
+    faltan = [nom for nom, viejo, _ in CAMBIOS if viejo not in s]
+    if faltan:
+        print("*** No encontre estos lugares en Main.py, NO toco nada:")
+        for f in faltan:
+            print("      - " + f)
+        print("    El Main.py de la Pi cambio respecto del que revisamos.")
+        return 1
+
+    if "--ver" in sys.argv:
+        print("Los 4 lugares estan. El parche entraria limpio.")
+        print("Correlo sin --ver para aplicarlo.")
+        return 0
+
+    if not os.path.exists(bak):
+        escribir(bak, leer(RUTA))
+        print("backup: %s" % bak)
+
+    for nom, viejo, nuevo in CAMBIOS:
+        s = s.replace(viejo, nuevo, 1)
+        print("  parchado: %s" % nom)
+
+    escribir(RUTA, s)
+
+    # Que compile NO prueba que funcione, pero que no compile si prueba que rompe.
+    import py_compile
+    try:
+        py_compile.compile(RUTA, doraise=True)
+        print("\nMain.py compila.")
+    except Exception as e:
+        print("\n*** Main.py NO compila: %s" % e)
+        print("    Revirtiendo automaticamente para no dejarte el robot roto.")
+        escribir(RUTA, leer(bak))
+        return 1
+
+    print("""
+LISTO. El parche NO cambia el comportamiento por si solo: sin PLANNER=1 el robot
+anda exactamente como antes.
+
+    sudo systemctl stop iita-robot
+
+    PLANNER=1 GRABAR=~/Desktop/con_planner.avi python3 Main.py
+    PLANNER=0 GRABAR=~/Desktop/sin_planner.avi python3 Main.py
+
+Para volver atras del todo:  python3 parche_planner.py --revertir
+Y al terminar:               sudo systemctl start iita-robot
+""")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
