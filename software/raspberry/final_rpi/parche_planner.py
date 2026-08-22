@@ -20,8 +20,12 @@ DESPUES, PARA CORRER
 --------------------
     sudo systemctl stop iita-robot           el servicio tiene la camara tomada
 
-    PLANNER=1 GRABAR=~/Desktop/corrida.avi python3 Main.py     con el planner
-    PLANNER=0 GRABAR=~/Desktop/viejo.avi   python3 Main.py     como estaba
+    PLANNER=0 GRABAR=~/Desktop/a.avi python3 main.py    centroide, como estaba
+    PLANNER=1 GRABAR=~/Desktop/b.avi python3 main.py    el planner maneja siempre
+    PLANNER=2 GRABAR=~/Desktop/c.avi python3 main.py    HIBRIDO (el recomendado)
+
+El hibrido usa el centroide siempre, y le pasa el volante al trazo SOLO cuando
+el centroide se satura (|angulo| >= 70 por defecto, se cambia con SATURA_DESDE).
 
 Las dos variables son independientes: se puede grabar sin planner y viceversa.
 Sin GRABAR no graba nada y no cuesta nada. Sin PLANNER=1 usa el metodo de
@@ -68,7 +72,25 @@ BLOQUE_IMPORT = '''
 # ===================== PLANNER DE LINEA (parche IITA) =====================
 # Se enciende con la variable de entorno PLANNER=1. Apagado, el robot se
 # comporta EXACTAMENTE como antes: el parche no cambia nada por si solo.
-USAR_PLANNER = os.environ.get("PLANNER", "0") == "1"
+# PLANNER=0  el metodo de siempre (centroide)
+# PLANNER=1  el planner maneja siempre
+# PLANNER=2  HIBRIDO: manda el centroide, y el planner entra SOLO donde el
+#            centroide se satura. Ver el comentario de MODO_HIBRIDO abajo.
+_MODO = os.environ.get("PLANNER", "0")
+USAR_PLANNER = _MODO in ("1", "2")
+MODO_HIBRIDO = _MODO == "2"
+# Un seguidor de linea necesita DOS errores y el atan2 los mezcla en uno:
+#   error LATERAL  (cuan corrido estoy)      -> lo mide bien el centroide, que
+#       promedia toda la mascara: es estable y nunca se equivoca de rama.
+#   error de RUMBO (para donde sigue la cinta) -> lo mide bien el trazo, que
+#       camina la linea y conserva su orientacion.
+# Cuando la cinta queda HORIZONTAL en el ROI -o sea, en la curva cerrada-
+# y_resultant tiende a 0 y el centroide salta a +-90 sin gradacion: sabe que el
+# robot esta mal parado pero no para donde ir. Medido en pista el 2026-08-22:
+# eso pasa en el 9-11% de los frames, en episodios de hasta 325 ms.
+# El hibrido deja el centroide manejando -que es lo que hoy funciona en recta y
+# en curva suave- y le pasa el volante al trazo SOLO en esos frames.
+SATURA_DESDE = float(os.environ.get("SATURA_DESDE", "70"))   # grados
 RUTA_VIDEO   = os.environ.get("GRABAR", "")
 
 _seguidor = None
@@ -101,7 +123,7 @@ def _cerrar_video():
 
 import atexit
 atexit.register(_cerrar_video)
-def _grabar(frame_bgr, ang_viejo, ang_planner, r):
+def _grabar(frame_bgr, ang_viejo, ang_planner, r, quien="centroide"):
     """Una imagen por frame con lo que el robot vio y lo que decidio.
 
     Nunca levanta una excepcion hacia el lazo de vision: si la grabacion falla,
@@ -133,6 +155,10 @@ def _grabar(frame_bgr, ang_viejo, ang_planner, r):
         if ang_planner is not None:
             cv2.putText(vis, "planner %+.0f" % ang_planner, (4, 32),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 255, 0), 1)
+        # QUIEN MANDO en este frame. Sin esto, en el hibrido no hay forma de saber
+        # si una reaccion la decidio el centroide o el trazo.
+        cv2.putText(vis, "manda: " + quien, (4, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.45,
+                    (0, 255, 0) if "planner" in quien else (0, 255, 255), 1)
         if r is not None and not r.get("ok"):
             cv2.putText(vis, "MEMORIA: " + str(r.get("motivo", ""))[:14], (4, 232),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 165, 255), 1)
@@ -168,26 +194,65 @@ VIEJO_ANGULO = (
     "            speed = 40\n"
 )
 NUEVO_ANGULO = (
-    "            green_state = 0\n"
-    "            x_resultant = np.mean(x_black)\n"
-    "            y_resultant = np.mean(y_black)\n"
-    "            angle = (math.atan2(y_resultant, x_resultant) / math.pi * 180) - 90\n"
-    "            speed = 40\n"
-    "\n"
-    "            # ---- PLANNER (parche IITA) ----\n"
-    "            # El angulo viejo se calculo igual, arriba: queda como referencia\n"
-    "            # para el video y para poder comparar los dos en el MISMO frame.\n"
-    "            _ang_viejo = angle\n"
-    "            _r = None\n"
-    "            if USAR_PLANNER:\n"
-    "                try:\n"
-    "                    _r = _seguidor.paso(frame_resized, ya_procesado=True)\n"
-    "                    angle = _r[\"angle_filtrado\"]\n"
-    "                except Exception as _e:\n"
-    "                    # Si el planner explota, se sigue con el angulo viejo.\n"
-    "                    print(\"[PLANNER] error, uso el metodo viejo: %s\" % _e)\n"
-    "                    _r = None\n"
-    "            # -------------------------------\n"
+    '            green_state = 0\n'
+
+    '            x_resultant = np.mean(x_black)\n'
+
+    '            y_resultant = np.mean(y_black)\n'
+
+    '            angle = (math.atan2(y_resultant, x_resultant) / math.pi * 180) - 90\n'
+
+    '            speed = 40\n'
+
+    '\n'
+
+    '            # ---- PLANNER (parche IITA) ----\n'
+
+    '            # El angulo del centroide ya se calculo arriba y queda guardado: es\n'
+
+    '            # la referencia del video y, en modo hibrido, tambien el que manda.\n'
+
+    '            _ang_viejo = angle\n'
+
+    '            _r = None\n'
+
+    '            _quien = "centroide"\n'
+
+    '            if USAR_PLANNER:\n'
+
+    '                try:\n'
+
+    '                    _r = _seguidor.paso(frame_resized, ya_procesado=True)\n'
+
+    '                    if not MODO_HIBRIDO:\n'
+
+    '                        angle = _r["angle_filtrado"]\n'
+
+    '                        _quien = "planner"\n'
+
+    '                    elif _r.get("ok") and abs(_ang_viejo) >= SATURA_DESDE:\n'
+
+    '                        # El centroide se saturo: perdio gradacion y ya no sabe\n'
+
+    '                        # PARA DONDE sigue la cinta, solo que esta mal parado.\n'
+
+    '                        # El trazo si lo sabe, asi que le pasa el volante.\n'
+
+    '                        angle = _r["angle_filtrado"]\n'
+
+    '                        _quien = "planner*"\n'
+
+    '                except Exception as _e:\n'
+
+    '                    # Si el planner explota, se sigue con el centroide.\n'
+
+    '                    print("[PLANNER] error, sigo con el centroide: %s" % _e)\n'
+
+    '                    _r = None\n'
+
+    '            # -------------------------------\n'
+
+    '\n'
 )
 
 # ---------------------------------------------------------------- bloque 3 ---
@@ -210,7 +275,7 @@ ANCLA_ENVIO = (
 )
 NUEVO_ENVIO = (
     "            output = send_frame(speed, round(angle), green_state, silver_line)\n"
-    "            _grabar(frame_resized, _ang_viejo, angle if USAR_PLANNER else None, _r)\n"
+    "            _grabar(frame_resized, _ang_viejo, angle if USAR_PLANNER else None, _r, _quien)\n"
 )
 
 CAMBIOS = [
