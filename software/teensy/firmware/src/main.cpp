@@ -2678,12 +2678,24 @@ void setup()
 
     // Continue with your setup and loop functions as before
 
-    left_tof.init();
+    // EL TIMEOUT VA ANTES DE init(), NO DESPUES. El constructor del VL53L0X deja
+    // io_timeout = 0, y su guarda es  (io_timeout > 0 && ...), que con 0 da false
+    // SIEMPRE. Con setTimeout() escrito despues, durante todo init() los tres
+    // while de la libreria -getSpadInfo y las dos performSingleRefCalibration-
+    // tienen adentro un if que no se cumple nunca: son bucles SIN SALIDA. Tres
+    // por sensor, dos sensores. Si un ToF contesta pero no completa la secuencia
+    // (brownout al arrancar motores y servos, o un reset de la Teensy con el
+    // sensor todavia alimentado y en modo continuo), setup() no termina: LED
+    // apagado y puerto mudo, en la pista y delante del arbitro.
+    // Regla general: un setTimeout() se configura en el mismo bloque donde se
+    // construye el objeto, nunca despues de la primera llamada bloqueante.
     left_tof.setTimeout(500);
+    right_tof.setTimeout(500);
+
+    left_tof.init();
     left_tof.startContinuous();
 
     right_tof.init();
-    right_tof.setTimeout(500);
     right_tof.startContinuous();
 #endif   // !MODO_BANCO
     pinMode(FCL, INPUT);
