@@ -91,6 +91,36 @@ MODO_HIBRIDO = _MODO == "2"
 # El hibrido deja el centroide manejando -que es lo que hoy funciona en recta y
 # en curva suave- y le pasa el volante al trazo SOLO en esos frames.
 SATURA_DESDE = float(os.environ.get("SATURA_DESDE", "70"))   # grados
+
+# ROI ADAPTATIVO. main.py recorta con black_mask[:60, :] = 0, un numero fijo.
+# Medido sobre el video del 2026-08-22: el horizonte real esta en la fila 52
+# (mediana, p10 en 39), asi que el recorte fijo tira 8 filas de piso (mediana,
+# 15 en el p75), y en el 73% de esos casos HAY CINTA ahi. Son las filas MAS
+# LEJANAS, o sea justo donde vive la anticipacion que al robot le falta.
+# Con la camara a altura fija -no se puede subir- esta es la unica forma de
+# ganar vista hacia adelante, y es gratis.
+#   ROI=60    (por defecto) el recorte de siempre, no cambia nada
+#   ROI=auto  busca el horizonte en cada frame
+ROI_MODO = os.environ.get("ROI", "60")
+
+def _fila_horizonte(frame_bgr, minimo=30, maximo=60):
+    """Primera fila desde arriba a partir de la cual empieza el piso.
+
+    El salon entra por el borde superior y es oscuro y texturado; el piso es
+    brillante y parejo. Se baja hasta encontrar una fila clara que SIGA clara
+    hacia abajo -pedir solo "clara" se lo come un reflejo del salon-.
+    Acotado entre `minimo` y `maximo` a proposito: si la deteccion falla, el
+    peor caso es el recorte de siempre, nunca uno que meta el salon adentro.
+    """
+    try:
+        g = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
+        brillo = g.mean(axis=1)
+        for y in range(maximo):
+            if brillo[y] > 150 and brillo[y:y + 15].min() > 130:
+                return max(minimo, y + 2)      # +2 de margen sobre el borde
+    except Exception:
+        pass
+    return maximo
 RUTA_VIDEO   = os.environ.get("GRABAR", "")
 
 _seguidor = None
@@ -206,6 +236,44 @@ NUEVO_ANGULO = (
 
     '\n'
 
+    '            # ---- ROI ADAPTATIVO (parche IITA) ----\n'
+
+    '            # El recorte fijo de la fila 60 tira piso util. Medido sobre el\n'
+
+    '            # video del 2026-08-22: el horizonte real esta en la fila 52, se\n'
+
+    '            # descartan 8 filas (mediana, 15 en el p75) y en el 73% de esos\n'
+
+    '            # casos HAY CINTA ahi. Son las filas mas lejanas, o sea justo la\n'
+
+    '            # anticipacion que le falta al robot. Con la camara a altura fija\n'
+
+    '            # esta es la unica vista hacia adelante que se puede ganar.\n'
+
+    '            if ROI_MODO == "auto":\n'
+
+    '                _corte = _fila_horizonte(frame_resized)\n'
+
+    '                if _corte < 60:\n'
+
+    '                    black_mask = cv2.inRange(frame_resized, lower_black, upper_black)\n'
+
+    '                    black_mask[:_corte, :] = 0\n'
+
+    '                    x_black = cv2.bitwise_and(x_com, x_com, mask=black_mask)\n'
+
+    '                    x_black *= (1 - y_com)\n'
+
+    '                    y_black = cv2.bitwise_and(y_com, y_com, mask=black_mask)\n'
+
+    '                    x_resultant = np.mean(x_black)\n'
+
+    '                    y_resultant = np.mean(y_black)\n'
+
+    '                    angle = (math.atan2(y_resultant, x_resultant) / math.pi * 180) - 90\n'
+
+    '\n'
+
     '            # ---- PLANNER (parche IITA) ----\n'
 
     '            # El angulo del centroide ya se calculo arriba y queda guardado: es\n'
@@ -236,15 +304,11 @@ NUEVO_ANGULO = (
 
     '                        # PARA DONDE sigue la cinta, solo que esta mal parado.\n'
 
-    '                        # El trazo si lo sabe, asi que le pasa el volante.\n'
-
     '                        angle = _r["angle_filtrado"]\n'
 
     '                        _quien = "planner*"\n'
 
     '                except Exception as _e:\n'
-
-    '                    # Si el planner explota, se sigue con el centroide.\n'
 
     '                    print("[PLANNER] error, sigo con el centroide: %s" % _e)\n'
 

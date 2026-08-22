@@ -54,7 +54,12 @@ W, H = 160, 120
 LO = np.array([0, 0, 0]); HI = np.array([90, 90, 90])
 _K = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
 DENS_SALON  = 0.55
-RECORTE_MINIMO = 60    # las filas que el Main.py de la Raspberry ya borraba
+import os as _os
+# El recorte del planner sigue al de main.py. Con ROI=auto baja a 30 y deja que
+# _fila_salon() decida por frame: la camara esta a altura fija y ganar filas
+# hacia adelante es la unica anticipacion disponible. Medido el 2026-08-22: el
+# horizonte real esta en la fila 52, no en la 60.
+RECORTE_MINIMO = 30 if _os.environ.get("ROI") == "auto" else 60
 MARGEN_SALON = 4
 
 UMBRAL_ADAPTATIVO = True   # False vuelve al umbral fijo de siempre
