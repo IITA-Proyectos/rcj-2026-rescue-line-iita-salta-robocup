@@ -84,6 +84,23 @@ if USAR_PLANNER:
 
 _video = None
 _video_n = 0
+
+def _cerrar_video():
+    """Cerrar el archivo al salir. SIN ESTO el .avi queda sin indice y puede no
+    abrir: cv2.VideoWriter escribe la cabecera recien en release(). Con Ctrl-C
+    -que es como se corta siempre- el proceso muere y el video se pierde.
+    atexit corre igual con KeyboardInterrupt, que es el caso real."""
+    global _video
+    if _video is not None:
+        try:
+            _video.release()
+            print("[GRABAR] cerrado: %d frames en %s" % (_video_n, RUTA_VIDEO))
+        except Exception:
+            pass
+        _video = None
+
+import atexit
+atexit.register(_cerrar_video)
 def _grabar(frame_bgr, ang_viejo, ang_planner, r):
     """Una imagen por frame con lo que el robot vio y lo que decidio.
 
@@ -96,6 +113,14 @@ def _grabar(frame_bgr, ang_viejo, ang_planner, r):
     try:
         vis = cv2.resize(frame_bgr, (320, 240), interpolation=cv2.INTER_NEAREST)
         cv2.line(vis, (0, 120), (319, 120), (0, 255, 255), 1)      # el recorte del ROI
+        # PANEL DERECHO: la mascara que el planner uso DE VERDAD. Sin esto, cuando
+        # el robot se sale no hay forma de distinguir "el trazo se fue por donde no
+        # habia cinta" de "la mascara no vio la cinta". Son dos arreglos distintos.
+        if r is not None and r.get("mascara") is not None:
+            mk = cv2.cvtColor(cv2.resize(r["mascara"], (320, 240),
+                              interpolation=cv2.INTER_NEAREST), cv2.COLOR_GRAY2BGR)
+        else:
+            mk = np.zeros((240, 320, 3), np.uint8)
         if r is not None and r.get("puntos"):
             p = [(int(x * 2), int(y * 2)) for x, y in r["puntos"]]
             for u, v in zip(p, p[1:]):
@@ -111,9 +136,15 @@ def _grabar(frame_bgr, ang_viejo, ang_planner, r):
         if r is not None and not r.get("ok"):
             cv2.putText(vis, "MEMORIA: " + str(r.get("motivo", ""))[:14], (4, 232),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 165, 255), 1)
+        if r is not None and r.get("puntos"):
+            for x, y in r["puntos"]:
+                cv2.circle(mk, (int(x * 2), int(y * 2)), 2, (0, 0, 255), -1)
+        cv2.putText(mk, "mascara del planner", (4, 14),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 128, 0), 1)
+        vis = np.hstack([vis, mk])
         if _video is None:
             _video = cv2.VideoWriter(os.path.expanduser(RUTA_VIDEO),
-                                     cv2.VideoWriter_fourcc(*"MJPG"), 20.0, (320, 240))
+                                     cv2.VideoWriter_fourcc(*"MJPG"), 20.0, (640, 240))
             print("[GRABAR] escribiendo en %s" % RUTA_VIDEO)
         _video.write(vis)
         _video_n += 1

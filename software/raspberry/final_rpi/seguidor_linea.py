@@ -234,13 +234,13 @@ class Seguidor(object):
         p0 = punto_de_partida(m)
         if p0 is None:
             self.edad += 1; self.hist = []
-            return {"ok": False, "motivo": "sin linea", "puntos": [],
+            return {"ok": False, "motivo": "sin linea", "puntos": [], "mascara": m,
                     "angle_filtrado": self.ultimo if self.edad <= self.max_edad else 0.0,
                     "vigente": self.edad <= self.max_edad, "confianza": 0.0}
         pts = trazar(m, p0[0], p0[1])
         if len(pts) < 3:
             self.edad += 1; self.hist = []
-            return {"ok": False, "motivo": "trazo corto", "puntos": pts,
+            return {"ok": False, "motivo": "trazo corto", "puntos": pts, "mascara": m,
                     "angle_filtrado": self.ultimo if self.edad <= self.max_edad else 0.0,
                     "vigente": self.edad <= self.max_edad, "confianza": 0.0}
         largo = sum(math.hypot(b[0]-a[0], b[1]-a[1]) for a, b in zip(pts, pts[1:]))
@@ -253,7 +253,7 @@ class Seguidor(object):
             self.hist.pop(0)
         ang = float(np.median(self.hist))
         self.ultimo = ang; self.edad = 0
-        return {"ok": True, "motivo": "", "puntos": pts, "angle": ang,
+        return {"ok": True, "motivo": "", "puntos": pts, "angle": ang, "mascara": m,
                 "angle_filtrado": ang, "vigente": True,
                 "confianza": min(1.0, largo / self.mirada),
                 "largo": largo, "mira": pm}
