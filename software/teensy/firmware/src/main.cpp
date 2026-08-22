@@ -93,6 +93,16 @@
 #define INVERTIR_VERDES     false   // D1.1 / 2025: verde izq<->der
 #define MODO_DOBLE_VERDE    0       // 0=180(normal) | 1=ignorar/seguir recto (D1.2)
 #define MODO_ROJO           0       // 0=parar(meta) | 1=girar180(profe) | 2=simple180/doble-parar sensor(2025)
+// PLATEADO_TEENSY - la Teensy dispara la zona de evacuacion por su cuenta con el
+// sensor de color, ademas de lo que mande la camara (silver_line).
+// APAGADO A PROPOSITO. No es un bug: el sensor de color da falsos positivos sobre
+// superficies brillantes y meterse solo en evacuacion en medio de la pista cuesta
+// la corrida entera. Con esto en 0 el disparo de evacuacion queda 100% en la
+// camara, que es la que puede confirmar con contexto.
+// Estuvo cableado a `false` directamente en las dos ramas de deteccion, y asi
+// parecia un error: el 2026-08-22 alguien lo "restauro" a true justamente por eso.
+// Como bandera con nombre queda claro que es una decision y se prende en un lugar.
+#define PLATEADO_TEENSY     0       // 0=solo la camara decide | 1=la Teensy tambien
 #define ESQUIVE_POR_PARIDAD false   // D2.2: par=izq, impar=der (false=random normal)
 #define CONTAR_VERDES       false   // D2.1: habilita el contador de verdes
 #define INVERTIR_DEPOSITO   false   // D2.3: impar invierte zonas (necesita CONTAR_VERDES)
@@ -2951,13 +2961,7 @@ void loop()
            
             if (color_detected == "Plateado") {   // confirmo 2 lecturas -> filtra brillos aislados
 
-                    // Estuvo en `false` y era una regresion: con las dos ramas de
-                    // deteccion poniendolo en false y la variable inicializada en
-                    // false, el `if (plateadoDetectado)` de mas abajo era codigo
-                    // MUERTO. La Teensy habia perdido su disparo local de zona de
-                    // evacuacion y dependia 100% de que la camara mandara
-                    // silver_line == 1. Restaurado a lo que estaba en afeb995.
-                    plateadoDetectado = true;
+                    plateadoDetectado = PLATEADO_TEENSY;   // apagado a proposito, ver el #define
 
                     if (!rescateAvisado) {
                         Serial5.write(241);
@@ -3031,7 +3035,7 @@ if (green_state == 2)
                 get_color_fast();
             if (color_detected == "Plateado" && confirmarColor("Plateado")) {   // confirmo 2 lecturas -> filtra brillos aislados
 
-                    plateadoDetectado = true;   // ver el comentario de la otra rama
+                    plateadoDetectado = PLATEADO_TEENSY;   // apagado a proposito, ver el #define
 
                     if (!rescateAvisado) {
                         Serial5.write(241);
@@ -3208,7 +3212,15 @@ if (green_state == 2)
                          recuperarAtasco();
                          break;
                      }
-                    const double LINE_STEER_GAIN = 1.35;
+                    const double LINE_STEER_GAIN = 1.35;   // vuelto a 1.35: con 1.80 el cabeceo empeoro de -11,8 a -20,3 grados
+                    // Cuanto amplifica el angulo de la camara antes de decidir la
+                    // rotation. Subirlo hace que el robot SE COMPROMETA ANTES con la
+                    // curva. Medido ese dia: con la rampa continua ya puesta, el robot
+                    // pasaba curvas que antes no pasaba pero se seguia yendo, y la
+                    // vision SATURABA en 14 episodios de hasta 325 ms: llegaba tarde y
+                    // la linea se le iba del cuadro. Con el arbol de ramas viejo subir
+                    // esto habria sido peligroso -empujaba el steerCmd sobre el umbral
+                    // del salto de 0,35 a 0,80- pero con la rampa ya no hay salto.
                     const double LINE_CURVE_STEER = 0.08;
                     const double LINE_HARD_CURVE_STEER = 0.35;
                     const double LINE_PIVOT_STEER = 0.92;
@@ -3217,8 +3229,16 @@ if (green_state == 2)
                     const double LINE_TURN_FRONT_SCALE = 0.55;
                     const double LINE_TURN_REAR_SCALE = 1.00;
                     const int LINE_CURVE_SPEED = 26;
-                    const int LINE_HARD_CURVE_SPEED = 22;
-                    const int LINE_PIVOT_SPEED = 20;
+                    const int LINE_HARD_CURVE_SPEED = 32;   // [EXPERIMENTO 2026-08-22] era 22
+                    const int LINE_PIVOT_SPEED = 35;   // [EXPERIMENTO 2026-08-22] era 20.
+                    // CONTRAINTUITIVO Y A PROPOSITO. Medido en pista ese dia: el giro
+                    // logrado se clava en ~25 d/s de rot=0,5 en adelante por mas que se
+                    // pida mas, y el rendimiento cae de 0,84 a 0,64. Pero la fase 2 del
+                    // banco midio que a rotation=1 el giro ESCALA con la velocidad
+                    // (25 rpm -> 44,8 d/s, 70 rpm -> 127,8 d/s, rendimiento 0,9 sostenido).
+                    // La curva corria a 20 rpm, la velocidad mas baja de todo el rango.
+                    // Si el techo viene de que a esa velocidad no hay con que vencer el
+                    // scrub de las 4 fijas de silicona, ir MAS RAPIDO da MAS giro.
 
                     double steerCmd = constrain(steer * LINE_STEER_GAIN, -1.0, 1.0);
                     double absSteer = fabs(steerCmd);
