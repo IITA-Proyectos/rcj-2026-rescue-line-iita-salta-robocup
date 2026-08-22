@@ -50,6 +50,18 @@ HI = np.array([90, 90, 90])
 # ver del orden de 20-25 cm de piso de ancho, asi que la cinta deberia ocupar
 # cerca del 8 % del cuadro. Medido el 2026-08-22: 22 %.
 ANCHO_OBJETIVO = 12.0               # % del ancho de la imagen, o menos
+# LA METRICA PRINCIPAL. Cuanto del ROI ocupa la cinta. Es la unica que resulto
+# ESTABLE: 29,5 / 35,7 / 35,4 / 30,9 % en cuatro mediciones con el robot en
+# lugares distintos. El "ancho" salta de 17 a 45 % segun donde se apoye el
+# robot, asi que no sirve para comparar posiciones de camara; esta si.
+COBERTURA_OBJETIVO = 10.0           # % del ROI, o menos
+# HUBO UNA SEGUNDA METRICA Y SE DESCARTO. Intentaba medir "perspectiva" como
+# ancho_lejos / ancho_cerca, suponiendo que una cinta que se aleja se estrecha.
+# Validada contra frames del video del 2026-08-22 con la respuesta conocida a
+# ojo, clasifico 3 de 5 AL REVES: un trapecio claro le dio 0,97 (mancha) y tres
+# bandas evidentes le dieron 0,14 / 0,17 / 0,27 (perspectiva). Se saca en vez de
+# dejarla adentro: una metrica que no se valido contra la realidad es peor que
+# no tener metrica, porque se le cree.
 # Y tiene que haber cinta bien arriba del recorte: eso es la anticipacion.
 # Medido: 0 filas utiles arriba del ROI (lo que hay es el salon).
 ALCANCE_OBJETIVO = 25               # filas de pista visibles por encima de FILA_ROI
@@ -153,33 +165,33 @@ def main():
 
     ancho_pct = 100.0 * np.median(anchos) / W
     alcance = float(np.median(alcances))
+    cob_pct = 100.0 * np.median(cobs)
 
     print("\n" + "=" * 62)
     print("  %d frames  |  sin cinta: %d (%.0f%%)" % (n, sin_cinta, 100.0 * sin_cinta / n))
     print("=" * 62)
-    print("  ancho aparente de la cinta : %5.1f %% del cuadro   (objetivo: <= %.0f %%)"
-          % (ancho_pct, ANCHO_OBJETIVO))
-    print("  anticipacion sobre el ROI  : %5.0f filas de pista  (objetivo: >= %d)"
-          % (alcance, ALCANCE_OBJETIVO))
-    print("  cobertura del ROI          : %5.1f %%" % (100.0 * np.median(cobs)))
+    print("  cobertura del ROI          : %5.1f %%              (objetivo: <= %.0f %%)"
+          % (cob_pct, COBERTURA_OBJETIVO))
+    print("  ancho aparente de la cinta : %5.1f %% del cuadro   (referencia, inestable)"
+          % ancho_pct)
+    print("  anticipacion sobre el ROI  : %5.0f filas de pista"  % alcance)
     print()
 
-    bien_ancho = ancho_pct <= ANCHO_OBJETIVO
-    bien_alcance = alcance >= ALCANCE_OBJETIVO
-    if bien_ancho and bien_alcance:
-        print("  LISTO. El robot ve la cinta como una linea y ve pista por delante.")
-        print("  Ahora si vale comparar centroide contra planner.")
+    bien_cob = cob_pct <= COBERTURA_OBJETIVO
+    if bien_cob:
+        print("  LISTO. La cinta se ve como una cinta que se aleja, no como una mancha.")
+        print("  Ahora si vale comparar centroide contra planner: hasta aca la")
+        print("  comparacion no era justa para ninguno de los dos.")
     else:
-        if not bien_ancho:
-            print("  LA CINTA SE VE DEMASIADO GRANDE: la camara esta muy cerca del piso.")
-            print("  -> SUBILA. Cada centimetro que sube achica este numero.")
-        if not bien_alcance:
-            print("  NO HAY ANTICIPACION: arriba del ROI no hay pista.")
-            print("  -> BAJALE EL ANGULO (que mire mas al piso y menos al horizonte).")
-            print("     Si en cambio ves el salon ahi arriba, esta mirando muy alto.")
+        print("  LA CAMARA ESTA DEMASIADO CERCA DEL PISO. -> SUBILA.")
         print()
-        print("  Move la camara y volve a correr esto. Es el numero que manda:")
-        print("  sin anticipacion, ningun algoritmo puede tomar la curva.")
+        print("  Con la cinta ocupando un tercio de lo que el robot mira, NINGUN")
+        print("  algoritmo puede seguirla: el centroide la promedia y se satura en")
+        print("  +-90, y el trazo le recorre el borde en vez de un centro. Se vio")
+        print("  en el video del 2026-08-22, en la mascara del propio planner.")
+        print()
+        print("  Cada centimetro que subas baja la cobertura. Volve a medir DESDE EL")
+        print("  MISMO PUNTO de la pista: marcalo con cinta, o el numero es ruido.")
     print("=" * 62)
     return 0
 
