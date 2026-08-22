@@ -11,7 +11,8 @@ Esto toca TRES lugares, hace backup antes, y se puede revertir con un comando.
 
 USO
 ---
-    python3 parche_planner.py            aplica el parche (deja Main.py.bak)
+    python3 parche_planner.py            aplica el parche (deja main.py.bak)
+    python3 parche_planner.py /ruta/main.py   si esta en otro lado
     python3 parche_planner.py --revertir  vuelve atras
     python3 parche_planner.py --ver       muestra que cambiaria, sin tocar nada
 
@@ -40,7 +41,24 @@ import os
 import re
 import sys
 
-RUTA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Main.py")
+def _buscar_main():
+    """Encuentra el main del robot al lado de este script.
+
+    En Linux las mayusculas importan: el archivo de la Raspberry se llama
+    `main.py` y el del repo `Main.py`. Buscar un nombre fijo hacia fallar el
+    parche por una letra. Se acepta tambien una ruta explicita como argumento.
+    """
+    for a in sys.argv[1:]:
+        if not a.startswith("--"):
+            return os.path.abspath(a)
+    aca = os.path.dirname(os.path.abspath(__file__))
+    for n in os.listdir(aca):
+        if n.lower() == "main.py":
+            return os.path.join(aca, n)
+    return os.path.join(aca, "main.py")
+
+
+RUTA = _buscar_main()
 
 # ---------------------------------------------------------------- bloque 1 ---
 # Va despues de los imports. Todo protegido: si el planner no esta, el robot
@@ -189,8 +207,9 @@ def normalizar(txt):
 
 def main():
     if not os.path.exists(RUTA):
-        print("*** No encuentro Main.py al lado de este script (%s)" % RUTA)
-        print("    Copia parche_planner.py a la MISMA carpeta que Main.py.")
+        print("*** No encuentro el main del robot (busque: %s)" % RUTA)
+        print("    Copia parche_planner.py a la MISMA carpeta que main.py,")
+        print("    o pasale la ruta:  python3 parche_planner.py /ruta/al/main.py")
         return 2
 
     bak = RUTA + ".bak"
