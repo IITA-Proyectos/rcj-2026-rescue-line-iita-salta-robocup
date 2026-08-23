@@ -799,6 +799,81 @@ de evidencia, así que no hay contrafáctico. Eso se mide en pista.
 
 ---
 
+## H-10 — MEDIA, no LEJOS. Y el contraejemplo que lo prueba.
+
+**Estado: la señal se afina y el riesgo de romper la T queda cerrado. Pero aparece un
+límite de generalización que hay que decir.**
+
+Un análisis externo encontró el contraejemplo que tumba la versión anterior. Reproducido con
+mis definiciones (giro fuerte = |ángulo| ≥ 30°):
+
+| caso | n | near | mid | **far** | área p50 |
+|---|---|---|---|---|---|
+| `hist` BUENO 580-679 | 69 | 100 % | 100 % | 79,7 % | **3017** |
+| **`lineal` BUENO 800-872** | 73 | 100 % | **100 %** | **42,5 %** | **1538** |
+| `hist` FALLA 1354-1490 | 63 | 90,5 % | **47,6 %** | 19,0 % | **532** |
+
+**Las áreas dan exactas** contra su medición (3017 / 1538 / 532).
+
+**`lineal` completa un giro de ~77° con `far` en 42,5 %.** O sea que **"no llega a LEJOS" no
+puede ser una compuerta dura**: bloquearía un giro que sale bien. Pero `mid` vale 100 % ahí,
+y 47,6 % en la falla.
+
+### Matriz de confusión, 10 videos, 285 eventos (68 malos / 217 buenos)
+
+| regla | captura | **precisión** | **bloquea buenos** |
+|---|---|---|---|
+| no llega a LEJOS en 5 de 5 | 63 % | 56 % | **16 %** |
+| **no llega a MEDIA en 5 de 5** | 49 % | **69 %** | **7 %** |
+| no llega a MEDIA en ≥4 de 5 | 53 % | 65 % | 9 % |
+| área mediana < 800 px | 59 % | 55 % | 15 % |
+
+**MEDIA cambia 14 puntos de captura por 13 de precisión y la mitad del bloqueo.** El área no
+aporta nada por encima de MEDIA.
+
+### El límite que hay que decir: la captura NO generaliza uniforme
+
+| video | captura | bloqueo |
+|---|---|---|
+| `hist` | **89 %** | 18 % |
+| `lineal` | 67 % | 17 % |
+| `lineal70` | 67 % | 5 % |
+| `roi_auto` | **29 %** | 3 % |
+| `como_esta` | 33 % | 0 % |
+| `seguir` | 29 % | 9 % |
+| `con_planner` | **0 %** | 0 % |
+
+**Tres videos aportan 22 de los 33 aciertos, y la regla anda mejor justo donde se
+descubrió.** El **bloqueo sí es robusto** (0-18 % en todos), pero la captura va de 0 a 89 %.
+Es un indicio de sobreajuste a `hist` y hay que tratarlo como tal.
+
+### El riesgo de la T queda cerrado por construcción
+
+| estado | n | área p50 | travesaño p50 | % con área ≥1500 |
+|---|---|---|---|---|
+| cerca + media | 9.022 | 3216 | 63 | 89,2 % |
+| **sólo cerca (LOW)** | 672 | **79** | **0** | **0,0 %** |
+
+**Ninguno de los 672 frames LOW tiene área de intersección.** Una T tiene el travesaño a
+distancia media y conectado al tronco, así que **satisface `mid`**. La regla de MEDIA no
+puede dispararse en una T.
+
+### Nota de método que queda cerrada
+
+`ram` (columna 11) es `g_line_branch` (`main.cpp:717`), **no** un indicador de pivote. De las
+muestras con `|rot| ≥ 0,95`, tienen `ram != 3` el **58,7 %** en `pivote_con_histeresis` y el
+**73,6 %** en `sin_histeresis`. **Para el pivote manda `rot`.** (Ese error no se cometió acá
+—siempre se usó `rot`, y `ram >= 0` sólo para filtrar linetrack— pero queda escrito.)
+
+### Lo que sigue sin probarse
+
+Que actuar sobre la señal mejore la corrida. El robot **nunca** dejó de comprometerse por
+falta de evidencia, así que no hay contrafáctico en ningún archivo. Y con 69 % de precisión
+no alcanza para **prohibir** un giro: alcanza para **cambiar de estado**, que es distinto.
+
+
+---
+
 ## Hechos heredados que NO se vuelven a discutir
 
 Del análisis del 23-ago, ya refutados o confirmados con número:
