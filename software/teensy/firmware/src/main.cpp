@@ -3485,17 +3485,33 @@ if (green_state == 2)
                     // *** mismo arbol con el rxsteer real de las 6 corridas, e
                     // *** integrando el gz real (n = 284 episodios):
                     //
-                    //       duracion mediana del pivote        428 ms
-                    //       GRADOS REALES girados               11,1
-                    //       episodios que pasan los 45 grados    5 %
-                    //       episodios que pasan los 90 grados    1 %
-                    //       sueltas por "alineado"              88 %
-                    //       sueltas por el tope de tiempo       12 %
+                    //       duracion mediana del pivote        210 ms
+                    //       GRADOS REALES girados                6,0
+                    //       episodios que pasan los 45 grados    1 %
                     //
-                    // Y lo que delata que la salida es PREMATURA: el 99 % de las
-                    // sueltas vuelve a enganchar el pivote a los 270 ms (mediana),
-                    // y el 41 % lo hace CON EL MISMO SIGNO. O sea que la vision
-                    // dice "ya estoy alineado", suelta, y a los 270 ms se desdice.
+                    // (CORREGIDO el 24-ago: la version anterior de este
+                    //  comentario decia 428 ms y 11,1 grados. Ese numero salia
+                    //  de un MODELO del case 7, no de la telemetria, y el
+                    //  modelo subestima las sueltas un 35% -36 contra 55 reales
+                    //  en la corrida que se puede verificar-. La columna `rot`
+                    //  del CSV estaba ahi todo el tiempo. Los numeros de arriba
+                    //  salen de ella, sobre 295 episodios de 6 corridas.)
+                    //
+                    // Y hay un numero que mata la idea de que el problema sea
+                    // el SIGNO: en las 6 corridas hay solo 74 inversiones de
+                    // signo DENTRO del pivote -y 39 son de la corrida que tiene
+                    // los motores parados la mitad del tiempo-. O sea 0,16 por
+                    // segundo. El dwell de abajo no puede cambiar casi nada.
+                    //
+                    // Lo que SI discrimina, medido sobre el mismo firmware y la
+                    // misma corrida (exito frames 580-679 contra falla 1354-1490
+                    // de hist.avi): que exista una mancha conexa que vaya desde
+                    // DEBAJO del robot hasta la banda LEJANA. En los giros
+                    // fuertes del caso que sale bien eso pasa el 79,7% del
+                    // tiempo; en el que se sale, el 19,0%.
+                    //
+                    // El robot no distingue "veo negro" de "se por donde sigue
+                    // la linea", y esa variable no existe en el codigo.
                     //
                     // La causa es que la camara NO MIDE RUMBO: se mueve 7 a 9,6
                     // grados de imagen por cada grado real del robot. Once grados

@@ -673,6 +673,96 @@ el gatillo es sólo `absSteer >= 0,60`, sin mirar sobre cuántos píxeles se cal
 
 ---
 
+## H-8 — ERROR MIO: usé un modelo teniendo la telemetría al lado. Y el dwell está muerto.
+
+**Estado: corrección. Un análisis externo detectó que mi replay contradice al CSV, y tenía
+razón.**
+
+### El error
+
+Le dije a Benjamín que en el frame 1374 el pivote soltaba. **El CSV dice `rot = −1,000`: el
+pivote seguía enganchado a fondo.** Yo alimenté un MODELO del `case 7` con el `rxsteer` real
+en vez de leer **la columna `rot`, que estaba en el mismo archivo**.
+
+Validación que nunca hice, sobre los 961 frames enganchados:
+
+| `confirma_ms` | coincide con el `rot` real | sueltas del modelo | **sueltas reales** |
+|---|---|---|---|
+| 0 | 92,0 % | 36 | **55** |
+| 300 | 63,5 % | 10 | 55 |
+
+El modelo coincide 92 % en el estado pero **subestima las sueltas un 35 %**. Todas mis
+estadísticas de "224 sueltas" y "88 % por alineación" están construidas sobre ese conteo.
+
+### Los números corregidos, con `rot` real, 295 episodios de 6 corridas
+
+| | modelo (mal) | **telemetría** | mi 1ra medición |
+|---|---|---|---|
+| duración p50 | 428 ms | **210 ms** | 190 ms ✓ |
+| grados p50 | 11,1 | **6,0** | 4,9 ✓ |
+| llegan a 45° | 5 % | **1 %** | 0,3 % ✓ |
+
+**Mi primera medición era la correcta.** La "corrección" a 428 ms fue el error: sustituí
+telemetría por modelo y empeoré un número que ya estaba bien.
+
+### El dwell queda muerto, y con número
+
+**74 inversiones de signo DENTRO del pivote en las 6 corridas** — 0,16 por segundo. Y **39
+de las 74 son de `pivote_con_histeresis`**, la corrida con los motores parados la mitad del
+tiempo. En las cinco limpias: 0, 14, 8, 6, 7.
+
+El dwell (`6f143b5`) sólo puede actuar sobre esos 74 eventos. **No es la palanca.** Queda en
+el árbol porque es inerte en 0, pero sale del plan del sábado.
+
+### Y la mecánica está sana, medido
+
+En el tramo 1354-1490, con `gz` real:
+
+| | |
+|---|---|
+| giro **neto** | **−8,8°** |
+| giro **bruto** (suma de \|gz\|) | **147,6°** |
+| **se cancela** | **94 %** |
+| correlación `rot` ordenado ↔ `gz` medido | **r = 0,927 a 60 ms** |
+
+**El robot gira 147° en 3,7 s y termina donde empezó.** Y los motores obedecen fielmente. El
+problema no es la autoridad ni la mecánica: es que la orden se contradice a sí misma.
+
+---
+
+## H-9 — `forward_path_valid`: la variable que falta
+
+**Estado: el discriminador más fuerte del proyecto. Mismo firmware, misma corrida.**
+
+Benjamín tenía un video de cuando **sí** tomaba la curva. Resultó ser **los frames 580-679
+de `hist.avi`** — o sea el mismo firmware, la misma sesión y el mismo algoritmo que la falla
+de 1354-1490. Es el control positivo que faltaba.
+
+| | éxito 580-679 | falla 1354-1490 |
+|---|---|---|
+| frames | 100 | 137 |
+| componente conexa CERCA (filas 110-119) | **100/100** | 105/137 |
+| ...que llega a MEDIA (95-105) | **100/100** | 76/137 |
+| ...que llega a LEJOS (75-85) | **86/100** | 56/137 |
+| sin componente cercana | **0/100** | 32/137 |
+| **giros fuertes (≥30°) con continuación LEJANA conectada** | **55/69 = 79,7 %** | **12/63 = 19,0 %** |
+
+**4,2× de diferencia, con el firmware y la corrida controlados.**
+
+Cuando sale bien, el giro fuerte está **respaldado por una trayectoria que va desde debajo
+del robot hasta adelante**. Cuando se sale, casi todos los giros fuertes ocurren **sin
+ninguna continuación frontal conectada**: hay negro, pero no hay camino.
+
+**El robot no distingue "veo negro" de "sé por dónde sigue la línea".** Esa variable no
+existe en el código: todo se comprime en `angle = atan2(...)` sobre la máscara entera.
+
+Y explica lo que Benjamín venía diciendo desde el principio: **"si lo pongo en cierta
+posición sí gira"**. No cambiaba ruedas ni ganancias — cambiaba la geometría que entraba en
+la cámara.
+
+
+---
+
 ## Hechos heredados que NO se vuelven a discutir
 
 Del análisis del 23-ago, ya refutados o confirmados con número:
