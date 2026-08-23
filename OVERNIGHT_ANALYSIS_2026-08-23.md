@@ -539,6 +539,76 @@ demostrado. Y el proyecto ya enterró once conclusiones que parecían mecanismos
 
 ---
 
+## H-6 — el dwell no puede arreglar esto, y la reconstrucción frame a frame dice por qué
+
+**Estado: el fix de anoche ataca un mecanismo que no es el dominante. Confirmado por dos
+caminos independientes.**
+
+Un análisis externo (ChatGPT, aportado por Benjamín) recorrió los 960 frames del video
+comparativo. **Verifiqué todos sus números y dan todos:**
+
+| | él dice | yo mido |
+|---|---|---|
+| frames con la misma orden | 823 | **823** |
+| frames que difieren | 137 | **137** |
+| de esos, ambos EN PIVOTE | 137 (100 %) | **137** |
+| ancho de la mancha en el frame 1365 | 94 % | **94 % (151/160)** |
+| frames con `rot ≈ 0` | 28 | **28** |
+| de esos, sin cinta útil cerca | 23 (82 %) | **24 (85 %)** |
+
+**Su punto estructural es correcto y es el que importa: los 137 cambios del dwell son TODOS
+pivote-signo-A por pivote-signo-B. El dwell nunca evita que el pivote SUELTE.** Es cierto
+por construcción de la implementación, y significa que no puede tocar el fallo dominante —
+que es la suelta, el 88 % de las terminaciones.
+
+### El frame 1374, la suelta en flagrante
+
+```
+1373  -27.0 | cerca  +5.2   lejos -32.6   tang -37.8 | PIVOTE
+1374   -3.0 | cerca  +1.7   lejos -42.6   tang -44.3 | SUELTA (absSteer=0.04 <= 0.15)
+1375..1384  | cerca  +0.0 (perfecto)      lejos -44 -> -72
+```
+
+Suelta con la banda cercana centrada mientras la continuación está a 42 px para el otro
+lado. Y después queda **impecablemente alineado con el piso que ya pasó** y completamente
+equivocado para adonde va.
+
+Después: 1400-1433 el área colapsa (1482 → 964 → 475 → ... → 3) con el ángulo saturado en
+±85-90, y en **1434-1463** hay ~0,9 s con área 0 en los que la visión sigue mandando +37 a
++40 grados **calculados sobre el salón** — el bug de `min_line_size`, en vivo.
+
+### Pero la generalización es más débil que la anécdota, y hay que decirlo
+
+Sobre **224 sueltas** de 6 videos:
+
+| | al soltar | control |
+|---|---|---|
+| \|cerca\| | 11,7 px | 13,1 px |
+| **\|tang\|** | **23,8 px** | **23,4 px** |
+
+**El `tang` al soltar es igual al del control.** La suelta NO selecciona momentos de mal
+rumbo: es **ciega al rumbo siempre**. El 44 % de las sueltas tienen `|cerca| < 10` ("la
+visión las llama alineado") y de ésas el 50 % tiene `|tang| > 20`, o sea que el caso limpio
+del 1374 es el **22 %** de las sueltas, no la mayoría.
+
+**Lo que sí queda demostrado, y es más fuerte:** el error de rumbo vale **~24 px de forma
+permanente**, pivotee o no. Coincide con lo medido el 22-ago por otro camino ("centrado 40 %
+del tiempo pero 57 % de esos con rumbo torcido, mediana 28,6 px"). **El controlador no lo
+corrige nunca porque no lo mide.**
+
+### Consecuencia para el plan
+
+El dwell (`6f143b5`) **queda, porque es inerte en 0 y no estorba**, pero **baja de prioridad**:
+no puede evitar una suelta. Lo que hay que atacar es la condición de salida, que hoy es
+`absSteer <= 0,15` sobre una máscara dominada por la banda cercana.
+
+Y el intento de término de rumbo del 22-ago (`rumbo.avi`) bajó el rumbo torcido de 28,6 a
+22,3 px pero derrumbó el centrado de 40 % a 26 %: **falló por balance de ganancias, no por
+concepto.** Eso lo vuelve a poner sobre la mesa.
+
+
+---
+
 ## Hechos heredados que NO se vuelven a discutir
 
 Del análisis del 23-ago, ya refutados o confirmados con número:
