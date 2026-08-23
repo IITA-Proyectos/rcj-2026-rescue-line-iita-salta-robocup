@@ -66,6 +66,9 @@ MID = (95, 105)
 FAR = (75, 85)
 PIX_MIN = 8                 # px de la componente en una banda para contarla
 AREA_LOST = 30              # debajo de esto no hay ni referencia cercana
+VEL_LOW = 15                # rpm en LOW: "avance reducido" deja de ser una palabra
+VEL_SIN_CERCA = 12          # rpm cuando no la tiene debajo pero hay pista adelante
+VEL_PERDIDA = 25            # el case 4 del firmware: BACKWARD 25 rpm, 200 ms
 AREA_JUNCTION = 1500        # una T/cruz tiene componente GRANDE
 ANCHO_JUNCTION = 60         # y ancha
 
@@ -76,7 +79,8 @@ ROJO = (80, 80, 240)
 VERDE = (110, 220, 110)
 AMARILLO = (60, 210, 235)
 NARANJA = (60, 150, 250)
-COLOR_EST = {"HIGH": VERDE, "MEDIUM": (170, 220, 120), "LOW": NARANJA, "LOST": ROJO}
+COLOR_EST = {"HIGH": VERDE, "MEDIUM": (170, 220, 120), "LOW": NARANJA,
+             "SIN_CERCA": (80, 180, 255), "PERDIDA": ROJO}
 
 
 def frame_de_la_pi(f):
@@ -112,7 +116,18 @@ def percibir(g):
         if np.any(et[119, :] == k) and est[k, cv2.CC_STAT_AREA] > mejor:
             mejor, k0 = est[k, cv2.CC_STAT_AREA], k
     d = {"area": 0.0, "wmax": 0, "trav": 0, "near": False, "mid": False,
-         "far": False, "comp": None, "cx": None}
+         "far": False, "comp": None, "cx": None, "area_arriba": 0.0,
+         "cx_arriba": None}
+    # lo mas grande que NO toca la fila 119: es "pista adelante" aunque no la
+    # tenga debajo. Distinguirlo importa: de todos los frames sin linea debajo,
+    # el 61 % tiene pista adelante (medido sobre 14.542 frames de 11 videos).
+    for k in range(1, n):
+        if not np.any(et[119, :] == k):
+            a = float(est[k, cv2.CC_STAT_AREA])
+            if a > d["area_arriba"]:
+                d["area_arriba"] = a
+                ys, xs = np.nonzero(et == k)
+                d["cx_arriba"] = float(xs.mean()) - CENTRO
     if not k0 or mejor < AREA_LOST:
         return d
     mm = (et == k0)
@@ -149,7 +164,14 @@ def confianza(p):
     parcialmente fuera del ROI podria dar otra cosa.
     """
     if not p["near"] or p["area"] < AREA_LOST:
-        return "LOST"
+        # NO ES LO MISMO "no la tengo debajo" que "no hay nada".
+        # La traza manual de Benjamin lo expuso: en video_4, entre los frames
+        # 550 y 560 la cinta vuelve a entrar POR ARRIBA -area creciendo de 36 a
+        # 270 px en la fila 60- mientras el, moviendolo a mano, completaba la
+        # maniobra bien. Retroceder ahi seria alejarse de la linea que vuelve.
+        # Medido sobre 14.542 frames de 11 videos: de los que no tienen linea
+        # debajo, el 61 % TIENE pista adelante.
+        return "SIN_CERCA" if p["area_arriba"] >= AREA_LOST else "PERDIDA"
     if p["mid"] and p["far"]:
         return "HIGH"
     if p["mid"]:
@@ -195,11 +217,19 @@ class Candidato(object):
         self.t_low = None               # cuando empezo el tramo LOW
         self.t = 0.0
 
-    def paso(self, estado, signo_pedido, rot_actual, dt_s):
+    def paso(self, estado, signo_pedido, rot_actual, vel_actual, dt_s,
+             cx_arriba=None):
+        """Devuelve el COMANDO FISICO COMPLETO, no solo `rot`.
+
+        La primera version solo devolvia `rot`, y eso era enganoso: con
+        accion="recuperar" la barra mostraba el rot viejo mientras el texto decia
+        "retrocede". Ahora salen `vel`, `direccion`, `rot` y las consignas de
+        rueda, calculadas con la misma cuenta de DriveBase::steer.
+        """
         ms = self.t * 1000.0
         self.t += dt_s
-        r = {"rot": rot_actual, "vel_factor": 1.0, "accion": "normal",
-             "rechazo": False, "motivo": ""}
+        r = {"rot": rot_actual, "vel": vel_actual, "dir": "FORWARD",
+             "accion": "normal", "rechazo": False, "motivo": ""}
 
         if estado in ("HIGH", "MEDIUM"):
             if signo_pedido:
@@ -208,22 +238,46 @@ class Candidato(object):
             r["motivo"] = "evidencia %s: el angulo manda" % estado
             return r
 
-        if estado == "LOST":
+        if estado == "PERDIDA":
             self.t_low = None
-            r["accion"] = "recuperar"
-            r["vel_factor"] = 0.0
-            r["motivo"] = "sin referencia cercana: recuperacion de linea"
+            r.update(accion="retroceder", vel=VEL_PERDIDA, dir="BACKWARD", rot=0.0,
+                     motivo="ni linea debajo ni pista adelante: case 4, 25 rpm atras")
             return r
 
-        # LOW
+        if estado == "SIN_CERCA":
+            # NO retroceder: la cinta esta adelante, volviendo. Retroceder seria
+            # alejarse de ella. Se sostiene el sentido confiable y se afloja.
+            if self.t_low is None:
+                self.t_low = ms
+            if ms - self.t_low > self.ventana_ms:
+                r.update(accion="timeout",
+                         motivo="sin cerca sostenido > %d ms: se abandona" % self.ventana_ms)
+                return r
+            # HACIA DONDE. La primera version sostenia el ultimo signo
+            # confiable, y la traza manual de Benjamin la delato: en video_4
+            # 550-560 la cinta reaparece por un lado y el ultimo signo apuntaba
+            # al otro, asi que el candidato habria girado ALEJANDOSE de ella.
+            # La mancha visible dice de que lado esta; eso manda sobre la
+            # memoria. Convenio: cx > 0 es a la derecha en la imagen, y girar
+            # hacia la derecha es rot NEGATIVO (igual que el atan2 del codigo).
+            if cx_arriba is not None:
+                signo = -1 if cx_arriba > 0 else 1
+                por = "hacia la mancha visible (cx %+.0f px)" % cx_arriba
+            else:
+                signo = self.signo_confiable or (signo_pedido or 1)
+                por = "sin cx: se sostiene el ultimo sentido confiable"
+            r.update(accion="ir_a_buscarla", vel=VEL_SIN_CERCA, rot=signo * 1.0,
+                     motivo="no la tengo debajo pero HAY pista adelante: voy %s" % por)
+            return r
+
+        # LOW: hay referencia cercana, pero pobre
         if self.t_low is None:
             self.t_low = ms
         if ms - self.t_low > self.ventana_ms:
-            r["accion"] = "timeout"
-            r["motivo"] = "LOW sostenido > %d ms: se abandona el sostenimiento" % self.ventana_ms
+            r.update(accion="timeout",
+                     motivo="LOW sostenido > %d ms: se abandona el sostenimiento" % self.ventana_ms)
             return r
-        r["accion"] = "sostener"
-        r["vel_factor"] = 0.0
+        r.update(accion="sostener", vel=VEL_LOW)
         if self.signo_confiable and signo_pedido and signo_pedido != self.signo_confiable:
             r["rot"] = abs(rot_actual) * self.signo_confiable
             r["rechazo"] = True
@@ -231,6 +285,13 @@ class Candidato(object):
         else:
             r["motivo"] = "LOW: se sostiene el sentido, avance reducido"
         return r
+
+
+def ruedas(vel, rot):
+    """DriveBase::steer(drivebase.cpp:205): el lado interno se invierte si la
+    consigna sale negativa; lo que se registra es la MAGNITUD."""
+    otro = abs(vel - 2.0 * abs(rot) * vel)
+    return (otro, vel) if rot > 0 else (vel, otro)
 
 
 def panel_texto(img, x, y, filas, ancho):
@@ -267,8 +328,14 @@ def correr(ruta, desde=0, hasta=10 ** 9, tag="", ventana_ms=600, salida_dir=None
     vw = cv2.VideoWriter(sal_avi, cv2.VideoWriter_fourcc(*"MJPG"), 12.0,
                          (ANCHO, ALTO)) if con_video else None
     fcsv = open(sal_csv, "w")
-    fcsv.write("frame,angle,near,mid,far,area,wmax,trav,estado,rot_actual,"
-               "rot_candidato,rechazo,accion,motivo\n")
+    # `source_frame` es el indice en el VIDEO ORIGINAL, no en el recorte: si el
+    # CSV dice 1354 es el frame 1354 de hist.avi. La primera version escribia el
+    # video ENTERO aunque el AVI saliera recortado, y eso es exactamente la clase
+    # de discrepancia de procedencia que ya costo cara en este proyecto.
+    fcsv.write("source_frame,angle,near,mid,far,area,area_arriba,wmax,trav,interseccion,"
+               "estado,vel_actual,dir_actual,rot_actual,ls_actual,rs_actual,"
+               "vel_candidato,dir_candidato,rot_candidato,ls_candidato,rs_candidato,"
+               "rechazo,accion,motivo\n")
 
     fw = ModeloCase7(confirma_ms=0)
     cand = Candidato(ventana_ms=ventana_ms)
@@ -292,16 +359,23 @@ def correr(ruta, desde=0, hasta=10 ** 9, tag="", ventana_ms=600, salida_dir=None
         ang, guarda = angulo_atan2(g)
         r = fw.paso(ang, dt)
         signo = 1 if r["rot"] > 0 else (-1 if r["rot"] < 0 else 0)
-        c = cand.paso(est, signo, r["rot"], dt)
+        c = cand.paso(est, signo, r["rot"], r["vel"], dt, p["cx_arriba"])
+        lsa, rsa = ruedas(r["vel"], r["rot"])
+        lsc, rsc = ruedas(c["vel"], c["rot"])
         if en_tramo and c["rechazo"]:
             rechazos += 1
         if en_tramo and c["accion"] != "normal":
             interv += 1
 
-        fcsv.write("%d,%.1f,%d,%d,%d,%.0f,%d,%d,%s,%.3f,%.3f,%d,%s,%s\n" %
-                   (idx, ang, p["near"], p["mid"], p["far"], p["area"], p["wmax"],
-                    p["trav"], est, r["rot"], c["rot"], 1 if c["rechazo"] else 0,
-                    c["accion"], c["motivo"]))
+        if en_tramo:
+            fcsv.write("%d,%.1f,%d,%d,%d,%.0f,%.0f,%d,%d,%d,%s,"
+                       "%d,%s,%.3f,%.0f,%.0f,%d,%s,%.3f,%.0f,%.0f,%d,%s,%s\n" %
+                       (idx, ang, p["near"], p["mid"], p["far"], p["area"],
+                        p["area_arriba"], p["wmax"], p["trav"],
+                        1 if es_interseccion(p) else 0, est,
+                        r["vel"], "FORWARD", r["rot"], lsa, rsa,
+                        c["vel"], c["dir"], c["rot"], lsc, rsc,
+                        1 if c["rechazo"] else 0, c["accion"], c["motivo"]))
 
         if not (con_video and en_tramo):
             continue
@@ -363,7 +437,7 @@ def correr(ruta, desde=0, hasta=10 ** 9, tag="", ventana_ms=600, salida_dir=None
     tot = max(sum(cnt.values()), 1)
     print("  %-34s %5d frames | %s" % (base, tot,
           "  ".join("%s %.0f%%" % (k, 100.0 * cnt.get(k, 0) / tot)
-                    for k in ("HIGH", "MEDIUM", "LOW", "LOST"))))
+                    for k in ("HIGH", "MEDIUM", "LOW", "SIN_CERCA", "PERDIDA"))))
     print("  %-34s inversiones rechazadas %d   intervenciones %d   avi %d frames"
           % ("", rechazos, interv, escritos))
     return dict(estados=cnt, rechazos=rechazos, interv=interv, n=tot,
