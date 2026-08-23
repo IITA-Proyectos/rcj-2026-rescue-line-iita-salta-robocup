@@ -21,7 +21,8 @@ por limite de tiempo o de creditos, NO hay que volver a empezar: hay que leer el
 | run ID | que hace | estado |
 |---|---|---|
 | `wf_1d653bde-be6` | analisis de los 10 videos y 10 CSV | **terminado** -> `ANALISIS-2026-08-23.md` |
-| `wf_94d7612a-538` | refutar cancelacion prematura, perdida de linea, diseno de giro, auditoria de tiempo, banco de replay | lanzado |
+| `wf_94d7612a-538` | idem | **MURIO** por limite de sesion, 0 de 6 agentes terminaron. Sobrevivio `replay.py`, escrito antes de morir |
+| `wf_3cd1cde7-d09` | relanzado sin el agente de replay: 3 investigaciones + 3 refutadores + auditoria de tiempo + sintesis | corriendo |
 
 Todo cuelga de la carpeta de la sesion:
 
@@ -67,10 +68,10 @@ o la sesion muere, este archivo tiene que alcanzar para seguir sin perder nada.
 | 1.2 | `diagProcedencia` con las constantes del `case 7` | pendiente |
 | 1.3 | log de la Pi: frame, timestamp, fps real, orden, estado de línea | pendiente |
 | 1.4 | fps 20.0 hardcodeados | pendiente |
-| 1.5 | auditar frame/timestamp/fps/dt en todo el código | pendiente |
-| 2 | refutar la hipótesis de cancelación prematura | pendiente |
-| 3 | herramienta de replay | pendiente |
-| 4 | diseño de la lógica de giro comprometido | pendiente |
+| 1.5 | auditar frame/timestamp/fps/dt en todo el código | en curso (`wf_3cd1cde7-d09`) |
+| 2 | refutar la hipótesis de cancelación prematura | en curso (`wf_3cd1cde7-d09`) |
+| 3 | herramienta de replay | **hecho y VALIDADO** |
+| 4 | diseño de la lógica de giro comprometido | en curso (`wf_3cd1cde7-d09`) |
 | 5 | pérdida de línea como estado explícito | **hallazgo nuevo, abajo** |
 
 ---
@@ -135,6 +136,49 @@ El workflow había deducido, sin ver el archivo, que el recorte del ROI estaba e
 
 ---
 
+## H-2 — el banco de replay VALIDA, y de yapa fecha una constante
+
+**Estado: CONFIRMADO. Herramienta usable.**
+
+[`software/raspberry/final_rpi/replay.py`](software/raspberry/final_rpi/replay.py), 1081
+líneas. Le da una corrida grabada a una ley de control y devuelve, frame a frame, el ángulo
+que **esa** ley habría mandado.
+
+**La validación, que es lo que lo hace usable** — reproduce el `rxsteer` real del CSV sobre
+los 960 frames enganchados por `rxf` de la única corrida con video Y telemetría:
+
+| fuente | exacto al grado | ≤1 gr | r |
+|---|---|---|---|
+| `mascara` | **92,5 %** | 95,5 % | 0,967 |
+| `izq-impar` | 84,0 % | **96,2 %** | **0,9957** |
+
+Contra el 81,1 % y r=0,945 del análisis previo. **Mejora la referencia.**
+
+**Y modela el árbol del `case 7`**, alimentándolo con el `rxsteer` real del CSV para separar
+firmware de visión:
+
+| `confirma_ms` | \|rot\| dentro de 0,05 | rama igual |
+|---|---|---|
+| 0 | **92,9 %** | 94,1 % |
+| 300 | 66,4 % | 94,1 % |
+
+**Con 0 el modelo cierra y con 300 no**, o sea que esa corrida **no tenía**
+`LINE_PIVOTE_CONFIRMA_MS` activo (`main.cpp:3303`). Eso confirma por una vía independiente
+lo que ya se sabía: la confirmación de alineación se compiló y nunca se flasheó.
+
+**LO QUE NO PUEDE** (está arriba de todo en el archivo, porque importa más que lo que sí
+puede): es replay de **visión**, no simulación física. Las imágenes están grabadas con la
+trayectoria que el robot realmente hizo; si la ley candidata hubiera girado antes, los
+frames siguientes habrían sido otros. Es **lazo abierto, cortado justo donde vive el
+problema**. NO puede decir si el robot habría completado la curva, ni cuántos grados habría
+girado, ni si una ley pierde la línea menos veces.
+
+Auditado antes de commitear (es código escrito por un agente): sólo lee, sin red, sin
+subprocesos, sin `eval`.
+
+
+---
+
 ## Hechos heredados que NO se vuelven a discutir
 
 Del análisis del 23-ago, ya refutados o confirmados con número:
@@ -156,3 +200,11 @@ Del análisis del 23-ago, ya refutados o confirmados con número:
   (línea 1105, 33.411 chars). Sintaxis OK, 920 líneas. Guardado en scratchpad como
   `main_pi_real.py`.
 - **H-1 confirmada** con medición propia sobre 13.900 frames.
+- **01:14** — el workflow `wf_94d7612a-538` muere por límite de sesión con 0 de 6 agentes
+  terminados (774k tokens, 209 llamadas). El journal sólo tiene líneas `started`: **no hay
+  nada que rescatar de ahí**. Pero el agente de replay alcanzó a **escribir el archivo**
+  antes de morir, y el archivo estaba completo.
+- **H-2 confirmada**: corrí yo la validación que el agente no llegó a correr. Valida.
+- **relanzado** como `wf_3cd1cde7-d09`, con el agente de replay reemplazado por su resultado
+  ya verificado. Lección de método: **un agente que escribe su producto a disco deja algo
+  aunque muera; uno que sólo lo devuelve, no.**
