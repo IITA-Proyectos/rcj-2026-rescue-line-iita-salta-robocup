@@ -3478,8 +3478,34 @@ if (green_state == 2)
                     // picotazo y picotazo avanzaba, que es cuando se le va la linea.
                     //
                     // Con histeresis, una vez que decide pivotear NO SUELTA hasta
-                    // quedar alineado (absSteer <= 0,15). Cada pivote completa la
-                    // curva de un saque, que es lo que se buscaba desde el principio.
+                    // quedar alineado (absSteer <= 0,15).
+                    //
+                    // *** "Cada pivote completa la curva de un saque" DECIA ESTE
+                    // *** COMENTARIO, Y ES FALSO. Medido el 24-ago simulando este
+                    // *** mismo arbol con el rxsteer real de las 6 corridas, e
+                    // *** integrando el gz real (n = 284 episodios):
+                    //
+                    //       duracion mediana del pivote        428 ms
+                    //       GRADOS REALES girados               11,1
+                    //       episodios que pasan los 45 grados    5 %
+                    //       episodios que pasan los 90 grados    1 %
+                    //       sueltas por "alineado"              88 %
+                    //       sueltas por el tope de tiempo       12 %
+                    //
+                    // Y lo que delata que la salida es PREMATURA: el 99 % de las
+                    // sueltas vuelve a enganchar el pivote a los 270 ms (mediana),
+                    // y el 41 % lo hace CON EL MISMO SIGNO. O sea que la vision
+                    // dice "ya estoy alineado", suelta, y a los 270 ms se desdice.
+                    //
+                    // La causa es que la camara NO MIDE RUMBO: se mueve 7 a 9,6
+                    // grados de imagen por cada grado real del robot. Once grados
+                    // de giro real bastan para que el angulo cruce el cero, y
+                    // `absSteer <= 0,15` se cumple aunque la curva no haya
+                    // terminado. La condicion de salida esta escrita sobre la
+                    // variable equivocada.
+                    //
+                    // NO se toco todavia: cambiar la salida es el fix de fondo y
+                    // hay que medirlo en pista antes. Ver ROBOT_TEST_PLAN.md.
                     //
                     // El tope de tiempo es una red: si la vision se queda pidiendo
                     // giro para siempre -linea perdida, reflejo, un verde mal leido-
