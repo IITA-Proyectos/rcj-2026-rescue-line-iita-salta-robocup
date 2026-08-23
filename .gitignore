@@ -22,3 +22,11 @@ venv/
 *.swo
 *~
 .idea/
+
+# derivados del banco shadow: se regeneran con shadow.py
+software/raspberry/final_rpi/shadow_*.avi
+software/raspberry/final_rpi/shadow_*.csv
+software/raspberry/final_rpi/comparacion_*.avi
+software/raspberry/final_rpi/centrado_*.avi
+software/raspberry/final_rpi/CONTROL_POSITIVO_*.avi
+software/raspberry/final_rpi/CASO_FALLA_*.avi
