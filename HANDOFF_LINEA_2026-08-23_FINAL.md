@@ -368,8 +368,10 @@ la señal de rumbo es **más estable**, no que produzca mejor control.
 
 ## 9. PRÓXIMO PASO 1 — investigar Airborne
 
-> **NO SE INVESTIGÓ EN ESTA SESIÓN. No hay ningún conocimiento de su arquitectura acá.**
-> La sesión nueva **tiene que ir al repositorio y leerlo** antes de diseñar nada.
+> **HECHO el 2026-08-23 por la tarde. Ver §14.** El repositorio se leyó de verdad
+> (`main`, `RobotCode_Field_Version`, 4.070 líneas). La hipótesis de abajo quedó
+> **CONFIRMADA**, con una sorpresa que la cambia de sentido. Lo que sigue en esta
+> sección es el enunciado original, que se deja para que se vea qué se preguntó.
 
 Repositorio público: **`JamesBond6873/Airborne_Rescue_Line_2025`**
 
@@ -399,6 +401,10 @@ verificar que reproduce el controlador real (regla de método 1).
 ---
 
 ## 10. PRÓXIMO PASO 2 — bird-eye / IPM
+
+> **HECHO el 2026-08-23 por la tarde. Ver §14. Resultado: la homografía se pudo
+> calibrar y validar, y aun así NO mejora la señal de control.** El enunciado
+> original se deja abajo tal cual.
 
 **El hardware NO se toca.** La pregunta es si por software se puede convertir la perspectiva
 de la cámara inclinada en algo más parecido a mirar el piso desde arriba, con una homografía
@@ -508,6 +514,133 @@ Remove-Item Env:PLATFORMIO_BUILD_FLAGS
 **Nada de lo de esta sesión.** El robot no se movió. Lo probado en pista es del 22-ago:
 los dos fixes de banco (`FIX_LAZO_MOTOR`, `FIX_CURVA_CONTINUA`) medidos neutros, y las 10
 corridas grabadas.
+
+---
+
+## 14. CIERRE DE LA SESIÓN DEL 2026-08-23 POR LA TARDE
+
+Se hicieron los pasos §9 (Airborne) y §10 (bird-eye). Los dos dieron resultado, y
+**los dos dieron que NO por el lado que se esperaba**. Lo que apareció en el medio
+es más importante que las dos preguntas originales.
+
+### 14.1 Airborne — la hipótesis se confirma, pero cambia de sentido
+
+Leído de verdad: `JamesBond6873/Airborne_Rescue_Line_2025`, rama `main`,
+`RobotCode_Field_Version` (`line_cam.py` 1.297 líneas, `robot.py` 2.017,
+`config.py` 105). Su percepción es exactamente lo que decía la hipótesis:
+
+```
+inRange -> resta el verde -> mata los triangulos de las esquinas de arriba
+        -> erode5/dilate17/erode9 -> findContours
+        -> UNA linea por continuidad con el frame anterior
+        -> POI top/left/right/bottom, con y sin recorte
+        -> interpretPOI elige UN punto objetivo
+        -> control
+```
+
+**La sorpresa que cambia el sentido de todo:** su control **no separa posición de
+rumbo**. Calculan el rumbo (`line_cam.py:571-572`, `lineAngle`) y hasta tienen
+escrito el controlador que lo usa (`robot.py:588-606`, `PID2`, con
+`KP_THETA = 140`), **y está comentado** (`robot.py:652`). Lo que corre es
+`PID(lineCenterX)`: **error lateral puro** sobre el punto objetivo.
+
+O sea: el equipo que llegó al mundial **también colapsa a un número al final**. La
+diferencia con nosotros no es "ellos separan y nosotros no". La diferencia es **de
+dónde sale ese número**: de un punto elegido sobre UNA línea seleccionada, contra
+nuestro promedio de todo el negro del ROI.
+
+| | Airborne (lo que corre) | nuestro `main_rpi_2026-08-22.py` |
+|---|---|---|
+| resolución | 448×256 | 160×120 |
+| morfología antes de decidir | erode5 / dilate17 / erode9 | **ninguna** |
+| verde | se resta de la máscara de negro | no |
+| esquinas de arriba | dos triángulos a cero | se corta todo arriba de la fila 60 |
+| cuántas líneas | **una**, elegida por continuidad | **todas**, promediadas |
+| memoria entre frames | `x_last`/`y_last` + medias de 0,15 s y 0,3 s | **ninguna** |
+| objetivo | un punto de interés elegido por reglas | el centroide pesado |
+| control | PD sobre el error lateral del objetivo | atan2 del centroide |
+| sin línea | **derecho 600 ms**, no retrocede | `angle = 0` |
+
+Dos cosas de esa tabla ya estaban decididas por nosotros y quedan **confirmadas por
+un tercero que compitió**: elegir UNA línea, y **no retroceder** cuando no hay
+línea debajo (`robot.py:1555-1576`: confirman gap a los 600 ms y siguen derecho).
+
+**Ojo con el crop dinámico.** `turn_crop = 0.75` suena a "en curva miran más
+cerca". Es falso: en `line_cam.py:743-798` la única llave que abre `turn_crop` es
+la **rampa**, no la curva. El nombre engaña.
+
+### 14.2 La geometría de nuestra cámara — medida, y es la causa de fondo
+
+Se calibró la fila del horizonte con el ancho aparente de la cinta. El modelo
+`w(v) = a·(v − v_h)` ajusta con **R² entre 0,982 y 0,999 en 9 de los 11 videos**.
+
+| | |
+|---|---|
+| fila del horizonte `v_h` | **+9,0** (mediana; min +3,3, max +12,3, dispersión 9 filas) |
+| ancho de la cinta en la fila 119 | **71 px** de 160 — el **44 % del ancho de la imagen** |
+| ancho en la fila 62 | **34 px** |
+| rango de mirada del ROI | **2,07×** (la fila 62 está 2,07 veces más lejos que la 119) |
+| un seguidor de línea normal | de 1× a 5× |
+
+Los dos videos descartados (`con_planner`, `con_planner2`) dan `a = 0,15` y
+`w(119) = 33 px`: mirando los frames, en esos tramos **no hay cinta en el ROI** y
+lo que se ajustó fue el borde oscuro del piso. No es otro montaje, es otro objeto.
+
+**Corrección menor a §10:** ahí decía "43 px de ancho de cinta contra 24 px" y
+"1,79×". El ratio se confirma (2,07×), los anchos son casi el doble (71/34).
+
+### 14.3 Estado nuevo
+
+| HALLAZGO | ESTADO | EVIDENCIA |
+|---|---|---|
+| La homografía se puede **calibrar sin tocar hardware ni conocer intrínsecos**, con el ancho aparente de la cinta | **VIGENTE** | `w(v)=a·(v−v_h)`, R² ≥ 0,982 en 9 videos, `birdeye.py --validar` |
+| La homografía **rectifica de verdad** | **VIGENTE** | validación cruzada: calibrada en 4 videos, verificada en otros 5. Ancho por fila CV **0,206 → 0,013** |
+| El robot mira de **1× a 2,07×**. Un seguidor normal mira de 1× a 5× | **VIGENTE** | `v_h = +9,0` |
+| La cinta ocupa **44 % del ancho** de la imagen en la fila 119 | **VIGENTE** | 71 px de 160 |
+| **La señal de rumbo es más estable que el atan2**: 3 a 7 veces menos inversiones | **VIGENTE** | 12 de 13 tramos. `hist` 202→30, `como_esta` 91→32, `roi_auto` 151→80 |
+
+| hipótesis | ESTADO | el número que la mata |
+|---|---|---|
+| **bird-eye / IPM mejora el control** | **REFUTADA** | la homografía anda (CV 0,206→0,013) y **la señal no cambia**: inversiones ±4 sobre 30-90, para los dos lados según el video |
+| **el bird-eye desacopla posición de rumbo** | **REFUTADA** | el R²(rumbo\~lateral) **sube tanto como baja**: `hist` 0,168→0,067 pero `lineal` 0,109→0,175, `video_4` 0,079→0,162 |
+| **la conclusión del IPM depende de `v_h`** | **REFUTADA** | barrido de `v_h` de −30 a +35: las inversiones quedan en 2, el R² entre 0,426 y 0,453 |
+| **hacer el IPM a 640×480 antes de reducir aporta** | **REFUTADA** | en `video_4`, el único crudo: \|antes − después\| **p50 0,51°, p90 1,29°** |
+| **nuestra máscara está fragmentada por los reflejos** | **REFUTADA** | mediana de componentes en el ROI = **1,0** sin morfología. No hay nada que unir |
+| **la morfología de Airborne es transferible** | **REFUTADA** | erode2/dilate7/erode4 sube HIGH en los positivos (86→90, 42→49) **y hunde la falla: PERDIDA 14,6 % → 43,1 %**. El erode borra la cinta lejana, que es justo el caso que falla |
+| **el objetivo como punto extremo (POI) es mejor que el centroide** | **REFUTADA** | **más** inversiones en 11 de 13 tramos (`hist` 30→92, `hist_exito` 0→9). Motivo: la cinta toca un borde lateral en el **98 %** de los frames del éxito, porque ocupa el 44 % del ancho |
+| **el contraejemplo del teacher trace era sólo ruido cerca del cero** | **PARCIALMENTE REFUTADA** | al ensanchar la banda muerta de ±3° a ±15° el rumbo baja 18→9 y el atan2 se queda en 7→7. Se reduce, **pero el contraejemplo sobrevive: 9 contra 7** |
+
+### 14.4 La lectura de fondo
+
+Las cuatro cosas que se probaron fallan **por la misma razón**, y esa razón se midió:
+
+* IPM no ayuda porque **2,07× de rango es casi una transformación afín**: no hay
+  perspectiva que corregir entre dos bandas tan cercanas.
+* El POI extremo no ayuda porque **la cinta toca los bordes casi siempre**: la
+  regla de Airborne está pensada para una cinta fina dentro del cuadro.
+* La morfología de Airborne no transfiere porque **nuestra cinta tiene ~6 veces
+  menos píxeles** (19.200 contra 114.688 de área total).
+* Y el atan2 mezcla posición con rumbo porque **promedia una cinta que ocupa media
+  pantalla abajo y un tercio arriba**.
+
+**No es un problema de arquitectura de percepción. Es que la cámara ve muy poco
+piso, y todo lo que se apoye en el piso lejano hereda ese límite.** Con el hardware
+congelado, el margen del software es real pero chico, y está del lado de **usar
+mejor los pocos píxeles cercanos con memoria entre frames**, no de rectificar ni de
+mirar más lejos.
+
+### 14.5 Archivos nuevos
+
+| archivo | estado |
+|---|---|
+| `software/raspberry/final_rpi/birdeye.py` | **VIGENTE.** Calibra `v_h`, arma la homografía, la valida cruzado y compara normal vs bird. `--validar`, `--todos`, `--resolucion`, `--vh` |
+| `software/raspberry/final_rpi/cierre.py` | **VIGENTE.** `--idea1` morfología, `--idea2` objetivo extremo vs centroide |
+| `airborne_birdeye_replay.py` | **AUDITADO Y DESCARTADO COMO BASE.** Su `angle_actual` reproduce el atan2 real (verificado, 5,7e-14). Todo lo demás no vale: los 4 puntos de la homografía son inventados, el panel bird usa **otra ROI** (fila 45 contra 60) **y otra ganancia** (hasta ×2,3), así que sus dos columnas no son comparables; `contourArea >= 20` fabrica **19 pérdidas falsas de 137** en el tramo de la falla; no tiene ninguna validación contra `rxsteer`. No borrado: queda como referencia de las dos ideas que sí valían |
+
+### 14.6 Lo que sigue sin estar probado en robot
+
+Todo lo de §2 sigue igual, **y se le suma todo lo de esta sección**. El robot no se
+movió. Los dos bancos nuevos son offline y lazo abierto.
 
 ---
 
