@@ -3,11 +3,20 @@
 La literatura de skeleton pruning (DSE, Latecki PAMI 2007; barbs por umbral de
 longitud aguas abajo, arXiv 2010.14440) usa la LONGITUD de la rama como
 discriminante entre ruido y topologia real. Si en nuestros esqueletos la
-distribucion es bimodal, la poda separa; si es continua, podar es adivinar."""
+distribucion es bimodal, la poda separa; si es continua, podar es adivinar.
+
+RESULTADO: NO es bimodal. Continua de 0 a 362 px, con 41,2 % de las ramas por
+encima de 64 px y sin ningun valle. No existe un umbral natural, asi que podar
+por longitud es elegir un numero a mano. H7 queda comprometida antes de
+escribir una sola linea de la poda.
+
+Es lo que pide el protocolo del issue #138: una tecnica externa -DSE, Latecki
+PAMI 2007; poda de barbs por longitud aguas abajo, arXiv 2010.14440- se
+convirtio en hipotesis falsable contra nuestros datos y NO entro por parecido.
+"""
 import os, math, importlib.util, collections
 import numpy as np, cv2
-AQUI=os.path.dirname(os.path.abspath(__file__)) if "__file__" in dir() else "."
-AQUI=r"C:\Users\villa\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\software\raspberry\final_rpi"
+AQUI = os.path.dirname(os.path.abspath(__file__))
 sp=importlib.util.spec_from_file_location("nuevo_code_v4", os.path.join(AQUI,"nuevo_code_v4.py"))
 v4=importlib.util.module_from_spec(sp); sp.loader.exec_module(v4); v2=v4.v3.v2
 AUT=["hist.avi","lineal.avi","lineal70.avi","como_esta.avi","seguir.avi",
