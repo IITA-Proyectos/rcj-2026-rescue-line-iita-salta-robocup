@@ -2895,6 +2895,16 @@ void loop()
         verdes_total=0;
         while (true)
         {
+            // DRENAR EL REGISTRADOR TAMBIEN EN IDLE. Sin esto, con el switch
+            // apagado el CSV no sale y el puerto parece MUDO -que es justo el
+            // sintoma de un setup() colgado-. El 2026-08-22 eso hizo diagnosticar
+            // tres veces "la placa no arranco" cuando la placa estaba perfecta,
+            // y perder corridas creyendo que un flasheo no habia entrado.
+            // Es el mismo bug que ya se habia arreglado para el seguimiento de
+            // linea (DIAG_TICK no se alcanzaba) y que quedo en el idle.
+            // Y es JUSTO en idle cuando uno quiere verificar que binario corre:
+            // con el switch apagado, o sea sin riesgo de que el robot se mueva.
+            DIAG_TICK();
             enviarTelemetria();   // TELEMETRIA en idle (util para calibrar en banco)
             robot.steer(0, 0, 0);
                     digitalWrite(RELAY,LOW);
@@ -3282,7 +3292,12 @@ if (green_state == 2)
                     const double LINE_HARD_CURVE_STEER = 0.35;
                     const double LINE_PIVOT_STEER = 0.92;
                     const double LINE_ROT_EXP = 0.50;   // [EXPERIMENTO 2026-08-22] 1.0 = rampa lineal anterior
-                    const double LINE_PIVOTE_DESDE = 0.30;   // [EXPERIMENTO] 1.1 lo desactiva
+                    // absSteer = |steer * LINE_STEER_GAIN|, o sea 0,60 aca equivale a
+                    // steer ~0,44 de la Raspberry. El codigo original pivoteaba con
+                    // steer > 0,7 (absSteer ~0,95). 0,30 hacia pivotear casi toda la
+                    // corrida -el absSteer esta en la banda media el 32% del tiempo- y
+                    // el robot casi no avanzaria. 1.1 desactiva el pivote.
+                    const double LINE_PIVOTE_DESDE = 0.60;   // [EXPERIMENTO 2026-08-22]
                     const double LINE_HARD_ROTATION_MIN = 0.8;
                     const double LINE_HARD_ROTATION_MAX = 0.90;
                     const double LINE_TURN_FRONT_SCALE = 0.55;
