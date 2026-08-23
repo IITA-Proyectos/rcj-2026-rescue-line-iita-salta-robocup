@@ -179,6 +179,56 @@ subprocesos, sin `eval`.
 
 ---
 
+## H-3 — el detector de pérdida: 13,5 % de recall contra 98,5 %
+
+**Estado: CONFIRMADO en replay. Es la medición que decide el fix de la pérdida.**
+
+Corrido con el banco de replay ya validado, sobre dos corridas y con **las dos definiciones
+de "realmente perdida" reportadas juntas** (filas 100-119 con <30 px, y mancha conexa que
+toca el borde inferior):
+
+| video | ley | declara | **recall** | falsos positivos |
+|---|---|---|---|---|
+| `hist.avi` | la que corrió (`min_line_size=1`) | 2,10 % | **13,5 %** | 0,00 % |
+| `hist.avi` | pérdida explícita (mancha conexa <30 px) | 16,21 % | **98,5 %** | 0,91 % |
+| `como_esta.avi` | la que corrió | 5,01 % | **40,1 %** | 0,00 % |
+| `como_esta.avi` | pérdida explícita | 13,22 % | **98,4 %** | 0,93 % |
+
+**Recall** = de los frames en que la línea realmente NO está, en qué fracción la ley lo
+declara. Es la métrica correcta acá, y es peor que lo que sugería el cociente global de H-1:
+en `hist.avi` el robot se entera de **1 de cada 7** pérdidas, no de 1 de cada 4.
+
+**Esto se puede medir en replay sin ninguna suposición física**, porque detectar es función
+de la imagen, no de la trayectoria. Es exactamente la clase de pregunta que el banco sí
+contesta.
+
+### El riesgo que había que despejar, despejado
+
+La preocupación era que detectar la pérdida 3 a 8 veces más seguido rompiera el giro (el
+robot pasaría a retroceder una quinta parte de la corrida). **Los números dicen que no
+empeora el pedido de giro:**
+
+| | `hist`: la que corrió | `hist`: pérdida explícita |
+|---|---|---|
+| episodios de giro por segundo | 1,85 | 1,88 |
+| duración p90 del pedido | 0,495 s | **0,390 s** |
+| re-entradas | 16 | **15** |
+| demanda mediana | 9,31 gr·s | 8,79 gr·s |
+
+### Lo que queda abierto
+
+**Los falsos positivos no son cero: 0,91 %.** Sobre 13.900 frames son ~127 frames en que la
+ley declararía pérdida con la línea presente. Falta definir qué hace el robot en esos casos
+— si la respuesta a la pérdida es cara (retroceder), un 0,9 % de falsos positivos puede
+costar. Eso hay que resolverlo en el diseño, no en el detector.
+
+**Y ojo con la unidad:** el replay reporta "demanda" en **grado·segundo**, no en grados.
+Los grados girados NO se pueden calcular en replay. Está dicho en el docstring y no es una
+precaución retórica.
+
+
+---
+
 ## Hechos heredados que NO se vuelven a discutir
 
 Del análisis del 23-ago, ya refutados o confirmados con número:
