@@ -761,6 +761,42 @@ posición sí gira"**. No cambiaba ruedas ni ganancias — cambiaba la geometrí
 la cámara.
 
 
+### H-9b — GENERALIZA. No fue suerte de ese par.
+
+Corrido el mismo criterio sobre **los 10 videos** (4 leyes de control distintas, tramos
+distintos de pista), 4.247 frames de giro:
+
+| | con camino al frente |
+|---|---|
+| giros que **completan** | **76,2 %** |
+| giros que **pierden** | **19,1 %** |
+| | **4,00x** |
+
+Contra el 79,7 % / 19,0 % del par único: **prácticamente idéntico**. La señal no depende del
+tramo ni de la ley de control.
+
+**Como detector, por evento** (n=217 completan, 68 pierden). Evidencia = fracción de los
+primeros 5 frames del giro con camino conectado:
+
+| regla | giros MALOS que evita | giros BUENOS que bloquea | balance |
+|---|---|---|---|
+| **sin NINGÚN camino** | **63 %** | **16 %** | **4,0x** |
+| camino en ≤1 de 5 | 66 % | 19 % | 3,5x |
+| camino en ≤2 de 5 | 71 % | 23 % | 3,1x |
+| camino en ≤3 de 5 | 74 % | 30 % | 2,4x |
+
+**63 % de los giros que se salen, evitados, bloqueando el 16 % de los buenos.** Es el
+detector más usable que apareció en todo el proyecto.
+
+**Hoy el gatillo del pivote es sólo `absSteer >= 0,60`**, sin mirar sobre qué evidencia se
+calculó ese ángulo. El patrón que sale: **no comprometerse a un giro fuerte sin un camino
+conexo que vaya desde debajo del robot hasta adelante.**
+
+**Lo que sigue sin estar probado:** que actuar sobre la señal mejore la corrida. Todo esto
+es observacional sobre trayectorias grabadas; el robot nunca dejó de comprometerse por falta
+de evidencia, así que no hay contrafáctico. Eso se mide en pista.
+
+
 ---
 
 ## Hechos heredados que NO se vuelven a discutir
