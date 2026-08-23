@@ -334,7 +334,9 @@ def main():
             if b.startswith(("shadow_", "leyes_", "comparacion", "centrado",
                              "CONTROL", "CASO")):
                 continue
-            casos.append((v, 0, 10 ** 9, "", FPS))
+            # video_4 es crudo y se grabo a 20 fps, no a los 33,3 de los paneles
+            casos.append((v, 0, 10 ** 9, "",
+                          20.0 if "video_4" in b else FPS))
     else:
         if not a.video:
             print(__doc__)

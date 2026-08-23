@@ -512,7 +512,10 @@ def main():
             b = os.path.basename(v)
             if b.startswith(("shadow_", "comparacion", "centrado", "CONTROL", "CASO")):
                 continue
-            correr(v, 0, 10 ** 9, "", a.ventana, con_video=False, fps=a.fps)
+            # video_4 es CRUDO y se grabo a 20 fps, no a los 33,3 de los paneles.
+            # Con el fps equivocado los tiempos del CSV salen mal.
+            f = 20.0 if "video_4" in os.path.basename(v) else a.fps
+            correr(v, 0, 10 ** 9, "", a.ventana, con_video=False, fps=f)
         return 0
 
     if not a.video:
