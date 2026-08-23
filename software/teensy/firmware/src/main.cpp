@@ -60,8 +60,16 @@
 //  que ganancia ni con que umbral se habia grabado. Se grabaron diez CSV ese dia
 //  y despues NO se pudo atribuir ninguna diferencia a ninguna constante.
 //
-//  Ahora salen en la cabecera de cada CSV y se pueden barrer sin editar codigo:
-//      pio run -e diagnostico_fix -t upload --project-option="build_flags=-D LINE_PIVOTE_DWELL_MS=300"
+//  Ahora salen en la cabecera de cada CSV y se pueden barrer SIN EDITAR CODIGO,
+//  que es lo que hace falta con la pista ocupada y el reloj corriendo:
+//
+//      PLATFORMIO_BUILD_FLAGS="-D LINE_PIVOTE_DWELL_MS=300UL" pio run -e diagnostico_fix -t upload
+//
+//  (verificado que la bandera llega al compilador con `pio run -v`; NO existe
+//   `--project-option` en esta version de pio)
+//
+//  Y como la constante viaja en la procedencia, el CSV de esa corrida dice solo
+//  con que valor se grabo. Ese es el punto: que un archivo explique su binario.
 // ============================================================================
 
 // Ganancia de la camara al comando. Con 1.80 el cabeceo empeoro de -11,8 a
@@ -3453,10 +3461,14 @@ if (green_state == 2)
                     static bool s_en_pivote = false;
                     static unsigned long s_pivote_t0 = 0;
                     static unsigned long s_alineado_t0 = 0;
+                    // El signo con el que se engancho el pivote. Ver el comentario
+                    // largo abajo, donde se usa.
+                    static int s_pivote_signo = 0;
                     if (!s_en_pivote && absSteer >= LINE_PIVOTE_ENTRA)
                     {
                         s_en_pivote = true;
                         s_pivote_t0 = millis();
+                        s_pivote_signo = (steerCmd > 0) ? 1 : -1;
                     }
                     else if (s_en_pivote)
                     {
@@ -3525,7 +3537,65 @@ if (green_state == 2)
                     g_line_branch = (absSteer > LINE_PIVOT_STEER) ? 3
                                   : (absSteer > LINE_HARD_CURVE_STEER) ? 2
                                   : (absSteer > LINE_CURVE_STEER) ? 1 : 0;
-                    robot.steer(vel, FORWARD, steerCmd > 0 ? rot : -rot);
+
+                    // ------------------------------------------------------------------
+                    //  DWELL MINIMO DEL SIGNO
+                    //
+                    //  Cuando el pivote esta enganchado, `rot` vale 1,0: la MAGNITUD
+                    //  queda latcheada. Pero el SIGNO sale de `steerCmd`, o sea de la
+                    //  trama que acaba de llegar. El resultado es que el robot puede
+                    //  dar vuelta la direccion del giro cada 10-30 ms.
+                    //
+                    //  MEDIDO el 23-ago sobre las 6 corridas de pista (369 tramos de
+                    //  linetrack con |rot| >= 0,95 y signo constante):
+                    //      duracion p50            0,190 s
+                    //      grados entregados p50   4,9 grados
+                    //      tramos que llegaron a 45 grados     1 de 369
+                    //      tramos que llegaron a 90 grados     0 de 369
+                    //      tramos consecutivos que CAMBIAN de signo   32% a 87%
+                    //  Y sin embargo el robot gira 1184 a 2174 grados por MINUTO en
+                    //  bruto, y entrega neto +-20. Autoridad sobra; lo que falta es
+                    //  persistencia de direccion. Es un ciclo limite.
+                    //
+                    //  La razon de fondo esta en el comentario de mas arriba: la vision
+                    //  no mide rumbo. Once grados de giro real le desploman el angulo,
+                    //  asi que el sensor que decide el signo se mueve 7 a 9,6 grados de
+                    //  camara por cada grado real del robot -medido en las 6 corridas-.
+                    //  El motor necesita mas tiempo que eso: la tasa de giro es plana en
+                    //  ~39 grados/s arriba de 150 ms y cae a 21,6 abajo de 100 ms.
+                    //
+                    //  El fix es no dejar que el signo se de vuelta antes de que el
+                    //  motor llegue a regimen. NO hay objetivo en grados, NO se integra
+                    //  la IMU y NO hay condicion de salida nueva: el dwell solo RETRASA
+                    //  la inversion. Costo maximo de un signo equivocado = dwell * tasa;
+                    //  con 300 ms y 39 grados/s son 12 grados, la misma magnitud que un
+                    //  tramo de hoy.
+                    //
+                    //  LINE_PIVOTE_DWELL_MS = 0 deja el comportamiento historico byte
+                    //  por byte, sin git revert: es una constante, y se puede volver
+                    //  atras en la pista sin recompilar de memoria.
+                    //
+                    //  TODAVIA NO SE PROBO EN EL ROBOT. De los 369 tramos de hoy ya
+                    //  duran mas de 0,25 s el 32,0% y mas de 0,40 s el 9,8%, asi que
+                    //  250-300 ms mueve la mediana sin salirse de lo que el robot ya
+                    //  hace. El barrido previsto es 0 / 250 / 400.
+                    // ------------------------------------------------------------------
+                    //  INHIBIDO EN RAMPA, y esto no es teorico: 40 lineas mas abajo,
+                    //  con `pitch > PITCH_RAMPA`, las dos traseras se pisan a
+                    //  POTENCIA_TRASERAS en configuracion de marcha RECTA, DESPUES del
+                    //  steer. O sea que en pendiente un pivote queda con las delanteras
+                    //  girando y las traseras empujando derecho. Sostener el signo
+                    //  mientras las traseras lo contrarrestan es peor que no sostenerlo.
+                    //  En el salon el pitch paso de 12 grados el 0,0-0,7% del tiempo,
+                    //  pero en la pista de competencia hay rampa.
+                    int signoCmd = (steerCmd > 0) ? 1 : -1;
+                    if (s_en_pivote && s_pivote_signo != 0 &&
+                        pitch <= PITCH_RAMPA &&
+                        millis() - s_pivote_t0 < LINE_PIVOTE_DWELL_MS)
+                    {
+                        signoCmd = s_pivote_signo;
+                    }
+                    robot.steer(vel, FORWARD, signoCmd > 0 ? rot : -rot);
 
 #else   // ---------------- arbol de ramas historico ----------------------
 
