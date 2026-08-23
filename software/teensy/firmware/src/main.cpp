@@ -3281,6 +3281,8 @@ if (green_state == 2)
                     const double LINE_CURVE_STEER = 0.08;
                     const double LINE_HARD_CURVE_STEER = 0.35;
                     const double LINE_PIVOT_STEER = 0.92;
+                    const double LINE_ROT_EXP = 0.50;   // [EXPERIMENTO 2026-08-22] 1.0 = rampa lineal anterior
+                    const double LINE_PIVOTE_DESDE = 0.30;   // [EXPERIMENTO] 1.1 lo desactiva
                     const double LINE_HARD_ROTATION_MIN = 0.8;
                     const double LINE_HARD_ROTATION_MAX = 0.90;
                     const double LINE_TURN_FRONT_SCALE = 0.55;
@@ -3304,16 +3306,53 @@ if (green_state == 2)
                     // --- rotation CONTINUA: identidad hasta la curva dura, y de ahi una rampa
                     //     hasta el pivote. Vale 0,350 en 0,350 y 1,000 en 0,920, asi que empalma
                     //     por los dos lados sin escalon.
+                    // RAMPA CONCAVA, y es la palanca que importa.
+                    //
+                    // La distancia que el robot recorre POR CADA GRADO que gira
+                    // vale (1-rot)/(k*rot). La VELOCIDAD SE CANCELA: frenar lo
+                    // hace ir mas lento pero recorre la misma distancia mientras
+                    // completa el giro. Verificado el 2026-08-22 comparando dos
+                    // corridas de pista a 29 y 37 rpm:
+                    //   rot 0,20-0,40   0,49 cm/grado (lenta) contra 0,44 (rapida)
+                    //   rot 0,60-0,80   0,10          contra 0,11
+                    // Practicamente iguales. Lo unico que reduce esa distancia es
+                    // subir ROT, y ahi el efecto es enorme: de rot 0,30 a 0,87 el
+                    // numero cae 12 veces.
+                    //
+                    // En la curva de 90 grados que falla:
+                    //   rot 0,30 -> 44 cm recorridos mientras gira
+                    //   rot 0,87 -> 3,6 cm
+                    // Y el robot ve unos 2-3 cm de piso. Con la rampa lineal, un
+                    // angulo de camara moderado (absSteer 0,20) pedia rot 0,20 y
+                    // se comia 75 cm de pista girando: perdia la linea seguro.
+                    //
+                    // La raiz cuadrada sube rapido al principio -absSteer 0,20 pasa
+                    // a pedir rot 0,45, o sea 23 cm en vez de 75- y sigue llegando
+                    // a 1 en el extremo. LINE_ROT_EXP la ajusta: mas chico = mas
+                    // agresivo; 1,0 vuelve exactamente a la rampa lineal anterior.
+                    // GIRAR SOBRE EL EJE Y DESPUES AVANZAR, en vez de avanzar
+                    // girando. Idea de Benjamin, y es el caso limite de la cuenta
+                    // de arriba: en rot = 1 las dos ruedas van iguales y opuestas,
+                    // el avance es CERO y cm/grado tambien. Girando sobre el eje
+                    // es imposible perder la linea por haberse ido de largo.
+                    //
+                    // Arriba del umbral: pivote puro. Abajo: arco suave para
+                    // seguir la recta. El robot alterna -pivotea, avanza,
+                    // pivotea- en vez de describir un arco que se come 44 cm de
+                    // pista con un campo visual de 2 cm.
+                    //
+                    // EL RIESGO, dicho de frente: puede quedar entrando y saliendo
+                    // del pivote (pivote, recto, pivote) si el angulo oscila
+                    // alrededor del umbral. Si se ve eso en el video, la solucion
+                    // es histeresis -salir del pivote con un umbral mas bajo que
+                    // el de entrada-, no bajar el umbral.
                     double rot;
-                    if (absSteer <= LINE_HARD_CURVE_STEER)
-                        rot = absSteer;
-                    else if (absSteer >= LINE_PIVOT_STEER)
+                    if (absSteer >= LINE_PIVOTE_DESDE)
                         rot = 1.0;
                     else
-                        rot = LINE_HARD_CURVE_STEER
-                            + (absSteer - LINE_HARD_CURVE_STEER)
-                            / (LINE_PIVOT_STEER - LINE_HARD_CURVE_STEER)
-                            * (1.0 - LINE_HARD_CURVE_STEER);
+                        rot = pow(absSteer, LINE_ROT_EXP);
+                    if (absSteer >= LINE_PIVOT_STEER) rot = 1.0;
+                    if (rot > 1.0) rot = 1.0;
 
                     // --- la velocidad tambien continua: de la de recta a la de pivote. Un
                     //     escalon de velocidad tambien es un tiron, aunque menos grave que dar
