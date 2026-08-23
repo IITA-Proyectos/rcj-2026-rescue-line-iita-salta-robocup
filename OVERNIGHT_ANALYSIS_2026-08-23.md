@@ -11,6 +11,54 @@ replay, compilación y análisis.
 
 ---
 
+## COMO RETOMAR SI SE CORTA LA SESION
+
+**Los workflows corren en background y su resultado queda en disco.** Si la sesion se corta
+por limite de tiempo o de creditos, NO hay que volver a empezar: hay que leer el journal.
+
+### Los workflows lanzados
+
+| run ID | que hace | estado |
+|---|---|---|
+| `wf_1d653bde-be6` | analisis de los 10 videos y 10 CSV | **terminado** -> `ANALISIS-2026-08-23.md` |
+| `wf_94d7612a-538` | refutar cancelacion prematura, perdida de linea, diseno de giro, auditoria de tiempo, banco de replay | lanzado |
+
+Todo cuelga de la carpeta de la sesion:
+
+```
+~/.claude/projects/
+  C--Users-villa-rcj-2026-rescue-line-iita-salta-robocup-priority-fixes/
+    2ef17249-f56d-4c16-b09f-bc1b458bdb1d/
+      workflows/scripts/<nombre>-<runID>.js         el script de cada corrida
+      subagents/workflows/wf_<id>/journal.jsonl     una linea de resultado por agente
+```
+
+### El procedimiento, en orden
+
+1. **Leer `journal.jsonl` de la corrida cortada.** Tiene una linea `{"type":"result",...}`
+   por cada agente que llego a terminar, con su valor de retorno completo. Eso se aprovecha
+   aunque el workflow entero no haya cerrado: **el trabajo de los agentes que terminaron no
+   se pierde**.
+2. **Si es la MISMA sesion**: relanzar con
+   `Workflow({scriptPath: "<ruta del script>", resumeFromRunId: "<run ID>"})`. Los agentes
+   con prompt y opciones sin cambiar devuelven su resultado cacheado al instante; solo corre
+   lo que falta.
+3. **Si es una sesion NUEVA**: `resumeFromRunId` no sirve, la cache es por sesion. Se
+   relanza con `Workflow({scriptPath: "<ruta>"})` — pero antes hay que leer el journal,
+   porque lo ya contestado no hace falta volver a preguntarlo: se edita el script para sacar
+   las tareas resueltas.
+4. **Este archivo manda.** Antes de relanzar nada, leer el estado y la bitacora. Si un
+   hallazgo ya esta confirmado o descartado, NO se vuelve a investigar.
+
+### Regla de la noche
+
+**Nada de lo que se concluya vive solo en la conversacion.** Todo hallazgo confirmado baja a
+este archivo apenas se confirma, con su numero y su archivo:linea. Si el contexto se compacta
+o la sesion muere, este archivo tiene que alcanzar para seguir sin perder nada.
+
+
+---
+
 ## ESTADO ACTUAL
 
 | prioridad | tarea | estado |
