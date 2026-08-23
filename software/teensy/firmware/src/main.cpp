@@ -98,13 +98,26 @@
 #define LINE_PIVOTE_MAX_MS 2500UL
 #endif
 
-// Confirmacion de alineacion sostenida antes de soltar el pivote. Se compilo el
-// 22-ago y NUNCA se flasheo. Simulado el 23-ago sobre el rxsteer grabado, con
-// 300 ms el 71-100% de los episodios terminaria por el tope de MAX_MS en vez de
-// por alineacion, y el modelo del case 7 deja de reproducir la corrida (94,1% de
-// rama igual con 0, 66,4% con 300). NO flashear en 300 sin medirlo antes.
+// Confirmacion de alineacion sostenida antes de soltar el pivote.
+//
+// EN 0, Y NO ES UN DESCUIDO: 0 reproduce la histeresis simple que REALMENTE
+// corrio el 22-ago, y que el banco de replay valida al 94,1% de rama igual.
+// Estuvo escrita en 300 desde el 22-ago a la noche, se compilo y NUNCA se
+// flasheo. Medido el 23-ago sobre los 6 CSV, ES INALCANZABLE: las rachas
+// continuas de absSteer <= LINE_PIVOTE_SALE duran 50-75 ms de mediana y solo
+// el 1,2-7,7% llega a 300 ms.
+//
+// O sea que con 300 el pivote NO SALE NUNCA por alineacion: sale por el tope de
+// MAX_MS. Simulado sobre el rxsteer real, el 75-100% de los episodios termina
+// asi, con mediana de 2505 ms. Y en pivote `rot` vale 1,0, o sea que el avance
+// es CERO por diseno: el robot gira en el lugar 2,5 segundos, suelta, y vuelve
+// a enganchar. Eso es Lack of Progress delante del arbitro.
+//
+// Para probarla hay que hacerlo en una corrida EXPLICITA del barrido, no como
+// valor por defecto:
+//     PLATFORMIO_BUILD_FLAGS="-D LINE_PIVOTE_CONFIRMA_MS=300UL" pio run ...
 #ifndef LINE_PIVOTE_CONFIRMA_MS
-#define LINE_PIVOTE_CONFIRMA_MS 300UL
+#define LINE_PIVOTE_CONFIRMA_MS 0UL
 #endif
 
 // Velocidad del pivote. Medido el 23-ago sobre tramos de signo constante de mas
@@ -3461,14 +3474,14 @@ if (green_state == 2)
                     static bool s_en_pivote = false;
                     static unsigned long s_pivote_t0 = 0;
                     static unsigned long s_alineado_t0 = 0;
-                    // El signo con el que se engancho el pivote. Ver el comentario
-                    // largo abajo, donde se usa.
+                    // El signo del giro que se esta sosteniendo, y desde cuando.
+                    // Ver el comentario largo abajo, donde se usan.
                     static int s_pivote_signo = 0;
+                    static unsigned long s_signo_t0 = 0;
                     if (!s_en_pivote && absSteer >= LINE_PIVOTE_ENTRA)
                     {
                         s_en_pivote = true;
                         s_pivote_t0 = millis();
-                        s_pivote_signo = (steerCmd > 0) ? 1 : -1;
                     }
                     else if (s_en_pivote)
                     {
@@ -3588,12 +3601,40 @@ if (green_state == 2)
                     //  mientras las traseras lo contrarrestan es peor que no sostenerlo.
                     //  En el salon el pitch paso de 12 grados el 0,0-0,7% del tiempo,
                     //  pero en la pista de competencia hay rampa.
+                    //  CUENTA DESDE EL ULTIMO CAMBIO DE SIGNO ACEPTADO, no desde
+                    //  la entrada al pivote. La primera version contaba desde la
+                    //  entrada, y asi el dwell solo protegia la PRIMERA inversion
+                    //  de cada episodio: a partir de ahi el signo volvia a
+                    //  rescribirse cada trama, que es justo lo que se quiere
+                    //  evitar. Contando desde el ultimo cambio aceptado, cada
+                    //  inversion tiene que ganarse su ventana.
                     int signoCmd = (steerCmd > 0) ? 1 : -1;
-                    if (s_en_pivote && s_pivote_signo != 0 &&
-                        pitch <= PITCH_RAMPA &&
-                        millis() - s_pivote_t0 < LINE_PIVOTE_DWELL_MS)
+                    if (s_en_pivote && pitch <= PITCH_RAMPA)
                     {
-                        signoCmd = s_pivote_signo;
+                        if (s_pivote_signo == 0)
+                        {
+                            s_pivote_signo = signoCmd;
+                            s_signo_t0 = millis();
+                        }
+                        else if (signoCmd != s_pivote_signo)
+                        {
+                            if (millis() - s_signo_t0 < LINE_PIVOTE_DWELL_MS)
+                            {
+                                signoCmd = s_pivote_signo;      // todavia no
+                            }
+                            else
+                            {
+                                s_pivote_signo = signoCmd;      // se lo gano
+                                s_signo_t0 = millis();
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // Fuera del pivote -o en rampa- no hay signo sostenido, y
+                        // el static queda limpio. Sin esto, un signo de hace tres
+                        // curvas podria aplicarse al enganchar la proxima.
+                        s_pivote_signo = 0;
                     }
                     robot.steer(vel, FORWARD, signoCmd > 0 ? rot : -rot);
 

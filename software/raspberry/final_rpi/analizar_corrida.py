@@ -132,21 +132,46 @@ def fps_de_log(ruta_video):
     """El fps REAL de una corrida, si existe su log por frame.
 
     El parche escribe `<video>.csv` al lado del AVI cuando se corre con LOG=.
-    Tiene numero de frame y `time.monotonic()`, asi que el fps sale de dividir,
-    sin suponer nada. Devuelve None si no hay log: ahi se usa FPS.
+    Tiene numero de frame y `time.monotonic()`, asi que el ritmo sale del reloj
+    y no de una constante. Devuelve None si no hay log: ahi se usa FPS.
+
+    SE USA LA MEDIANA DE LAS DIFERENCIAS ENTRE FRAMES CONSECUTIVOS, no
+    (ultimo - primero). La primera version hacia eso ultimo y tenia dos modos de
+    falla PEORES que el 1,67x que vino a arreglar:
+
+      - una pausa en el medio -el robot detenido, un rescate, el arbitro
+        levantandolo- se reparte entre todos los frames. Con 20 s de pausa daba
+        17,6 fps en vez de 33,3: 1,89x de error, peor que el original.
+      - una ultima linea truncada -corte de luz, Ctrl-C en el medio de un
+        write- pasaba los dos guardas y devolvia 370 fps EN SILENCIO.
+
+    La mediana es inmune a las dos cosas: una pausa es un outlier entre miles de
+    diferencias, y una fila rota se descarta por el filtro de campos.
     """
     for cand in (ruta_video + ".csv", os.path.splitext(ruta_video)[0] + ".csv"):
         if not os.path.exists(cand):
             continue
         try:
-            filas = [l.strip().split(",") for l in open(cand)][1:]
-            filas = [f for f in filas if len(f) >= 2]
+            filas = []
+            for l in list(open(cand))[1:]:
+                c = l.strip().split(",")
+                if len(c) < 9:      # fila incompleta -> se tira, no se adivina
+                    continue
+                try:
+                    filas.append((int(c[0]), float(c[1])))
+                except ValueError:
+                    continue
             if len(filas) < 30:
                 continue
-            n = int(filas[-1][0]) - int(filas[0][0])
-            dt = float(filas[-1][1]) - float(filas[0][1])
-            if dt > 0 and n > 0:
-                return n / dt
+            dts = [(filas[i + 1][1] - filas[i][1]) / max(filas[i + 1][0] - filas[i][0], 1)
+                   for i in range(len(filas) - 1)
+                   if filas[i + 1][0] > filas[i][0] and filas[i + 1][1] > filas[i][1]]
+            if len(dts) < 20:
+                continue
+            dts.sort()
+            dt = dts[len(dts) // 2]
+            if 0.001 < dt < 1.0:        # entre 1 y 1000 fps: fuera de ahi, no me lo creo
+                return 1.0 / dt
         except Exception:
             continue
     return None

@@ -27,12 +27,30 @@ LOS INTERRUPTORES, todos por variable de entorno y todos apagados por defecto
     PLANNER=1     el seguidor de trazo maneja
     PLANNER=2     hibrido: el centroide manda, el trazo entra donde se satura
     GRABAR=ruta   graba video con lo que el robot vio y lo que decidio
+    LOG=ruta      *** EL MAS IMPORTANTE ***  un CSV con UNA FILA POR FRAME:
+                  numero de frame, reloj monotonico, angulo crudo, angulo
+                  enviado, suma de mascara, area de la mancha que toca el fondo,
+                  si el criterio NUEVO habria declarado linea perdida,
+                  green_state y silver.
+
+                  NO CAMBIA NADA de lo que el robot hace. Solo mide.
+
+                  Va SIEMPRE, en toda corrida, junto con GRABAR y con el mismo
+                  nombre. Sin esto no hay linea de tiempo del lado de la Pi: el
+                  22-ago cada duracion en segundos hubo que reconstruirla de un
+                  MJPEG cuyo fps declarado era falso, y de 60 pares video-CSV
+                  posibles engancho UNO SOLO.
 
     K_CERCA, K_LEJOS   ganancias del control lineal (40 y 40)
     RECUP_ANG          cuanto gira buscando la linea (75 grados)
     SATURA_DESDE       desde que angulo el hibrido le pasa el volante (70)
+    AREA_PERDIDA       area minima de la mancha que toca el fondo para NO
+                       declarar perdida (30 px). Solo afecta al LOG.
+    FPS_VIDEO          fps nominal del contenedor AVI (20.0). Es metadato, no el
+                       ritmo real: el ritmo real sale del LOG.
 
-Sin ninguna de esas, el parche aplicado NO cambia el comportamiento.
+Sin ninguna de esas, el parche aplicado NO cambia el comportamiento. Y con LOG
+tampoco: LOG solo escribe un archivo.
 
 MEDIDO EL 2026-08-22 SOBRE 6772 FRAMES DE PISTA
 -----------------------------------------------
@@ -631,16 +649,24 @@ def main():
         return 1
 
     print("""
-LISTO. Sin variables de entorno NO cambia nada. Lo recomendado para probar:
+LISTO. Sin variables de entorno NO cambia nada.
 
   sudo systemctl stop iita-robot
 
-  ROI=auto RECUP=1 GRABAR=~/Desktop/a.avi python3 main.py
-      tu calculo de siempre, pero viendo mas pista y SIN ENDEREZAR cuando
-      pierde la linea, que es lo que hoy lo saca de la pista
+TODA corrida se graba ASI, con LOG y GRABAR juntos y con el MISMO nombre:
 
-  ROI=auto RECUP=1 CTRL=lineal K_CERCA=70 GRABAR=~/Desktop/b.avi python3 main.py
-      lo mismo, ademas con ganancia constante
+  LOG=~/Desktop/c1.csv GRABAR=~/Desktop/c1.avi python3 main.py
+
+  El LOG no cambia NADA de lo que el robot hace: escribe una fila por frame con
+  el numero de frame y el reloj, y con eso el video engancha con el CSV de la
+  Teensy por numero de frame en vez de por correlacion. Al cerrar imprime el
+  FPS REAL de la corrida.
+
+  Sin LOG, la corrida despues no se puede analizar bien: es lo que paso el
+  22-ago con las diez corridas, y costo dos noches enteras reconstruirlas.
+
+Al terminar cada corrida, mirar que el CSV tenga filas:
+  wc -l ~/Desktop/c1.csv
 
 Revertir:  python3 parche_planner.py --revertir
 Al final:  sudo systemctl start iita-robot
