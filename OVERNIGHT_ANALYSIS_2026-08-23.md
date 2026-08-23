@@ -609,6 +609,70 @@ concepto.** Eso lo vuelve a poner sobre la mesa.
 
 ---
 
+## H-7 — el experimento natural: la MISMA curva, 27 veces bien y 12 veces mal
+
+**Estado: el mejor control que apareció en todo el proyecto, y da vuelta el orden causal.**
+
+Benjamín notó mirando `hist.avi` entero que **el robot sí hace la misma curva en otros
+momentos**. Eso es un experimento natural: misma corrida, mismo firmware, misma pista, mismo
+día — elimina de un saque todos los confounds de tramo y configuración.
+
+Catalogados los **49 eventos de giro** de `hist.avi` (|ángulo| ≥ 40° sostenido ≥ 8 frames):
+
+**27 completan sin perder la línea. 12 la pierden.**
+
+### Qué los distingue — y NO es la posición
+
+Rasgos medidos en los 10 frames **previos a entrar** al giro:
+
+| rasgo | completa | pierde | razón |
+|---|---|---|---|
+| **área de la mancha** | **2731 px** | **150 px** | **0,05x** |
+| ancho en la fila 119 | 75,5 | 26,0 | 0,34x |
+| alto | 39,8 | 9,2 | 0,23x |
+| alto/ancho | 0,3 | 0,3 | 0,79x |
+| **desvío \|cerca\|** | **18,9** | **19,2** | **1,01x** |
+
+**El desvío lateral es idéntico.** Por tercera vez, la posición no discrimina nada.
+
+**Lo que discrimina es cuánta cinta tiene el robot cuando ARRANCA el giro.**
+
+### El orden causal se da vuelta
+
+No es "el giro falla y entonces pierde la línea". Es **"ya casi no tiene línea, y entonces
+se compromete a un giro grande sobre lo que queda"**. Y ese giro falla.
+
+Eso encaja exactamente con H-1: como `min_line_size = 1` no dispara nunca, el robot calcula
+un ángulo confiado sobre un resto de 150 px —o sobre el salón— y se manda.
+
+### Generalizado a 8 videos, más débil pero en la misma dirección
+
+| | completa | pierde |
+|---|---|---|
+| `hist.avi` sola (n=32/8) | 2731 px | 150 px (**18x**) |
+| 8 videos (n=192/66) | 3532 px | 974 px (**3,6x**) |
+
+Como detector, con umbral de 500 px: atrapa el **45 %** de los giros que fallan con **14 %**
+de falsa alarma (~3,2x de enriquecimiento). Es la señal más fuerte del proyecto junto con el
+aplanamiento, y muy por encima del desvío, que da 1,0x.
+
+**Caveat honesto:** el área antes del giro está autocorrelacionada con el área después, y
+"perder" significa que el área se fue a cero. O sea que parte de la separación es trivial.
+Lo que NO es trivial es que sea **medible antes de comprometerse**, y que el robot hoy no la
+mire.
+
+### Consecuencia directa sobre lo que se commiteó anoche
+
+`AREA_PERDIDA = 30` (en `b67096f`) sólo atrapa el **24 %** de estos giros. Ese umbral está
+pensado para "no hay línea", no para "casi no hay línea". **Para esta señal hace falta un
+umbral 10 a 30 veces mayor, y como condición de ENTRADA al giro, no de pérdida.**
+
+El patrón que sale: **no comprometerse a un giro grande cuando la evidencia es pobre.** Hoy
+el gatillo es sólo `absSteer >= 0,60`, sin mirar sobre cuántos píxeles se calculó ese ángulo.
+
+
+---
+
 ## Hechos heredados que NO se vuelven a discutir
 
 Del análisis del 23-ago, ya refutados o confirmados con número:
