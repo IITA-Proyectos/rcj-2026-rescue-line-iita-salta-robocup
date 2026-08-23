@@ -40,10 +40,16 @@ enganchó **uno**.
 
 | | |
 |---|---|
-| **Firmware** | `git checkout roboliga` y `pio run -t upload` (ahora sale `competencia_fix`) |
+| **Firmware** | `git checkout roboliga` y `pio run -e diagnostico_fix -t upload` |
 | **Dónde** | Se marca con cinta **una** curva cerrada y un punto de arranque. Todo el día se corre desde ahí |
 | **Qué correr** | `sudo systemctl stop iita-robot`, aplicar el parche, y una corrida cualquiera |
 | **Qué grabar** | `LOG=~/Desktop/p0.csv GRABAR=~/Desktop/p0.avi python3 main.py`, y el CSV de la Teensy con el registrador |
+
+> **El entorno se nombra siempre.** Todo el día se usa `diagnostico_fix`, que es el único
+> que graba CSV. `pio run -t upload` **pelado** ahora flashea `competencia_fix`, que **no
+> emite procedencia ni graba nada** — `diagProcedencia()` vive entera dentro del
+> `#if MODO_DIAGNOSTICO`. Y para volver al binario histórico:
+> `pio run -e teensy_hid_device -t upload`.
 
 **PASS:** el log de la Pi y el CSV de la Teensy enganchan por número de frame, y el log
 reporta el fps real al cerrar. Hoy el enganche funciona en **1 de cada 10 corridas**.
@@ -54,7 +60,14 @@ vuelve a analizar a ciegas, que es lo que costó dos noches enteras.**
 **Verificación extra, gratis:** mirar la línea `#` de procedencia del CSV. Ahora dice
 `gain=`, `rot_exp=`, `piv_entra=`, `piv_sale=`, `piv_vel=`, `piv_max_ms=`,
 `piv_confirma_ms=` y `piv_dwell_ms=`. **Si esos campos no están, el binario que se flasheó
-no es el de esta rama.**
+no es el de esta rama.** Y `piv_confirma_ms` tiene que decir **0**: con 300 el pivote gira
+en el lugar 2,5 s (medido: las rachas de alineación duran 50-75 ms y sólo el 1,2-7,7 % llega
+a 300).
+
+**Dónde se guardan los CSV: FUERA de `software/teensy/firmware/`.** Un archivo nuevo ahí
+adentro hace que `git_commit.py` marque todos los binarios posteriores con sufijo `-s`
+(árbol sucio), y ahí se pierde la trazabilidad de qué binario grabó qué. Guardarlos en el
+Escritorio y moverlos al repo al final del día.
 
 ---
 
@@ -62,27 +75,60 @@ no es el de esta rama.**
 
 | | |
 |---|---|
-| **Firmware** | `PLATFORMIO_BUILD_FLAGS="-D LINE_PIVOTE_DWELL_MS=<X>UL" pio run -e diagnostico_fix -t upload` |
 | **Valores** | `X` = **0**, luego **250**, luego **400**, y **de nuevo 0** al final |
 | **Dónde** | La curva marcada, desde el punto marcado |
 | **Cuántas** | 3 intentos por valor. 12 corridas en total |
 | **Qué grabar** | CSV de la Teensy **y** log de la Pi, mismo nombre, uno por corrida |
 
+**Cómo se flashea cada valor.** En **PowerShell**, que es lo que se usa en esta máquina —
+la sintaxis de bash `VAR=x pio run` es un error de parseo acá:
+
+```powershell
+$env:PLATFORMIO_BUILD_FLAGS = "-D LINE_PIVOTE_DWELL_MS=400UL"
+pio run -e diagnostico_fix -t upload
+Remove-Item Env:PLATFORMIO_BUILD_FLAGS
+```
+
+**La última línea no se olvida.** En PowerShell la variable **queda pegada a esa consola** y
+contamina todo build posterior. Lo más seguro es **una consola nueva por cada valor**. Y
+después de flashear, **mirar `piv_dwell_ms=` en la línea de procedencia del CSV**: es la
+única forma de saber qué se flasheó de verdad, y `pio` ya mintió una vez sobre eso.
+
 ### El número que decide, calculable del CSV en 30 segundos
 
-Tramos contiguos de linetrack con `|rot| ≥ 0,95` y **signo constante**:
+Tramos contiguos de linetrack con `|rot| ≥ 0,95` y **signo constante**.
 
-| | hoy (`T_min = 0`) | con `T_min = 300 ms` tiene que dar |
+> **LEER ESTO ANTES DE COMPARAR CONTRA NADA.** Los **0,190 s** que circulan salen de las
+> seis corridas del 22-ago, y **ninguna de ellas tenía el latch de pivote encendido**
+> (verificado: `s_en_pivote` no existe en los commits que las produjeron). Sin latch, `rot`
+> sigue a `absSteer` y el tramo se corta apenas baja el ángulo: **el 79,9 % de los tramos
+> termina por salir de la banda y sólo el 20,1 % por cambio de signo.**
+>
+> **Encender el latch solo, sin ningún dwell, ya lleva el p50 a ~245 ms** (simulado sobre el
+> `rxsteer` real). Así que **la línea de base NO es 0,190 s: es el bloque de `T_min = 0` del
+> propio sábado.** Por eso el 0 se corre dos veces.
+
+| | base = el bloque `T_min=0` de hoy | qué esperar con `T_min = 400 ms` |
 |---|---|---|
-| duración p50 | 0,190 s | **≥ 0,30 s** |
-| grados entregados p50 | 4,9° | **≈ 11-12°** |
-| tramos ≥ 45° | 1 de 369 | **más de 1 de cada 10** |
+| duración p50 | ~245 ms (simulado; **se mide el sábado**) | **~305 ms** |
+| tramos ≥ 300 ms | ~39 % | **~51 %** |
+| tramos que terminan por cambio de signo | ~38 % | **~31 %** |
 
-**PASS:** la duración p50 sube a ≥ `T_min` y los grados suben proporcionalmente (~39 °/s).
+**PASS:** el p50 sube y la fracción de tramos ≥ 300 ms sube, **contra el bloque de 0 del
+mismo día**, y la diferencia aparece en los DOS bloques de 0 (el del principio y el del
+final).
 
-**FAIL, y es el resultado más informativo del día:** si un tramo de 0,30 s entrega **menos
-de 8 grados**, la hipótesis del transitorio se cae. Ahí el problema no es el control sino la
-actuación, y lo que sigue es medir el tren motriz, no tocar más el `case 7`.
+**El efecto esperado es moderado, no espectacular.** Si alguien esperaba pasar de 190 a 300
+ms, ese salto ya lo da el latch solo. Lo que el dwell agrega arriba es del orden de
+245 → 305 ms.
+
+**FAIL, y es el resultado más informativo del día:** si el `T_min` no mueve **ninguna** de
+las tres filas fuera del ruido entre repeticiones, el dwell no es la palanca. Ahí lo que
+sigue es mirar por qué el tramo termina por **salir de la banda** —que es la otra mitad del
+mecanismo y que el dwell no toca— o directamente la actuación.
+
+**Y el otro FAIL, más grave:** si un tramo sostenido de 0,30 s entrega **menos de 8 grados**,
+la hipótesis del transitorio se cae entera y el problema es el tren motriz, no el control.
 
 **ABORTO:** si el robot se sale **más** que con `T_min = 0`, se vuelve a 0 en el acto. Es
 una constante, no un `git revert`.

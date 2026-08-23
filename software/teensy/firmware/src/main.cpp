@@ -61,12 +61,25 @@
 //  y despues NO se pudo atribuir ninguna diferencia a ninguna constante.
 //
 //  Ahora salen en la cabecera de cada CSV y se pueden barrer SIN EDITAR CODIGO,
-//  que es lo que hace falta con la pista ocupada y el reloj corriendo:
+//  que es lo que hace falta con la pista ocupada y el reloj corriendo.
 //
+//  Git Bash / Linux:
 //      PLATFORMIO_BUILD_FLAGS="-D LINE_PIVOTE_DWELL_MS=300UL" pio run -e diagnostico_fix -t upload
 //
-//  (verificado que la bandera llega al compilador con `pio run -v`; NO existe
-//   `--project-option` en esta version de pio)
+//  PowerShell -que es lo que se usa en esta maquina- NO acepta esa sintaxis:
+//      $env:PLATFORMIO_BUILD_FLAGS = "-D LINE_PIVOTE_DWELL_MS=300UL"
+//      pio run -e diagnostico_fix -t upload
+//      Remove-Item Env:PLATFORMIO_BUILD_FLAGS      <-- ESTA LINEA NO SE OLVIDA
+//
+//  La ultima linea importa de verdad: en PowerShell la variable QUEDA PEGADA a
+//  esa consola y contamina todo build posterior. Y el binario de competencia NO
+//  emite procedencia -diagProcedencia() vive entera dentro del #if
+//  MODO_DIAGNOSTICO- asi que podria salir a la pista con un dwell puesto y NADA
+//  lo registraria. Lo mas seguro: una consola nueva por cada valor del barrido.
+//
+//  (verificado que la bandera llega al compilador con `pio run -v`, y que SE
+//   SUMA a las del entorno en vez de reemplazarlas. NO existe `--project-option`
+//   en esta version de pio.)
 //
 //  Y como la constante viaja en la procedencia, el CSV de esa corrida dice solo
 //  con que valor se grabo. Ese es el punto: que un archivo explique su binario.
