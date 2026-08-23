@@ -298,6 +298,118 @@ def _grabar(frame_bgr, ang_viejo, ang_nuevo, r, quien, corte):
     except Exception as _e:
         print("[GRABAR] se apaga por error: %s" % _e)
         globals()["RUTA_VIDEO"] = ""
+
+
+# =========================================================================
+#  LINEA PERDIDA DE VERDAD, y el log por frame
+#
+#  EL BUG QUE ESTO MIDE:  min_line_size = 1 sobre una mascara de 0/255.
+#  np.sum(black_mask) < 1 solo se cumple con CERO pixeles negros en todo el
+#  ROI, y con el salon en cuadro -zocalo, patas de mesa, sombras- eso casi
+#  nunca pasa. Medido sobre los 13.900 frames grabados el 22-ago:
+#
+#      la rama de perdida se dispara      5,32 % de los frames
+#      la linea esta realmente perdida    20,9 %
+#
+#  Y medido como RECALL, que es la metrica que corresponde: de los frames en
+#  que la linea realmente no esta, el robot lo declara en el 13,5 % en
+#  hist.avi y el 40,1 % en como_esta.avi. O sea que se entera de una de cada
+#  siete perdidas. En las otras seis calcula un atan2 confiado sobre el
+#  mobiliario y maneja a 40.
+#
+#  ESTO NO CAMBIA EL BYTE QUE SE MANDA. A proposito. El criterio nuevo entra
+#  primero como INSTRUMENTACION: se loguea y no se actua. Encender la
+#  maniobra -green_state=4, que el firmware rutea a retroceder- sin un solo
+#  dato de pista sobre ella seria cambiar dos cosas a la vez, y el 22-ago ya
+#  se perdieron dos corridas por eso. Con una corrida se sabe si los
+#  episodios se sostienen, y recien ahi se decide la maniobra.
+#
+#  Criterio: no existe componente conexa que toque la ultima fila del ROI con
+#  area >= AREA_PERDIDA. Medido en replay: recall 98,4-98,5 % con 0,9 % de
+#  falsos positivos, contra el 13,5-40,1 % de hoy.
+# =========================================================================
+AREA_PERDIDA = float(os.environ.get("AREA_PERDIDA", "30"))
+RUTA_LOG     = os.environ.get("LOG", "")
+_log_f = None
+_log_n = 0
+_log_t0 = None
+
+
+def _perdida_conexa(mask):
+    """(perdida, area_de_mi_mancha). `mask` es el ROI ya recortado.
+
+    'Mi linea' es la componente conexa que TOCA LA ULTIMA FILA: es la unica
+    que puede estar debajo del robot. Una mancha flotando arriba es el salon.
+    Devuelve area 0 si no hay ninguna que toque el fondo.
+    """
+    try:
+        if mask is None or mask.size == 0:
+            return True, 0.0
+        n, et, est, _ = cv2.connectedComponentsWithStats((mask > 0).astype(np.uint8), 8)
+        if n <= 1:
+            return True, 0.0
+        fondo = et[-1, :]
+        mejor = 0.0
+        for k in range(1, n):
+            if np.any(fondo == k):
+                a = float(est[k, cv2.CC_STAT_AREA])
+                if a > mejor:
+                    mejor = a
+        return (mejor < AREA_PERDIDA), mejor
+    except Exception:
+        # ante cualquier problema, NO declarar perdida: el criterio nuevo no
+        # decide nada todavia, y un falso positivo ensucia la medicion.
+        return False, -1.0
+
+
+def _log_frame(mask_roi, ang_crudo, ang_enviado, green_state, silver):
+    """Una fila por frame, al lado del AVI. Numero de frame, reloj monotonico,
+    angulo crudo y enviado, suma de mascara, area de mi mancha, y si el
+    criterio NUEVO habria declarado perdida.
+
+    POR QUE EXISTE: el 22-ago no quedo NINGUNA linea de tiempo del lado de la
+    Pi. Cada numero en segundos hubo que reconstruirlo de un MJPEG cuyo fps
+    declarado (20,0) era falso -el VideoWriter lo tiene fijo-, y el enganche
+    video-telemetria hubo que hacerlo por correlacion: de 60 pares posibles
+    engancho UNO. Con esto, el enganche es por numero de frame y el fps sale
+    del reloj, no de una constante.
+    """
+    global _log_f, _log_n, _log_t0
+    if not RUTA_LOG:
+        return
+    try:
+        if _log_f is None:
+            _log_f = open(os.path.expanduser(RUTA_LOG), "w")
+            _log_f.write("frame,t_mono,ang_crudo,ang_enviado,suma_mask,"
+                         "area_mancha,perdida_nueva,green_state,silver\\n")
+            _log_t0 = time.monotonic()
+            import atexit
+            atexit.register(_cerrar_log)
+        perdida, area = _perdida_conexa(mask_roi)
+        _log_f.write("%d,%.4f,%.2f,%d,%d,%.0f,%d,%d,%d\\n" % (
+            _log_n, time.monotonic() - _log_t0, float(ang_crudo),
+            int(round(ang_enviado)), int(np.sum(mask_roi) // 255) if mask_roi is not None else -1,
+            area, 1 if perdida else 0, int(green_state), 1 if silver else 0))
+        _log_n += 1
+        if _log_n % 100 == 0:
+            _log_f.flush()
+    except Exception as _e:
+        print("[LOG] se apaga por error: %s" % _e)
+        globals()["RUTA_LOG"] = ""
+
+
+def _cerrar_log():
+    global _log_f
+    try:
+        if _log_f is not None:
+            _log_f.flush()
+            _log_f.close()
+            dur = time.monotonic() - _log_t0 if _log_t0 else 0
+            print("[LOG] %d frames en %.1f s = %.1f fps REALES" % (
+                _log_n, dur, (_log_n / dur) if dur > 0 else 0))
+            _log_f = None
+    except Exception:
+        pass
 # =========================================================================
 '''
 
@@ -418,6 +530,7 @@ ANCLA_ENVIO = (
 NUEVO_ENVIO = (
     "            output = send_frame(speed, round(angle), green_state, silver_line)\n"
     "            _grabar(frame_resized, _ang_viejo, angle, _r, _quien, _corte)\n"
+    "            _log_frame(black_mask, _ang_viejo, angle, green_state, silver_line)\n"
 )
 
 CAMBIOS = [
