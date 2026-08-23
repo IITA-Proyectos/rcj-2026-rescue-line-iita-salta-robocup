@@ -22,7 +22,8 @@ por limite de tiempo o de creditos, NO hay que volver a empezar: hay que leer el
 |---|---|---|
 | `wf_1d653bde-be6` | analisis de los 10 videos y 10 CSV | **terminado** -> `ANALISIS-2026-08-23.md` |
 | `wf_94d7612a-538` | idem | **MURIO** por limite de sesion, 0 de 6 agentes terminaron. Sobrevivio `replay.py`, escrito antes de morir |
-| `wf_3cd1cde7-d09` | relanzado sin el agente de replay: 3 investigaciones + 3 refutadores + auditoria de tiempo + sintesis | corriendo |
+| `wf_3cd1cde7-d09` | relanzado sin replay: 3 investigaciones + refutadores + auditoria + sintesis | **terminado**, 8/8 |
+| `wf_9aebdda4-0b8` | revision independiente de los 5 commits de la noche | corriendo |
 
 Todo cuelga de la carpeta de la sesion:
 
@@ -65,14 +66,14 @@ o la sesion muere, este archivo tiene que alcanzar para seguir sin perder nada.
 | prioridad | tarea | estado |
 |---|---|---|
 | 1.1 | versionar el `main.py` real de la Pi | **hecho** (recuperado del transcripto) |
-| 1.2 | `diagProcedencia` con las constantes del `case 7` | pendiente |
-| 1.3 | log de la Pi: frame, timestamp, fps real, orden, estado de línea | pendiente |
-| 1.4 | fps 20.0 hardcodeados | pendiente |
-| 1.5 | auditar frame/timestamp/fps/dt en todo el código | en curso (`wf_3cd1cde7-d09`) |
-| 2 | refutar la hipótesis de cancelación prematura | en curso (`wf_3cd1cde7-d09`) |
+| 1.2 | `diagProcedencia` con las constantes del `case 7` | **hecho** (`a33cf90`) |
+| 1.3 | log de la Pi: frame, timestamp, fps real, orden, estado de línea | **hecho** (`b67096f`) |
+| 1.4 | fps 20.0 hardcodeados | **hecho** (`32c148b`) |
+| 1.5 | auditar frame/timestamp/fps/dt en todo el código | **hecho** |
+| 2 | refutar la hipótesis de cancelación prematura | **hecho**: se cayó el mecanismo, quedó **H-4** |
 | 3 | herramienta de replay | **hecho y VALIDADO** |
-| 4 | diseño de la lógica de giro comprometido | en curso (`wf_3cd1cde7-d09`) |
-| 5 | pérdida de línea como estado explícito | **hallazgo nuevo, abajo** |
+| 4 | diseño de la lógica de giro comprometido | **hecho e implementado** (`6f143b5`) |
+| 5 | pérdida de línea como estado explícito | **detector hecho** (`b67096f`); la MANIOBRA no se toca |
 
 ---
 
@@ -226,6 +227,143 @@ costar. Eso hay que resolverlo en el diseño, no en el detector.
 Los grados girados NO se pueden calcular en replay. Está dicho en el docstring y no es una
 precaución retórica.
 
+
+---
+
+## H-4 — LA CAUSA. El pivote dura 0,190 s y entrega 4,9 grados
+
+**Estado: es la única hipótesis que quedó en pie después de tres investigaciones y tres
+refutaciones adversariales. Reproducida con script propio.**
+
+Tramos contiguos de linetrack con `|rot| ≥ 0,95` y **signo de `rot` constante**, las 6
+corridas de pista juntas:
+
+| | valor |
+|---|---|
+| tramos | **369** |
+| duración p50 / p90 | **0,190 s** / 0,385 s |
+| grados entregados p50 / p90 | **4,9°** / 14,9° |
+| tramos que llegaron a 45° | 1 de 369 |
+| tramos que llegaron a 90° | **0 de 369** |
+| tramos consecutivos que **cambian de signo** | **32 % a 87 %** |
+
+Y el presupuesto global de rotación en linetrack:
+
+| corrida | ∫\|gz\| bruto | neto | °/min bruto |
+|---|---|---|---|
+| arbol_de_ramas | 885° | −78° | 1184 |
+| gain18 | 1279° | −283° | 1549 |
+| pivote35 | 1731° | **+3°** | 2100 |
+| pivote_con_histeresis | 1404° | +2° | 1530 |
+| pivote_sin_histeresis | 1684° | +13° | 2174 |
+| rampa_continua_pivote20 | 1134° | +20° | 1449 |
+
+**El robot gira 1.184 a 2.174 grados por minuto y entrega neto ±20.** Autoridad sobra para
+13 a 24 curvas de 90° por minuto. Lo que falta es **persistencia de dirección**.
+
+**No es "el controlador cancela el giro" ni "la intención es ruidosa": es un ciclo límite.**
+Y la variable de diseño que lo gobierna no es el gatillo ni el umbral ni el detector: es
+**el tiempo mínimo que el signo de `rot` queda quieto**.
+
+### Las dos mitades del mecanismo, medidas
+
+- **El actuador.** Grados por tramo contra duración: 1,0 / 3,8 / 5,3 / 8,8 / 12,1 / 19,2
+  para tramos de 0-0,1 / 0,1-0,15 / 0,15-0,25 / 0,25-0,4 / 0,4-0,6 / 0,6-3,0 s. La **tasa**
+  es plana en ~39 °/s arriba de 150 ms y cae a 21,6 abajo de 100 ms.
+- **El sensor.** Δ(ángulo de cámara) contra Δ(rumbo real): **6,96 a 9,57 grados de cámara
+  por grado real**, consistente en las seis corridas. La visión no mide rumbo.
+
+### Y la tasa de giro SATURA
+
+| `ls` | tasa | 90° cuestan |
+|---|---|---|
+| 0–22 | 19,6 °/s | 4,60 s |
+| 32–42 | **39,3 °/s** | 2,29 s |
+| 42–60 | 39,2 °/s | 2,29 s |
+
+**Subir de 20 a 35 rpm duplica el giro; de 35 a 50 no compra nada.** Esto contradice los
+"55-65 °/s a 50 rpm" que circulaban: ese número sale de muestras instantáneas, éste de
+tramos sostenidos, que es lo que importa para una curva. Con 39 °/s, **el tope de
+`LINE_PIVOTE_MAX_MS = 2500` está sobre el filo**, no con margen.
+
+---
+
+## EL HALLAZGO MÁS INCÓMODO: el binario de competencia no compilaba nada de esto
+
+`default_envs = teensy_hid_device` (platformio.ini:5) y `FIX_CURVA_CONTINUA` vale **0** por
+defecto (main.cpp:49-50). El `#if FIX_CURVA_CONTINUA` abarca las líneas 3323-3464 y el
+`#else` es el árbol de ramas histórico.
+
+**Toda la maquinaria que se midió y se tuneó el 22-ago —rampa continua, pivote, histéresis,
+velocidad de pivote— vive dentro de ese `#if`, y `pio run -t upload` a secas no lo
+compilaba.** Diez CSV grabados con `diagnostico_fix` mientras el binario que iría a la pista
+se habría comportado distinto.
+
+Verificado leyendo los dos bloques: `competencia_fix` extiende a `teensy_hid_device` y
+agrega **sólo** `-D FIX_LAZO_MOTOR=1` y `-D FIX_CURVA_CONTINUA=1`. Misma placa, mismo
+framework, mismas librerías, mismo script de commit.
+
+---
+
+## LO QUE SE IMPLEMENTÓ ESTA NOCHE
+
+Cinco commits chicos, cada uno con su hipótesis, su verificación y su vuelta atrás.
+
+| commit | qué | verificado |
+|---|---|---|
+| `a33cf90` | las constantes del `case 7` salen en `diagProcedencia` y se barren por `build_flags` | compilan los 3 entornos; los valores no cambian |
+| `6f143b5` | **el fix central**: el signo del pivote no se da vuelta antes de `T_min` | compila con dwell 0 y 300; bandera verificada con `pio run -v` |
+| `95cba6b` | el binario por defecto compila el árbol nuevo | `pio run` a secas ahora da `competencia_fix` |
+| `b67096f` | log de visión por frame + detector de pérdida por mancha conexa | parche aplicado sobre el `main.py` real; recall 98,5/98,9/100 % contra 13,5-40,1 % |
+| `32c148b` | el fps de 20 estaba escrito a mano | `como_esta.avi` pasa de 75 s declarados a 45 s reales |
+
+### El patrón del fix central
+
+Con el pivote enganchado `rot` vale 1,0 —la magnitud queda latcheada— pero el **signo** sale
+de `steerCmd`, o sea de la trama que acaba de llegar. El fix guarda el signo al enganchar y
+lo sostiene `T_min` ms. **No** hay objetivo en grados, **no** se integra la IMU, **no** hay
+condición de salida nueva y **no** se toca el gatillo. Sólo retrasa la inversión.
+
+Queda **inhibido en rampa**: 40 líneas más abajo, con `pitch > PITCH_RAMPA`, las traseras se
+pisan en configuración de marcha recta **después** del `steer`, así que en pendiente
+pelearían contra el pivote.
+
+**`LINE_PIVOTE_DWELL_MS = 0` es el valor por defecto y deja el comportamiento histórico byte
+por byte** — la comparación unsigned contra `0UL` nunca se cumple. Se vuelve atrás con una
+constante, sin `git revert` y sin recompilar de memoria en la pista.
+
+### El criterio de éxito, falsable y medible del CSV
+
+Los tramos de pivote con signo constante tienen que pasar de **0,190 s / 4,9°** a ≥ `T_min`
+y ≈ `39 × T_min` grados. Con `T_min = 0,30 s`: unos 11-12 grados, o sea **2,3×**.
+
+**Si un tramo de 0,30 s entrega menos de 8 grados, la hipótesis del transitorio se cae** y
+lo que sigue es la actuación, no el control.
+
+---
+
+## LO QUE SE DESCARTÓ ESTA NOCHE, con el número
+
+- **El diseño de "giro comprometido con objetivo extensible"**: simulado sobre el `rxsteer`
+  grabado, el **100 %** de los episodios cierra en el tope de 100° y **0 %** por tiempo, y
+  ocupa 23,7-56,0 % del linetrack. Degenera; no se rescata con tuneo.
+- **`LINE_PIVOTE_CONFIRMA_MS = 300` tal como está compilado**: 71-100 % de los episodios
+  terminaría por el tope de 2500 ms. Y el replay lo confirma por otra vía: con 0 el modelo
+  del `case 7` reproduce el 94,1 % de la rama, con 300 baja a 66,4 %.
+- **"La autoridad de giro se duplicó"**: era `LINE_PIVOT_SPEED` subiendo. Y la tasa satura
+  arriba de 35 rpm.
+
+---
+
+## UN P0 LATENTE QUE APARECIÓ DE COSTADO
+
+**El detector de verde no disparó ni una vez en 417 s de video.** `green_mask` nunca pasó de
+6 píxeles contra un umbral de 510. O no había verde en esa pista, o el rango de color no
+sirve con esa luz. **Hay que resolverlo aparte, y antes de la competencia.**
+
+Y uno preexistente: la cadena de `if` de `main.cpp:3063-3110` no tiene `else` ni `default`, y
+`action` es global. Un `green_state` no contemplado —la Pi manda **10 y 11**— deja la acción
+anterior. Si la anterior fue 4, el robot sigue retrocediendo mientras la Pi pide otra cosa.
 
 ---
 
