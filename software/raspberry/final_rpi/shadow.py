@@ -43,6 +43,7 @@ USO
     python3 shadow.py --todos
 """
 import argparse
+import csv
 import math
 import os
 import sys
@@ -68,6 +69,12 @@ PIX_MIN = 8                 # px de la componente en una banda para contarla
 AREA_LOST = 30              # debajo de esto no hay ni referencia cercana
 VEL_LOW = 15                # rpm en LOW: "avance reducido" deja de ser una palabra
 VEL_SIN_CERCA = 12          # rpm cuando no la tiene debajo pero hay pista adelante
+# rot en SIN_CERCA. NO puede ser 1,0: con rot=1 el firmware invierte un lado y el
+# avance es CERO por diseno, o sea que pivotearia sin acercarse nunca a la cinta
+# que esta adelante. Con 0,60 a 12 rpm las ruedas quedan en -2,4 y +12, o sea
+# avance neto ~4,8 rpm girando fuerte. Ir a buscarla es avanzar, no girar en el
+# lugar.
+ROT_SIN_CERCA = 0.60
 VEL_PERDIDA = 25            # el case 4 del firmware: BACKWARD 25 rpm, 200 ms
 AREA_JUNCTION = 1500        # una T/cruz tiene componente GRANDE
 ANCHO_JUNCTION = 60         # y ancha
@@ -215,6 +222,7 @@ class Candidato(object):
         self.ventana_ms = ventana_ms
         self.signo_confiable = 0        # el ultimo signo decidido con HIGH/MEDIUM
         self.t_low = None               # cuando empezo el tramo LOW
+        self.en_backstep = False        # ya arranco la maniobra del case 4?
         self.t = 0.0
 
     def paso(self, estado, signo_pedido, rot_actual, vel_actual, dt_s,
@@ -231,6 +239,8 @@ class Candidato(object):
         r = {"rot": rot_actual, "vel": vel_actual, "dir": "FORWARD",
              "accion": "normal", "rechazo": False, "motivo": ""}
 
+        if estado != "PERDIDA":
+            self.en_backstep = False
         if estado in ("HIGH", "MEDIUM"):
             if signo_pedido:
                 self.signo_confiable = signo_pedido
@@ -240,8 +250,22 @@ class Candidato(object):
 
         if estado == "PERDIDA":
             self.t_low = None
-            r.update(accion="retroceder", vel=VEL_PERDIDA, dir="BACKWARD", rot=0.0,
-                     motivo="ni linea debajo ni pista adelante: case 4, 25 rpm atras")
+            # EL case 4 NO ES UNA DECISION POR FRAME: es una maniobra fisica de
+            # ~200 ms -runTime(25, BACKWARD, 0, 200)- y despues vuelve a mirar.
+            # Desde el primer paso hacia atras, los frames siguientes de ESTE
+            # video ya no corresponden a la trayectoria que el robot tendria. Se
+            # marca el ARRANQUE y de ahi en mas todo es contrafactual.
+            if not self.en_backstep:
+                self.en_backstep = True
+                r.update(accion="ENTRA_RECOVERY_BACKSTEP", vel=VEL_PERDIDA,
+                         dir="BACKWARD", rot=0.0,
+                         motivo="ni linea debajo ni pista adelante: case 4, "
+                                "25 rpm atras 200 ms y vuelve a mirar")
+            else:
+                r.update(accion="CONTRAFACTUAL", vel=VEL_PERDIDA, dir="BACKWARD",
+                         rot=0.0,
+                         motivo="ya retrocedio: los frames siguientes de este "
+                                "video NO son los que veria")
             return r
 
         if estado == "SIN_CERCA":
@@ -266,7 +290,7 @@ class Candidato(object):
             else:
                 signo = self.signo_confiable or (signo_pedido or 1)
                 por = "sin cx: se sostiene el ultimo sentido confiable"
-            r.update(accion="ir_a_buscarla", vel=VEL_SIN_CERCA, rot=signo * 1.0,
+            r.update(accion="ir_a_buscarla", vel=VEL_SIN_CERCA, rot=signo * ROT_SIN_CERCA,
                      motivo="no la tengo debajo pero HAY pista adelante: voy %s" % por)
             return r
 
@@ -287,11 +311,22 @@ class Candidato(object):
         return r
 
 
-def ruedas(vel, rot):
-    """DriveBase::steer(drivebase.cpp:205): el lado interno se invierte si la
-    consigna sale negativa; lo que se registra es la MAGNITUD."""
-    otro = abs(vel - 2.0 * abs(rot) * vel)
-    return (otro, vel) if rot > 0 else (vel, otro)
+def ruedas(vel, rot, dir_fwd=True):
+    """DriveBase::steer(drivebase.cpp:205) con el SIGNO de cada lado.
+
+    `_leftspeed = speed - 2*rotation*speed`, y si sale negativa el firmware
+    invierte el pin de direccion de ese lado y manda la magnitud. Devolver solo
+    la magnitud escondia lo importante: con rot = +-1 un lado va para atras y el
+    otro para adelante, o sea un PIVOTE SOBRE EL EJE con avance cero, aunque el
+    CSV dijera vel=12 dir=FORWARD.
+
+    Devuelve (izq_firmada, der_firmada). El signo es el sentido REAL de esa
+    rueda: positivo adelante, negativo atras.
+    """
+    sgn = 1.0 if dir_fwd else -1.0
+    izq = sgn * (vel - 2.0 * rot * vel)
+    der = sgn * vel
+    return izq, der
 
 
 def panel_texto(img, x, y, filas, ancho):
@@ -312,7 +347,7 @@ def barra(img, x, y, w, h, valor, color, etiqueta):
 
 
 def correr(ruta, desde=0, hasta=10 ** 9, tag="", ventana_ms=600, salida_dir=None,
-           con_video=True):
+           con_video=True, fps=FPS):
     cap = cv2.VideoCapture(ruta)
     if not cap.isOpened():
         print("*** no se pudo abrir %s" % ruta)
@@ -325,21 +360,31 @@ def correr(ruta, desde=0, hasta=10 ** 9, tag="", ventana_ms=600, salida_dir=None
     E = 3
     PW, PH = W * E, H * E                      # 480x360
     ANCHO, ALTO = PW * 2 + 420, PH + 150
-    vw = cv2.VideoWriter(sal_avi, cv2.VideoWriter_fourcc(*"MJPG"), 12.0,
+    # EL SHADOW SE GRABA AL FPS REAL DE LA FUENTE. La primera version lo dejaba
+    # en 12 fps fijos y eso enganaba feo: el clip de 137 frames de hist dura 4,1 s
+    # de verdad y se veia como 11,4 s. Para juzgar "asi se moveria" la duracion
+    # tiene que ser la real.
+    # OJO: el fps que DECLARA el contenedor no es el real -los AVI del 22-ago
+    # dicen 20,0 porque el VideoWriter lo tiene fijo, y el lazo corria a ~33,3-.
+    # Por eso se pasa por parametro y no se lee del archivo.
+    vw = cv2.VideoWriter(sal_avi, cv2.VideoWriter_fourcc(*"MJPG"), fps,
                          (ANCHO, ALTO)) if con_video else None
-    fcsv = open(sal_csv, "w")
+    fcsv = open(sal_csv, "w", newline="")
+    wcsv = csv.writer(fcsv)
     # `source_frame` es el indice en el VIDEO ORIGINAL, no en el recorte: si el
     # CSV dice 1354 es el frame 1354 de hist.avi. La primera version escribia el
     # video ENTERO aunque el AVI saliera recortado, y eso es exactamente la clase
     # de discrepancia de procedencia que ya costo cara en este proyecto.
-    fcsv.write("source_frame,angle,near,mid,far,area,area_arriba,wmax,trav,interseccion,"
-               "estado,vel_actual,dir_actual,rot_actual,ls_actual,rs_actual,"
-               "vel_candidato,dir_candidato,rot_candidato,ls_candidato,rs_candidato,"
-               "rechazo,accion,motivo\n")
+    wcsv.writerow(["source_frame", "source_time_s", "angle", "near", "mid", "far",
+                   "area", "area_arriba", "wmax", "trav", "interseccion", "estado",
+                   "vel_actual", "dir_actual", "rot_actual", "izq_actual", "der_actual",
+                   "vel_candidato", "dir_candidato", "rot_candidato",
+                   "izq_candidato", "der_candidato", "avance_actual", "avance_candidato",
+                   "rechazo", "accion", "motivo"])
 
     fw = ModeloCase7(confirma_ms=0)
     cand = Candidato(ventana_ms=ventana_ms)
-    dt = 1.0 / FPS
+    dt = 1.0 / fps
     i = escritos = 0
     cnt = {}
     rechazos = interv = 0
@@ -360,22 +405,24 @@ def correr(ruta, desde=0, hasta=10 ** 9, tag="", ventana_ms=600, salida_dir=None
         r = fw.paso(ang, dt)
         signo = 1 if r["rot"] > 0 else (-1 if r["rot"] < 0 else 0)
         c = cand.paso(est, signo, r["rot"], r["vel"], dt, p["cx_arriba"])
-        lsa, rsa = ruedas(r["vel"], r["rot"])
-        lsc, rsc = ruedas(c["vel"], c["rot"])
+        lsa, rsa = ruedas(r["vel"], r["rot"], True)
+        lsc, rsc = ruedas(c["vel"], c["rot"], c["dir"] == "FORWARD")
         if en_tramo and c["rechazo"]:
             rechazos += 1
         if en_tramo and c["accion"] != "normal":
             interv += 1
 
         if en_tramo:
-            fcsv.write("%d,%.1f,%d,%d,%d,%.0f,%.0f,%d,%d,%d,%s,"
-                       "%d,%s,%.3f,%.0f,%.0f,%d,%s,%.3f,%.0f,%.0f,%d,%s,%s\n" %
-                       (idx, ang, p["near"], p["mid"], p["far"], p["area"],
-                        p["area_arriba"], p["wmax"], p["trav"],
-                        1 if es_interseccion(p) else 0, est,
-                        r["vel"], "FORWARD", r["rot"], lsa, rsa,
-                        c["vel"], c["dir"], c["rot"], lsc, rsc,
-                        1 if c["rechazo"] else 0, c["accion"], c["motivo"]))
+            wcsv.writerow([idx, "%.3f" % (idx / fps), "%.1f" % ang,
+                           int(p["near"]), int(p["mid"]), int(p["far"]),
+                           "%.0f" % p["area"], "%.0f" % p["area_arriba"],
+                           p["wmax"], p["trav"], int(es_interseccion(p)), est,
+                           r["vel"], "FORWARD", "%.3f" % r["rot"],
+                           "%.1f" % lsa, "%.1f" % rsa,
+                           c["vel"], c["dir"], "%.3f" % c["rot"],
+                           "%.1f" % lsc, "%.1f" % rsc,
+                           "%.1f" % ((lsa + rsa) / 2.0), "%.1f" % ((lsc + rsc) / 2.0),
+                           int(c["rechazo"]), c["accion"], c["motivo"]])
 
         if not (con_video and en_tramo):
             continue
@@ -452,6 +499,8 @@ def main():
     ap.add_argument("--hasta", type=int, default=10 ** 9)
     ap.add_argument("--tag", default="")
     ap.add_argument("--ventana", type=int, default=600, help="ms de sostenimiento en LOW")
+    ap.add_argument("--fps", type=float, default=FPS,
+                    help="fps REAL de la fuente (33.3 por defecto; el declarado miente)")
     ap.add_argument("--todos", action="store_true")
     a = ap.parse_args()
 
@@ -463,7 +512,7 @@ def main():
             b = os.path.basename(v)
             if b.startswith(("shadow_", "comparacion", "centrado", "CONTROL", "CASO")):
                 continue
-            correr(v, 0, 10 ** 9, "", a.ventana, con_video=False)
+            correr(v, 0, 10 ** 9, "", a.ventana, con_video=False, fps=a.fps)
         return 0
 
     if not a.video:
@@ -473,7 +522,7 @@ def main():
     if not os.path.exists(ruta):
         print("*** no existe %s" % ruta)
         return 2
-    correr(ruta, a.desde, a.hasta, a.tag, a.ventana)
+    correr(ruta, a.desde, a.hasta, a.tag, a.ventana, fps=a.fps)
     return 0
 
 
