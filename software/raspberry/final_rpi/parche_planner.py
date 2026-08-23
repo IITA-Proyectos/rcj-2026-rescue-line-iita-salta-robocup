@@ -20,7 +20,9 @@ USO
 LOS INTERRUPTORES, todos por variable de entorno y todos apagados por defecto
 ----------------------------------------------------------------------------
     ROI=auto      recorta en el horizonte real en vez de la fila 60 fija
-    RECUP=1       al perder la linea, sigue girando hacia donde estaba
+    RECUP=1       al perder la linea, no sigue derecho
+    RETROCEDER=1  al perder la linea, RETROCEDE un paso y vuelve a mirar
+                  (necesita RECUP=1; necesita el firmware con LINEA_PERDIDA_GS)
     CTRL=lineal   reemplaza el atan2 por dos terminos de ganancia constante
     PLANNER=1     el seguidor de trazo maneja
     PLANNER=2     hibrido: el centroide manda, el trazo entra donde se satura
@@ -79,6 +81,14 @@ RUTA_VIDEO   = os.environ.get("GRABAR", "")
 ROI_MODO     = os.environ.get("ROI", "60")
 CTRL         = os.environ.get("CTRL", "atan2")
 RECUP        = os.environ.get("RECUP", "0") == "1"
+# RETROCEDER AL PERDER LA LINEA (idea de Benjamin). En vez de girar buscando a
+# ciegas, se le avisa al firmware -green_state = 4- y el robot RETROCEDE un paso
+# corto y vuelve a mirar. La linea no desaparece por casualidad: desaparece
+# porque el robot se paso, y un segundo antes la tenia abajo. Retroceder rehace
+# el camino; girar a ciegas puede alejarlo mas. Y cuando reaparece, aunque sea
+# en un borde, el control normal gira hacia ella solo: el "alinearse" sale gratis.
+RETROCEDER   = os.environ.get("RETROCEDER", "0") == "1"
+GS_LINEA_PERDIDA = 4
 K_CERCA      = float(os.environ.get("K_CERCA", "40"))
 K_LEJOS      = float(os.environ.get("K_LEJOS", "40"))
 RECUP_ANG    = float(os.environ.get("RECUP_ANG", "75"))
@@ -330,7 +340,15 @@ _CUERPO = [
     '                        _ult_lado = 1.0 if _e > 0 else -1.0',
     '                else:',
     '                    _frames_sin += 1',
-    '                    if _ult_lado != 0.0:',
+    '                    if RETROCEDER:',
+    '                        # avisarle al firmware que retroceda un paso corto.',
+    '                        # El angulo se manda en 0: durante el retroceso no',
+    '                        # tiene sentido pedir giro, y ademas el case 4 del',
+    '                        # firmware no lo usa.',
+    '                        green_state = GS_LINEA_PERDIDA',
+    '                        angle = 0',
+    '                        _quien = "retrocede"',
+    '                    elif _ult_lado != 0.0:',
     '                        # girar hacia donde estaba, cada vez mas fuerte',
     '                        _k = min(1.0, 0.4 + 0.1 * _frames_sin)',
     '                        angle = -_ult_lado * RECUP_ANG * _k',

@@ -118,6 +118,28 @@
 // despues de moverse es preguntar otra cosa. Si hace falta filtrar verdes
 // espurios, hay que confirmarlos ANTES de avanzar, no despues.
 #define VERDE_RECHEQUEO     0       // 0=gira siempre | 1=vuelve a preguntar (viejo)
+
+// RECUPERACION DE LINEA PERDIDA (idea de Benjamin, 2026-08-22).
+// La Raspberry manda green_state = 4 cuando se quedo sin linea. El robot
+// RETROCEDE un paso corto y vuelve a mirar. Si sigue perdida, la Raspberry
+// manda 4 de nuevo y retrocede otro paso.
+//
+// POR QUE RETROCEDER Y NO BUSCAR GIRANDO: la linea no desaparece por
+// casualidad, desaparece porque el robot se paso. Un segundo antes la tenia
+// abajo. Retroceder rehace el camino y la devuelve al cuadro; girar a ciegas
+// puede alejarlo mas. Y una vez que reaparece -aunque sea en un borde- el
+// control normal gira hacia ella solo, asi que el 'alinearse' sale gratis.
+//
+// EN PASOS CORTOS, con la vision en el lazo, no en una maniobra larga a
+// ciegas: cada paso son ~2 cm y despues se vuelve a mirar.
+//
+// Lo que main.py hacia hasta hoy al perder la linea era mandar angle = 0, o
+// sea SEGUIR DERECHO, que es la peor opcion posible.
+#define LINEA_PERDIDA_GS    4       // el codigo que manda la Raspberry
+#define RECUP_VEL          25       // rpm, despacio: se esta yendo a ciegas
+#define RECUP_MS          200       // por paso; ~2 cm
+#define RECUP_MAX_PASOS    20       // tope: 20 pasos = 4 s = ~40 cm hacia atras
+static int g_recup_pasos = 0;       // cuantos lleva seguidos
 #define ESQUIVE_POR_PARIDAD false   // D2.2: par=izq, impar=der (false=random normal)
 #define CONTAR_VERDES       false   // D2.1: habilita el contador de verdes
 #define INVERTIR_DEPOSITO   false   // D2.3: impar invierte zonas (necesita CONTAR_VERDES)
@@ -3041,6 +3063,10 @@ if (green_state == 2)
     action = (verdes_total < 4) ? 5 : 20;   // <3 verdes: giro (case 5) | >=3: "otra cos
 }
 
+                if (green_state == LINEA_PERDIDA_GS)
+                {
+                    action = 4;   // retroceder un paso y volver a mirar
+                }
                 if (green_state == 3)
                 {
                     action = 14;   // === CHALLENGE D1.2: 1=ignorar/recto ===
@@ -3200,6 +3226,21 @@ if (green_state == 2)
                     runTime(0,FORWARD,0,3000);
                     tiemporescate=millis();
                     break;
+                case 4:   // LINEA PERDIDA: retroceder un paso corto y volver a mirar
+                    if (g_recup_pasos < RECUP_MAX_PASOS)
+                    {
+                        g_recup_pasos++;
+                        runTime(RECUP_VEL, BACKWARD, 0, RECUP_MS);
+                    }
+                    else
+                    {
+                        // Ya retrocedio ~40 cm sin encontrarla. Seguir marcha
+                        // atras a ciegas es peor que parar: puede irse contra
+                        // algo o alejarse mas del punto donde la tenia.
+                        robot.steer(0, FORWARD, 0);
+                    }
+                    serialEvent5();
+                    break;
                 case 6:
                     runTime(20, FORWARD, 0, 800);
                     serialEvent5();
@@ -3219,6 +3260,7 @@ if (green_state == 2)
                     }
                     break;
                 case 7: // linetrack
+                    g_recup_pasos = 0;   // hay linea: el contador de retroceso vuelve a cero
                
                     {int velocidadAjustada = ajustarVelocidadPorPendiente(45);
 
@@ -3245,7 +3287,7 @@ if (green_state == 2)
                     const double LINE_TURN_REAR_SCALE = 1.00;
                     const int LINE_CURVE_SPEED = 26;
                     const int LINE_HARD_CURVE_SPEED = 32;   // [EXPERIMENTO 2026-08-22] era 22
-                    const int LINE_PIVOT_SPEED = 35;   // [EXPERIMENTO 2026-08-22] era 20.
+                    const int LINE_PIVOT_SPEED = 50;   // [EXPERIMENTO 2026-08-22] era 20, despues 35.
                     // CONTRAINTUITIVO Y A PROPOSITO. Medido en pista ese dia: el giro
                     // logrado se clava en ~25 d/s de rot=0,5 en adelante por mas que se
                     // pida mas, y el rendimiento cae de 0,84 a 0,64. Pero la fase 2 del
@@ -3277,7 +3319,27 @@ if (green_state == 2)
                     //     escalon de velocidad tambien es un tiron, aunque menos grave que dar
                     //     vuelta una rueda.
                     double k = constrain(absSteer / LINE_PIVOT_STEER, 0.0, 1.0);
-                    int vel = (int)(velocidadAjustada + k * (LINE_PIVOT_SPEED - velocidadAjustada));
+                    // RAMPA CUADRATICA, no lineal, y a proposito. La velocidad
+                    // hace DOS cosas distintas segun donde este la curva:
+                    //
+                    //   rot intermedio  el robot AVANZA mientras gira, asi que
+                    //                   ir rapido lo pasa de largo
+                    //   rot = 1         no avanza nada -las ruedas van iguales
+                    //                   y opuestas-, la velocidad solo controla
+                    //                   que tan rapido GIRA
+                    //
+                    // Medido el 2026-08-22 comparando dos corridas de pista a
+                    // distinta velocidad, por zona (rendimiento de giro):
+                    //   rot 0,40-0,60   a 29 rpm: 0,744/0,824   a 37: 0,716/0,757
+                    //   rot 0,95-1,00   a 20 rpm: 23,7 d/s      a 35: 45,3 d/s
+                    // O sea: en la zona intermedia la corrida MAS LENTA rindio
+                    // mejor, y en el pivote el giro se duplica con mas velocidad.
+                    //
+                    // Con k al cuadrado la velocidad se queda baja en el medio y
+                    // sube recien cerca del pivote: 40 en recta, 42 a mitad de
+                    // curva, 50 en el pivote. Frena donde avanza, empuja donde
+                    // gira. Con la rampa lineal, a mitad de curva daba 45.
+                    int vel = (int)(velocidadAjustada + k * k * (LINE_PIVOT_SPEED - velocidadAjustada));
 
                     // rama solo para la TELEMETRIA (que se lee igual que antes), no para decidir
                     g_line_branch = (absSteer > LINE_PIVOT_STEER) ? 3
