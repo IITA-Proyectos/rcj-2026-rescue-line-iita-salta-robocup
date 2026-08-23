@@ -18,11 +18,15 @@ once `traza_*.csv`.
 | `nuevo_code_v2.py` | 519 | 17.778 | `a6fbdb6e3d52592c3354da2cb26debd6a5e811d7136e1347b45a77b36b4cdd80` | **no** — vive en `~/Downloads` |
 | `nuevo_code_v3.py` | 687 | 19.967 | `cd2c4df04a7a6da652a972e48c7441e4876884f8c387a89e37604698f5ab162e` | **no** — vive en `~/Downloads` |
 | `nuevo_code_v4.py` | 427 | 12.830 | `2d974d5fc230bd73bc3d32157e672e85355e8dda79907b1644babb50cde68a1a` | **no** — vive en `~/Downloads` |
-| `software/raspberry/final_rpi/trazar.py` | 523 | 21.785 | `69736c99b540538baa6f345f4c7c44feb3ed64c1cd7822dd36b2b6101a260e05` | sí, commit **`57e766c`** |
+| `software/raspberry/final_rpi/trazar.py` | 523 | 21.785 | `6ca080bb3ae98513339ca2230d598b0dc945645bcce2ed54a085005ec8149510` | sí, commit **`e90401c`** | |
+| `software/raspberry/final_rpi/groundtruth_v4.py` | 498 | 21049 | `674935f3f6bec541ca25c151ae841ec7449644160d2266261e3150138d868c5b` | sí, commit **`e90401c`** |
 | `software/raspberry/final_rpi/resumen_traza.py` | 150 | 5771 | `5eb3e8684588b2d8600e3b9fd510d2d484f8b98f94f2b45a400c60b1af4171f7` | sí |
 
-- Repositorio HEAD al congelar: **`57e766c8a394612b1410fe48f570048687830ddd`**
-  (`feat(rpi): banco que traza las CINCO etapas de Nuevo Code, sin tocarlo`).
+- Repositorio HEAD: **`e90401c`** (`feat(rpi): ground truth retrospectivo de
+  video_4, y el contador del pre-roll`). El congelado original de la traza fue
+  `57e766c8a394612b1410fe48f570048687830ddd`; **los once `traza_*.csv` no
+  cambiaron**, porque el único cambio de `trazar.py` fue el contador de
+  autovalidación de `--casos` (§13), que no toca ninguna columna del CSV.
 - **Los tres `nuevo_code_*.py` NO están versionados.** Es una deuda: la única
   procedencia que existe hoy son los SHA-256 de arriba. Si alguien los edita, el
   paquete deja de ser reproducible sin aviso.
@@ -403,3 +407,117 @@ Definiciones que no son obvias:
 3. Que la tabla de §8 se reconstruya con `resumen_traza.py` y dé lo mismo.
 4. Contraejemplos: cualquier frame donde la traza diga algo distinto de lo que
    se ve en el video.
+
+
+---
+
+## 13. Corrección aplicada: el contador de autovalidación de `--casos`
+
+La auditoría externa encontró que con `--casos`, `tz.paso()` se ejecuta antes de
+`if i >= desde`, así que el contador de autovalidación acumulaba el pre-roll:
+`hist_exito` decía `n = 100` y `629 frames` de autovalidación. **El pre-roll es
+necesario** —sin él la memoria temporal llega muerta a `--desde`— pero el número
+publicable es el del tramo. Corregido: ahora se informan los dos por separado.
+
+```
+hist_exito       EXITO      n=100   sin target 0 (0.0 %)
+    autovalidacion etapa 2, SOLO EL TRAMO : 100.0 % de 100 frames  OK
+    autovalidacion con el pre-roll 0..579: 100.0 % de 629 frames
+```
+
+El veredicto (`OK` / `MAL`) ahora se decide con el del tramo. Los once
+`traza_*.csv` **no cambian**: el arreglo no toca ninguna columna.
+
+---
+
+## 14. Ground truth retrospectivo de `video_4` — resultado
+
+`groundtruth_v4.py`, rango 490-600, 111 frames.
+
+### Método
+
+Ancla = **todo** frame donde una componente toca la fila 119: ahí el robot la
+tiene debajo y, en un teacher trace, esa es la cinta correcta por construcción.
+Se encontraron **103 anclas sobre 141 frames**. Desde cada una se propaga hacia
+adelante y hacia atrás por solape (fracción de la componente más chica cubierta,
+≥ 0,30, con 9 px de dilatación); cada frame se queda con la asignación de la
+ancla más cercana. Un solo ancla no alcanza: la cinta desaparece 23 frames y
+ninguna propagación en una sola dirección puede cruzar ese hueco.
+
+El target de referencia se calcula con el **mismo `path_target` de
+`nuevo_code_v2.py`** alimentado con la componente correcta. No se inventa una ley.
+
+### Qué dice el ground truth
+
+**La cinta correcta no está en el cuadro entre los frames 524 y 546** (23
+frames). Está visible en 88 de 111 (79,3 %).
+
+| tipo | frames | |
+|---|---:|---|
+| `T1_SELECCION` | **0** | V4 nunca siguió una componente equivocada |
+| `T1_INVENTADO` | **0** | nunca dio target sin cinta visible |
+| `T2_DISCONTINUIDAD` | **0** | |
+| `T3_REACQUISICION` | **0** | |
+| `T0_SIN_ORDEN` | **9** | frames 547-555: la cinta está a la vista y V4 no da target |
+| `T4_CONVERSION` | **8** | frames 556-562 y 591 |
+
+Error del target de V4 contra el de referencia, donde hay ground truth:
+**p50 0,0 px · p90 11,6 px · máx 29,0 px** sobre 79 frames.
+
+### Consecuencia para C-2
+
+**El salto de 160 px del frame 556 NO es un error de percepción.** Solape con la
+cinta correcta = 1,00, error del target = 1,0 px. La cinta desapareció de verdad
+y volvió a entrar por el lado opuesto: el salto es del mundo, no del tracker.
+
+El hueco de reacquisición (`nuevo_code_v4.py:81-83`) sigue siendo un riesgo
+estructural sin instrumentar, pero **en el único caso con respuesta conocida no
+produjo un error de percepción**. Eso cambia el orden de prioridad.
+
+### El error que sí hubo, con su cadena causal completa
+
+`prev_target` queda **congelado en (154,115) desde el frame 523 hasta el 556** —
+33 frames — porque `nuevo_code_v2.py:320-322` y `:342-344` salen de PERDIDA sin
+resetear la memoria. Y `nuevo_code_v2.py:340` rechaza una componente si
+`distancia > 75` **y** `ymax < 70`:
+
+| frame | área | `ymax` | dist. a `prev_target` | resultado |
+|---:|---:|---:|---:|---|
+| 550 | 596 | 65 | 81,0 | rechazada → PERDIDA |
+| 553 | 622 | 67 | 111,7 | rechazada → PERDIDA |
+| 554 | 710 | 68 | 109,0 | rechazada → PERDIDA |
+| 555 | 771 | 68 | 107,0 | rechazada → PERDIDA |
+| **556** | 908 | **70** | 103,7 | **aceptada** |
+
+V4 tuvo la cinta correcta a la vista con 622 px de área desde el frame 553 y la
+rechazó tres frames más **por dos filas de diferencia en `ymax`**. La distancia
+nunca mejoró (103,7 > 75 igual en el 556): lo que destrabó fue que la cinta
+creciera hasta cruzar `ymax >= 70`. La referencia contra la que se mide esa
+distancia tiene 33 frames de antigüedad.
+
+**Son 9 frames = 0,45 s a 20 fps de ceguera con la cinta a la vista**, y la causa
+es la memoria congelada, no ninguno de los cinco limitadores.
+
+### El otro error: la conversión
+
+En 556-562 el target está bien (error 0,0 px) y `steer_request` pide **+87°**
+mientras la dirección real hacia ese mismo punto es **+55°**. Sobre los 79
+frames con ground truth: p50 3,9° · p90 17,3° · **máx 32,1°**. El error es chico
+cuando el target está cerca del centro y grande cuando está lateral y lejos, que
+es exactamente cuando el robot está en problemas.
+
+Importa porque el firmware no es agnóstico: `main.cpp` recibe `angle+90` y el
+`case 7` entra en pivote con `|angle| >= 40°`. Los dos valores pivotean, pero
+con `rot` distinto.
+
+### Archivos
+
+- `groundtruth_video_4.csv` — 17 columnas, una fila por frame.
+- `groundtruth_video_4.avi` — evidencia visual: verde = cinta correcta, cruz
+  verde = target de referencia, X blanca = target de V4.
+
+Los dos son derivados y están en `.gitignore`; se regeneran con:
+
+```bash
+python groundtruth_v4.py --avi
+```
