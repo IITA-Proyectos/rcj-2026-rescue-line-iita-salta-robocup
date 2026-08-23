@@ -103,6 +103,21 @@
 // parecia un error: el 2026-08-22 alguien lo "restauro" a true justamente por eso.
 // Como bandera con nombre queda claro que es una decision y se prende en un lugar.
 #define PLATEADO_TEENSY     0       // 0=solo la camara decide | 1=la Teensy tambien
+// VERDE_RECHEQUEO - volver a preguntar por el verde DESPUES de avanzar 800 ms.
+// APAGADO. El case 6 y el case 5 hacian esto:
+//     runTime(20, FORWARD, 0, 800);   avanzar 800 ms
+//     serialEvent5();                 releer el serial
+//     if (green_state == 1) runAngle(...);
+// Despues de avanzar 800 ms el cuadrado verde YA SALIO del campo de la camara,
+// asi que la Raspberry esta mandando green_state = 0 y el giro no se ejecuta
+// nunca. Sintoma en pista: el robot baja la velocidad -eso es el runTime- y
+// despues sigue derecho sin doblar. Reportado el 2026-08-22.
+// El propio codigo ya lo sospechaba: telemGreenResultado() lleva la cuenta de
+// g_act (giro) contra g_kill (matado por el re-chequeo).
+// La decision YA se tomo cuando se puso action = 6; volver a preguntarla
+// despues de moverse es preguntar otra cosa. Si hace falta filtrar verdes
+// espurios, hay que confirmarlos ANTES de avanzar, no despues.
+#define VERDE_RECHEQUEO     0       // 0=gira siempre | 1=vuelve a preguntar (viejo)
 #define ESQUIVE_POR_PARIDAD false   // D2.2: par=izq, impar=der (false=random normal)
 #define CONTAR_VERDES       false   // D2.1: habilita el contador de verdes
 #define INVERTIR_DEPOSITO   false   // D2.3: impar invierte zonas (necesita CONTAR_VERDES)
@@ -3189,7 +3204,7 @@ if (green_state == 2)
                     runTime(20, FORWARD, 0, 800);
                     serialEvent5();
                     telemGreenResultado(1, green_state);   // TELEMETRIA: giro o matado por re-chequeo
-                    if (green_state == 1)
+                    if (!VERDE_RECHEQUEO || green_state == 1)
                     {
                         runAngle(35, FORWARD, INVERTIR_VERDES ? 60 : -60);   // === CHALLENGE D1.1 ===
                     }
@@ -3198,7 +3213,7 @@ if (green_state == 2)
                     runTime(20, FORWARD, 0, 800);
                     serialEvent5();
                     telemGreenResultado(2, green_state);   // TELEMETRIA: giro o matado por re-chequeo
-                    if (green_state == 2)
+                    if (!VERDE_RECHEQUEO || green_state == 2)
                     {
                         runAngle(25, FORWARD, INVERTIR_VERDES ? -60 : 60);   // === CHALLENGE D1.1 ===
                     }

@@ -83,6 +83,7 @@ K_CERCA      = float(os.environ.get("K_CERCA", "40"))
 K_LEJOS      = float(os.environ.get("K_LEJOS", "40"))
 RECUP_ANG    = float(os.environ.get("RECUP_ANG", "75"))
 SATURA_DESDE = float(os.environ.get("SATURA_DESDE", "70"))
+AREA_MIN_LINEA = float(os.environ.get("AREA_MIN", "200"))   # px; ver _solo_mi_linea
 
 _ult_lado = 0.0        # +1 la linea estaba a la derecha, -1 a la izquierda
 _frames_sin = 0        # cuantos frames seguidos sin verla
@@ -130,12 +131,27 @@ def _solo_mi_linea(mask):
     Cuesta 0,09 ms por frame.
     """
     try:
-        num, et = cv2.connectedComponents((mask > 0).astype(np.uint8))
+        num, et, st, _ = cv2.connectedComponentsWithStats((mask > 0).astype(np.uint8), 8)
         fila = et[mask.shape[0] - 2]
-        suyas = fila[fila > 0]
+        suyas = np.unique(fila[fila > 0])
+        # SI NADA TOCA AL ROBOT, DEVOLVER VACIO, NO LA MASCARA ENTERA.
+        # Devolver la mascara completa era el peor fallback posible: cuando el
+        # robot se sale a un piso de madera o al salon, el ruido de la veta pasa
+        # el filtro, _error_lateral encuentra sus 20 pixeles y devuelve un
+        # numero -basura, pero un numero-, asi que la recuperacion de linea
+        # NUNCA se activa. Medido el 2026-08-22 en el video a.avi: en los cinco
+        # episodios de salida la componente que toca al robot tiene area 0, y el
+        # overlay decia "centroide" en vez de "buscando" durante los 3,7 s.
         if not len(suyas):
-            return mask
-        return (np.isin(et, np.unique(suyas)) * 255).astype(np.uint8)
+            return np.zeros_like(mask)
+        # Y una mancha demasiado chica tampoco es una linea: es ruido pegado al
+        # borde. Umbral sacado de los datos, no a ojo: con 200 px se marcan como
+        # "sin linea" el 100% de los frames de salida y solo el 11% de los
+        # normales, donde la mediana del area es 3080 px.
+        area = max(int(st[i, cv2.CC_STAT_AREA]) for i in suyas)
+        if area < AREA_MIN_LINEA:
+            return np.zeros_like(mask)
+        return (np.isin(et, suyas) * 255).astype(np.uint8)
     except Exception:
         return mask
 
