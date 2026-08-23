@@ -103,6 +103,55 @@ SATURA_DESDE = float(os.environ.get("SATURA_DESDE", "70"))   # grados
 #   ROI=auto  busca el horizonte en cada frame
 ROI_MODO = os.environ.get("ROI", "60")
 
+# CONTROL LINEAL. El atan2 no es un controlador, es un cambio de coordenadas, y
+# su ganancia esta INVERTIDA. Medido sobre roi_auto.avi (3221 frames):
+#
+#   desvio      angulo medio    ganancia
+#   0 - 5 px       19,3 gr       1,04 gr/px
+#   5 - 10 px      26,9          1,74
+#   30 - 45 px     55,6          0,29
+#   45 - 80 px     57,5         -0,61      <- ya no corrige mas
+#
+#   cerca del centro 1,45 gr/px   |   lejos del centro -0,10 gr/px
+#
+# O sea: a UN pixel del centro ya corrige 1,45 grados -por eso se pasa- y a 45 px
+# no corrige mas que a 30 -por eso, cuando se fue, no vuelve-. El resultado
+# medido es que cruza la linea 1,9 veces por segundo y solo esta el 42% del
+# tiempo a menos de 10 px del centro.
+#
+# El reemplazo son DOS terminos lineales, que es lo que un seguidor necesita:
+#   e_cerca  cuan corrido esta AHORA      -> lo endereza
+#   e_lejos  para donde va la cinta       -> lo anticipa
+# Los dos con ganancia CONSTANTE: a 40 px corrige cuarenta veces mas que a 1 px,
+# monotono, sin saturarse hasta el tope real.
+#   CTRL=atan2   (por defecto) el calculo de siempre
+#   CTRL=lineal  los dos terminos proporcionales
+CTRL = os.environ.get("CTRL", "atan2")
+K_CERCA = float(os.environ.get("K_CERCA", "40"))
+K_LEJOS = float(os.environ.get("K_LEJOS", "40"))
+
+def _error_lateral(mask, y0, y1):
+    """Donde esta la cinta entre las filas y0 e y1, de -1 (izquierda) a +1."""
+    banda = mask[y0:y1, :]
+    xs = np.nonzero(banda)[1]
+    if len(xs) < 20:
+        return None
+    return (float(xs.mean()) - (mask.shape[1] - 1) / 2.0) / (mask.shape[1] / 2.0)
+
+def _angulo_lineal(mask, corte):
+    """Dos terminos lineales. Devuelve None si no hay cinta cerca."""
+    e_cerca = _error_lateral(mask, 100, 120)
+    if e_cerca is None:
+        e_cerca = _error_lateral(mask, corte, 120)
+        if e_cerca is None:
+            return None
+    e_lejos = _error_lateral(mask, corte, min(corte + 20, 100))
+    if e_lejos is None:
+        # sin banda lejana no hay anticipacion: se endereza con lo de cerca,
+        # y se avisa poniendo todo el peso ahi en vez de inventar un rumbo.
+        return max(-90.0, min(90.0, -(K_CERCA + K_LEJOS) * e_cerca))
+    return max(-90.0, min(90.0, -(K_CERCA * e_cerca + K_LEJOS * e_lejos)))
+
 def _fila_horizonte(frame_bgr, minimo=30, maximo=60):
     """Primera fila desde arriba a partir de la cual empieza el piso.
 
@@ -238,17 +287,13 @@ NUEVO_ANGULO = (
 
     '            # ---- ROI ADAPTATIVO (parche IITA) ----\n'
 
-    '            # El recorte fijo de la fila 60 tira piso util. Medido sobre el\n'
+    '            # El recorte fijo de la fila 60 tira piso util: el horizonte real\n'
 
-    '            # video del 2026-08-22: el horizonte real esta en la fila 52, se\n'
+    '            # esta en la fila 52 (mediana) y en el 73% de esos casos hay cinta\n'
 
-    '            # descartan 8 filas (mediana, 15 en el p75) y en el 73% de esos\n'
+    '            # ahi. Son las filas mas lejanas, o sea la anticipacion.\n'
 
-    '            # casos HAY CINTA ahi. Son las filas mas lejanas, o sea justo la\n'
-
-    '            # anticipacion que le falta al robot. Con la camara a altura fija\n'
-
-    '            # esta es la unica vista hacia adelante que se puede ganar.\n'
+    '            _corte = 60\n'
 
     '            if ROI_MODO == "auto":\n'
 
@@ -274,17 +319,31 @@ NUEVO_ANGULO = (
 
     '\n'
 
+    '            # ---- CONTROL LINEAL (parche IITA) ----\n'
+
+    '            # Reemplaza al atan2, cuya ganancia esta invertida. Ver el\n'
+
+    '            # comentario de CTRL arriba: los numeros salen de medir 3221\n'
+
+    '            # frames de pista.\n'
+
+    '            if CTRL == "lineal":\n'
+
+    '                _al = _angulo_lineal(black_mask, _corte)\n'
+
+    '                if _al is not None:\n'
+
+    '                    angle = _al\n'
+
+    '\n'
+
     '            # ---- PLANNER (parche IITA) ----\n'
-
-    '            # El angulo del centroide ya se calculo arriba y queda guardado: es\n'
-
-    '            # la referencia del video y, en modo hibrido, tambien el que manda.\n'
 
     '            _ang_viejo = angle\n'
 
     '            _r = None\n'
 
-    '            _quien = "centroide"\n'
+    '            _quien = "lineal" if CTRL == "lineal" else "centroide"\n'
 
     '            if USAR_PLANNER:\n'
 
@@ -299,10 +358,6 @@ NUEVO_ANGULO = (
     '                        _quien = "planner"\n'
 
     '                    elif _r.get("ok") and abs(_ang_viejo) >= SATURA_DESDE:\n'
-
-    '                        # El centroide se saturo: perdio gradacion y ya no sabe\n'
-
-    '                        # PARA DONDE sigue la cinta, solo que esta mal parado.\n'
 
     '                        angle = _r["angle_filtrado"]\n'
 
