@@ -54,6 +54,8 @@ orden ausente, y no hay dato offline que los compare.
 | H7 | podar ramas cortas estabiliza el punto geodésico | **NO DECIDIDA** | la distribución de 39.009 longitudes no es bimodal (p50 48,3, 41,2 % >64 px). Mata *elegir umbral por valle*, no el pruning como clase — corrección de ChatGPT, aceptada |
 | — | V4-sostiene (nunca devolver `None`) | **REFUTADA** | 100 % de disponibilidad y 0 huecos, pero **26,2 % de targets fuera de la centerline** y rachas de hasta **124 frames (3,7 s)** siguiendo un fantasma |
 | — | V4 sin `reset()` de memoria | **REFUTADA** | falla los obligatorios: `hist_exito` 82/100, `lineal_positivo` 71/73; disponibilidad 73,78 %. **El `reset()` no es un bug: es lo que impide que el guard se trabe** |
+| H8 | el peso de continuidad del score (0,10) es lo que deja saltar el `raw` | **CAE como solución al salto** | barrido 0,0→2,0: saltos >24 px **planos** (251/246/245/247/246/246) y disponibilidad plana. Autovalidación de la copia: 401/401 |
+| — | subir ese peso igual conviene | **NO**, y por una razón concreta | mejora monótona sin meseta: inversiones 394→354, suavidad 1,91→1,01. Una curva monótona sin óptimo es sospechosa, y **su límite es la variante «sostiene» ya refutada** (target congelado, 26,2 % fuera de la centerline) |
 | T4 | la conversión `target_x → steer` está mal | **SUSPENDIDA** | falta un dato físico (§6) |
 
 ---
@@ -150,6 +152,8 @@ Ninguna entró al código. Todas se convirtieron en hipótesis falsable primero.
 | `033940f`, `7538de5` | `ramas_esqueleto.py` — H7 sin umbral natural |
 | `24bfeb1` | `topologia.py` — H6b refutada, las ramas son reales |
 | `f06396b` | `ab_v2_v3_v4.py`, `variante_sostiene.py`, `variante_sin_reset.py`, `arquitectura_minima.py` — el A/B y la candidata |
+| `42a5837` | este handoff |
+| `5652b0d` | `continuidad.py` — H8 cae |
 
 ---
 
@@ -169,11 +173,17 @@ Ninguna entró al código. Todas se convirtieron en hipótesis falsable primero.
 
 ## 9. Qué haría el próximo bloque
 
-1. Medir la métrica que ChatGPT propuso y quedó pendiente: **¿el `raw` cambia de
-   rama cuando cambia la topología entre variantes de segmentación?** Es más
-   causal que contar hojas.
-2. Con H6a ganando, el problema es **selección de rama en el grafo**, no limpieza
-   de máscara: probar un criterio de continuidad de rama *dentro* del Dijkstra
-   —elegir el camino que más se parece al del frame anterior— en vez de un guard
-   posterior.
-3. No escribir V5. Si eso funciona, es un cambio *dentro* de la etapa 1.
+Lo que se probó y cerró en este bloque: subir el peso de continuidad del score
+(H8) **no** es la palanca del salto, y su curva monótona lleva al régimen de la
+variante «sostiene», que ya está refutada. Ese camino queda cerrado.
+
+Queda pendiente, en orden:
+
+1. La métrica que propuso ChatGPT y no llegué a medir: **¿el `raw` cambia de rama
+   cuando cambia la topología entre variantes de segmentación?** Es más causal
+   que contar hojas y es el paso siguiente natural de H6a.
+2. Con H6a ganando y H8 caída, la selección de rama no se arregla con un peso.
+   Habría que probar **continuidad del CAMINO completo**, no del punto: comparar
+   el `path` del frame anterior con los candidatos del actual, en vez de comparar
+   sólo la posición del target. Es un cambio dentro de la etapa 1.
+3. **No escribir V5.** Si algo de esto funciona, es un cambio dentro de V2.
