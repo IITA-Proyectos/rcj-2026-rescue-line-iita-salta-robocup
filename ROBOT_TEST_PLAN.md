@@ -108,11 +108,22 @@ Tramos contiguos de linetrack con `|rot| ≥ 0,95` y **signo constante**.
 > `rxsteer` real). Así que **la línea de base NO es 0,190 s: es el bloque de `T_min = 0` del
 > propio sábado.** Por eso el 0 se corre dos veces.
 
-| | base = el bloque `T_min=0` de hoy | qué esperar con `T_min = 400 ms` |
-|---|---|---|
-| duración p50 | ~245 ms (simulado; **se mide el sábado**) | **~305 ms** |
-| tramos ≥ 300 ms | ~39 % | **~51 %** |
-| tramos que terminan por cambio de signo | ~38 % | **~31 %** |
+Simulado sobre **las seis corridas**, alimentando el modelo con el `rxsteer` real:
+
+| | base `T_min=0` | con `T_min = 400 ms` | |
+|---|---|---|---|
+| duración p50 del tramo | 420 ms | **480 ms** | +14 % |
+| inversiones de signo (6 CSV) | 305 | **259** | −15 % |
+| inversiones de signo (10 videos) | 427 | **345** | −19 % |
+
+> **El efecto es MODESTO y hay que saberlo antes de mirar los datos.** `hist.avi` sola da
+> −40 %, pero es el mejor caso de los diez y encima es la corrida contaminada. El rango real
+> por corrida va de **3 % a 43 %**. Si el sábado sale una mejora del 15 %, **eso es el
+> resultado esperado, no un fracaso.**
+>
+> Y se verificó la alternativa: subir `LINE_PIVOTE_CONFIRMA_MS` a 50 o 100 **acorta** los
+> tramos (420 → 360 ms) en vez de alargarlos, porque el pivote queda enganchado más tiempo y
+> se parte en más pedazos. **`CONFIRMA = 0` es lo correcto y no se toca.**
 
 **PASS:** el p50 sube y la fracción de tramos ≥ 300 ms sube, **contra el bloque de 0 del
 mismo día**, y la diferencia aparece en los DOS bloques de 0 (el del principio y el del
