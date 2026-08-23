@@ -33,3 +33,5 @@ software/raspberry/final_rpi/CASO_FALLA_*.avi
 
 # derivados del banco de instrumentacion: se regeneran con trazar.py
 software/raspberry/final_rpi/traza_*.csv
+software/raspberry/final_rpi/groundtruth_video_4.avi
+software/raspberry/final_rpi/groundtruth_video_4.csv

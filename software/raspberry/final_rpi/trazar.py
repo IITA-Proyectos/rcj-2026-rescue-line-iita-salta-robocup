@@ -223,9 +223,14 @@ class Trazador(object):
 
         # AUTOVALIDACION: sin low_proj, la etapa 2 reproducida tiene que ser
         # identica a lo que V2 devolvio.
-        if t_geo is not None and t_cap is not None and "low_proj" not in reason:
+        cap_comparable = (t_geo is not None and t_cap is not None
+                          and "low_proj" not in reason)
+        cap_igual = bool(cap_comparable
+                         and abs(t_cap[0] - t_geo[0]) < 1e-6
+                         and abs(t_cap[1] - t_geo[1]) < 1e-6)
+        if cap_comparable:
             self.cap_total += 1
-            if (abs(t_cap[0] - t_geo[0]) < 1e-6 and abs(t_cap[1] - t_geo[1]) < 1e-6):
+            if cap_igual:
                 self.cap_ok += 1
 
         # edades
@@ -260,6 +265,7 @@ class Trazador(object):
             edad_prev=self.edad_prev, edad_lg=self.edad_lg,
             prev_target=prev_target, last_good=last_good,
             atan2=self.v2.atan2_actual(g),
+            cap_comparable=cap_comparable, cap_igual=cap_igual,
         )
 
 
@@ -297,6 +303,11 @@ def correr(v4mod, v3mod, v2mod, ruta, fps, desde, hasta, salida_csv):
         raise IOError("no se pudo abrir %s" % ruta)
     tz = Trazador(v4mod, v3mod, v2mod, fps)
     filas = []
+    # `tz.cap_ok/cap_total` cuenta desde el frame 0 porque el pre-roll es
+    # necesario para que la memoria temporal llegue viva a `desde`. Pero el
+    # numero que corresponde publicar para un tramo es el del TRAMO. Se cuentan
+    # los dos por separado y se informan los dos.
+    caso_ok = caso_total = 0
     i = 0
     fh = open(salida_csv, "w", newline="", encoding="utf-8")
     wr = csv.writer(fh)
@@ -309,6 +320,9 @@ def correr(v4mod, v3mod, v2mod, ruta, fps, desde, hasta, salida_csv):
             g = v2mod.frame_pi(fr)
             d = tz.paso(g)                 # el estado se arrastra desde el 0
             if i >= desde:
+                if d["cap_comparable"]:
+                    caso_total += 1
+                    caso_ok += int(d["cap_igual"])
                 fin = d["fin"]
                 steer = (None if fin is None else
                          float(np.clip(-90.0 * (fin[0] - CENTER) / (W / 2.0), -90, 90)))
@@ -344,6 +358,8 @@ def correr(v4mod, v3mod, v2mod, ruta, fps, desde, hasta, salida_csv):
     finally:
         cap.release()
         fh.close()
+    tz.caso_ok, tz.caso_total = caso_ok, caso_total
+    tz.pre_roll = max(0, desde)
     return filas, tz
 
 
@@ -386,10 +402,16 @@ def informe(nom, etiqueta, filas, tz, ev):
     print("  " + "-" * 76)
     print("  %-18s %-18s  n=%d   sin target %d (%.1f %%)"
           % (nom, etiqueta, n, sin, 100.0 * sin / max(n, 1)))
-    val = 100.0 * tz.cap_ok / max(tz.cap_total, 1)
+    val = 100.0 * tz.caso_ok / max(tz.caso_total, 1)
     marca = "OK" if val >= 99.9 else "*** MAL, no usar el resto ***"
-    print("      autovalidacion de la etapa 2 (cap de V2): %.1f %% de %d frames  %s"
-          % (val, tz.cap_total, marca))
+    print("      autovalidacion etapa 2, SOLO EL TRAMO : %.1f %% de %d frames  %s"
+          % (val, tz.caso_total, marca))
+    if tz.cap_total != tz.caso_total:
+        print("      autovalidacion con el pre-roll 0..%d: %.1f %% de %d frames"
+              % (tz.pre_roll - 1, 100.0 * tz.cap_ok / max(tz.cap_total, 1),
+                 tz.cap_total))
+        print("      (el pre-roll es necesario para que la memoria temporal"
+              " llegue viva a --desde; no es parte del tramo)")
 
     # cuanto movio cada capa
     print("      %-16s %6s %8s %8s %8s" % ("capa", "actua", "p50 px", "p90 px", "MAX px"))
@@ -436,7 +458,7 @@ def informe(nom, etiqueta, filas, tz, ev):
                      "--" if e["dhead"] is None else "%+.0f" % e["dhead"],
                      e["sg"]))
     return dict(n=n, sin=sin, ev=ev, fa=fa, rama=len(saltos_rama),
-                val=val, val_n=tz.cap_total)
+                val=val, val_n=tz.caso_total)
 
 
 def main(argv=None):
