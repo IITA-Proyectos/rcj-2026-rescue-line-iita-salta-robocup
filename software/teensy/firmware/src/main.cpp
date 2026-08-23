@@ -3297,7 +3297,9 @@ if (green_state == 2)
                     // steer > 0,7 (absSteer ~0,95). 0,30 hacia pivotear casi toda la
                     // corrida -el absSteer esta en la banda media el 32% del tiempo- y
                     // el robot casi no avanzaria. 1.1 desactiva el pivote.
-                    const double LINE_PIVOTE_DESDE = 0.60;   // [EXPERIMENTO 2026-08-22]
+                    const double LINE_PIVOTE_ENTRA = 0.60;   // arranca a pivotear
+                    const double LINE_PIVOTE_SALE  = 0.15;   // y NO sale hasta alinearse
+                    const unsigned long LINE_PIVOTE_MAX_MS = 2500;   // tope de seguridad
                     const double LINE_HARD_ROTATION_MIN = 0.8;
                     const double LINE_HARD_ROTATION_MAX = 0.90;
                     const double LINE_TURN_FRONT_SCALE = 0.55;
@@ -3361,8 +3363,41 @@ if (green_state == 2)
                     // alrededor del umbral. Si se ve eso en el video, la solucion
                     // es histeresis -salir del pivote con un umbral mas bajo que
                     // el de entrada-, no bajar el umbral.
+                    // HISTERESIS: entrar en un umbral y SALIR EN OTRO MUCHO MAS BAJO.
+                    //
+                    // Sin esto la condicion de entrada y la de salida eran la misma,
+                    // asi que apenas el robot giraba lo suficiente para que el angulo
+                    // bajara de 0,60 salia del pivote y avanzaba... y la curva volvia
+                    // a crecer. Medido en pista el 2026-08-22:
+                    //     3,6 entradas y salidas del pivote POR SEGUNDO
+                    //     episodios de pivote de 160 ms (mediana)
+                    //     8 GRADOS girados por episodio (mediana)
+                    //     solo 4 de 76 episodios pasaron los 45 grados
+                    // Una curva cerrada pide ~90. El robot picoteaba el giro y entre
+                    // picotazo y picotazo avanzaba, que es cuando se le va la linea.
+                    //
+                    // Con histeresis, una vez que decide pivotear NO SUELTA hasta
+                    // quedar alineado (absSteer <= 0,15). Cada pivote completa la
+                    // curva de un saque, que es lo que se buscaba desde el principio.
+                    //
+                    // El tope de tiempo es una red: si la vision se queda pidiendo
+                    // giro para siempre -linea perdida, reflejo, un verde mal leido-
+                    // el robot no puede quedarse girando en el lugar indefinidamente.
+                    static bool s_en_pivote = false;
+                    static unsigned long s_pivote_t0 = 0;
+                    if (!s_en_pivote && absSteer >= LINE_PIVOTE_ENTRA)
+                    {
+                        s_en_pivote = true;
+                        s_pivote_t0 = millis();
+                    }
+                    else if (s_en_pivote &&
+                             (absSteer <= LINE_PIVOTE_SALE ||
+                              millis() - s_pivote_t0 > LINE_PIVOTE_MAX_MS))
+                    {
+                        s_en_pivote = false;
+                    }
                     double rot;
-                    if (absSteer >= LINE_PIVOTE_DESDE)
+                    if (s_en_pivote)
                         rot = 1.0;
                     else
                         rot = pow(absSteer, LINE_ROT_EXP);
