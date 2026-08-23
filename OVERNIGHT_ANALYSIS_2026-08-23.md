@@ -23,7 +23,7 @@ por limite de tiempo o de creditos, NO hay que volver a empezar: hay que leer el
 | `wf_1d653bde-be6` | analisis de los 10 videos y 10 CSV | **terminado** -> `ANALISIS-2026-08-23.md` |
 | `wf_94d7612a-538` | idem | **MURIO** por limite de sesion, 0 de 6 agentes terminaron. Sobrevivio `replay.py`, escrito antes de morir |
 | `wf_3cd1cde7-d09` | relanzado sin replay: 3 investigaciones + refutadores + auditoria + sintesis | **terminado**, 8/8 |
-| `wf_9aebdda4-0b8` | revision independiente de los 5 commits de la noche | corriendo |
+| `wf_9aebdda4-0b8` | revision independiente de los 5 commits | **terminado**: 3 bloqueantes, los 3 cerrados |
 
 Todo cuelga de la carpeta de la sesion:
 
@@ -364,6 +364,113 @@ sirve con esa luz. **Hay que resolverlo aparte, y antes de la competencia.**
 Y uno preexistente: la cadena de `if` de `main.cpp:3063-3110` no tiene `else` ni `default`, y
 `action` es global. Un `green_state` no contemplado —la Pi manda **10 y 11**— deja la acción
 anterior. Si la anterior fue 4, el robot sigue retrocediendo mientras la Pi pide otra cosa.
+
+---
+
+## LA REVISIÓN INDEPENDIENTE — encontró tres bloqueantes, los tres míos
+
+Tres revisores independientes sobre los cinco commits. **Veredicto inicial: no se lleva a la
+pista.** Los tres bloqueantes están cerrados y verificados con medición propia.
+
+### B-1 — `LINE_PIVOTE_CONFIRMA_MS = 300` se iba a flashear por primera vez
+
+Al poner `competencia_fix` por defecto se enciende `FIX_CURVA_CONTINUA`, y adentro vive un
+pivote que exige **300 ms de alineación sostenida** para soltar. **Ese valor nunca corrió en
+el robot.**
+
+Medido por mí sobre los 6 CSV — las rachas continuas de `absSteer ≤ 0,15`:
+
+| corrida | p50 | p90 | **% que llega a 300 ms** |
+|---|---|---|---|
+| arbol_de_ramas | 75 ms | 240 ms | 7,7 % |
+| gain18 | 55 ms | 235 ms | 6,6 % |
+| pivote35 | 70 ms | 195 ms | 1,2 % |
+| pivote_con_histeresis | 50 ms | 150 ms | 1,7 % |
+| pivote_sin_histeresis | 50 ms | 195 ms | 1,9 % |
+| rampa_continua_pivote20 | 70 ms | 230 ms | 3,3 % |
+
+**La salida por alineación es inalcanzable.** El pivote saldría siempre por el tope de
+2500 ms, y en pivote `rot = 1,0` → `_leftspeed = −speed` → **avance cero por diseño**. El
+robot giraría en el lugar 2,5 s, soltaría, y volvería a enganchar. **Eso es Lack of Progress
+delante del árbitro.**
+
+Y había una contradicción interna que lo decidía sola: mi propio comentario decía *"NO
+flashear en 300 sin medirlo antes"* y el commit siguiente lo flasheaba.
+
+**Cerrado:** el default pasa a **0**, que es la histéresis simple que realmente corrió el
+22-ago y que el replay valida al 94,1 % de rama igual. Rango útil medido: 300 ms deja pasar
+el 3 %, **100 ms el 31 %**, 50 ms el 61 %.
+
+### B-2 — el dwell contaba desde la entrada al pivote
+
+Sólo protegía la **primera** inversión de cada episodio; después el signo volvía a
+rescribirse cada trama. **Cerrado:** cada inversión se gana su propia ventana, y el static
+se limpia al salir del pivote o al entrar en rampa.
+
+### B-3 — `LOG=` no estaba documentado
+
+Ni en el docstring ni en las instrucciones que el parche imprime. **El sábado habrían
+corrido lo que dice la pantalla y vuelto sin CSV: los dos commits de la noche no habrían
+entregado nada.** Cerrado en los dos lugares.
+
+---
+
+## EL CRITERIO PASS ESTABA MEDIDO SOBRE UNA POBLACIÓN QUE YA NO EXISTE
+
+Lo más valioso de la revisión, y no lo había visto ningún agente antes.
+
+Los **0,190 s** salen de las seis corridas del 22-ago, y **ninguna tenía el latch de pivote
+encendido** — verificado: `s_en_pivote` no existe en los commits que las produjeron. Sin
+latch, `rot` sigue a `absSteer` y el tramo se corta apenas baja el ángulo.
+
+| | termina por cambio de signo | por salir de banda |
+|---|---|---|
+| `arbol_de_ramas` (sin latch) | 0,0 % | 100,0 % |
+| `pivote_sin_histeresis` (umbral, sin latch) | 7,3 % | 92,7 % |
+| **`pivote_con_histeresis` (con latch)** | **52,0 %** | 48,0 % |
+| **TOTAL** | **20,1 %** | **79,9 %** |
+
+**Encender el latch solo, sin dwell, ya lleva el p50 a ~245 ms.** Así que la base del sábado
+**no es 0,190 s: es el bloque de `T_min = 0` de ese mismo día.**
+
+Y el efecto esperado del dwell es **moderado**: 245 → 305 ms de p50, y 39 → 51 % de tramos
+sobre 300 ms. El salto grande lo da el latch, no el dwell.
+
+**Esto reencuadra la prueba del sábado y ya está corregido en el plan.**
+
+---
+
+## LO QUE LA REVISIÓN DESCARTÓ A PROPÓSITO, con el número
+
+- **Bajar `LINE_PIVOTE_MAX_MS` a 800 ms**: a 39 °/s, 90° cuestan 2,3 s. Capa el pivote en
+  ~31° y mata justo lo que se quiere habilitar. Y con `CONFIRMA=0` sólo el 0-12 % de los
+  episodios llega al tope.
+- **La guarda `availableForWrite() < 420`**: inerte por USB, que devuelve múltiplos de 2048.
+  Sólo mordería en `diagnostico_suelto` (Serial8).
+- **Revertir `FIX_LAZO_MOTOR`**: corrió en pista en 5 de 6 corridas (`fix_lazo=1` en la
+  procedencia). Lo que sigue sin medir es `MOTO_PWM_ANTICOAST 20.0` y el comportamiento en
+  verde/rescate.
+- **Tocar `PITCH_RAMPA`**: `pitch > 12` pasa el 0,00 % del tiempo en 4 corridas y 0,3-0,8 %
+  en dos, con ráfagas de 125-185 ms. Existe, es raro, y para el dwell falla del lado seguro.
+
+---
+
+## ESTADO FINAL DE LA NOCHE
+
+**Ocho commits.** Los tres bloqueantes cerrados. Los tres entornos compilan. El parche entra
+sobre el `main.py` real, compila, y `--revertir` deja el archivo **idéntico byte a byte**.
+
+**Lo que NO se puede saber sin el robot, y por eso el sábado existe:**
+
+1. Si sostener el signo completa la curva. Todo el análisis es **lazo abierto** sobre
+   `rxsteer` grabado con la trayectoria que el robot realmente hizo.
+2. Si el `T_min` correcto son 250 o 400 ms.
+3. Si los ~39 °/s se sostienen en el piso de la sede.
+4. Cuántos grados pide de verdad la curva que falla — no hay mapa de pista.
+5. Si `FIX_LAZO_MOTOR` se porta bien en verde, plateado y rescate: ninguna corrida grabada
+   llegó a evacuación.
+6. **Si un giro sostenido tapa un verde.** Y arriba de eso, el P0 aparte: **el detector de
+   verde no disparó ni una vez en 417 s de video.**
 
 ---
 
