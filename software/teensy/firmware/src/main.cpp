@@ -3300,6 +3300,7 @@ if (green_state == 2)
                     const double LINE_PIVOTE_ENTRA = 0.60;   // arranca a pivotear
                     const double LINE_PIVOTE_SALE  = 0.15;   // y NO sale hasta alinearse
                     const unsigned long LINE_PIVOTE_MAX_MS = 2500;   // tope de seguridad
+                    const unsigned long LINE_PIVOTE_CONFIRMA_MS = 300;   // hay que SOSTENER la alineacion
                     const double LINE_HARD_ROTATION_MIN = 0.8;
                     const double LINE_HARD_ROTATION_MAX = 0.90;
                     const double LINE_TURN_FRONT_SCALE = 0.55;
@@ -3385,16 +3386,40 @@ if (green_state == 2)
                     // el robot no puede quedarse girando en el lugar indefinidamente.
                     static bool s_en_pivote = false;
                     static unsigned long s_pivote_t0 = 0;
+                    static unsigned long s_alineado_t0 = 0;
                     if (!s_en_pivote && absSteer >= LINE_PIVOTE_ENTRA)
                     {
                         s_en_pivote = true;
                         s_pivote_t0 = millis();
                     }
-                    else if (s_en_pivote &&
-                             (absSteer <= LINE_PIVOTE_SALE ||
-                              millis() - s_pivote_t0 > LINE_PIVOTE_MAX_MS))
+                    else if (s_en_pivote)
                     {
-                        s_en_pivote = false;
+                        // NO ALCANZA CON QUE EL ANGULO BAJE UNA VEZ: hay que
+                        // SOSTENERLO. Medido en pista el 2026-08-22 con la
+                        // histeresis simple:
+                        //   absSteer entra en 0,70 y cae a 0,12 en 245 ms,
+                        //   pero el robot solo giro 11 GRADOS en ese tiempo
+                        //   y el 81% de las salidas volvian a pivotear antes
+                        //   de 400 ms (mediana 115 ms).
+                        // O sea que la alineacion era FALSA. La vision no mide
+                        // 'estoy alineado con la direccion de la linea': mide la
+                        // geometria del centroide de una mancha, y es
+                        // hipersensible cerca del centro -once grados de giro
+                        // real le desploman el angulo-.
+                        // Exigir que se sostenga 300 ms elimina esas salidas
+                        // falsas sin tocar la vision.
+                        if (absSteer > LINE_PIVOTE_SALE)
+                            s_alineado_t0 = 0;              // se desalineo: reiniciar
+                        else if (s_alineado_t0 == 0)
+                            s_alineado_t0 = millis();       // primer frame alineado
+
+                        bool sostenido = (s_alineado_t0 != 0 &&
+                                          millis() - s_alineado_t0 >= LINE_PIVOTE_CONFIRMA_MS);
+                        if (sostenido || millis() - s_pivote_t0 > LINE_PIVOTE_MAX_MS)
+                        {
+                            s_en_pivote = false;
+                            s_alineado_t0 = 0;
+                        }
                     }
                     double rot;
                     if (s_en_pivote)

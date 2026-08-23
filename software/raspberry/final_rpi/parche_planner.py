@@ -194,15 +194,32 @@ def _angulo_lineal(mask, corte):
     Los dos con ganancia CONSTANTE (K/80 grados por pixel).
     """
     mask = _solo_mi_linea(mask)
-    e_cerca = _error_lateral(mask, 100, 120)
-    if e_cerca is None:
-        e_cerca = _error_lateral(mask, corte, 120)
-        if e_cerca is None:
+    e_pos = _error_lateral(mask, 105, 119)
+    if e_pos is None:
+        e_pos = _error_lateral(mask, corte, 120)
+        if e_pos is None:
             return None
-    e_lejos = _error_lateral(mask, corte, min(corte + 20, 100))
-    if e_lejos is None:
-        return max(-90.0, min(90.0, -(K_CERCA + K_LEJOS) * e_cerca))
-    return max(-90.0, min(90.0, -(K_CERCA * e_cerca + K_LEJOS * e_lejos)))
+    # RUMBO = la DIFERENCIA entre donde esta la linea lejos y donde esta cerca.
+    # NO es la posicion lejana: eso seria medir posicion otra vez, un poco mas
+    # arriba, y es el error que tenia la primera version -los dos terminos eran
+    # posicion, correlacionados, asi que el controlador tenia UNO SOLO-.
+    #
+    # Medido el 2026-08-22 sobre hist.avi, y es el hallazgo que faltaba:
+    #   el robot esta CENTRADO (|pos| < 12 px) el 40% del tiempo,
+    #   pero de esos frames el 57% tiene el RUMBO torcido (>20 px),
+    #   con una mediana de 28,6 px, que es casi un ancho de cinta.
+    # O sea que se para sobre la linea apuntando para otro lado, y desde ahi se
+    # vuelve a ir. Observado en pista por Benjamin: "no se reacomoda con el
+    # centro de la linea y queda chueco hasta que en algun giro la pierde".
+    #
+    # Las cinco leyes de control probadas ese dia eran TODAS de posicion pura.
+    # Ninguna miraba el rumbo, y por eso ninguna le gano al atan2 original.
+    lejos = _error_lateral(mask, corte, min(corte + 18, 96))
+    if lejos is None:
+        # sin banda lejana no hay rumbo medible: solo posicion, con todo el peso
+        return max(-90.0, min(90.0, -(K_CERCA + K_LEJOS) * e_pos))
+    e_rumbo = lejos - e_pos
+    return max(-90.0, min(90.0, -(K_CERCA * e_pos + K_LEJOS * e_rumbo)))
 
 
 _seguidor = None
