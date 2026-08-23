@@ -290,8 +290,25 @@ def _grabar(frame_bgr, ang_viejo, ang_nuevo, r, quien, corte):
                     cv2.FONT_HERSHEY_SIMPLEX, 0.42, (255, 128, 0), 1)
         vis = np.hstack([vis, mk])
         if _video is None:
+            # OJO: este numero es METADATO NOMINAL del contenedor, NO el fps
+            # real. El VideoWriter exige un fps ANTES de escribir el primer
+            # frame, cuando todavia no se sabe a que ritmo va a correr el lazo,
+            # y el ritmo ademas varia dentro de una misma corrida.
+            #
+            # Este 20,0 hizo que TODOS los tiempos en segundos publicados del
+            # 22-ago salieran inflados 1,67x: el lazo corria a ~33 fps y todo el
+            # analisis dividio por 20. "3,7 segundos sin linea" eran 2,2.
+            #
+            # NO se arregla poniendo otro numero: ninguna constante es el fps
+            # real. Se arregla con el log por frame, que tiene time.monotonic()
+            # y del que sale el ritmo de verdad. `analizar_corrida.py` ya lo lee
+            # y usa esta constante solo si no hay log.
+            #
+            # Se deja en 20,0 para que los videos nuevos sigan siendo
+            # comparables con los diez del 22-ago.
             _video = cv2.VideoWriter(os.path.expanduser(RUTA_VIDEO),
-                                     cv2.VideoWriter_fourcc(*"MJPG"), 20.0, (640, 240))
+                                     cv2.VideoWriter_fourcc(*"MJPG"),
+                                     FPS_CONTENEDOR, (640, 240))
             print("[GRABAR] escribiendo en %s" % RUTA_VIDEO)
         _video.write(vis)
         _video_n += 1
@@ -328,8 +345,9 @@ def _grabar(frame_bgr, ang_viejo, ang_nuevo, r, quien, corte):
 #  area >= AREA_PERDIDA. Medido en replay: recall 98,4-98,5 % con 0,9 % de
 #  falsos positivos, contra el 13,5-40,1 % de hoy.
 # =========================================================================
-AREA_PERDIDA = float(os.environ.get("AREA_PERDIDA", "30"))
-RUTA_LOG     = os.environ.get("LOG", "")
+AREA_PERDIDA   = float(os.environ.get("AREA_PERDIDA", "30"))
+RUTA_LOG       = os.environ.get("LOG", "")
+FPS_CONTENEDOR = float(os.environ.get("FPS_VIDEO", "20.0"))
 _log_f = None
 _log_n = 0
 _log_t0 = None
@@ -344,7 +362,12 @@ def _perdida_conexa(mask):
     """
     try:
         if mask is None or mask.size == 0:
-            return True, 0.0
+            # "no hay dato", que NO es lo mismo que "no hay linea". Se marca con
+            # area -1 para poder distinguirlo en el CSV, y no se declara
+            # perdida: es la misma politica que el except de abajo. Justamente
+            # el error que se quiere evitar es el de hoy, donde un solo valor
+            # -angle = 0- significa dos cosas distintas.
+            return False, -1.0
         n, et, est, _ = cv2.connectedComponentsWithStats((mask > 0).astype(np.uint8), 8)
         if n <= 1:
             return True, 0.0

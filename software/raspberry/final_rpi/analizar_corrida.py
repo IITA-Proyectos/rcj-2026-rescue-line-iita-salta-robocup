@@ -24,8 +24,19 @@ robot funcionando exactamente como siempre-:
 
 Eso graba un video de 640x240: a la izquierda lo que la camara vio con el angulo
 que se decidio, a la derecha la mascara. El panel izquierdo es el frame de
-160x120 que el robot realmente proceso, escalado x2, asi que se recupera EXACTO
-tomando un pixel de cada dos -sin interpolar, sin perder nada-.
+160x120 que el robot realmente proceso, escalado x2, y se recupera tomando un
+pixel de cada dos -sin interpolar: un suavizado rompe la mascara y ya arruino
+dos mediciones-.
+
+OJO, y esto se corrigio el 23-ago: "se recupera EXACTO" es FALSO. El AVI es MJPEG
+CON PERDIDA. Medido: entre el 0,65 % y el 1,11 % de los pixeles cambian de lado
+del umbral 90 segun que esquina del bloque 2x2 se tome. Sobre un ROI de 3.200 px
+son ~30 px, el mismo orden que el umbral de "linea perdida". Para las cuatro
+metricas de aca no cambia nada; para conteos finos de mascara, si.
+
+Y MEJOR TODAVIA: desde el 23-ago el parche escribe un log por frame al lado del
+AVI (LOG=~/Desktop/corrida.csv). Si esta, este script saca el fps REAL de ahi en
+vez de suponerlo, y las cifras de mascara salen del log y no del video comprimido.
 
 LAS CUATRO METRICAS Y POR QUE ESTAS
 -----------------------------------
@@ -41,15 +52,25 @@ LAS CUATRO METRICAS Y POR QUE ESTAS
 
 LINEA DE BASE, medida el 2026-08-22 sobre 6772 frames de pista
 --------------------------------------------------------------
-    control            cruces/s   centrado   desvio   perdida
+    control            cruces/s*  centrado   desvio   perdida
     atan2 (original)     1,88       42 %     20,0 px   17,9 %
     planner              1,07       37 %     19,4      24,8 %
     control lineal K=40  1,14       22 %     26,1      33,9 %
     control lineal K=70  1,62       37 %     21,1      22,6 %
 
+(*) medidos suponiendo 20 fps, que era falso. El script los reescala solo al fps
+real antes de comparar. Las otras tres columnas son fracciones o pixeles y no
+dependen del fps, asi que siguen valiendo tal cual.
+
 Cuatro leyes de control distintas y las cuatro en la misma banda. Ninguna le
 gana al original en las cuatro a la vez. Si una idea nueva mejora DOS de estas
 sin empeorar las otras dos, es la primera que lo logra.
+
+Y ojo con lo que esta tabla NO dice: ninguna de las cuatro comparte tramo de
+pista con las otras. Se midio el 23-ago que `como_esta.avi` comparte entre el
+0,3 % y el 1,4 % de sus vistas con las demas corridas, contra 44-66 % entre
+ellas. Comparar dos corridas grabadas en pedazos distintos del salon no es un
+A/B: para atribuir hay que arrancar del mismo punto y alternar.
 
 LO QUE ESTE ANALIZADOR NO PUEDE DECIR
 -------------------------------------
@@ -69,12 +90,66 @@ LO = np.array([0, 0, 0])
 HI = np.array([90, 90, 90])
 FILA_ROI = 60
 
+# ============================================================================
+#  EL FPS, QUE ESTABA MAL Y ARRUINO TODOS LOS TIEMPOS PUBLICADOS
+#
+#  El AVI DECLARA 20 fps porque `parche_planner.py` le pasa ese numero fijo al
+#  VideoWriter. No es el fps real: es una constante escrita a mano. Medido
+#  contra el reloj del Teensy en el unico par video-CSV que engancha, el
+#  periodo real es de unos 30 ms, o sea ~33 fps.
+#
+#  Consecuencia: TODOS los tiempos en segundos publicados antes del 23-ago
+#  estan inflados 1,67x. "3,7 segundos sin linea" eran 2,2.
+#
+#  QUE DEPENDE DEL FPS Y QUE NO:
+#     cruces/s   SI depende: es por unidad de TIEMPO
+#     centrado   no: es una fraccion de frames
+#     desvio     no: es en pixeles
+#     perdida    no: es una fraccion de frames
+#  Por eso la tabla de base sigue sirviendo entera salvo la primera columna.
+#
+#  LO CORRECTO ES NO USAR UNA CONSTANTE. Desde el 23-ago el parche escribe un
+#  log por frame con `time.monotonic()`: si esta el log de la corrida, el fps
+#  sale de ahi y esta constante no se usa. Se puede forzar con FPS=xx.
+# ============================================================================
+FPS_NOMINAL_VIEJO = 20.0     # el numero con el que se midio la tabla de base
+FPS = float(os.environ.get("FPS", "33.3"))
+
+# Las cuatro corridas de base se midieron a 20 fps. Sus `cruces/s` hay que
+# reescalarlos para compararlos contra una corrida medida al fps real; las
+# otras tres columnas son fracciones y no se tocan.
+_ESC = FPS / FPS_NOMINAL_VIEJO
+
 BASE = [
-    ("atan2 (original)", 1.88, 42, 20.0, 17.9),
-    ("planner", 1.07, 37, 19.4, 24.8),
-    ("lineal K=40", 1.14, 22, 26.1, 33.9),
-    ("lineal K=70", 1.62, 37, 21.1, 22.6),
+    ("atan2 (original)", 1.88 * _ESC, 42, 20.0, 17.9),
+    ("planner", 1.07 * _ESC, 37, 19.4, 24.8),
+    ("lineal K=40", 1.14 * _ESC, 22, 26.1, 33.9),
+    ("lineal K=70", 1.62 * _ESC, 37, 21.1, 22.6),
 ]
+
+
+def fps_de_log(ruta_video):
+    """El fps REAL de una corrida, si existe su log por frame.
+
+    El parche escribe `<video>.csv` al lado del AVI cuando se corre con LOG=.
+    Tiene numero de frame y `time.monotonic()`, asi que el fps sale de dividir,
+    sin suponer nada. Devuelve None si no hay log: ahi se usa FPS.
+    """
+    for cand in (ruta_video + ".csv", os.path.splitext(ruta_video)[0] + ".csv"):
+        if not os.path.exists(cand):
+            continue
+        try:
+            filas = [l.strip().split(",") for l in open(cand)][1:]
+            filas = [f for f in filas if len(f) >= 2]
+            if len(filas) < 30:
+                continue
+            n = int(filas[-1][0]) - int(filas[0][0])
+            dt = float(filas[-1][1]) - float(filas[0][1])
+            if dt > 0 and n > 0:
+                return n / dt
+        except Exception:
+            continue
+    return None
 
 
 def leer(ruta):
@@ -94,7 +169,7 @@ def leer(ruta):
     return fr
 
 
-def medir(fr):
+def medir(fr, fps=None):
     lat = []
     perdidos = 0
     for f in fr:
@@ -108,7 +183,8 @@ def medir(fr):
     buenos = lat[~np.isnan(lat)]
     if len(buenos) < 50:
         return None
-    seg = len(fr) / 20.0
+    fps = fps or FPS
+    seg = len(fr) / fps
     signos = np.sign(buenos)
     cruces = int((np.diff(signos) != 0).sum())
     # episodios de perdida sostenida: los candidatos a "se salio"
@@ -126,11 +202,11 @@ def medir(fr):
         eps.append((ini, len(vac)))
     return {
         "frames": len(fr), "seg": seg,
-        "cruces": cruces / (len(buenos) / 20.0),
+        "cruces": cruces / (len(buenos) / fps),
         "centrado": 100.0 * np.mean(np.abs(buenos) < 10),
         "desvio": float(np.mean(np.abs(buenos))),
         "perdida": 100.0 * perdidos / len(fr),
-        "episodios": eps,
+        "episodios": eps, "fps": fps,
     }
 
 
@@ -194,7 +270,8 @@ def main():
         if not fr:
             print("  %-26s *** no se pudo abrir" % os.path.basename(ruta))
             continue
-        r = medir(fr)
+        _f = fps_de_log(ruta)
+        r = medir(fr, _f)
         if r is None:
             print("  %-26s *** pocos frames utiles" % os.path.basename(ruta))
             continue
@@ -212,7 +289,7 @@ def main():
             print("  Episodios de linea perdida de mas de 0,7 s (candidatos a 'se salio'): %d"
                   % len(r["episodios"]))
             for a, b in r["episodios"][:8]:
-                print("     frames %5d - %5d   (%.1f s)" % (a, b, (b - a) / 20.0))
+                print("     frames %5d - %5d   (%.1f s)" % (a, b, (b - a) / r["fps"]))
         else:
             print("  Sin episodios de linea perdida sostenida.")
 
