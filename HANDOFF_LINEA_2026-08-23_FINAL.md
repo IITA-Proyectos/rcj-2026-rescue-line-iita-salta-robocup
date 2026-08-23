@@ -182,7 +182,7 @@ procedencia de cada CSV: `LINE_STEER_GAIN` 1.35, `LINE_ROT_EXP` 0.50, `LINE_PIVO
 | qué | dónde | nota |
 |---|---|---|
 | 10 videos originales | `software/raspberry/final_rpi/*.avi` | paneles **640×240** |
-| `video_4.avi` | fuera del repo (`~/Downloads`) | **crudo 640×480** |
+| `video_4.avi` | **`software/raspberry/final_rpi/video_4.avi`** | **crudo 640×480**, 642 frames, **20 fps**. Los bancos lo detectan por nombre y le aplican 20 fps en `--todos` |
 | 10 CSV de la Teensy | `software/teensy/firmware/corridas/*.csv` | 45 columnas a 200 Hz. **`..._INVALIDA_ruedas_en_el_aire.csv` NO SE USA** |
 | `shadow_*.csv` | derivados | 25 columnas: estado + comando físico completo |
 | `leyes_*.csv` | derivados | 14 columnas: las 4 leyes + `x_near`, `x_mid`, `e_lat`, `e_head` |
@@ -463,7 +463,7 @@ python shadow.py hist.avi --desde 1354 --hasta 1490 --tag falla
 ```
 
 ```bash
-python shadow.py "C:\Users\villa\Downloads\video_4.avi" --tag manual --fps 20
+python shadow.py video_4.avi --tag manual --fps 20
 ```
 
 ```bash
@@ -567,7 +567,9 @@ LOS CUATRO CASOS DE CONTROL, que se usan para todo:
    hist.avi 1354-1490    FALLA
    lineal.avi 800-872    CONTROL POSITIVO (mata FAR como requisito)
    video_4.avi           TEACHER TRACE, movido a mano por la trayectoria correcta.
-                         Es CRUDO 640x480: rotate 180 + resize 160x120 INTER_NEAREST.
+                         Esta en software/raspberry/final_rpi/video_4.avi
+                         Es CRUDO 640x480 y a 20 fps -no 33,3-: rotate 180 +
+                         resize 160x120 INTER_NEAREST, igual que hace la Pi.
                          Es el UNICO caso donde se conoce la respuesta correcta.
 
 REGLAS DE LA CASA:
