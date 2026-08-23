@@ -474,6 +474,71 @@ sobre el `main.py` real, compila, y `--revertir` deja el archivo **idéntico byt
 
 ---
 
+## H-5 — la pérdida NO es deriva: el robot va a CRUZAR la cinta
+
+**Estado: la única señal anticipatoria que apareció. 5,7x de enriquecimiento.**
+
+Benjamín observó en dos frames que el robot queda descentrado después de girar y propuso
+que eso es lo que lo saca de pista. **Su hipótesis, medida contra control, NO se sostiene —
+pero la intuición geométrica sí, y apunta a otra cosa.**
+
+### Lo que se cae: el desvío no predice nada
+
+Desvío lateral en la fila 119, en los instantes previos a cada pérdida, sobre 8 videos:
+
+| momento | desvío | control |
+|---|---|---|
+| −1,0 a −0,4 s | 10-13 px | **12,0 px** |
+| −0,4 a −0,2 s | 12,0 px | 12,0 px |
+
+**Hasta 200 ms antes, el robot está idéntico a un frame sano.** No hay deriva gradual. Y al
+soltar el pivote el desvío da 13,5-16,2 px contra 9,5-17,0 de control: comparable.
+
+### Lo que también se cae: mi propia cadena causal
+
+"La pérdida viene después de que el pivote suelta": **61 %** de las pérdidas tienen una
+suelta en el segundo previo — pero el **control es 64-81 %**. El pivote suelta cada ~0,8 s,
+así que "soltó hace poco" no informa nada. **Refutado.**
+
+### Lo que SÍ aparece: la mancha se aplana
+
+| momento | ancho | alto | **alto/ancho** |
+|---|---|---|---|
+| −1,0 a −0,63 s | 107 | 59 | 0,51 |
+| −0,60 a −0,30 s | 123 | 50 | **0,38** |
+| −0,27 a −0,15 s | 134 | 30 | **0,24** |
+| −0,12 a −0,06 s | 55 | 16 | 0,24 |
+| **control** | 98 | 59 | **0,56** |
+
+**Una banda ancha y chata es la cinta cruzando el campo de visión.** O sea: el robot no se
+va despacio hacia el costado — **se va derecho a atravesar la cinta en vez de seguirla.**
+Es "no gira lo suficiente", pero expresado en geometría y no en posición.
+
+### Separabilidad, que es lo que decide si sirve
+
+Ventana −0,60 a −0,12 s, n=809 pre-pérdida contra n=4591 control:
+
+| umbral | % pre-pérdida | % control | enriquecimiento |
+|---|---|---|---|
+| alto/ancho < 0,25 | 22,4 % | 3,9 % | **5,7x** |
+| **alto/ancho < 0,30** | **36,3 %** | **6,3 %** | **5,7x** |
+| alto/ancho < 0,35 | 46,4 % | 8,4 % | 5,5x |
+| alto/ancho < 0,40 | 58,3 % | 18,2 % | 3,2x |
+
+**No es un detector limpio** —se le escapa el 64 % de las pre-pérdidas y prende en el 6 % de
+las sanas— pero es **la primera variable del proyecto que separa algo**. El desvío da 1,0x.
+
+Y da **0,3 a 0,6 s de aviso**, que a 39 grados/s son **12 a 23 grados de giro disponibles**
+antes de perderla.
+
+### Lo que NO está probado
+
+Que actuar sobre esa señal sirva. Es una correlación medida con control, no un mecanismo
+demostrado. Y el proyecto ya enterró once conclusiones que parecían mecanismos.
+
+
+---
+
 ## Hechos heredados que NO se vuelven a discutir
 
 Del análisis del 23-ago, ya refutados o confirmados con número:
