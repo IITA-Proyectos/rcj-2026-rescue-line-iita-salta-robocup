@@ -6,6 +6,11 @@ contexto de la conversación. Se actualiza a medida que avanza, no al final._
 **Punto de partida:** [ANALISIS-2026-08-23.md](ANALISIS-2026-08-23.md) (workflow de 13
 agentes) e [INFORME-2026-08-22.md](INFORME-2026-08-22.md).
 
+> **LEER PRIMERO [CURRENT_TRUTH_2026-08-23.md](CURRENT_TRUTH_2026-08-23.md).** Este archivo
+> es un DIARIO: tiene conclusiones muertas al lado de vivas. Adentro, **H-8, H-9 y H-10
+> mandan sobre H-4, H-6 y sobre "ESTADO ACTUAL"**, porque son posteriores al descubrimiento
+> del error del replay.
+
 **Regla de seguridad de la noche: NO se mueve el robot.** Sólo código, git, CSV, videos,
 replay, compilación y análisis.
 
@@ -847,7 +852,7 @@ aporta nada por encima de MEDIA.
 descubrió.** El **bloqueo sí es robusto** (0-18 % en todos), pero la captura va de 0 a 89 %.
 Es un indicio de sobreajuste a `hist` y hay que tratarlo como tal.
 
-### El riesgo de la T queda cerrado por construcción
+### El riesgo de la T: en los videos disponibles, LOW nunca confundió una T
 
 | estado | n | área p50 | travesaño p50 | % con área ≥1500 |
 |---|---|---|---|---|
@@ -855,8 +860,13 @@ Es un indicio de sobreajuste a `hist` y hay que tratarlo como tal.
 | **sólo cerca (LOW)** | 672 | **79** | **0** | **0,0 %** |
 
 **Ninguno de los 672 frames LOW tiene área de intersección.** Una T tiene el travesaño a
-distancia media y conectado al tronco, así que **satisface `mid`**. La regla de MEDIA no
-puede dispararse en una T.
+distancia media y conectado al tronco, así que en este material **satisface `mid`**.
+
+**ENUNCIADO CORREGIDO el 24-ago:** antes decía *"la regla de MEDIA no puede dispararse en una
+T"*. Eso es demasiado fuerte. Lo que los datos permiten afirmar es **"en los 10 videos
+disponibles, LOW nunca confundió una T"** — 0 de 672 es evidencia fuerte, no una
+imposibilidad geométrica. Una T parcialmente fuera del ROI, un reflejo o una segmentación
+rota podrían dar otra geometría.
 
 ### Nota de método que queda cerrada
 
