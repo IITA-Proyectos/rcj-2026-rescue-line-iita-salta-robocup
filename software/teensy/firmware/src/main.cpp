@@ -51,6 +51,68 @@
 #endif
 
 // ============================================================================
+//  CONSTANTES DEL SEGUIMIENTO DE LINEA (case 7)
+//
+//  Estaban declaradas DENTRO del case 7, y eso tenia dos costos que se pagaron
+//  el 22-ago: no se podian barrer desde `build_flags` -habia que editar, volver
+//  a compilar y volver a flashear entre corrida y corrida, con la pista ocupada-
+//  y sobre todo `diagProcedencia()` no las veia, asi que ningun CSV decia con
+//  que ganancia ni con que umbral se habia grabado. Se grabaron diez CSV ese dia
+//  y despues NO se pudo atribuir ninguna diferencia a ninguna constante.
+//
+//  Ahora salen en la cabecera de cada CSV y se pueden barrer sin editar codigo:
+//      pio run -e diagnostico_fix -t upload --project-option="build_flags=-D LINE_PIVOTE_DWELL_MS=300"
+// ============================================================================
+
+// Ganancia de la camara al comando. Con 1.80 el cabeceo empeoro de -11,8 a
+// -20,3 grados y la banda media de rotation cayo de 32% a 22%: satura antes.
+#ifndef LINE_STEER_GAIN
+#define LINE_STEER_GAIN 1.35
+#endif
+
+// Exponente de la rampa de rotation. 1.0 = la rampa lineal historica.
+#ifndef LINE_ROT_EXP
+#define LINE_ROT_EXP 0.50
+#endif
+
+// Histeresis del pivote: entra alto y no sale hasta alinearse.
+#ifndef LINE_PIVOTE_ENTRA
+#define LINE_PIVOTE_ENTRA 0.60
+#endif
+#ifndef LINE_PIVOTE_SALE
+#define LINE_PIVOTE_SALE 0.15
+#endif
+
+// Tope de seguridad del pivote. OJO: medido el 23-ago sobre tramos SOSTENIDOS,
+// la tasa de giro satura en ~39 grados/s, asi que 90 grados cuestan 2,3 s y
+// estos 2500 ms estan sobre el filo, no con margen.
+#ifndef LINE_PIVOTE_MAX_MS
+#define LINE_PIVOTE_MAX_MS 2500UL
+#endif
+
+// Confirmacion de alineacion sostenida antes de soltar el pivote. Se compilo el
+// 22-ago y NUNCA se flasheo. Simulado el 23-ago sobre el rxsteer grabado, con
+// 300 ms el 71-100% de los episodios terminaria por el tope de MAX_MS en vez de
+// por alineacion, y el modelo del case 7 deja de reproducir la corrida (94,1% de
+// rama igual con 0, 66,4% con 300). NO flashear en 300 sin medirlo antes.
+#ifndef LINE_PIVOTE_CONFIRMA_MS
+#define LINE_PIVOTE_CONFIRMA_MS 300UL
+#endif
+
+// Velocidad del pivote. Medido el 23-ago sobre tramos de signo constante de mas
+// de 150 ms: ls 0-22 da 19,6 grados/s, ls 32-42 da 39,3 y ls 42-60 da 39,2. O
+// sea que subir de 20 a 35 DUPLICA el giro y de 35 a 50 no compra nada.
+#ifndef LINE_PIVOT_SPEED
+#define LINE_PIVOT_SPEED 50
+#endif
+
+// DWELL MINIMO DEL SIGNO DEL PIVOTE, en ms. Ver el comentario largo en el
+// case 7, arriba de donde se usa. 0 = comportamiento historico byte por byte.
+#ifndef LINE_PIVOTE_DWELL_MS
+#define LINE_PIVOTE_DWELL_MS 0UL
+#endif
+
+// ============================================================================
 //  MODO_BANCO - barrido automatico de actuacion. SIN pista y SIN vision.
 //
 //  QUE MIDE: como responde el tren motriz a cada valor de `rotation`, que es
@@ -829,6 +891,17 @@ void diagProcedencia()
     DIAG_OUT.print(" sin_imu="); DIAG_OUT.print(g_banco_sin_imu);
     // `lazo=` se mantiene por compatibilidad con los CSV ya grabados
     DIAG_OUT.print(" lazo="); DIAG_OUT.print(FIX_LAZO_MOTOR ? "nuevo" : "historico");
+    // Las constantes del case 7. Sin esto, dos CSV grabados con ganancias o
+    // umbrales distintos son indistinguibles: el 22-ago se grabaron diez y
+    // despues no se pudo atribuir ninguna diferencia a ninguna constante.
+    DIAG_OUT.print(" gain="); DIAG_OUT.print(LINE_STEER_GAIN, 2);
+    DIAG_OUT.print(" rot_exp="); DIAG_OUT.print(LINE_ROT_EXP, 2);
+    DIAG_OUT.print(" piv_entra="); DIAG_OUT.print(LINE_PIVOTE_ENTRA, 2);
+    DIAG_OUT.print(" piv_sale="); DIAG_OUT.print(LINE_PIVOTE_SALE, 2);
+    DIAG_OUT.print(" piv_vel="); DIAG_OUT.print(LINE_PIVOT_SPEED);
+    DIAG_OUT.print(" piv_max_ms="); DIAG_OUT.print(LINE_PIVOTE_MAX_MS);
+    DIAG_OUT.print(" piv_confirma_ms="); DIAG_OUT.print(LINE_PIVOTE_CONFIRMA_MS);
+    DIAG_OUT.print(" piv_dwell_ms="); DIAG_OUT.print(LINE_PIVOTE_DWELL_MS);
     DIAG_OUT.print(" commit=");
 #ifdef TLM_COMMIT
     DIAG_OUT.println(TLM_COMMIT);
@@ -3279,7 +3352,6 @@ if (green_state == 2)
                          recuperarAtasco();
                          break;
                      }
-                    const double LINE_STEER_GAIN = 1.35;   // vuelto a 1.35: con 1.80 el cabeceo empeoro de -11,8 a -20,3 grados
                     // Cuanto amplifica el angulo de la camara antes de decidir la
                     // rotation. Subirlo hace que el robot SE COMPROMETA ANTES con la
                     // curva. Medido ese dia: con la rampa continua ya puesta, el robot
@@ -3291,23 +3363,17 @@ if (green_state == 2)
                     const double LINE_CURVE_STEER = 0.08;
                     const double LINE_HARD_CURVE_STEER = 0.35;
                     const double LINE_PIVOT_STEER = 0.92;
-                    const double LINE_ROT_EXP = 0.50;   // [EXPERIMENTO 2026-08-22] 1.0 = rampa lineal anterior
                     // absSteer = |steer * LINE_STEER_GAIN|, o sea 0,60 aca equivale a
                     // steer ~0,44 de la Raspberry. El codigo original pivoteaba con
                     // steer > 0,7 (absSteer ~0,95). 0,30 hacia pivotear casi toda la
                     // corrida -el absSteer esta en la banda media el 32% del tiempo- y
                     // el robot casi no avanzaria. 1.1 desactiva el pivote.
-                    const double LINE_PIVOTE_ENTRA = 0.60;   // arranca a pivotear
-                    const double LINE_PIVOTE_SALE  = 0.15;   // y NO sale hasta alinearse
-                    const unsigned long LINE_PIVOTE_MAX_MS = 2500;   // tope de seguridad
-                    const unsigned long LINE_PIVOTE_CONFIRMA_MS = 300;   // hay que SOSTENER la alineacion
                     const double LINE_HARD_ROTATION_MIN = 0.8;
                     const double LINE_HARD_ROTATION_MAX = 0.90;
                     const double LINE_TURN_FRONT_SCALE = 0.55;
                     const double LINE_TURN_REAR_SCALE = 1.00;
                     const int LINE_CURVE_SPEED = 26;
                     const int LINE_HARD_CURVE_SPEED = 32;   // [EXPERIMENTO 2026-08-22] era 22
-                    const int LINE_PIVOT_SPEED = 50;   // [EXPERIMENTO 2026-08-22] era 20, despues 35.
                     // CONTRAINTUITIVO Y A PROPOSITO. Medido en pista ese dia: el giro
                     // logrado se clava en ~25 d/s de rot=0,5 en adelante por mas que se
                     // pida mas, y el rendimiento cae de 0,84 a 0,64. Pero la fase 2 del
