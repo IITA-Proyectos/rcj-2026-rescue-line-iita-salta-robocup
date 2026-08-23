@@ -182,7 +182,8 @@ def curvatura_a(x, y):
     return math.degrees(math.atan2(dx, dy))
 
 
-def correr(ruta, desde=0, hasta=10 ** 9, tag="", fps=FPS, salida=None):
+def correr(ruta, desde=0, hasta=10 ** 9, tag="", fps=FPS, salida=None,
+           con_video=False):
     cap = cv2.VideoCapture(ruta)
     if not cap.isOpened():
         print("*** no se pudo abrir %s" % ruta)
@@ -195,6 +196,13 @@ def correr(ruta, desde=0, hasta=10 ** 9, tag="", fps=FPS, salida=None):
                 "ang_actual", "ang_estados",
                 "x_near", "x_mid", "e_lat", "e_head",
                 "target_x", "target_y", "ang_lookahead", "motivo_target"])
+    E = 4
+    PW, PH = W * E, H * E
+    ANCHO, ALTO = PW * 2 + 30, PH + 210
+    vw = None
+    if con_video:
+        vw = cv2.VideoWriter(os.path.join(AQUI, "leyes_%s.avi" % base),
+                             cv2.VideoWriter_fourcc(*"MJPG"), fps, (ANCHO, ALTO))
     tr = Trayectoria()
     cand = Candidato()
     ult = (None, None)
@@ -233,11 +241,61 @@ def correr(ruta, desde=0, hasta=10 ** 9, tag="", fps=FPS, salida=None):
                     "%.1f" % tx if tx is not None else "",
                     "%.1f" % ty if ty is not None else "",
                     "%.1f" % ang_look, mot])
+        if vw is not None:
+            img = np.full((ALTO, ANCHO, 3), (18, 18, 18), np.uint8)
+            cam = cv2.resize(g, (PW, PH), interpolation=cv2.INTER_NEAREST)
+            img[36:36 + PH, 10:10 + PW] = cam
+            vis = np.zeros((H, W, 3), np.uint8)
+            m = cv2.inRange(g, LO, HI)
+            m[:60, :] = 0
+            vis[m > 0] = (60, 60, 60)
+            if t["comp"] is not None:
+                vis[t["comp"]] = (110, 200, 110)
+            vis = cv2.resize(vis, (PW, PH), interpolation=cv2.INTER_NEAREST)
+            # los dos puntos de la trayectoria y la recta entre ellos
+            if t["x_near"] is not None and t["x_mid"] is not None:
+                pn = (int(t["x_near"] * E), int(t["y_near"] * E))
+                pm = (int(t["x_mid"] * E), int(t["y_mid"] * E))
+                cv2.line(vis, pn, pm, (60, 210, 235), 2)
+                cv2.circle(vis, pn, 7, (255, 200, 80), -1)
+                cv2.circle(vis, pm, 7, (255, 150, 200), -1)
+                cv2.putText(vis, "NEAR", (pn[0] + 10, pn[1]), cv2.FONT_HERSHEY_SIMPLEX,
+                            0.45, (255, 200, 80), 1, cv2.LINE_AA)
+                cv2.putText(vis, "MID", (pm[0] + 10, pm[1]), cv2.FONT_HERSHEY_SIMPLEX,
+                            0.45, (255, 150, 200), 1, cv2.LINE_AA)
+            cv2.line(vis, (int(CENTRO * E), 0), (int(CENTRO * E), PH), (90, 90, 90), 1)
+            if tx is not None:
+                cv2.drawMarker(vis, (int(tx * E), int(ty * E)), (60, 210, 235),
+                               cv2.MARKER_TILTED_CROSS, 20, 2)
+            img[36:36 + PH, 20 + PW:20 + PW * 2] = vis
+            cv2.putText(img, "%s  frame %d  t=%.2fs   estado %s" %
+                        (os.path.basename(ruta), idx, idx / fps, est), (10, 24),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.55, (235, 235, 235), 1, cv2.LINE_AA)
+            y0 = 36 + PH + 26
+            filas = [
+                ("LO QUE MIDE EL CODIGO DE HOY:  un solo numero", (120, 120, 120), 0.5),
+                ("   angle = %+6.1f gr   (mezcla posicion y rumbo)" % ang, (90, 90, 235), 0.6),
+                ("LO QUE MIDE near+mid:  dos numeros separados", (120, 120, 120), 0.5),
+                ("   error LATERAL = %s px     donde estoy" %
+                 (("%+6.1f" % t["e_lat"]) if t["e_lat"] is not None else "   --"),
+                 (255, 200, 80), 0.6),
+                ("   error RUMBO   = %s gr     hacia donde sigue" %
+                 (("%+6.1f" % t["e_head"]) if t["e_head"] is not None else "   --"),
+                 (255, 150, 200), 0.6),
+            ]
+            for k, (txt, col, esc) in enumerate(filas):
+                cv2.putText(img, txt, (10, y0 + k * 30), cv2.FONT_HERSHEY_SIMPLEX,
+                            esc, col, 1, cv2.LINE_AA)
+            cv2.putText(img, "REPLAY - NO ES SIMULACION FISICA", (ANCHO - 430, 24),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (60, 210, 235), 1, cv2.LINE_AA)
+            vw.write(img)
         S["actual"].append(ang)
         S["estados"].append(c["rot"] * 90.0)
         S["near_mid"].append(t["e_head"] if t["e_head"] is not None else float("nan"))
         S["lookahead"].append(ang_look)
     cap.release()
+    if vw is not None:
+        vw.release()
     f.close()
     return S, est_cnt, sal
 
@@ -264,6 +322,7 @@ def main():
     ap.add_argument("--hasta", type=int, default=10 ** 9)
     ap.add_argument("--tag", default="")
     ap.add_argument("--fps", type=float, default=FPS)
+    ap.add_argument("--avi", action="store_true", help="ademas del CSV, un AVI anotado")
     ap.add_argument("--todos", action="store_true")
     a = ap.parse_args()
 
@@ -294,7 +353,7 @@ def main():
            "actual", "estados", "nearmid", "lookah"))
     print("  " + "-" * 100)
     for ruta, d, h, tag, fps in casos:
-        out = correr(ruta, d, h, tag, fps)
+        out = correr(ruta, d, h, tag, fps, con_video=(a.avi and not a.todos))
         if not out:
             continue
         S, est_cnt, sal = out
