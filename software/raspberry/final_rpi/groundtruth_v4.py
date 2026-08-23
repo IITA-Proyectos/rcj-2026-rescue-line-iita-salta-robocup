@@ -80,6 +80,37 @@ AQUI = os.path.dirname(os.path.abspath(__file__))
 SOLAPE_MIN = 0.30
 DILATA = 9              # px de tolerancia al movimiento entre frames
 
+# ---------------------------------------------------------------------------
+#  ANOTACION FISICA. NO SE MIDE: SE SABE.
+# ---------------------------------------------------------------------------
+# Informado por Benjamin el 2026-08-23: en `video_4.avi`, aproximadamente entre
+# los frames 515 y 575, el robot fue LEVANTADO del piso y reposicionado a mano.
+#
+# Con el robot en el aire la camara no conserva su pose respecto del suelo, y la
+# premisa sobre la que se apoya todo este archivo -"una componente que toca la
+# fila 119 es la cinta que el robot tiene debajo"- deja de ser cierta. Lo que
+# pase en esos frames NO dice nada sobre como se comportaria conduciendo.
+#
+# Se intento detectarlo por imagen para no depender de anotacion humana y NO SE
+# PUDO: de tres senales probadas, la mejor -la fila donde termina el suelo en la
+# banda central- separa este tramo con 1,34 sigma, y con el umbral que cubre el
+# 75 % del tramo marca ademas el 27,9 % del resto del video. El numero queda
+# publicado para que no se reintente sin datos nuevos (una IMU en el video, por
+# ejemplo).
+#
+# Conclusion de metodo: la validez fisica de un tramo es un INPUT HUMANO. Va
+# aca, versionado, y no se infiere.
+TRAMOS_INVALIDOS = {
+    "video_4.avi": [(515, 575, "MANUAL_LIFT")],
+}
+
+
+def invalido(video, i):
+    for a, b, et in TRAMOS_INVALIDOS.get(os.path.basename(video), []):
+        if a <= i <= b:
+            return et
+    return None
+
 
 def cargar(code_dir):
     ruta = os.path.join(code_dir, "nuevo_code_v4.py")
@@ -339,7 +370,11 @@ def main(argv=None):
                  mode=r.get("mode", ""), sg=r.get("spatial_guard", ""),
                  bg=r.get("branch_guard", ""), steer=steer, bearing=bearing,
                  heading=r.get("heading"), gt_h=gt_h)
-        f["tipos"] = clasificar(f)
+        et = invalido(a.video, i)
+        f["invalido"] = et
+        f["tipos"] = [] if et else clasificar(f)
+        if et:
+            f["tipos"] = [et]
         filas.append(f)
         if tv4 is not None:
             v4_ant = tv4
@@ -360,7 +395,8 @@ def main(argv=None):
                      "tipos"])
         for f in filas:
             wr.writerow([
-                f["i"], f["state"], f["mode"], f["sg"],
+                f["i"], f["state"] if not f["invalido"] else f["invalido"],
+                f["mode"], f["sg"],
                 int(f["gt"] is not None),
                 "" if f["gt"] is None else int(f["gt"].sum()),
                 "" if f["gt_t"] is None else "%.2f" % f["gt_t"][0],
@@ -377,14 +413,23 @@ def main(argv=None):
 
     # --- informe -----------------------------------------------------------
     n = len(filas)
-    vis = sum(1 for f in filas if f["gt"] is not None)
+    n_inv = sum(1 for f in filas if f["invalido"])
+    if n_inv:
+        print("")
+        print("  *** %d frames marcados %s y EXCLUIDOS de toda conclusion sobre"
+              % (n_inv, filas[[i for i, f in enumerate(filas) if f["invalido"]][0]]["invalido"]))
+        print("  *** conducta autonoma. Anotacion fisica, no medida: ver")
+        print("  *** TRAMOS_INVALIDOS en la cabecera de este archivo.")
+    filas_v = [f for f in filas if not f["invalido"]]
+    vis = sum(1 for f in filas_v if f["gt"] is not None)
+    n = len(filas_v)
     print("")
     print("  frames analizados %d  (%d..%d)" % (n, filas[0]["i"], filas[-1]["i"]))
     print("  la cinta correcta esta VISIBLE en %d (%.1f %%), y NO visible en %d"
           % (vis, 100.0 * vis / n, n - vis))
     tramos = []
     ini = None
-    for f in filas:
+    for f in filas_v:
         if f["gt"] is None and ini is None:
             ini = f["i"]
         elif f["gt"] is not None and ini is not None:
@@ -397,7 +442,7 @@ def main(argv=None):
               ", ".join("%d-%d (%d f)" % (x, y, y - x + 1) for x, y in tramos))
 
     cnt = {}
-    for f in filas:
+    for f in filas_v:
         for t in f["tipos"]:
             cnt[t] = cnt.get(t, 0) + 1
     print("")
@@ -408,13 +453,13 @@ def main(argv=None):
               "T2_DISCONTINUIDAD", "T3_REACQUISICION", "T4_CONVERSION"):
         print("      %-18s %4d" % (k, cnt.get(k, 0)))
 
-    err = [f["err_t"] for f in filas if f["err_t"] is not None]
+    err = [f["err_t"] for f in filas_v if f["err_t"] is not None]
     if err:
         print("")
         print("  ERROR DEL TARGET DE V4 CONTRA EL DE REFERENCIA (solo donde hay gt)")
         print("      n=%d   p50 %.1f px   p90 %.1f px   MAX %.1f px"
               % (len(err), np.median(err), np.percentile(err, 90), max(err)))
-    dc = [f["dif_conv"] for f in filas if f["dif_conv"] is not None]
+    dc = [f["dif_conv"] for f in filas_v if f["dif_conv"] is not None]
     if dc:
         print("  DIFERENCIA steer_request CONTRA bearing real")
         print("      n=%d   p50 %.1f gr   p90 %.1f gr   MAX %.1f gr"

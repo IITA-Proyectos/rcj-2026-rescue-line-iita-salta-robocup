@@ -521,3 +521,120 @@ Los dos son derivados y están en `.gitignore`; se regeneran con:
 ```bash
 python groundtruth_v4.py --avi
 ```
+
+
+---
+
+## 15. RETRACTACIÓN — el tramo de `video_4` usado en §14 no es físicamente válido
+
+**Dato aportado por Benjamín el 2026-08-23, después de escribir §14:** en
+`video_4.avi`, aproximadamente entre los frames **515 y 575**, el robot fue
+**levantado del piso y reposicionado a mano**.
+
+Con el robot en el aire la cámara no conserva su pose respecto del suelo, y la
+premisa sobre la que se apoya todo el ground truth —*una componente que toca la
+fila 119 es la cinta que el robot tiene debajo*— deja de ser cierta.
+
+### Lo que se retira
+
+| conclusión de §14 | estado |
+|---|---|
+| «9 frames = 0,45 s de ceguera con la cinta a la vista» (`T0_SIN_ORDEN`, f547-555) | **RETIRADA.** El robot estaba siendo reposicionado |
+| «`steer_request` +87° contra bearing +55°» como evidencia P0 contra la conversión (f556-562) | **RETIRADA.** No se juzga una ley de conducción con el robot en las manos |
+| «el salto de 160 px es del mundo, no del tracker» | **Cierto sólo en sentido óptico.** No fue un evento de conducción autónoma y no debe contarse como reacquisición |
+| la cadena causal `prev_target` congelado → rechazo por `v2:340` | **el mecanismo existe en el código**, pero *ese* tramo no lo demuestra. Se remide aparte (§15.3) |
+
+El tramo queda etiquetado en el código como `MANUAL_LIFT` en
+`groundtruth_v4.py`, en la constante `TRAMOS_INVALIDOS`, y se excluye de todo
+agregado.
+
+### 15.1 No se pudo construir un detector de pose
+
+Se intentó detectar la manipulación por imagen, para no depender de anotación
+humana. **Falló, y el número queda publicado para que no se reintente sin datos
+nuevos.** Tres señales sobre el frame 160×120, validadas contra el único tramo
+etiquetado:
+
+| señal | p50 fuera | p50 dentro | separación |
+|---|---:|---:|---:|
+| cambio global entre frames | 1,00 | 2,00 | 0,74 σ |
+| desplazamiento por correlación de fase | 0,52 | 1,56 | 0,79 σ |
+| fila donde termina el suelo (banda central) | 21,0 | 27,0 | **1,34 σ** |
+
+Con la mejor de las tres y el umbral que cubre el 75 % del tramo etiquetado, se
+marca además el **27,9 %** del resto del video. Inservible. Y en los diez
+autónomos esa misma señal tiene entre 21 % y 35 % de frames fuera de rango, o
+sea que no distingue «levantado» de «doblando».
+
+**Conclusión de método: la validez física de un tramo es un input humano.** Se
+anota, se versiona y no se infiere. La única etiqueta sólida disponible hoy es a
+nivel de video, y no hay que medirla: se sabe cómo se grabó cada uno.
+
+- **AUTÓNOMO** — los 10 paneles 640×240: la Pi corriendo, la Teensy moviendo.
+- **MANUAL** — `video_4.avi`, con el sub-tramo 515-575 levantado.
+
+### 15.2 `video_4` con el tramo excluido
+
+Sobre los 50 frames físicamente válidos del rango 490-600:
+
+| | |
+|---|---|
+| cinta correcta visible | **100 %** |
+| `T0_SIN_ORDEN` / `T1` / `T2` / `T3` | **0** |
+| `T4_CONVERSION` | **1** (frame 591) |
+| error del target contra la referencia | **p50 0,0 px** · p90 11,5 · máx 29,0 |
+| diferencia `steer_request` vs bearing | p50 2,3° · p90 10,3° · máx 23,7° |
+
+**Cuando el robot está apoyado y la cámara en pose normal, NUEVO CODE engancha
+la cinta correcta y el target coincide con la referencia.** Es el resultado más
+favorable a V4 de todo el paquete, y aparece recién al sacar el tramo inválido.
+
+### 15.3 La memoria congelada, remedida sólo en conducción autónoma
+
+`memoria_perdida.py`, los 10 paneles, 13.900 frames, `video_4` excluido. Se
+cuentan los frames en que la regla `nuevo_code_v2.py:340`
+(`distancia > 75` **y** `ymax < 70`) descarta una componente de **≥ 200 px**, y
+se calcula el contrafáctico con la misma regla contra la memoria reseteada al
+centro de abajo.
+
+| | |
+|---|---|
+| rachas de bloqueo | **20** |
+| frames bloqueados | **127 de 13.900 (0,91 %)** |
+| largo de la racha | p50 6 · p90 13 · **máx 22 frames (660 ms)** |
+| edad de `prev_target` al bloquear | p50 8 · máx 28 frames |
+| frames que pasarían con la memoria reseteada | **46 de 127 (36,2 %)** |
+
+Los cuatro casos más largos:
+
+| video | desde | largo | área máx | dist. a memoria vieja | dist. reseteada | salvables |
+|---|---:|---:|---:|---:|---:|---:|
+| `como_esta` | 146 | 22 (660 ms) | 881 | 100,8 | 67,4 | **15** |
+| `a` | 511 | 18 (540 ms) | 1080 | 127,1 | 72,8 | **10** |
+| `roi_auto` | 2507 | 12 (360 ms) | 812 | 79,7 | 80,6 | **0** |
+| `a` | 414 | 10 (300 ms) | 1317 | 103,2 | 77,1 | 1 |
+
+**El fenómeno es real y mucho más chico de lo que sugería el tramo inválido**:
+0,91 % de los frames, unas 3 rachas por minuto. Y **el reset no es una bala de
+plata**: en 4 de las 10 rachas más largas ninguno de los frames se salvaba,
+porque la componente estaba genuinamente lejos también del centro.
+
+Tampoco generaliza uniforme: `seguir`, `rumbo` y `con_planner` no tienen **ni
+una** racha, y `hist` tiene una sola de 1 frame. Se concentra en `a`,
+`roi_auto`, `como_esta` y `lineal`.
+
+### 15.4 Estado del diagnóstico después de la corrección
+
+| | antes | después |
+|---|---|---|
+| percepción / target | prometedor | **muy bueno**: 0,0 px de error mediano donde el robot está apoyado |
+| reacquisición | «claramente rota» | **riesgo estructural en el código, sin contraejemplo físico limpio todavía** |
+| memoria congelada | «0,45 s de ceguera» | **real pero chica**: 0,91 % de frames, máx 660 ms, 36 % salvable |
+| `target_x` → steer | «claramente problemática» | **pendiente. NO condenada por `video_4`** |
+
+### 15.5 Incertidumbre que queda abierta
+
+Los diez son autónomos **por cómo se grabaron, no por una medición**. Si alguno
+corresponde a la corrida marcada `2026-08-22_INVALIDA_ruedas_en_el_aire.csv`,
+hay que sacarlo y volver a correr. Hoy no se puede saber: de 60 pares
+video×CSV posibles sólo existe uno enganchado.
