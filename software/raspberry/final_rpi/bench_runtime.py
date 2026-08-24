@@ -42,6 +42,7 @@ import os
 import platform
 import subprocess
 import sys
+import threading
 import time
 
 import numpy as np
@@ -665,6 +666,8 @@ def imprimir(env, faltan, por_video, datos, s_alg, overhead, telem, args):
 
     ver = veredicto(s_alg)
     L("  REGLA DEL VEREDICTO (fijada antes de medir, no se mueve)")
+    L("    Gobierna SOLO T_algorithm. La camara y la edad de frame se reportan")
+    L("    aparte: son fallas distintas y piden soluciones distintas.")
     L("    ROJO      si p50 >= %.0f ms  o  frames>30ms >= %.0f %%"
       % (V_ROJO_P50, V_ROJO_PCT30))
     L("    VERDE     si p95 < %.0f ms  y  p99 < %.0f ms  y  frames>30ms < %.0f %%"
@@ -681,39 +684,212 @@ def imprimir(env, faltan, por_video, datos, s_alg, overhead, telem, args):
 
 # --------------------------------------------------------------------------
 # CAMARA REAL (opcional, solo tiene sentido en la Pi con la camara conectada)
+#
+# Correccion metodologica pedida por ChatGPT en #138: con un hilo de captura
+# asincrono, medir `read() + algoritmo` OCULTA LA EDAD DEL FRAME. El consumidor
+# puede recibir al instante una imagen capturada N periodos antes: el throughput
+# se ve excelente mientras la latencia sensor->actuador es peor.
+#
+# Por eso se separan TRES numeros y nunca se mezclan:
+#
+#   T_algorithm    frame ya disponible -> target/steer listo. Es lo que mide el
+#                  banco de replay, y es lo UNICO que gobierna el veredicto.
+#   T_frame_age    edad del frame al empezar a procesarlo, con timestamp
+#                  monotonico estampado por el hilo apenas V4L2 entrega el frame.
+#   T_observed     frame_age + algorithm. Aproximacion reproducible de
+#                  entrega-de-camara -> comando. NO es foton->comando: no
+#                  tenemos timestamp del sensor ni del USB.
 # --------------------------------------------------------------------------
-def medir_camara(SinBranch, v2, n, indice, ancho, alto):
-    cap = cv2.VideoCapture(indice)
-    if not cap.isOpened():
-        return {"error": "no se pudo abrir el dispositivo %s" % indice}
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, ancho)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, alto)
-    real = (cap.get(cv2.CAP_PROP_FRAME_WIDTH),
-            cap.get(cv2.CAP_PROP_FRAME_HEIGHT),
-            cap.get(cv2.CAP_PROP_FPS))
+class CamaraBanco(object):
+    """Copia DE BANCO del patron de camthreader.WebcamVideoStream, con numero
+    de secuencia y timestamp monotonico de captura.
+
+    NO modifica camthreader.py: el de produccion queda intacto. La unica
+    diferencia es la instrumentacion (seq + t_cap) y una Condition para poder
+    esperar frame nuevo en vez de girar en vacio.
+    """
+
+    def __init__(self, src, ancho, alto):
+        self.stream = cv2.VideoCapture(src)
+        self.stream.set(cv2.CAP_PROP_FRAME_WIDTH, ancho)
+        self.stream.set(cv2.CAP_PROP_FRAME_HEIGHT, alto)
+        self.cv = threading.Condition()
+        self.frame = None
+        self.seq = 0
+        self.t_cap = 0
+        self.stopped = False
+        self.fallos = 0
+        self.hilo = None
+        ok, fr = self.stream.read()
+        if ok:
+            self.frame, self.seq, self.t_cap = fr, 1, NS()
+
+    def abierta(self):
+        return self.stream.isOpened()
+
+    def real(self):
+        return (self.stream.get(cv2.CAP_PROP_FRAME_WIDTH),
+                self.stream.get(cv2.CAP_PROP_FRAME_HEIGHT),
+                self.stream.get(cv2.CAP_PROP_FPS))
+
+    def start(self):
+        self.hilo = threading.Thread(target=self._loop, daemon=True)
+        self.hilo.start()
+        return self
+
+    def _loop(self):
+        while not self.stopped:
+            ok, fr = self.stream.read()
+            t = NS()
+            if not ok:
+                self.fallos += 1
+                continue
+            with self.cv:
+                self.frame = fr
+                self.seq += 1
+                self.t_cap = t
+                self.cv.notify_all()
+
+    def leer(self):
+        """Igual que camthreader: devuelve el ultimo frame, aunque ya se haya
+        procesado. Es el patron que usa hoy el loop de produccion."""
+        with self.cv:
+            if self.frame is None:
+                return None, -1, 0
+            return self.frame.copy(), self.seq, self.t_cap
+
+    def leer_nuevo(self, ultimo, timeout=2.0):
+        """Espera a que haya un frame con seq distinto de `ultimo`."""
+        with self.cv:
+            ok = self.cv.wait_for(
+                lambda: self.seq != ultimo or self.stopped, timeout)
+            if not ok or self.frame is None:
+                return None, ultimo, 0
+            return self.frame.copy(), self.seq, self.t_cap
+
+    def stop(self):
+        self.stopped = True
+        with self.cv:
+            self.cv.notify_all()
+        if self.hilo is not None:
+            self.hilo.join(timeout=2.0)
+        self.stream.release()
+
+
+def _pasada_camara(SinBranch, v2, cam, n, esperar_nuevo):
     tr = SinBranch(FPS_NOMINAL)
-    cap_ns, e2e_ns = [], []
-    salto = min(50, max(1, n // 4))
+    salto = min(60, max(1, n // 5))
+    edad_todos, edad_nuevos, alg, obs = [], [], [], []
+    repetidos = 0
+    saltados = 0
+    ult = -1
+    seq0 = None
+    t0 = None
+    seq_f = None
+    t_f = None
     for i in range(n):
-        t0 = NS()
-        ok, fr = cap.read()
-        t1 = NS()
-        if not ok:
+        if esperar_nuevo:
+            fr, seq, tcap = cam.leer_nuevo(ult)
+        else:
+            fr, seq, tcap = cam.leer()
+        if fr is None:
             break
+        t_ini = NS()
+        edad = t_ini - tcap
         g = v2.frame_pi(fr)
         tr.step(g)
-        t2 = NS()
+        t_fin = NS()
+        nuevo = (seq != ult)
+        if not nuevo:
+            repetidos += 1
+        elif ult >= 0 and seq > ult + 1:
+            saltados += (seq - ult - 1)
+        ult = seq
         if i >= salto:
-            cap_ns.append(t1 - t0)
-            e2e_ns.append(t2 - t0)
-    cap.release()
+            if t0 is None:
+                t0, seq0 = t_ini, seq
+            edad_todos.append(edad)
+            alg.append(t_fin - t_ini)
+            obs.append(edad + (t_fin - t_ini))
+            if nuevo:
+                edad_nuevos.append(edad)
+            seq_f, t_f = seq, t_fin
+    fps_cam = None
+    if seq0 is not None and seq_f is not None and t_f > t0:
+        fps_cam = (seq_f - seq0) / ((t_f - t0) / 1e9)
+    n_med = len(alg)
     return {
+        "modo": "esperar_frame_nuevo" if esperar_nuevo else "ultimo_disponible",
+        "iteraciones": n_med,
+        "T_algorithm": stats_ms(alg),
+        "T_frame_age_todos": stats_ms(edad_todos),
+        "T_frame_age_nuevos": stats_ms(edad_nuevos),
+        "T_observed": stats_ms(obs),
+        "frames_repetidos": repetidos,
+        "frames_repetidos_pct": (100.0 * repetidos / n_med) if n_med else 0.0,
+        "seq_saltados": saltados,
+        "fps_camara_observado": fps_cam,
+        "lecturas_fallidas_del_hilo": cam.fallos,
+    }
+
+
+def medir_camara(SinBranch, v2, n, indice, ancho, alto):
+    cam = CamaraBanco(indice, ancho, alto)
+    if not cam.abierta():
+        cam.stop()
+        return {"error": "no se pudo abrir el dispositivo %s" % indice}
+    real = cam.real()
+    cam.start()
+    time.sleep(0.5)                      # que el hilo llene el primer frame
+    out = {
         "dispositivo": indice,
         "pedido": [ancho, alto],
         "real_wxh_fps": real,
-        "captura": stats_ms(cap_ns),
-        "extremo_a_extremo": stats_ms(e2e_ns),
+        "nota": ("T_observed NO es foton->comando: no hay timestamp del sensor "
+                 "ni del USB. El veredicto del banco NO usa estos numeros."),
     }
+    # Patron de produccion actual: tomar siempre el ultimo disponible.
+    out["libre"] = _pasada_camara(SinBranch, v2, cam, n, False)
+    # Patron recomendado: esperar frame nuevo (no reprocesar el mismo seq).
+    out["nuevo"] = _pasada_camara(SinBranch, v2, cam, n, True)
+    cam.stop()
+    return out
+
+
+def imprimir_camara(c):
+    print("")
+    print("  CAMARA REAL  (fuera del veredicto: son fallas distintas)")
+    if "error" in c:
+        print("    %s" % c["error"])
+        return
+    print("    pedido %sx%s   real %s" % (c["pedido"][0], c["pedido"][1],
+                                          c["real_wxh_fps"]))
+    for clave, titulo in (("libre", "ultimo disponible (patron actual)"),
+                          ("nuevo", "esperar frame nuevo (recomendado)")):
+        p = c.get(clave)
+        if not p or not p["T_algorithm"].get("n"):
+            continue
+        print("")
+        print("    -- %s --   %d iteraciones" % (titulo, p["iteraciones"]))
+        print("       fps de camara observado   %s"
+              % ("%.2f" % p["fps_camara_observado"]
+                 if p["fps_camara_observado"] else "-"))
+        print("       frames reprocesados       %d  (%.1f %%)"
+              % (p["frames_repetidos"], p["frames_repetidos_pct"]))
+        print("       seq saltados              %d" % p["seq_saltados"])
+        print("       %-22s %8s %8s %8s %8s"
+              % ("", "media", "p50", "p95", "max"))
+        for k in ("T_algorithm", "T_frame_age_nuevos", "T_frame_age_todos",
+                  "T_observed"):
+            s = p[k]
+            if not s.get("n"):
+                continue
+            print("       %-22s %8.3f %8.3f %8.3f %8.3f ms"
+                  % (k, s["media"], s["p50"], s["p95"], s["max"]))
+    print("")
+    print("    LECTURA: si T_algorithm es VERDE pero T_frame_age es alto, el")
+    print("    problema es la captura, NO el skeleton. Optimizar el algoritmo")
+    print("    en ese caso seria un error.")
 
 
 # --------------------------------------------------------------------------
@@ -875,19 +1051,7 @@ def main():
             w, h = 160, 120
         salida["camara"] = medir_camara(SinBranch, v2, a.camara,
                                         a.camara_indice, w, h)
-        c = salida["camara"]
-        print("")
-        print("  CAMARA REAL")
-        if "error" in c:
-            print("    %s" % c["error"])
-        else:
-            print("    pedido %sx%s   real %s" % (w, h, c["real_wxh_fps"]))
-            for k in ("captura", "extremo_a_extremo"):
-                s = c[k]
-                if s.get("n"):
-                    print("    %-18s media %7.3f  p50 %7.3f  p95 %7.3f  "
-                          "max %7.3f ms" % (k, s["media"], s["p50"],
-                                            s["p95"], s["max"]))
+        imprimir_camara(salida["camara"])
         print("")
 
     destino = a.json or os.path.join(

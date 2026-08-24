@@ -42,12 +42,43 @@ scp pi@<ip-de-la-pi>:~/rcj-2026-rescue-line-iita-salta-robocup/software/raspberr
 
 ### Segundo comando: cámara real (sólo con la cámara conectada y libre)
 
-Da los dos números que el replay no puede dar: latencia de **captura** sola y
-latencia **extremo a extremo** cámara→comando.
-
 ```bash
+sudo systemctl stop iita-robot   # si el servicio tiene la cámara tomada
 python3 bench_runtime.py --videos hist.avi --warmup 100 --camara 900 --camara-wh 160x120 --json bench_runtime_pi_camara.json
 ```
+
+#### Los TRES números de cámara, que no se mezclan
+
+Corrección metodológica de ChatGPT en #138, y es correcta: con un hilo de
+captura asíncrono, medir `read() + algoritmo` **oculta la edad del frame**. El
+consumidor puede recibir al instante una imagen capturada N períodos antes: el
+throughput se ve excelente mientras la latencia sensor→actuador es peor.
+
+| número | qué es |
+|---|---|
+| `T_algorithm` | frame ya disponible → target/steer listo. **Es lo único que gobierna el veredicto.** |
+| `T_frame_age` | edad del frame al empezar a procesarlo, con timestamp monotónico estampado por el hilo apenas V4L2 lo entrega |
+| `T_observed` | `frame_age + algorithm`. Aproximación reproducible de entrega-de-cámara → comando. **NO es fotón→comando:** no hay timestamp del sensor ni del USB |
+
+El banco corre **dos pasadas** y reporta ambas:
+
+* **`libre`** — tomar siempre el último disponible. Es el patrón que usa hoy
+  producción: [`Main.py:794`](Main.py#L794) llama `read_frame_with_recovery` →
+  `vs.read()` → [`camthreader.py`](camthreader.py) devuelve el último frame,
+  **sin número de secuencia**. El loop no tiene forma de saber si ya procesó esa
+  imagen.
+* **`nuevo`** — esperar frame con `seq` distinto. Patrón recomendado.
+
+Además cuenta **frames reprocesados** (mismo `seq` dos veces) y **`seq`
+saltados**. Eso es lo que distingue *CPU lenta* de *captura lenta / frames
+viejos*, que piden soluciones opuestas.
+
+`camthreader.py` **no se toca**: el banco usa una copia propia
+(`CamaraBanco`) que reproduce el mismo patrón de hilo y le agrega `seq` +
+timestamp.
+
+> **Si `T_algorithm` sale VERDE pero `T_frame_age` sale alto, el problema es la
+> captura y no el skeleton. Optimizar el algoritmo en ese caso sería un error.**
 
 ### Si falta la dependencia
 
@@ -207,7 +238,38 @@ Overhead del perfilador: **+3,6 %** (+0,038 ms sobre un p50 de 1,058 ms).
    mismas extensiones SIMD, esa fracción interpretada podría crecer y cambiar el
    ranking. Se confirma o cae con el JSON de la Pi, no acá.
 
+### Validación de la instrumentación de cámara (cámara FALSA, no la webcam)
+
+La lógica de hilo/`seq`/edad se validó con una cámara simulada que sirve frames
+de `hist.avi` a 30 fps exactos. Ocho chequeos, todos OK: `fps` observado 30,00 ·
+modo `nuevo` con 0 frames reprocesados · edad p95 en `nuevo` 0,20 ms · coherencia
+`T_observed = frame_age + algorithm` · 0 lecturas fallidas.
+
+Lo que salió, y que **el mecanismo sí generaliza aunque los números no**:
+
+| | `T_algorithm` p50 | `T_frame_age` p50 | `T_observed` p50 | reprocesados |
+|---|---|---|---|---|
+| `libre` (patrón actual) | 1,00 ms | **16,55 ms** | 17,67 ms | **113 %** |
+| `nuevo` (recomendado) | 1,45 ms | 0,09 ms | 1,56 ms | 0 % |
+
+Con el algoritmo mucho más rápido que la cámara, el patrón «último disponible»
+procesa cada imagen **2–3 veces** y calcula cada comando sobre un frame de edad
+**~medio período de cámara** (16,6 ≈ 33,3/2). Eso es aritmética del patrón, no
+una propiedad del x86.
+
+**Lo que esto NO prueba.** No prueba que pasar a «esperar frame nuevo» baje la
+latencia sensor→actuador: con retención de orden cero el comando se sostiene
+hasta el frame siguiente, así que el período de cámara sigue dominando de las
+dos maneras. Lo que sí compra, medido: se deja de gastar ~2/3 del CPU y del
+tráfico serie en reprocesar la misma imagen, y la latencia se vuelve
+**determinista** (`T_observed` p95 32,6 → 1,8 ms) en vez de tener fase aleatoria
+contra la cámara.
+
+**La palanca real sobre la latencia sensor→actuador es el fps de la cámara y el
+buffering de V4L2, no el algoritmo.** Por eso el banco reporta el fps de cámara
+observado: hay que medirlo, no leerlo del header.
+
 ---
 
-*Herramienta: [`bench_runtime.py`](bench_runtime.py). No toca la candidata, no
-toca el hardware, no infiere closed-loop desde replay.*
+*Herramientas: [`bench_runtime.py`](bench_runtime.py). No tocan la candidata, no
+tocan el hardware, no infieren closed-loop desde replay.*
