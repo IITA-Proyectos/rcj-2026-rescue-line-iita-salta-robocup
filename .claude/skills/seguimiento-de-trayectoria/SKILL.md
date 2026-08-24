@@ -39,8 +39,14 @@ proporcional con ganancia 2/ℓd²**.
 ### El error concreto que cometió este equipo
 
 `LOOKAHEAD = 70` eran **70 píxeles geodésicos sobre el esqueleto**, con la cámara
-casi horizontal. Medido sobre 13.036 frames, la distancia real al suelo del
-target varió **2,3× entre p05 y p95, hasta 4,2×**.
+casi horizontal. Medido sobre 13.036 frames, el **arco de suelo real** hasta el
+target varió de **0,230 a 1,370 entre p05 y p95: 5,9×**. Con la ganancia al
+cuadrado, **la ganancia del lazo varía 35×**.
+
+> **Ojo con qué se mide.** La primera versión de esta medición dio 2,3× porque
+> comparaba la **profundidad** del target (`Z` de su fila). Lo que fija la
+> ganancia es el **arco a lo largo del camino**, que hay que integrar con la
+> métrica del suelo arista por arista. Medido bien es 2,5 veces peor.
 
 ### Cómo se detecta
 

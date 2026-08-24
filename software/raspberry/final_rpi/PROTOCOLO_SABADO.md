@@ -10,32 +10,28 @@ falló.
 
 ---
 
-## ⛔ Lo primero: la mitad de abajo de este protocolo NO SE PUEDE EJECUTAR TODAVÍA
+## Lo primero: qué se puede ejecutar y qué no
 
-Auditando el árbol antes de escribir esto encontré un hueco que no estaba
-identificado en el traspaso:
+**Actualizado 2026-08-24.** Estado por fase:
 
-**No existe ningún runner que corra la candidata `SinBranch` en el robot.**
+| fases | estado |
+|---|---|
+| **0 a 3** | listas. Preflight, runtime, cámara real y geometría `d_eje` |
+| **4** | **desbloqueada** — [`shadow_pi.py`](shadow_pi.py) existe (commit `a327560`) |
+| **5 a 8** | **bloqueadas**: lazo cerrado con la candidata manejando |
 
-- [`shadow.py`](shadow.py) es un banco de **replay** (lo dice su propio
-  encabezado: «corre la máquina de estados candidata sobre los mismos frames
-  grabados… es lazo abierto»). No corre en vivo.
-- [`Main.py`](Main.py) corre la visión **vieja** (centroide + `atan2`), no la
-  candidata.
-- [`telemetria_vision.py`](telemetria_vision.py) sí existe y ya está cableado en
-  `Main.py` (se enciende con `TLM_VISION=...`), pero sus 18 campos son los de la
-  visión vieja: `xr`, `yr`, `ang_crudo`, `degenerado`… **No tiene ni un campo de
-  la candidata**: nada de `target_raw` / `cap` / `low_proj` / `final`, ni
-  `reason` del spatial, ni `seq`/edad de frame.
-- Y hay un límite físico: **una sola cámara no la pueden abrir dos procesos.**
-  Un shadow «en paralelo a producción» no se resuelve con un script aparte;
-  requiere compartir el frame dentro del mismo loop.
+Lo que falta para 5–8, y por qué:
 
-**Consecuencia honesta:** las fases 0 a 3 están listas para ejecutarse el
-sábado. Las fases 4 a 8 están **especificadas pero bloqueadas** hasta construir
-el runner. Ver [Lo que hay que construir antes](#lo-que-hay-que-construir-antes).
+- [`Main.py`](Main.py) corre la visión **vieja** (centroide + `atan2`), no
+  `SinBranch`. No hay bandera para elegir.
+- [`telemetria_vision.py`](telemetria_vision.py) está cableado y funciona, pero
+  sus 18 campos son los de la visión vieja. **Ni un campo de la candidata**:
+  nada de `target_raw` / `cap` / `low_proj` / `final`, ni `reason` del spatial.
+- **Una sola cámara no la abren dos procesos**, así que un shadow «en paralelo a
+  producción» no se resuelve con un script aparte: hay que compartir el frame
+  dentro del mismo loop.
 
-Decirlo ahora vale una sesión física. Descubrirlo el sábado a las 9 de la
+Decir esto ahora vale una sesión física. Descubrirlo el sábado a las 9 de la
 mañana la quema entera.
 
 ---
@@ -187,15 +183,24 @@ Guardar las fotos `eje_*.png` y `eje_*_anotada.png`: son la evidencia.
 
 ---
 
-## ⛔ FASE 4 — Shadow log-only sobre cámara viva · BLOQUEADA
+## FASE 4 — Shadow log-only sobre cámara viva · DESBLOQUEADA
 
 **Qué sería:** empujar el robot a mano sobre la línea, con la candidata
 corriendo sobre frames en vivo y registrando, **sin mandar nada a la Teensy**.
 Contesta si la candidata se comporta igual sobre la cámara de hoy (luz, foco,
 exposición de la sede) que sobre los videos de agosto.
 
-**Por qué está bloqueada:** no existe el runner. Ver
-[Lo que hay que construir antes](#lo-que-hay-que-construir-antes).
+**Ya existe el runner:** [`shadow_pi.py`](shadow_pi.py) (commit `a327560`). No
+abre el puerto serie y ni siquiera importa `pyserial`, así que no puede mandar un
+comando ni por error. Registra las cinco etapas más `seq`/`frame_age_ms`.
+
+```bash
+sudo systemctl stop iita-robot
+python3 shadow_pi.py --seg 90 --grabar shadow_pi_$(date +%H%M).avi
+```
+
+Validado contra el baseline: sobre `hist.avi` da huecos 47 y saltos 37, que es
+exactamente lo que reporta el A/B.
 
 **GO/STOP cuando exista:** GO si la disponibilidad de target sobre cámara viva
 queda dentro de ±3 puntos de la de replay. STOP si la máscara se degrada — eso
@@ -297,9 +302,7 @@ sesión. La candidata se sigue evaluando con los logs que ya se juntaron.
 
 Para desbloquear las fases 4 a 8, en este orden:
 
-1. **`shadow_pi.py`** — corre `SinBranch` sobre cámara viva, registra las cinco
-   etapas + `seq`/edad, y **no manda nada por serie**. Riesgo cero: no toca
-   `Main.py` ni el firmware. Desbloquea FASE 4 sola.
+1. ~~**`shadow_pi.py`**~~ — **HECHO**, commit `a327560`. FASE 4 desbloqueada.
 2. **Campos de candidata en `telemetria_vision.py`** — agregar las columnas de
    arriba manteniendo la promesa de no lanzar excepciones y de estar apagado por
    defecto.
