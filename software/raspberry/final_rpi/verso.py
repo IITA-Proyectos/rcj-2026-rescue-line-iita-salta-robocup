@@ -130,6 +130,7 @@ def shell_por_lado(comp, prev_entry, prev_heading):
 
 
 def correr(ruta, fps, desde=0, hasta=10 ** 9, detalle=False):
+    vidnom = os.path.basename(ruta)
     cap = cv2.VideoCapture(ruta)
     if not cap.isOpened():
         raise IOError(ruta)
@@ -169,7 +170,7 @@ def correr(ruta, fps, desde=0, hasta=10 ** 9, detalle=False):
             except Exception:
                 sh = None
         if i >= desde:
-            filas.append(dict(i=i, d=d, sh=sh, raw=raw, ph=ph,
+            filas.append(dict(i=i, d=d, sh=sh, raw=raw, ph=ph, vid=vidnom,
                               state=r.get("state"), mode=caja.get("mode", "")))
             if detalle and sh is not None:
                 print("    f%-5d %-9s raw %-12s salto %6s | prev_head %+7.1f "
@@ -239,6 +240,58 @@ def main(argv=None):
         t1, t0 = tasa(salta, fn), tasa(no, fn)
         print("  %-42s %9.1f %% %9.1f %% %7.2f x"
               % (et, t1, t0, t1 / max(t0, 1e-9)))
+
+    # --- EL FALSADOR: el lado que desaparece, REAPARECE? -----------------
+    # Si desaparece porque la cinta se fue de verdad, preservar el verso seria
+    # apuntar a un lado que ya no existe: el mismo mecanismo que mato la
+    # variante "sostiene" (26,2 % de targets fuera de la centerline).
+    print("")
+    print("  FALSADOR DE H9 OPERATIVA: el lado desaparecido reaparece?")
+    porvid = {}
+    for f in todo:
+        porvid.setdefault(f.get("vid", "?"), []).append(f)
+    reap = {k: 0 for k in (1, 2, 3, 5, 8, 12, 20)}
+    casos = 0
+    nunca = 0
+    for serie in porvid.values():
+        for k, f in enumerate(serie):
+            if f["sh"] is None or f["sh"]["n_lado_prev"] != 0:
+                continue
+            casos += 1
+            lado = f["sh"]["lado_prev"]
+            vuelve = None
+            for j in range(k + 1, min(k + 21, len(serie))):
+                sh = serie[j]["sh"]
+                if sh is None:
+                    continue
+                n = sh["izq"] if lado < 0 else sh["der"]
+                if n > 0:
+                    vuelve = j - k
+                    break
+            if vuelve is None:
+                nunca += 1
+            else:
+                for u in reap:
+                    if vuelve <= u:
+                        reap[u] += 1
+    print("      %d frames donde el verso previo se quedo sin candidatos" % casos)
+    if casos:
+        for u in sorted(reap):
+            print("        vuelve a tener candidatos en <= %2d frames: %4d (%.1f %%)"
+                  % (u, reap[u], 100.0 * reap[u] / casos))
+        print("        no vuelve en 20 frames:                    %4d (%.1f %%)"
+              % (nunca, 100.0 * nunca / casos))
+        print("")
+        if 100.0 * reap[5] / casos >= 60.0:
+            print("      -> El lado REAPARECE rapido en la mayoria: el flip era")
+            print("         prematuro y preservar el verso tiene sentido. H9 operativa")
+            print("         se sostiene.")
+        elif 100.0 * nunca / casos >= 50.0:
+            print("      -> El lado NO vuelve: la cinta se fue de verdad y el flip era")
+            print("         la respuesta correcta. H9 describe el mecanismo pero NO")
+            print("         justifica preservar el verso.")
+        else:
+            print("      -> Resultado mixto: no decide por si solo.")
 
     print("")
     print("  VEREDICTO SOBRE H9")
