@@ -43,3 +43,12 @@ software/raspberry/final_rpi/topologia.csv
 software/raspberry/final_rpi/candidata_v1rc.avi
 software/raspberry/final_rpi/candidata_v1rc.png
 software/raspberry/final_rpi/h9_gate_triggers.csv
+
+# registro visual: se regenera con registro_visual.py
+software/raspberry/final_rpi/REGISTRO_V1RC.mp4
+software/raspberry/final_rpi/CLIP_*.mp4
+software/raspberry/final_rpi/bench_runtime_pi*.json
+software/raspberry/final_rpi/bench_runtime_pi*.csv
+software/raspberry/final_rpi/bench_runtime_pi*.txt
+software/raspberry/final_rpi/medicion_eje.json
+software/raspberry/final_rpi/eje_*.png
