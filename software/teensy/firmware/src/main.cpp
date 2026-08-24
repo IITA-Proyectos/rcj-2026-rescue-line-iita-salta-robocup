@@ -611,6 +611,12 @@ bool fixIssue112Enabled()
            priority_fix_flags::kFixIssue112RunAngleTimeout;
 }
 
+bool fixLazoLineaSensoresBloqueantesEnabled()
+{
+    return priority_fix_flags::kEnableAllPriorityFixes ||
+           priority_fix_flags::kFixLazoLineaSensoresBloqueantes;
+}
+
 void blinkVisibleError(unsigned long onMs, unsigned long offMs, int cycles)
 {
     for (int i = 0; i < cycles; ++i)
@@ -1211,6 +1217,15 @@ void leer_ultrasonidos()
     front_distance = sonar[0].ping_cm();
     left_distance = sonar[1].ping_cm();
     right_distance = sonar[2].ping_cm();
+}
+
+// Solo el frontal. Es el unico que el lazo de linea consulta en cada vuelta
+// (obstaculo a menos de 12 cm); left/right_distance los reelen por su cuenta
+// las ramas que los usan. Ahorra dos ping bloqueantes por frame.
+// Ver kFixLazoLineaSensoresBloqueantes en priority_fix_flags.h.
+void leer_ultrasonido_frontal()
+{
+    front_distance = sonar[0].ping_cm();
 }
 
 void imprimir_ultrasonidos()
@@ -3109,8 +3124,19 @@ void loop()
             enviarTelemetria();   // TELEMETRIA (seguimiento de linea)
             bool plateadoDetectado = false;
             color_detected = get_color_fast();
-            leer_tof();
-            leer_ultrasonidos();
+            if (fixLazoLineaSensoresBloqueantesEnabled())
+            {
+                // Los ToF NO se leen aca a proposito: nadie los consume durante
+                // el seguimiento de linea, y costaban ~30 ms de espera activa
+                // por vuelta. De los ultrasonidos solo hace falta el frontal.
+                // Ver el comentario largo en priority_fix_flags.h.
+                leer_ultrasonido_frontal();
+            }
+            else
+            {
+                leer_tof();
+                leer_ultrasonidos();
+            }
             if (CONTAR_VERDES || SUPERTEAM) actualizarContadorVerdes();   // === CHALLENGE D2.1 / SUPER TEMA ===
            
             if (color_detected == "Plateado") {   // confirmo 2 lecturas -> filtra brillos aislados
