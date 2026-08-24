@@ -56,3 +56,6 @@ software/raspberry/final_rpi/shadow_pi_*.csv
 software/raspberry/final_rpi/shadow_pi_*.avi
 software/raspberry/final_rpi/REGISTRO_H10.mp4
 software/raspberry/final_rpi/retro_guard_interv.csv
+
+# paquetes de contexto para IA externa: se regeneran
+contexto_para_ia_*.md
