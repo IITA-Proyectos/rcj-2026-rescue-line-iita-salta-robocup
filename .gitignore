@@ -54,3 +54,5 @@ software/raspberry/final_rpi/medicion_eje.json
 software/raspberry/final_rpi/eje_*.png
 software/raspberry/final_rpi/shadow_pi_*.csv
 software/raspberry/final_rpi/shadow_pi_*.avi
+software/raspberry/final_rpi/REGISTRO_H10.mp4
+software/raspberry/final_rpi/retro_guard_interv.csv
