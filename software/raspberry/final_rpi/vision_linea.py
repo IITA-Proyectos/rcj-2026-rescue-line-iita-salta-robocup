@@ -93,6 +93,7 @@ LEY_HFOV = _envf("LEY_STEER_HFOV", 60.0)
 LEY_ARCO = _envf("LEY_STEER_ARCO", 0.60)
 
 _LS = None                 # ley_steer, importado perezosamente igual que todo
+_LS_FALLO = False          # si el import falla, no se reintenta ni se reimprime
 _NFRAME = 0
 _FACTOR = 1.0
 _FACTOR_EN = -1
@@ -275,9 +276,9 @@ def _ley(r):
     NO devuelve None. Cae a la ley de hoy. `None` significa "quedate con el
     atan2 viejo de Main.py", que es peor que cualquiera de las dos.
     """
-    global _LS
+    global _LS, _LS_FALLO
     viejo = _angulo_de(float(r["target"][0]))
-    if not LEY_ACTIVA:
+    if not LEY_ACTIVA or _LS_FALLO:
         return viejo
     try:
         if _LS is None:
@@ -295,7 +296,12 @@ def _ley(r):
                             k_psi=LEY_KPSI, g=LEY_G, hfov=LEY_HFOV,
                             arco=LEY_ARCO)
     except Exception as e:                                # pragma: no cover
-        print("[LEY-STEER] fallo (%s): sigo con la ley de hoy" % e)
+        # UNA sola vez. La version anterior imprimia por frame: con el archivo
+        # ausente eran 459 prints en 461 frames, y en la Pi eso es I/O
+        # sincronico adentro del lazo de vision, o sea FPS que se pierde por
+        # avisar de algo que ya no va a cambiar.
+        _LS_FALLO = True
+        print("[LEY-STEER] fallo (%s): APAGADA, sigo con la ley de hoy" % e)
         return viejo
     if c is None:
         _ULT["ley"] = "cae_a_vieja"
