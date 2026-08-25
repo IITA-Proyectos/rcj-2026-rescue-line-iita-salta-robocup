@@ -68,3 +68,6 @@ software/raspberry/final_rpi/REGISTRO_COMPLETO.mp4
 software/raspberry/final_rpi/_sep_cache.pkl
 software/raspberry/final_rpi/_yaw_cache.pkl
 software/raspberry/final_rpi/_tlm_test.csv
+
+# derivados de leyes.py: se regeneran, y uno pesa 40 MB
+software/raspberry/final_rpi/leyes_*.avi
