@@ -47,11 +47,21 @@ que la telemetria las pueda registrar sin volver a calcular nada.
 import math
 import os
 
+# --- anticipacion de curva -------------------------------------------------
+# Umbral de curvatura calibrado sobre 13.220 frames de los 10 autonomos
+# (curva_cerrada.py): p75 de la distribucion observada. Por debajo de esto el
+# camino visible es "recta o curva suave" y se va a velocidad plena.
+KAPPA_REF = 139.5
+# Piso del factor de velocidad. Preregistrado: la Teensy ya rampa de 40 a 50 con
+# absSteer, asi que esto NO es el freno principal: es la ANTICIPACION.
+FACTOR_MIN = 0.55
+
 MODO = (os.environ.get("VISION_LINEA") or "").strip().lower()
 ACTIVA = MODO in ("1", "si", "base", "camino", "v1")
 
 _tr = None
 _v2 = None
+_CP = None
 _modo_real = None
 _fallos = 0
 _ULT = {}
@@ -102,9 +112,85 @@ def _arrancar():
         cp = importlib.util.module_from_spec(sp2)
         sp2.loader.exec_module(cp)
         cp.instalar(_v2, dict(camino=True, mono=True))
+        globals()["_CP"] = cp
         _modo_real = "camino+mono"
     else:
+        sp2 = importlib.util.spec_from_file_location(
+            "camino_principal", os.path.join(aqui, "camino_principal.py"))
+        cp = importlib.util.module_from_spec(sp2)
+        sp2.loader.exec_module(cp)
+        cp.instalar(_v2, dict(camino=False, mono=False))   # solo para espiar
+        globals()["_CP"] = cp
         _modo_real = "base"
+
+
+def _curvatura():
+    """Curvatura del camino visible, en grados por unidad de suelo.
+
+    Devuelve None si no hay camino usable o si el modo no tiene esqueleto.
+    Lee el arbol de Dijkstra que la propia candidata acaba de calcular: no
+    recalcula nada.
+    """
+    try:
+        cp = _CP
+        if cp is None or "dist" not in cp.CAP:
+            return None
+        pts, dist = cp.CAP["pts"], cp.CAP["dist"]
+        prev, si = cp.CAP["prev"], cp.CAP["si"]
+        import numpy as _np
+        fin = _np.where(_np.isfinite(dist))[0]
+        if len(fin) < 8:
+            return None
+        F = int(fin[int(_np.argmax(dist[fin]))])
+        cad = _v2.reconstruct(prev, si, F)
+        if not cad or len(cad) < 8:
+            return None
+        f_px = (_v2.W / 2.0) / math.tan(math.radians(60.0 / 2.0))
+
+        def suelo(u, v):
+            z = (119.0 - 9.0) / max(v - 9.0, 1e-6)
+            return ((u - _v2.CENTER) * z / f_px, z)
+
+        P = [suelo(pts[i][1], pts[i][0]) for i in cad]
+        Q = P[::6] if len(P) >= 18 else P
+        if len(Q) < 3:
+            return None
+        arco = 0.0
+        hs = []
+        for a, b in zip(Q, Q[1:]):
+            dx, dz = b[0] - a[0], b[1] - a[1]
+            L = math.hypot(dx, dz)
+            if L < 1e-9:
+                continue
+            arco += L
+            hs.append(math.degrees(math.atan2(dx, dz)))
+        if len(hs) < 2 or arco < 1e-9:
+            return None
+        giro = sum(abs((b - a + 180) % 360 - 180) for a, b in zip(hs, hs[1:]))
+        return giro / arco
+    except Exception:
+        return None
+
+
+def velocidad(base):
+    """Velocidad recomendada, anticipando la curva. Devuelve None si no opina.
+
+    NO es un calculo fisico absoluto: es un factor RELATIVO calibrado sobre la
+    distribucion de curvatura medida. La Teensy ya rampa con absSteer; esto
+    aporta lo que absSteer no puede, que es llegar a la curva ya frenado.
+
+    ESTO NO SE PUEDE VALIDAR CON REPLAY: frenar cambia la trayectoria y por lo
+    tanto cambia lo que la camara ve. Es prueba de sabado.
+    """
+    if not ACTIVA or _tr is None:
+        return None
+    k = _curvatura()
+    if k is None or k <= KAPPA_REF:
+        return None
+    f = max(FACTOR_MIN, min(1.0, KAPPA_REF / k))
+    _ULT["kappa"] = round(k, 1)
+    _ULT["factor_vel"] = round(f, 3)
+    return int(round(base * f))
 
 
 def _angulo_de(x):
