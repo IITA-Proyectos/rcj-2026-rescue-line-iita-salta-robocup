@@ -11,7 +11,7 @@ This document explains how vision works on the Raspberry Pi, how YOLO is integra
 
 ## Objective
 
-- Follow a line in real time (classic vision).
+- Follow line in real time (classic vision).
 - In rescue, detect balls and areas with YOLO.
 - Send commands to the Teensy via serial (see `rpi/Communication between the raspberry and the teensy.md`).
 
@@ -37,7 +37,7 @@ Summary based on regulation 2026:
 - The **black line ends** at the entrance and **starts again** at the exit.
 - There are **two high evacuation areas**: one **red** (dead victim) and one **green** (live victims).
 - The areas are **right triangles of 30 cm x 30 cm** with **6 cm** walls and a hollow center.
-- The areas can be in any corner that is not the entrance/exit.
+- The areas can be in any corner that is not entrance/exit.
 - There may be **obstacles or speed bumps** within the area, but **they do not count for points**.
 - There may be **white LED lights** at the top of the walls.
 - The victims are spheres of 4-5 cm, with off-center mass (max 80 g):
@@ -104,14 +104,14 @@ Several options were tested (tflite, yolov8n, yolov8_ncnn, FOMO) and **ONNX Runt
 ### Precision and Quantization
 
 - The **current ONNX models are in FP32** (not INT8).
-- Attempts were made to quantize (INT8) in an environment very similar to the real one, but **precision worsened** and the results were unreliable.
+- Attempts were made to quantize (INT8) in an environment very similar to the real one, but **precision worsened** and results were unreliable.
 - At this stage, **robustness and precision** were prioritized over FPS.
 
 #### Quantization
 
 Quantization reduces computation and memory costs by changing the data type:
 - **FP32**: 32 bits, more precision, more cost.
-- **FP16/INT8**: fewer bits, more speed, and less memory, but may lose precision.
+- **FP16/INT8**: fewer bits, more speed and less memory, but may lose precision.
 
 In vision, quantization can affect:
 - Edges and fine details.
@@ -123,7 +123,7 @@ That is why it was kept in FP32 until a reliable calibration set and stable beha
 ### CPU-only (no accelerator)
 
 No AI accelerator is used (no NPU, no TPU, no GPU). **Everything runs on the CPU** of the Raspberry Pi.  
-This limits the maximum FPS and requires optimizing the pipeline.
+This limits the maximum FPS and forces optimization of the pipeline.
 
 ### Optimization and Multithreading
 
@@ -136,7 +136,7 @@ This allows for parallel processing and **keeping states synchronized** without 
 
 ## External Benchmarks (reference)
 
-Below are external graphs comparing runtimes on Raspberry Pi 4B. They are not our models but serve as a reference for the relative performance between ONNX Runtime, TFLite, and other runtimes on ARM.
+Below are external graphs comparing runtimes on Raspberry Pi 4B. They are not our models, but serve as a reference for the relative performance between ONNX Runtime, TFLite, and other runtimes on ARM.
 
 ### Paper: Performance Characterization of using Quantization for DNN Inference on Edge Devices (Raspberry Pi 4B)
 
@@ -155,7 +155,7 @@ Below are external graphs comparing runtimes on Raspberry Pi 4B. They are not ou
 
 > Note: these values **are not comparable 1:1** because models, resolutions, datasets, and configurations vary. They are used only as external reference.
 
-## How to Run the Raspberry Main
+## How to run the main on Raspberry
 
 1. Copy the ONNX model to the Raspberry (e.g., `/home/iita/Desktop/zonasdepositoalta.onnx`).
 2. Install Python dependencies.
@@ -168,7 +168,7 @@ Below are external graphs comparing runtimes on Raspberry Pi 4B. They are not ou
 - `OMP_NUM_THREADS`: limit CPU threads.
 - `HEADLESS = True`: disables windows and increases FPS.
 
-## Checklist When Changing Model
+## Checklist when changing model
 
 - Update `MODEL_PATH` in `Main.py`.
 - Confirm `CLASS_NAMES` and class mapping.

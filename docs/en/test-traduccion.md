@@ -5,7 +5,7 @@
 
 # Test Document
 
-This file was automatically created to verify that the translation workflow is functioning correctly.
+This file was created automatically to verify that the translation workflow is functioning correctly.
 
 ## Robot Details
 

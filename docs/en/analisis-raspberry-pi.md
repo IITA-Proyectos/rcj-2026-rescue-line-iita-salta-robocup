@@ -8,9 +8,9 @@
 > **Author:** Ai Gemini - **Requested by:** Gustavo Viollaz  
 > **Date:** February 22, 2026
 
-## 1. Operational Analysis
+## 1. Functionality Analysis
 
-The software for the Raspberry Pi is designed to be the image processing and high-level decision-making node. It is divided into two main logics: **Line Following** (Traditional OpenCV) and **Rescue Zone** (Deep Learning).
+The software for the Raspberry Pi is designed to be the image processing node and high-level decision-making. It is divided into two main logics: **Line Following** (Traditional OpenCV) and **Rescue Zone** (Deep Learning).
 
 ### Workflow
 1.  **Asynchronous Capture:** The file `camthreader.py` separates frame capture from processing. This ensures that the processor always works with the most recent image, eliminating the delay from the hardware buffer.
@@ -27,15 +27,15 @@ The software for the Raspberry Pi is designed to be the image processing and hig
 
 ### CRITICAL: Memory Management in Rescue
 The function `modo_rescate()` loads the YOLO model every time it is invoked. 
-*   **Impact:** This can cause the robot to stop for 3-5 seconds when entering the rescue zone. If the RAM becomes fragmented, the operating system could terminate the program due to lack of memory (OOM Killer).
+*   **Impact:** This can cause the robot to stop for 3-5 seconds when entering the rescue zone. If the RAM becomes fragmented, the operating system may terminate the program due to lack of memory (OOM Killer).
 
 ### HIGH: Object Search Logic
 If there are no targets in the frame during rescue mode, the robot has a default command to turn 90°.
-*   **Impact:** The robot will turn aimlessly if the ball is out of its initial field of view, without a real exploration strategy.
+*   **Impact:** The robot will turn aimlessly if the ball is outside its initial field of view, without a real exploration strategy.
 
 ### MEDIUM: Sensitivity to Lighting
 The color thresholds (HSV/LAB) are static. 
-*   **Impact:** The robot is vulnerable to changes in the lighting of the competition environment. The "Silver" color of the rescue entry is especially prone to being confused with white reflections.
+*   **Impact:** The robot is vulnerable to changes in the lighting of the competition environment. The "Silver" color of the rescue entry is particularly prone to being confused with white reflections.
 
 ---
 

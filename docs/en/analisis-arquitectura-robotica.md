@@ -9,7 +9,7 @@
 
 ## 1. System Overview
 
-The IITA robot for RoboCup Junior Rescue Line 2026 utilizes a **Decentralized Hybrid Architecture**. This configuration separates high-latency and intensive processing tasks (vision and inference) from deterministic and real-time tasks (motor control and reading critical sensors).
+The IITA robot for RoboCup Junior Rescue Line 2026 uses a **Decentralized Hybrid Architecture**. This configuration separates high-latency and compute-intensive tasks (vision and inference) from deterministic and real-time tasks (motor control and reading critical sensors).
 
 ### Data Flow Diagram
 ```mermaid
@@ -42,11 +42,11 @@ Real-Time Controller]
 The Teensy acts as the "peripheral nervous system." It implements robust low-level control but has opportunities for optimization in its concurrency management.
 
 ### Key Components
-- **DriveBase & Motors:** Differential control of 4 wheels. The use of `micros()` for RPM calculation allows for precise PID, although it is vulnerable to noise in the encoder signal.
+- **DriveBase & Motors:** Differential control of 4 wheels. The use of `micros()` for RPM calculation allows for precise PID control, although it is vulnerable to noise in the encoder signal.
 - **State Logic:** The robot alternates between `routine = "line"` and `routine = "rescue"`. The transition is triggered by the Raspberry Pi upon detecting the entry pattern into the rescue zone (silver).
 
 ### Identified Improvement Points
-1. **Elimination of Blocking:** The current firmware uses `delay()` in the claw sequences (`claw.cpp`). This halts the calculation of motor RPMs. It is recommended to migrate to a **Non-blocking Finite State Machine (FSM)**.
+1. **Elimination of Blocking:** The current firmware uses `delay()` in the claw sequences (`claw.cpp`). This halts the RPM calculation of the motors. It is recommended to migrate to a **Non-blocking Finite State Machine (FSM)**.
 2. **UART Robustness:** The current parser is positional. A bit error shifts all subsequent commands. It is suggested to implement a protocol with **Checksum (CRC8/16)** and synchronization headers.
 3. **Odometry:** The `runDistance` function relies exclusively on pulse counting. It is recommended to integrate the gyroscope to compensate for wheel slip.
 
@@ -58,7 +58,7 @@ The Raspberry Pi manages environmental perception through two logical engines: c
 
 ### Line Processing (OpenCV)
 - **Color Spaces:** The use of **LAB** for green and **HSV/BGR** for black/silver is a solid choice to mitigate lighting changes.
-- **Intersection Detection:** It is based on the presence of green pixels in specific regions of interest (ROI). It is a fast method but sensitive to reflections.
+- **Intersection Detection:** It relies on the presence of green pixels in specific regions of interest (ROI). It is a fast method but sensitive to reflections.
 
 ### Artificial Intelligence (YOLOv8 + ONNX)
 - **Performance:** Exporting to ONNX allows for efficient execution on the RPi's CPU.
@@ -66,7 +66,7 @@ The Raspberry Pi manages environmental perception through two logical engines: c
 
 ### Architectural Risks
 1. **Resource Management:** Creating and destroying threads when entering/exiting rescue mode can cause instability. A model of persistent threads in a "pause/wait" state is recommended.
-2. **Depth Estimation:** Relying solely on the size of the bounding box is risky on ramps. A sensory fusion is suggested where the RPi centers the object and the Teensy uses ToF sensors for the final approach.
+2. **Depth Estimation:** Relying solely on the bounding box size is risky on ramps. A sensory fusion is suggested where the RPi centers the object and the Teensy uses ToF sensors for final approximation.
 
 ---
 
