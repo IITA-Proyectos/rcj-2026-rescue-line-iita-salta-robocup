@@ -102,7 +102,15 @@ def main():
     if largos != {len(TV.CAMPOS)}:
         fallos.append("largo de fila")
 
-    nuevos = TV.CAMPOS[TV.CAMPOS.index("ctrl_source"):]
+    # Los campos DE RELOJ no son campos de vision: se llenan igual con la
+    # vision apagada, porque salen de time.monotonic_ns() y no de la imagen.
+    # Meterlos en `nuevos` haria fallar el punto 4 ("apagada no cambia el
+    # CSV") por una razon que no es la que ese punto quiere vigilar. La
+    # invariante real es: los campos que DESCRIBEN LO QUE VIO LA CAMARA tienen
+    # que ser 0 cuando no hay camara.
+    RELOJES = ("t_mono_ns",)
+    nuevos = [c for c in TV.CAMPOS[TV.CAMPOS.index("ctrl_source"):]
+              if c not in RELOJES]
     print("")
     print("  %-12s %8s %10s %10s %10s" % ("campo", "no-cero", "min", "max", ""))
     for c in nuevos:

@@ -103,6 +103,19 @@ CAMPOS = [
     "raw_y",
     "cap_x",        # etapa 2: despues del cap de continuidad, x10
     "cap_y",
+    # ---- reloj absoluto para cruzar con el Teensy (26-ago) -----------------
+    # `t_ms` es time.monotonic() MENOS `_t0`, o sea que su epoca es "cuando
+    # arranco el registro": dos corridas distintas no son comparables y contra
+    # el `us` del Teensy no se puede alinear nada.
+    # `t_mono_ns` es time.monotonic_ns() CRUDO. La epoca sigue siendo
+    # arbitraria (es el boot de la Pi), pero es ESTABLE durante toda la vida
+    # del proceso, que es lo que hace falta para:
+    #   * medir la deriva entre el reloj de la Pi y el del Teensy, cruzando
+    #     por la clave que ya existe: la columna `i` de aca == `rxf` de alla
+    #   * fechar un frame sin depender de cuando se abrio el archivo
+    # Va en nanosegundos y sin restar nada A PROPOSITO: cualquier resta que se
+    # quiera hacer se hace en el analisis, no en el registrador.
+    "t_mono_ns",
 ]
 
 _MODO = {"base": 1, "camino+mono": 2, "v1": 3}
@@ -227,6 +240,7 @@ class TelemetriaVision:
             if u:
                 k.update(campos_vision(u))
             k.setdefault("t_ms", int((ahora - self._t0) * 1000))
+            k.setdefault("t_mono_ns", time.monotonic_ns())
             self._buf.append(",".join(str(int(k.get(c, 0))) for c in CAMPOS))
             if len(self._buf) >= self._cada or (ahora - self._ult_volcado) >= self._cada_s:
                 self._volcar(ahora)
