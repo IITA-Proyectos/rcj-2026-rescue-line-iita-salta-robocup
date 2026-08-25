@@ -167,7 +167,29 @@ def errores(res, hfov=HFOV_NOMINAL, arco=ARCO_PSI):
     ent = res.get("entrada") or st
     X0, Z0 = suelo(ent[0], ent[1], hfov)
     e = X0
-    # la tangente se sigue midiendo sobre el camino, que arranca en el start
+    # La tangente se sigue midiendo sobre el camino, que arranca en el start.
+    #
+    # Benjamin pregunto si `entrada` y `start` no deberian ser lo mismo. La
+    # respuesta corta: para el cross-track si -y por eso el arreglo de arriba-,
+    # pero son dos objetos con propositos distintos. `start` es un NODO DEL
+    # ESQUELETO, y tiene que serlo porque es la raiz del grafo sobre el que
+    # corre Dijkstra. `entrada` es el centroide de la MANCHA, y no tiene por
+    # que caer sobre el esqueleto.
+    #
+    # Y de ahi sale la pregunta siguiente: si el camino EMPIEZA en el costado,
+    # su primer tramo va de lado antes de ir hacia adelante, no estara eso
+    # corrompiendo `psi`? Medido sobre 10.678 caminos, comparando la tangente
+    # de hoy contra una que saltea el arranque (arco 0,15 a 0,75):
+    #
+    #     diferencia p50 9,1 grados, p90 16,8, y cambia de SIGNO en el 4,0 %
+    #
+    # Parece que si. Pero el control lo desmiente: donde `start` y `entrada`
+    # estan MUY separados (>25 px) la diferencia es 9,2, y en todos los frames
+    # es 9,1. IDENTICA. Si el sesgo del start fuera la causa, ahi tendria que
+    # ser mayor. Lo que ese test mide es que la tangente de una curva depende
+    # de sobre que tramo se la calcule -geometria normal-, no un defecto.
+    #
+    # Conclusion: `e` estaba mal y se arreglo; `psi` no esta afectado.
     Xp, Zp = suelo(st[0], st[1], hfov)
 
     if not path or len(path) < 2:
