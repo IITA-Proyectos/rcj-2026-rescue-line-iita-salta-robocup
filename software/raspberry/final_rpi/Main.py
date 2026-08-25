@@ -87,6 +87,8 @@ TEENSY_STOP = b'\xff'
 TEENSY_RESCATE = b'\xf1'     # 241 = iniciar modo rescate
 TEENSY_EVACUACION = b'\xf7'  # 247 = termino rescate, iniciar evacuacion
 SERIAL_TIMEOUT_S = 0.05
+# `flush()` en el hot path: ver send_frame(). Por defecto NO se llama.
+SERIAL_FLUSH = os.environ.get("SERIAL_FLUSH") == "1"
 FRAME_NONE_RETRY_SLEEP_S = 0.01
 FRAME_NONE_RESTART_THRESHOLD = 30
 TELEMETRY_INTERVAL_S = 5.0
@@ -160,7 +162,17 @@ def send_frame(speed, angle, green_state, silver_line_flag):
         SYNC_SILVER_LINE, clamp_byte(int(bool(silver_line_flag))),
     ])
     bytes_written = ser.write(output)
-    ser.flush()
+    # ser.flush() BLOQUEA hasta que los 8 bytes salieron del buffer del SO:
+    # 8*10/115200 = 0,694 ms por trama, y a 80 Hz eso es 55,6 ms por segundo,
+    # el 5,6 % del tiempo del lazo de vision. Y NADIE espera esa garantia: no
+    # hay ACK, la Teensy no contesta esta trama, y el SO igual la manda. Lo
+    # unico que cambia es que el lazo deja de quedarse mirando como sale.
+    #
+    # Se deja detras de una variable de entorno por si el sabado aparece algun
+    # sintoma raro de serie y hay que descartar esto rapido:
+    #     SERIAL_FLUSH=1 python3 Main.py    -> vuelve el comportamiento viejo
+    if SERIAL_FLUSH:
+        ser.flush()
     #print(f"[TX] bytes_written={bytes_written} raw={output.hex()} speed={speed} angle={angle} gs={green_state} sl={silver_line_flag}")
 
     frames_sent += 1
