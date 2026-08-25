@@ -59,3 +59,6 @@ software/raspberry/final_rpi/retro_guard_interv.csv
 
 # paquetes de contexto para IA externa: se regeneran
 contexto_para_ia_*.md
+software/raspberry/final_rpi/REGISTRO_V1_vs_CAND.mp4
+software/raspberry/final_rpi/REGISTRO_MONO.mp4
+software/raspberry/final_rpi/CLIP_MONO_tramos.mp4
