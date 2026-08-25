@@ -62,3 +62,9 @@ contexto_para_ia_*.md
 software/raspberry/final_rpi/REGISTRO_V1_vs_CAND.mp4
 software/raspberry/final_rpi/REGISTRO_MONO.mp4
 software/raspberry/final_rpi/CLIP_MONO_tramos.mp4
+software/raspberry/final_rpi/REGISTRO_COMPLETO.mp4
+
+# caches de los bancos: se regeneran con --extraer / --forzar y pesan
+software/raspberry/final_rpi/_sep_cache.pkl
+software/raspberry/final_rpi/_yaw_cache.pkl
+software/raspberry/final_rpi/_tlm_test.csv
