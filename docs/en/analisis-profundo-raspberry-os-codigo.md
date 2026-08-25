@@ -5,8 +5,8 @@
 
 # Deep Analysis: Code, OS, and Robustness of the Raspberry Pi
 
-> **Author:** Ai Gemini - **At the request of:** Gustavo Viollaz
-> **Date:** 2026-02-23 (America/Argentina/Salta)
+> **Author:** Ai Gemini - **Requested by:** Gustavo Viollaz  
+> **Date:** 2026-02-23 (America/Argentina/Salta)  
 > **Area:** Raspberry Pi 4B (Vision, OS, and Concurrency)
 
 This document audits the internal behavior of the Raspberry Pi program, the interaction with the Teensy, and the Operating System, identifying bottlenecks and proposing elite standards for the RoboCup Junior competition.
@@ -25,11 +25,11 @@ while estado == 'esperando':
         if data == b'\xf9': # 249
             estado = 'linea'
 ```
-*   **Evaluation:** It is a **robust startup design**. The Raspberry Pi (which takes ~30s to boot the OS) can power on first. It will keep purging the serial buffer (`ser.reset_input_buffer()`) and processing frames in empty until the Teensy sends byte `249` (which occurs when the user presses the physical start switch).
-*   **Ideal Order:** 1. Power on Raspberry Pi and wait for the script to load (it is recommended to configure a script in `systemd` that makes an LED blink when the Python script is running). 2. Press the Switch on the Teensy.
+*   **Evaluation:** It is a **robust startup design**. The Raspberry Pi (which takes ~30s to boot the OS) can power on first. It will keep purging the serial buffer (`ser.reset_input_buffer()`) and processing frames in empty until the Teensy sends the byte `249` (which occurs when the user presses the physical start switch).
+*   **Ideal Order:** 1. Power on the Raspberry Pi and wait for the script to load (it is recommended to set up a script in `systemd` that makes an LED blink when the Python script is running). 2. Press the switch on the Teensy.
 
 ### B. What happens if the Teensy restarts/powers off during execution?
-*   **Vulnerability:** If the Teensy suffers a *brownout* (voltage drop) and restarts, the Raspberry Pi **does not know**. The RPi will remain in the `linea` or `rescue` state sending commands (`[255, speed, 254, angle...]`) to the Serial port.
+*   **Vulnerability:** If the Teensy suffers a *brownout* (voltage drop) and restarts, the Raspberry Pi **does not notice**. The RPi will remain in the `linea` or `rescue` state sending commands (`[255, speed, 254, angle...]`) to the Serial port.
 *   **Consequence:** When the Teensy revives, it will enter its `loop()` waiting for the human to press the switch, but the RPi will already be sending speeds. Synchronization is lost.
 *   **Solution (Heartbeat):** The RPi must require a "I'm alive" byte (Heartbeat) from the Teensy every 500ms. If it does not receive it, the RPi must force its state back to `'waiting'`.
 
@@ -43,7 +43,7 @@ output = [255, speed, 254, angle + 90, 253, green_state, 252, 0]
 ser.write(output)
 ```
 *   **Buffer Analysis:** The Raspberry Pi does not wait for an acknowledgment (ACK) from the Teensy. It sends in *Fire and Forget* mode. At 30 FPS, that is 240 bytes/second. The Teensy's UART buffer will not overflow **unless the Teensy uses `delay()`**.
-*   **The Real Risk:** As detailed in the Teensy analysis, if the Teensy does a `delay(1000)` to move the claw, it will stop reading the Serial. The RPi will keep feeding data. When the delay ends, the Teensy will read "old" commands from 1 second ago, reacting late.
+*   **The Real Risk:** As detailed in the Teensy analysis, if the Teensy does a `delay(1000)` to move the claw, it will stop reading the Serial. The RPi will continue to push data. When the delay ends, the Teensy will read "old" commands from 1 second ago, reacting late.
 *   **Solution:** Implement `ser.flush()` or migrate to a request protocol: The RPi only sends a new command when the Teensy asks "give me data".
 
 ---
@@ -58,12 +58,12 @@ def modo_rescate():
     # ...
     model = YOLO(MODEL_PATH, task='detect') # CRITICAL LINE
 ```
-*   **Problem:** Every time the robot detects the silver line and enters `modo_rescate()`, the SD disk has to read the `.onnx` file and load it into RAM. This **freezes the entire program** for several seconds.
-*   **Solution:** Instantiate `model = YOLO(...)` at line 1 of the file, at the global level, so that it loads only once during system boot.
+*   **Problem:** Each time the robot detects the silver line and enters `modo_rescate()`, the SD card has to read the `.onnx` file and load it into RAM. This **freezes the entire program** for several seconds.
+*   **Solution:** Instantiate `model = YOLO(...)` at line 1 of the file, at the global level, so it loads only once during system boot.
 
 ### 2. Thread Creation and Destruction (Memory Leaks)
 *   **Problem:** Within `modo_rescate()`, the threads `tcap` and `tinf` are created and destroyed upon exit. Creating video capture threads on the fly causes memory fragmentation and leaks in OpenCV over time.
-*   **Solution:** Create a persistent thread system (Worker Threads) in `camthreader.py` that never dies, simply sending them a "flag" to switch between processing colors or processing YOLO.
+*   **Solution:** Create a persistent thread system (Worker Threads) in `camthreader.py` that never dies, simply sending a "flag" to switch between processing colors or processing YOLO.
 
 ### 3. Remote Monitoring (`cv2.imshow`)
 ```python
@@ -81,13 +81,13 @@ if debugOriginal:
 *   **The problem:** The HSV color thresholds (red, green, silver) break if the ambient light changes (a cloud, the flash of a camera, shadows from the robot itself).
 *   **Strategy:** Add a white LED ring around the camera.
 *   **How to do it?** Use a GPIO pin from the Raspberry Pi connected to a MOSFET transistor. In the code, turn on the lights with `GPIO.output(PIN, HIGH)` just before capturing the first frame.
-*   **Advantage:** Floods the area with constant light, killing shadows. The HSV values calibrated at home will work exactly the same in Japan or any stadium.
+*   **Advantage:** It floods the area with constant light, killing shadows. The HSV values calibrated at home will work exactly the same in Japan or any stadium.
 
 ### B. Evidence and Calibration Missing in the Repository
 During the review of the repo, **NO documented evidence was found** regarding:
 1.  **SD Backups (ISO Images):** There are no instructions on how to clone the SD. If the SD gets corrupted in competition due to improperly shutting down the RPi, the team is eliminated. There should be a manual in the repo (e.g., "How to use Win32DiskImager to make a monthly backup of the OS").
-2.  **Focus Calibration:** Cheap USB cameras have screwable lenses. With the vibration of the robot, the lens rotates microscopically and goes out of focus. The process of using a calibration chart, focusing, and **locking the thread with epoxy glue or Kapton tape** should be documented.
-3.  **Operating System (OS) Configuration:** There is no `setup.sh` file. If the SD breaks, how are the permissions of the Serial port `/dev/serial0` configured? How is the desktop environment disabled to free up RAM? This must be documented (e.g., using `raspi-config` to disable the serial console on the hardware pins).
+2.  **Focus Calibration:** Cheap USB cameras have screwable lenses. With the robot's vibration, the lens rotates microscopically and becomes out of focus. The process of using a calibration chart, focusing, and **locking the thread with epoxy glue or Kapton tape** should be documented.
+3.  **Operating System (OS) Configuration:** There is no `setup.sh` file. If the SD breaks, how are the permissions for the Serial port `/dev/serial0` configured? How is the desktop environment disabled to free up RAM? This must be documented (e.g., using `raspi-config` to disable the serial console on the hardware pins).
 
 ---
 
@@ -98,4 +98,4 @@ To transform this code into a robust competition-grade system:
 1.  **Move `YOLO()` to Global Scope:** Take it out of the `modo_rescate()` function.
 2.  **Enable Headless mode by default:** Avoid `cv2.imshow` in production.
 3.  **Implement a Serial Watchdog:** Force the state to `'waiting'` if the read serial buffer is empty for more than 1 second.
-4.  **Hardware:** Install GPIO-controlled lighting LEDs and document SD card cloning.
+4.  **Hardware:** Install GPIO-controlled lighting LEDs and document the cloning of the SD card.

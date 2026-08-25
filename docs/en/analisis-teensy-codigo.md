@@ -27,8 +27,8 @@ The Teensy code consists of a main file (`main.cpp`) and two custom libraries (`
 
 ### C. Main Loop (`main.cpp`)
 - **Sensor Management:** Maintains polling on the IMU BNO055 (orientation), VL53L0X (I2C laser distance), ultrasonic (HC-SR04), and the color sensor APDS9960.
-- **Odometry and Tasks:** Executes movement routines based on time (`runTime`), distance measured by encoders (`runDistance`), and strict angular turns by blocking measuring the IMU (`runAngle`).
-- **Competition States:** The flow of the `loop()` branches into two large `while` blocks: one for `routine == "line"` and another for `routine == "rescue"`.
+- **Odometry and Tasks:** Executes movement routines based on time (`runTime`), distance measured by encoders (`runDistance`), and strict angular turns measuring the IMU in a blocking manner (`runAngle`).
+- **Competition States:** The flow of the `loop()` branches into two main `while` blocks: one for `routine == "line"` and another for `routine == "rescue"`.
 
 ---
 
@@ -37,28 +37,28 @@ The Teensy code consists of a main file (`main.cpp`) and two custom libraries (`
 The code review revealed severe issues in interrupt handling, memory, and concurrency that could cause hangs during competition.
 
 ### 1. Omitted Volatile Variables (CRITICAL)
-- **Finding:** The variable `pulseCount` in the `Moto` class is modified within the ISRs (`ISR1`, `ISR2`, etc.) and read in the main loop (e.g., within `runDistance()`). However, it is simply declared as `long pulseCount;`.
+- **Finding:** The variable `pulseCount` in the `Moto` class is modified within the ISRs (`ISR1`, `ISR2`, etc.) and read in the main loop (e.g., inside `runDistance()`). However, it is simply declared as `long pulseCount;`.
 - **Risk:** The GCC compiler, when optimizing, may assume that the variable does not change within the main block, storing it in a temporary CPU register. This would cause the robot to move infinitely because it never sees `pulseCount` reach the desired value.
 - **Solution:** It must be declared as `volatile long pulseCount;`.
 
 ### 2. String Comparison in ISR (CRITICAL)
 - **Finding:** In `drivebase.cpp` (Line 49), the interrupt `updatePulse()` performs the evaluation `if (this->id == "FL" || this->id == "BL")`.
-- **Risk:** On one hand, executing string comparisons within an interrupt is computationally slow and poor practice. On the other hand, this is a **pointer comparison in C++**, not a content comparison. It works by miracle because the compiler groups string literals, but it is a ticking time bomb if the optimization level changes.
+- **Risk:** On one hand, executing string comparisons within an interrupt is computationally slow and bad practice. On the other hand, this is a **pointer comparison in C++**, not a content comparison. It works by miracle because the compiler groups string literals, but it is a ticking time bomb if the optimization level changes.
 - **Solution:** Replace `const char* id` with an internal `enum` to designate the position (e.g., `enum Position { FRONT_LEFT, BACK_LEFT, ... }`).
 
 ### 3. Blocked Concurrency (`delay()` vs PID)
 - **Finding:** Functions like `runTime()` or the statements `delay(1000)` in the collection (`green_state == 6`) block the main thread.
-- **Risk:** While the processor sleeps in a `delay()`, the function `_motoPID.Compute()` stops executing on time, the serial buffer `Serial5` of the Raspberry Pi overflows with lost data, and the reading of ultrasonic sensors freezes.
+- **Risk:** While the processor sleeps in a `delay()`, the function `_motoPID.Compute()` stops executing in time, the serial buffer `Serial5` of the Raspberry Pi overflows with lost data, and the reading of the ultrasonic sensors freezes.
 
 ### 4. Serial Protocol Without Integrity (HIGH)
-- **Finding:** The function `serialEvent5()` assumes that if byte `255` arrives, the next byte **must** be the speed.
-- **Risk:** Serial cables near DC motors suffer from Electromagnetic Interference (EMI). If a byte gets corrupted or lost, the robot will interpret an angle as speed, causing erratic movements, sharp turns, and going off track for no apparent reason.
+- **Finding:** The function `serialEvent5()` assumes that if byte `255` arrives, the next byte **must be** the speed.
+- **Risk:** Serial cables near DC motors suffer from Electromagnetic Interference (EMI). If a byte is corrupted or lost, the robot will interpret an angle as speed, causing erratic movements, sharp turns, and going off track for no apparent reason.
 
 ---
 
 ## 3. Nomenclature and Style Analysis (Clean Code)
 
-The current code exhibits a marked **lack of uniformity** and abuse of *"Magic Numbers"* (hardcoded magic numbers).
+The current code presents a marked **lack of uniformity** and abuse of *"Magic Numbers"* (hardcoded magic numbers).
 
 *   **Language Mixing:** Variables in English coexist with variables in Spanish, sometimes on the same line (`front_distance`, `left_distance`, `esquinas_negro`, `lado_plateado`, `tiemporescate`, `green_state`).
 *   **Mixed Conventions:** There are variables in `snake_case` (`color_detected`, `distance_left_tof`), others in `camelCase` (`steertimer`, `RanNumber`, `taskDone`), and some without separation (`tiemporescate`).
@@ -73,12 +73,12 @@ Below is a prioritized list of structured changes (Refactoring):
 
 | ID | Area | Description of Improvement | Change to Implement | Expected Improvement |
 |---|---|---|---|---|
-| **OPT-1** | ISR | **Volatile Variables and Enums** | Change to `volatile long pulseCount`. Use an `enum` instead of `const char* id` in the `Moto` class. | Prevents the robot from "infinite slipping" by misreading odometry and makes interrupts safer. |
+| **OPT-1** | ISR | **Volatile Variables and Enums** | Change to `volatile long pulseCount`. Use an `enum` instead of `const char* id` in the `Moto` class. | Prevents the robot from "infinite skidding" by misreading odometry and makes interrupts safer. |
 | **OPT-2** | Concurrency | **Finite State Machine (FSM)** | Remove all `delay()`. Use an `enum SystemState` and timers `millis() - last_time`. | The motor PID will be accurate, and the UART will never overflow. The robot will be truly "multitasking." |
 | **OPT-3** | Communications | **Framed UART Protocol** | Change the positional parser to a structured packet. E.g., `<V:100,A:45,G:0>
 `. | Avoid "ghost jumps" of the robot caused by corrupted or lost bytes between RPi and Teensy. |
 | **OPT-4** | Style | **Unified `Config.h` File** | Extract all numbers, speeds, and pins to a header file. Unify style to `camelCase` and English. | Any team member will be able to adjust speed or pins in one place in 5 seconds, without the risk of breaking another function. |
-| **OPT-5** | Architecture | **Unnest Main `while()`s** | Change the `while(rutina == "line")` and similar loops within the `loop()` to a flat `if/else if/else` model. | Code will be 10 times easier to read and debug. Facilitates the injection of controlled faults for testing. |
+| **OPT-5** | Architecture | **Unnest Main `while()`s** | Change the `while(rutina == "line")` and similar loops within the `loop()` to a flat `if/else if/else` model. | Code 10 times easier to read and debug. Facilitates the injection of controlled failures for testing. |
 
 ---
 *This analysis documents the technical findings to elevate the architectural quality of the source code before the software freeze for RoboCup 2026.*

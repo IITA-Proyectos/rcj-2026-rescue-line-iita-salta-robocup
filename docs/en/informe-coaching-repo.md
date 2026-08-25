@@ -8,32 +8,32 @@
 **Creation Date:** 2026-02-23 (America/Argentina/Salta)  
 **Created by:** AI ChatGPT 5.2 (GPT-5.2 Pro)  
 **At the request of:** Gustavo Viollaz  
-**Analyzed repository:** `IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup` (branch `main`)  
-**Repo standard:** ICRS v1.1 L2 (`AI-INSTRUCTIONS.md`)  
+**Analyzed Repository:** `IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup` (branch `main`)  
+**Repo Standard:** ICRS v1.1 L2 (`AI-INSTRUCTIONS.md`)  
 **Language:** This document lives in `docs/es/` (Spanish = source). `docs/en/` is auto-generated mirror (**DO NOT EDIT**).
 
 ---
 
 ## Objective
 
-This report is a technical-professional review of the repository and the project's status, focusing on:
+This report is a technical-professional review of the repository and the project status, focusing on:
 
 - **Competition**: RoboCupJunior Rescue Line (baseline: rules 2025; note: drafts for 2026 exist).
-- **Competitive performance**: robustness, repeatability, timing, and failure control.
+- **Competitive Performance**: robustness, repeatability, timing, and failure control.
 - **TDP / Documentation**: evidence and typical artifacts required by templates/rubrics (TDP, BOM, technical video, poster).
-- **Best practices**: what strong teams tend to do (engineering + testing + traceability).
+- **Best Practices**: what strong teams tend to do (engineering + testing + traceability).
 
-> Important: this audit is based on what is visible at the time of the review (2026-02-23). If files were added later (e.g., in `hardware/` or `testing/`), this report must be updated.
+> Important: this audit is based on what is visible at the time of the review (2026-02-23). If files were added later (e.g., in `hardware/` or `testing/`), this report should be updated.
 
 ---
 
-## Applied Standardization (repo conventions)
+## Applied Normalization (repo conventions)
 
 According to the README and `AI-INSTRUCTIONS.md`, the documentation is organized as follows:
 
 - `docs/es/`: source documentation in Spanish (truth).
-- `docs/en/`: auto-generated mirror in English (**do not edit**).
-- Suggested convention for file names: **kebab-case** in lowercase (e.g.: `yolo-raspberry.md`).
+- `docs/en/`: auto-generated mirror in English (**not edited**).
+- Suggested convention for file names: **kebab-case** in lowercase (e.g., `yolo-raspberry.md`).
 - Change process: **every change should originate from an Issue** and enter via PR (see `CONTRIBUTING.md` and `AI-INSTRUCTIONS.md`).
 
 **Recommended name and location for this report:**
@@ -43,16 +43,16 @@ According to the README and `AI-INSTRUCTIONS.md`, the documentation is organized
 
 ## Executive Summary (the most important in 2 minutes)
 
-### Strengths (signals of a “serious” team)
+### Strengths (signals of a "serious" team)
 1. **Repository with clear ICRS structure** (software/hardware/docs/testing/journal/research/competition/project).  
 2. **Well-defined dual processor architecture**: Teensy (real-time) + Raspberry Pi (vision/AI).  
 3. **Useful existing technical documentation** (RPi↔Teensy communications, YOLO on Raspberry, firmware libraries).  
-4. **Industry-style contribution rules** (Conventional Commits, PR with evidence, declaration of AI usage).
+4. **Industry-style contribution rules** (Conventional Commits, PR with evidence, AI usage statement).
 
-### Areas for Improvement (what often separates “doing” from “winning”)
-1. **Work traceability**: the repo shows 0 Issues → lacks a “playable” backlog (tasks, responsibilities, dates, risks).  
+### Areas for Improvement (what often separates "doing" from "winning")
+1. **Work traceability**: the repo shows 0 Issues → lacks a "playable" backlog (tasks, responsible parties, dates, risks).  
 2. **Testing evidence with results**: `testing/` is declared, but there is no clearly accessible index/test table.  
-3. **TDP readiness**: for high scores, often missing (or not one click away): electrical diagram/power tree, schematics/PCB, official BOM, CAD with measurements, physical location of sensors, and performance metrics.
+3. **TDP readiness**: for a high score, often missing (or not one click away): electrical diagram/power tree, schematics/PCB, official BOM, CAD with measurements, physical location of sensors, and performance metrics.
 
 ### Detected Competitive Technical Risks (high priority)
 - String comparison by pointer in `drivebase.cpp` (likely bug).
@@ -82,7 +82,7 @@ Code with relevant signals:
 
 ## Evaluation by Area
 
-### 1) Process and Management (what the repo “says” vs what “is seen”)
+### 1) Process and Management (what the repo "says" vs what "is seen")
 
 **What the repo says should be done (very well):**
 - All work originates from an **Issue**.
@@ -90,15 +90,15 @@ Code with relevant signals:
 - AI usage is declared.
 
 **What is currently observed:**
-- “Issues” tab at 0 → **gap between ideal process and real practice**.
+- "Issues" tab at 0 → **gap between ideal process and real practice**.
 
-**Concrete recommendation (action):**
+**Concrete Recommendation (action):**
 - Activate a minimum flow:
-  - 1 Issue per feature (e.g.: “Fix ToF units”, “Non-blocking FSM”, “Testing gaps table”).
+  - 1 Issue per feature (e.g., “Fix ToF units”, “Non-blocking FSM”, “Test table gaps”).
   - labels: `bug`, `enhancement`, `docs`, `hardware`, `testing`, `competition`.
   - milestones: “Roboliga / Regional / National / World”.
 
-> Winning teams are not differentiated by “ideas”: they are differentiated by having a system that makes ideas reach the track and remain stable.
+> Winning teams are not differentiated by "ideas": they are differentiated by having a system that makes ideas reach the field and remain stable.
 
 ---
 
@@ -110,7 +110,7 @@ Code with relevant signals:
 - **Dependencies** and libraries listed (reduces judge questions).
 
 #### 2.2 What is missing (or not visible/1 click away)
-For TDP and typical rubrics, it is missing to consolidate in one place:
+For TDP and typical rubrics, it is necessary to consolidate in one place:
 
 **Hardware**
 - Block diagram of the robot (high level).
@@ -144,12 +144,12 @@ For TDP and typical rubrics, it is missing to consolidate in one place:
 In `software/teensy/firmware/lib/drivebase/drivebase.cpp`, a pattern is observed:
 - `if (this->id == "FL" || this->id == "BL") ...`
 
-In C/C++, this compares **pointers**, not content. It is a classic bug that may “work” by chance and then break.
+In C/C++, that compares **pointers**, not content. It is a classic bug that may "work" by chance and then break.
 
 ✅ Recommendation:
 - replace with `strcmp(id, "FL")==0` or, better, use `enum MotorID`.
 
-**(B) Units mm vs cm**
+**(B) mm vs cm units**
 In `src/main.cpp`, readings `readRangeContinuousMillimeters()` (mm) are used, but constants commented in cm.
 If units are mixed, control becomes erratic (over-correction or slowness).
 
@@ -157,7 +157,7 @@ If units are mixed, control becomes erratic (over-correction or slowness).
 - Define a single unit (mm recommended) and normalize everything in `config.h`.
 
 **(C) Blocking / delays**
-`while(routine==...)` loops with `delay()` and long actions make the robot slow to react and may degrade serial communication.
+`while(routine==...)` loops with `delay()` and long actions make the robot slow to react and can degrade serial communication.
 
 ✅ Recommendation:
 - Non-blocking FSM by “ticks” using `millis()`/`elapsedMillis`.
@@ -167,17 +167,17 @@ If units are mixed, control becomes erratic (over-correction or slowness).
 ### 4) Raspberry Pi (vision + AI)
 
 #### 4.1 Strengths
-- Use of ONNX Runtime + ultralytics (on CPU) is a valid path if measured.
+- Using ONNX Runtime + ultralytics (on CPU) is a valid path if measured.
 - Multithreading / separation of capture and inference (according to docs).
 
-#### 4.2 Competitive recommendation (what strong teams do)
+#### 4.2 Competitive Recommendation (what strong teams do)
 Measure and record, as if it were Formula 1 telemetry:
 - Real FPS (average and percentiles).
 - Inference latency (ms).
-- Correct detection rate (by class) in real track.
+- Correct detection rate (by class) on real track.
 - Robustness to lighting (cold/warm, shadows, reflections, dirty camera).
 
-Without numbers, AI often feels “magical” until the competition day when it stops being so.
+Without numbers, AI often feels "magical" until the competition day when it stops being so.
 
 ---
 
@@ -187,7 +187,7 @@ Without numbers, AI often feels “magical” until the competition day when it 
 - The repo structure includes `testing/`, but no `testing/README.md` was found to act as an index.
 - In `CONTRIBUTING.md`, evidence in PR is required (very good).
 
-**Minimum recommendation (high return):**
+**Minimum Recommendation (high return):**
 Create `testing/README.md` with a simple table:
 
 | Feature | Setup | Metric | Result | Evidence | Date |
@@ -208,7 +208,7 @@ And within `testing/`:
 - [ ] Block diagram of the system (Teensy/RPi/sensors/actuators).
 - [ ] Electrical diagram / power tree.
 - [ ] Schematic (PDF + source).
-- [ ] PCB (if exists) + revisions (`rev-a`, `rev-b`).
+- [ ] PCB (if it exists) + revisions (`rev-a`, `rev-b`).
 - [ ] Photos of the robot (4 views) + dimensions.
 - [ ] Sensor locations (photo + drawing + distances).
 - [ ] Complete BOM (in official template) + suppliers + costs.
@@ -232,11 +232,11 @@ And within `testing/`:
 
 ### Sprint 1 — Stability (avoid losing rounds due to bugs)
 - Fix strings / units / non-blocking FSM.
-- RPi↔Teensy communication watchdog.
+- Watchdog for RPi↔Teensy communication.
 - Minimum logging (build + parameters + result).
 
 ### Sprint 2 — Track Coverage (rules)
-- Gaps, greens, obstacles, ramps/seesaw (as available).
+- Gaps, greens, obstacles, ramps/seesaw (according to availability).
 - Test table with metrics.
 
 ### Sprint 3 — Repeatable Rescue
@@ -272,5 +272,5 @@ To upload this document correctly according to the repo rules:
 - RoboCupJunior Rescue Line (general page):  
   https://junior.robocup.org/rcj-rescue-line/
 
-- (Context) Draft Rules 2026 (may change):  
+- (Context) Draft Rules 2026 (subject to change):  
   https://junior.robocup.org/wp-content/uploads/2026/01/RCJRescueLine2026-draft.pdf
