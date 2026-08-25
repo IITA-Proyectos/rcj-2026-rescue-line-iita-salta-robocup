@@ -42,6 +42,46 @@ Benjamin sobre el atan2 venia siendo buena: el atan2 y Stanley PROMEDIAN la
 geometria -uno con pesos de pixel, el otro con dos terminos explicitos-, y la
 ley lineal depende de UN punto que un planificador con guards puede mover 129 px.
 
+"CUANDO" ERA UNA FRASE VAGA MIA, Y EN EL SENTIDO TEMPORAL ERA FALSA
+------------------------------------------------------------------
+Escribi "lo que cambia no es cuanto piden sino cuando", y Benjamin pidio el
+numero. Correlacion cruzada de las tres series, lags de -20 a +20 frames:
+
+    atan2 -> lineal     lag optimo +1 f   corr 0,737   (en lag 0: 0,734)
+    atan2 -> stanley    lag optimo  0 f   corr 0,858   (en lag 0: 0,858)
+    lineal -> stanley   lag optimo -1 f   corr 0,818   (en lag 0: 0,814)
+
+Un frame es 30 ms, y la correlacion en lag 0 es practicamente la misma que en el
+optimo. NO HAY DESFASE TEMPORAL. Ninguna de las tres anticipa a la otra.
+
+LO QUE SI CAMBIA ES EN QUE FRAMES, Y LA CAUSA ESTA MEDIDA
+----------------------------------------------------------
+La discrepancia |atan2 - lineal| segun cuanto MOVIO el target un guard:
+
+    movio (px)      n       |atan2-lineal|   |atan2-Stanley|
+    ninguno      10397           13,8              10,5
+    0,5 - 10       499           24,3              13,6
+    10 - 25        413           23,6              16,2
+    25 - 60        521           27,9              19,0
+    mas de 60      220           48,0              28,6
+
+Sin guard 13,8 grados; con el guard moviendo mas de 60 px, 48,0. **3,5 veces.**
+Stanley aguanta mucho mejor: 10,5 a 28,6, o sea 2,7x.
+
+Y por estado de la percepcion es todavia mas claro:
+
+    estado          n       |atan2-lineal|   |atan2-Stanley|
+    HIGH         9501           12,7              10,2
+    MEDIUM        852           18,3              15,2
+    LOW           359           43,6               5,7
+    SIN_CERCA    1314           39,1              19,4
+
+En LOW la ley lineal se va 43,6 grados del atan2 y Stanley solo 5,7.
+
+La explicacion es la misma de siempre y ahora esta cuantificada: la ley lineal
+depende de UN punto, asi que cuando un guard mueve ese punto la ley se desconecta
+de la geometria. El atan2 y Stanley promedian la geometria y no se enteran.
+
 CONSECUENCIA PARA EL SABADO, y es la que importa
 ------------------------------------------------
 El salto grande NO es Stanley: es pasar del atan2 a la candidata. 12,2 % de
