@@ -63,6 +63,7 @@ NARANJA = (60, 170, 255)
 VERDE = (110, 230, 120)
 ROJO = (90, 90, 245)
 AMARILLO = (60, 235, 255)
+MAGENTA = (230, 120, 235)
 
 
 def txt(img, s, x, y, col=BLANCO, esc=0.42, gr=1):
@@ -124,17 +125,35 @@ def pintar_imagen(g, r, u):
         txt(vis, "start", int(st[0] * ESC) + 10, int(st[1] * ESC) + 4,
             (245, 160, 90), 0.38)
 
-    # las tres etapas del target
-    geo, bra, fin = r.get("target_geometric"), r.get("target_branch"), r.get("target")
-    if geo:
-        cv2.circle(vis, (int(geo[0] * ESC), int(geo[1] * ESC)), 11, VERDE, 1)
-    if bra and (not geo or math.hypot(bra[0] - geo[0], bra[1] - geo[1]) > 0.5):
-        cv2.circle(vis, (int(bra[0] * ESC), int(bra[1] * ESC)), 8, NARANJA, 2)
+    # LAS CINCO ETAPAS:  raw -> cap -> geo -> bra -> tg
+    # Cada una se dibuja SOLO si movio el punto respecto de la anterior, y se
+    # une con una linea roja. Asi se ve de un vistazo QUE guard lo movio, que es
+    # justo lo que un log de cuatro columnas no permitia clasificar.
+    etapas = [("raw", r.get("target_raw"), VERDE, 13),
+              ("cap", r.get("target_cap"), AMARILLO, 11),
+              ("low", r.get("target_geometric"), NARANJA, 9),
+              ("rama", r.get("target_branch"), MAGENTA, 7)]
+    fin = r.get("target")
+    ant = None
+    movio = []
+    for et, pt, col, rad in etapas:
+        if pt is None:
+            continue
+        if ant is None or math.hypot(pt[0] - ant[0], pt[1] - ant[1]) > 0.5:
+            if ant is not None:
+                cv2.line(vis, (int(ant[0] * ESC), int(ant[1] * ESC)),
+                         (int(pt[0] * ESC), int(pt[1] * ESC)), ROJO, 1)
+                movio.append(et)
+            cv2.circle(vis, (int(pt[0] * ESC), int(pt[1] * ESC)), rad, col, 2)
+        ant = pt
     if fin:
         p = (int(fin[0] * ESC), int(fin[1] * ESC))
+        if ant is not None and math.hypot(fin[0] - ant[0], fin[1] - ant[1]) > 0.5:
+            cv2.line(vis, (int(ant[0] * ESC), int(ant[1] * ESC)), p, ROJO, 1)
+            movio.append("spatial")
         cv2.drawMarker(vis, p, BLANCO, cv2.MARKER_TILTED_CROSS, 22, 2)
-        if geo and math.hypot(fin[0] - geo[0], fin[1] - geo[1]) > 0.5:
-            cv2.line(vis, (int(geo[0] * ESC), int(geo[1] * ESC)), p, ROJO, 1)
+    if movio:
+        txt(vis, "lo movio: " + " + ".join(movio), 10, 22, ROJO, 0.44)
 
     # el arco sobre el que se mide la tangente (psi)
     if st and len(path) >= 2:
@@ -151,12 +170,24 @@ def pintar_imagen(g, r, u):
         cv2.circle(vis, (int(pj[0] * ESC), int(pj[1] * ESC)), 6, CIAN, 2)
 
     # leyenda: sin esto los circulos son adornos
-    cv2.rectangle(vis, (0, PH - 74), (330, PH), (0, 0, 0), -1)
-    txt(vis, "camino de Dijkstra", 10, PH - 58, NARANJA, 0.38)
-    txt(vis, "arco donde se mide psi", 10, PH - 42, CIAN, 0.38)
-    txt(vis, "o  target geometrico", 10, PH - 26, VERDE, 0.38)
-    txt(vis, "X  target final    - rojo: lo movio un guard", 10, PH - 10,
-        BLANCO, 0.38)
+    # Arriba a la DERECHA: es la zona de fondo lejano, la unica del cuadro
+    # donde nunca hay cinta. Abajo a la izquierda tapaba los targets cuando la
+    # linea queda al ras del borde inferior, que es justo cuando importa mirar.
+    x0 = PW - 372
+    sub = vis[0:96, x0:PW]
+    vis[0:96, x0:PW] = (sub * 0.25).astype(np.uint8)
+    txt(vis, "camino de Dijkstra", x0 + 10, 18, NARANJA, 0.38)
+    txt(vis, "arco donde se mide psi", x0 + 10, 34, CIAN, 0.38)
+    txt(vis, "las CINCO etapas del target, en orden:", x0 + 10, 52, GRIS, 0.36)
+    for k, (et, col) in enumerate((("raw", VERDE), ("cap", AMARILLO),
+                                   ("low", NARANJA), ("rama", MAGENTA))):
+        cv2.circle(vis, (x0 + 18 + k * 66, 70), 6, col, 2)
+        txt(vis, et, x0 + 28 + k * 66, 74, col, 0.36)
+    cv2.drawMarker(vis, (x0 + 18 + 4 * 66, 70), BLANCO,
+                   cv2.MARKER_TILTED_CROSS, 13, 2)
+    txt(vis, "final", x0 + 28 + 4 * 66, 74, BLANCO, 0.36)
+    txt(vis, "solo se dibuja la etapa que MOVIO el punto", x0 + 10, 90,
+        GRIS, 0.34)
     return vis
 
 
@@ -361,7 +392,8 @@ def main():
                            spatial=r.get("spatial_guard"),
                            salto=r.get("proposed_jump_px"),
                            razon=r.get("reason"), modo=vl._modo_real,
-                           inicio=r.get("start"), rumbo_chord=r.get("heading"))
+                           inicio=r.get("start"), rumbo_chord=r.get("heading"),
+                           raw=r.get("target_raw"), cap=r.get("target_cap"))
             ang = None if t is None else vl._ley(r)
             fv = vl._factor_velocidad()
             vel = int(round(a.vel_base * fv))
