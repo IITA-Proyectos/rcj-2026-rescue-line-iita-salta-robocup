@@ -338,7 +338,8 @@ def angulo(frame_resized):
                     spatial=r.get("spatial_guard"),
                     salto=r.get("proposed_jump_px"),
                     razon=r.get("reason"), modo=_modo_real,
-                    inicio=r.get("start"), rumbo_chord=r.get("heading"))
+                    inicio=r.get("start"), rumbo_chord=r.get("heading"),
+                    raw=r.get("target_raw"), cap=r.get("target_cap"))
         if t is None:
             return None
         return _ley(r)

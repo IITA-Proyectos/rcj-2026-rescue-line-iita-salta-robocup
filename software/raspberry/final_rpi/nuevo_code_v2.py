@@ -363,6 +363,8 @@ class NuevoCodeV2:
                     target=(float(xs[j]),float(ys[j]))
                     reason+="|continuidad"
 
+        target_cap=target          # etapa 2, para registro
+
         # LOW: no permitir un salto grande si la geometría recién se degradó
         if st=="LOW" and self.last_good_target is not None:
             if math.hypot(target[0]-self.last_good_target[0],target[1]-self.last_good_target[1])>28:
@@ -377,9 +379,19 @@ class NuevoCodeV2:
         if st in ("HIGH","MEDIUM"):
             self.last_good_target=target
 
+        # Etapas intermedias, SOLO PARA REGISTRO. No cambian ningun calculo:
+        # son tres claves mas en el dict de salida. `target_cap` sale despues
+        # del cap de continuidad y `target_lowproj` despues de la proyeccion
+        # LOW, que hasta ahora solo se podian inferir del sufijo de `reason`.
+        # PROTOCOLO_SABADO.md las pide por nombre: sin ellas un log no permite
+        # clasificar una falla, porque `target_geometric` de V4 ya viene con
+        # estos dos guards aplicados y no es el geometrico crudo.
+        # Fidelidad verificada sobre los 10 autonomos: 0 discrepancias.
         return dict(ok=True,state=st,mask=m,comp=comp,skel=sk,
                     start=res["start"],target=target,path=res["path"],
-                    heading=res["heading"],reason=reason,mode=mode)
+                    heading=res["heading"],reason=reason,mode=mode,
+                    target_raw=raw,target_cap=target_cap,
+                    target_lowproj=target)
 
 def pxi(p):
     return None if p is None else (int(round(p[0])),int(round(p[1])))

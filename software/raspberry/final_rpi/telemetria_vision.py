@@ -54,9 +54,11 @@ CAMPOS = [
     "vl_estado",    # 0 -  1 HIGH 2 MEDIUM 3 LOW 4 LOW_FORWARD 5 SIN_CERCA 6 PERDIDA
     "tg_x",         # target FINAL, x10   (etapa 5)
     "tg_y",
-    "geo_x",        # etapa 1: target geometrico del planificador, x10
-    "geo_y",
-    "bra_x",        # etapa 2: despues del guard de rama, x10
+    "geo_x",        # etapa 3: salida de la percepcion V2, x10. OJO: NO es el
+    "geo_y",        # geometrico crudo; ya trae el cap y la proyeccion LOW
+                    # aplicados. Es `target_geometric` de V4, y el nombre
+                    # enganaba: las etapas 1 y 2 son raw_x/y y cap_x/y, mas abajo
+    "bra_x",        # etapa 4: despues del guard de rama, x10
     "bra_y",
     "salto_px",     # proposed_jump_px x10: cuanto QUERIA saltar el target
     "guard_sp",     # 0 -  1 ACCEPT 2 SPATIAL_LIMIT 3 REACQ_ACCEPT
@@ -75,6 +77,15 @@ CAMPOS = [
     "ang_viejo",    # lo que la ley VIEJA habria mandado en este mismo frame,
                     # grados x10. Con esto el A/B de leyes se hace sobre la
                     # corrida real, sin correr el robot dos veces.
+    # ---- las dos etapas que faltaban -------------------------------------
+    # PROTOCOLO_SABADO.md las pide por nombre: "son las CINCO etapas, no
+    # cuatro. Sin ellas un log no sirve para clasificar la falla".
+    # La cadena completa queda:
+    #    raw -> cap -> geo (== lowproj) -> bra -> tg
+    "raw_x",        # etapa 1: salida cruda de path_target, x10
+    "raw_y",
+    "cap_x",        # etapa 2: despues del cap de continuidad, x10
+    "cap_y",
 ]
 
 _MODO = {"base": 1, "camino+mono": 2, "v1": 3}
@@ -124,6 +135,8 @@ def campos_vision(u):
         _punto(u.get("target"), "tg", d)
         _punto(u.get("geom"), "geo", d)
         _punto(u.get("branch"), "bra", d)
+        _punto(u.get("raw"), "raw", d)
+        _punto(u.get("cap"), "cap", d)
         d["salto_px"] = _e(u.get("salto"), 10)
         d["guard_sp"] = _GUARD.get(u.get("spatial"), 0)
 

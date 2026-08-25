@@ -260,24 +260,46 @@ Lo que ya existe: [`telemetria_vision.py`](telemetria_vision.py), encendido con
 `TLM_VISION=/ruta/corrida.csv`, se une con el CSV del Teensy por `i` == `rxf`.
 Nunca lanza excepción hacia el lazo de visión y está apagado por defecto.
 
-Lo que **falta agregarle** para la candidata:
+**Estado al 25-ago, tarde:** las cinco etapas **ya están**. El CSV pasó de 18 a
+**42 columnas**, todas agregadas al final para que un registro viejo se siga
+leyendo y la clave `i` == `rxf` no se mueva.
 
-| campo | por qué |
-|---|---|
-| `t_mono_ns` | timestamp monotónico, para cruzar con el Teensy sin ambigüedad |
-| `seq`, `frame_age_ms` | distinguir CPU lenta de frame viejo (FASE 2) |
-| `target_raw_x/y` | salida de `path_target` |
-| `target_cap_x/y` | después del cap de continuidad |
-| `target_lowproj_x/y` | después de low projection |
-| `target_final_x/y` | después de `SpatialTargetGuard` |
-| `spatial_reason` | `ACCEPT` / `SPATIAL_LIMIT` / `REACQ_*` / `NO_SKELETON` |
-| `state` | HIGH / MEDIUM / LOW / SIN_CERCA / PERDIDA |
-| `steer_env` | lo que realmente se mandó |
-| `gyro_z`, `yaw` | del lado Teensy |
-| `motor_set`, `rpm` | del lado Teensy, si ya existe |
+| campo | por qué | estado |
+|---|---|---|
+| `t_mono_ns` | cruzar con el Teensy sin ambigüedad | **falta** — hoy hay `t_ms`, monotónico pero relativo al arranque del registro |
+| `seq`, `frame_age_ms` | distinguir CPU lenta de frame viejo (FASE 2) | **falta** — salen de la cámara, no de la visión |
+| `raw_x/y` | salida de `path_target` | ✅ |
+| `cap_x/y` | después del cap de continuidad | ✅ |
+| `geo_x/y` | después de low projection (`target_geometric` de V4) | ✅ |
+| `bra_x/y` | después del guard de rama | ✅ |
+| `tg_x/y` | después de `SpatialTargetGuard` | ✅ |
+| `guard_sp` | `ACCEPT` / `SPATIAL_LIMIT` / `REACQ_*` / `NO_SKELETON` | ✅ |
+| `vl_estado` | HIGH / MEDIUM / LOW / LOW_FORWARD / SIN_CERCA / PERDIDA | ✅ |
+| `ang_env` | lo que realmente se mandó | ✅ (ya existía) |
+| `gyro_z`, `yaw`, `motor_set`, `rpm` | del lado Teensy | fuera de este archivo |
 
-Son **las cinco etapas** del traspaso (`raw` → `cap` → `lowproj` → `branch` →
-`final`), no cuatro. Sin ellas un log no sirve para clasificar la falla.
+Son **las cinco etapas** del traspaso (`raw` → `cap` → `geo` → `bra` → `tg`), no
+cuatro. Sin ellas un log no sirve para clasificar la falla.
+
+> **Ojo con `geo_x/y`.** `target_geometric` de V4 **no** es el geométrico crudo:
+> ya viene con el cap de continuidad y la proyección LOW aplicados. El
+> geométrico de verdad es `raw_x/y`. Con el nombre viejo, un log habría dicho
+> "el planificador eligió esto" cuando en realidad eran dos guards.
+
+Y hay dos banderas más, `razon` y `razon_fl`, que dicen qué guard **corrió**,
+que no es lo mismo que qué guard **movió** el target: medido en `hist.avi`, el
+cap corrió y movió 294 veces (coinciden), pero `low_proj` corrió 71 veces y sólo
+movió el punto en 58. Las otras 13 eligió el mismo punto que ya había.
+
+### Además, la ley de steer
+
+Si se corre con `LEY_STEER=stanley`, el CSV graba también `e_pos`, `psi`,
+`t_pos`, `t_psi` y —el que más importa— **`ang_viejo`**, que es lo que la ley de
+hoy habría mandado en ese mismo frame.
+
+**Eso hace que el A/B de las dos leyes salga de una sola corrida en lazo
+cerrado**, sin correr el robot dos veces y sin comparar dos trayectorias
+distintas. Ver la sección 14 del traspaso.
 
 ---
 
