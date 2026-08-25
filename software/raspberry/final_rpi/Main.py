@@ -871,6 +871,15 @@ def main():
             if _ang_nuevo is not None:
                 angle = _ang_nuevo
 
+            # ANTICIPACION DE CURVA. La Teensy ya frena con absSteer, pero frena
+            # tarde: absSteer sube cuando la curva ya esta encima. Esto mide la
+            # curvatura del camino visible y manda un speed menor ANTES de
+            # entrar, para llegar a la curva ya frenado.
+            # Devuelve None si no opina; ahi queda el speed de siempre.
+            _vel_nueva = vision_linea.velocidad(speed)
+            if _vel_nueva is not None:
+                speed = _vel_nueva
+
             if np.sum(green_mask) > min_square_size * 255:
                 green_pixels = np.amax(green_mask, axis=0)
                 greenIndices = np.where(green_pixels == np.max(green_pixels))

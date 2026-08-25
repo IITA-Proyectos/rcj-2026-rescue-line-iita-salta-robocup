@@ -617,6 +617,24 @@ bool fixLazoLineaSensoresBloqueantesEnabled()
            priority_fix_flags::kFixLazoLineaSensoresBloqueantes;
 }
 
+bool fixVelocidadDesdeVisionEnabled()
+{
+    return priority_fix_flags::kEnableAllPriorityFixes ||
+           priority_fix_flags::kFixVelocidadDesdeVision;
+}
+
+// Velocidad base de linea. Por defecto la de siempre; si la vision manda un
+// valor CREIBLE se le hace caso. Un byte perdido no puede frenar el robot.
+int velocidadBaseDeLinea()
+{
+    const int porDefecto = 45;
+    if (!fixVelocidadDesdeVisionEnabled()) return porDefecto;
+    const int v = (int)speed;
+    if (v < priority_fix_flags::kVelVisionMin) return porDefecto;
+    if (v > priority_fix_flags::kVelVisionMax) return porDefecto;
+    return v;
+}
+
 void blinkVisibleError(unsigned long onMs, unsigned long offMs, int cycles)
 {
     for (int i = 0; i < cycles; ++i)
@@ -3405,7 +3423,7 @@ if (green_state == 2)
                 case 7: // linetrack
                     g_recup_pasos = 0;   // hay linea: el contador de retroceso vuelve a cero
                
-                    {int velocidadAjustada = ajustarVelocidadPorPendiente(45);
+                    {int velocidadAjustada = ajustarVelocidadPorPendiente(velocidadBaseDeLinea());
 
                      if (chequearAtasco(velocidadAjustada)) {   // obstaculo alto: no avanza -> recupero
                          g_line_branch = 9;

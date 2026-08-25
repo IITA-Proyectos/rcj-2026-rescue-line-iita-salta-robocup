@@ -50,4 +50,33 @@ inline constexpr bool kFixIssue112RunAngleTimeout = true;
 // a 20 o menos. Si el lag NO se mueve, esta hipotesis esta muerta y el retardo
 // esta en el pipeline de la camara.
 inline constexpr bool kFixLazoLineaSensoresBloqueantes = true;
+
+// Usar el `speed` que manda la Raspberry en el seguimiento de linea.
+//
+// El protocolo es [255, speed, 254, angle, 253, green, 252, silver] y el byte de
+// velocidad se recibe y se valida en serialEvent5 (main.cpp:1694). Pero el case
+// de linea NUNCA LO USA: arranca de ajustarVelocidadPorPendiente(45), un 45
+// hardcodeado. El canal existe y esta ignorado.
+//
+// POR QUE IMPORTA. La Teensy ya frena en curva:
+//     k   = constrain(absSteer / LINE_PIVOT_STEER, 0, 1)
+//     vel = velocidadAjustada + k*k*(LINE_PIVOT_SPEED - velocidadAjustada)
+// 40 en recta, 42 a mitad de curva, 50 en pivote. Eso funciona, y el comentario
+// de esa rampa dice que se midio en pista.
+//
+// El problema es que FRENA TARDE: absSteer sube cuando la curva ya esta encima,
+// porque el steer sale de un target a lookahead fijo. Del lado Raspberry ya se
+// midio que la curvatura del camino visible avisa la curva con ~1 segundo de
+// anticipacion en el 84 % de los casos (curva_cerrada.py, 13.220 frames).
+//
+// Con este flag, ese aviso llega: la Raspberry manda un speed menor ANTES de
+// entrar, y el robot llega a la curva ya frenado. Es la desigualdad que no se
+// negocia: v_max = omega_max * R.
+//
+// SEGURIDAD. Si la Raspberry manda 0 o un valor absurdo NO se obedece: se usa el
+// 45 de siempre. Un byte perdido o una trama corrupta no puede frenar el robot.
+// El rango aceptado se eligio alrededor del 45 historico.
+inline constexpr bool kFixVelocidadDesdeVision = true;
+inline constexpr int  kVelVisionMin = 20;    // por debajo se ignora
+inline constexpr int  kVelVisionMax = 60;    // por encima se ignora
 } // namespace priority_fix_flags
