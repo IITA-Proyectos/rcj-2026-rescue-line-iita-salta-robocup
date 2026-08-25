@@ -206,6 +206,69 @@ def pintar_imagen(g, r, u):
     return vis
 
 
+def transportador(vis, viejo, stanley):
+    """EL ANGULO, dibujado sobre la imagen y no solo como numero.
+
+    Benjamin: "no veo cual es el angulo". Tenia razon: el comando vivia en una
+    barra del panel de la derecha, y en la imagen no habia NADA que dijera hacia
+    donde va a girar el robot.
+
+    Transportador en la base -que es donde esta el robot-, cero adelante, y dos
+    agujas: la ley de hoy en gris y la que realmente sale en celeste. El arco
+    entre las dos ES la discrepancia.
+
+    Se dibuja en una capa aparte y se mezcla con alpha: la primera version
+    rellenaba el sector y tapaba la cinta justo en la zona que hay que mirar.
+    """
+    cx = int(LS.CENTER * ESC)
+    cy = PH - 16
+    R = 132
+    capa = np.zeros_like(vis)
+
+    def punta(deg, r):
+        a = math.radians(deg)
+        return (int(cx - r * math.sin(a)), int(cy - r * math.cos(a)))
+
+    cv2.ellipse(capa, (cx, cy), (R, R), 0, -180, 0, (95, 95, 95), 1,
+                cv2.LINE_AA)
+    for d in (-90, -60, -30, 0, 30, 60, 90):
+        largo = 12 if d % 90 == 0 else 7
+        cv2.line(capa, punta(d, R - largo), punta(d, R),
+                 (210, 210, 210) if d == 0 else (120, 120, 120), 1, cv2.LINE_AA)
+
+    # el arco entre las dos leyes, FINO: es la discrepancia, no un relleno
+    if viejo is not None and stanley is not None and abs(stanley - viejo) > 1:
+        lo, hi = sorted((viejo, stanley))
+        cv2.ellipse(capa, (cx, cy), (R - 20, R - 20), 0,
+                    -90 - hi, -90 - lo, (120, 120, 255), 3, cv2.LINE_AA)
+
+    if viejo is not None:
+        cv2.line(capa, (cx, cy), punta(viejo, R - 22), (190, 190, 190), 3,
+                 cv2.LINE_AA)
+    if stanley is not None:
+        cv2.line(capa, (cx, cy), punta(stanley, R), CIAN, 4, cv2.LINE_AA)
+    cv2.circle(capa, (cx, cy), 6, (235, 235, 235), -1)
+
+    m = capa.any(axis=2)
+    vis[m] = (vis[m] * 0.15 + capa[m] * 0.85).astype(np.uint8)
+
+    # los numeros van SIN alpha, para que se lean sobre cualquier fondo
+    txt(vis, "0", cx - 4, cy - R - 8, (150, 150, 150), 0.36)
+    txt(vis, "+90 izq", cx - R - 8, cy - 22, (120, 120, 120), 0.34)
+    txt(vis, "-90 der", cx + R - 46, cy - 22, (120, 120, 120), 0.34)
+    if viejo is not None:
+        e = punta(viejo, R - 58)
+        txt(vis, "%+.0f" % viejo, e[0] - 14, e[1] + 4, (225, 225, 225),
+            0.46, 2)
+    if stanley is not None:
+        e = punta(stanley, R + 34)
+        txt(vis, "%+.0f" % stanley, e[0] - 16, e[1] + 4, CIAN, 0.56, 2)
+    txt(vis, "el ANGULO que se manda", 10, PH - 26, (140, 140, 140), 0.4)
+    txt(vis, "gris = ley de hoy   celeste = la que sale", 10, PH - 8,
+        (120, 120, 120), 0.36)
+    return vis
+
+
 def barra(img, x, y, w, h, v, vmax, col, etiqueta):
     """Barra bipolar centrada, para un valor en [-vmax, vmax]."""
     cv2.rectangle(img, (x, y), (x + w, y + h), (55, 55, 55), 1)
@@ -417,7 +480,9 @@ def main():
             hist.append((u.get("ang_viejo"), ang))
 
             marco = np.zeros((OUT_H, OUT_W, 3), np.uint8)
-            marco[:PH, :PW] = pintar_imagen(g, r, u)
+            img = pintar_imagen(g, r, u)
+            transportador(img, u.get("ang_viejo"), ang)
+            marco[:PH, :PW] = img
             marco[:PH, PW:] = pintar_datos(
                 vid, i, n, r, u, ang, a.vel_base, vel,
                 (k, len(videos), int((hechos + i) / a.fps), int(gran / a.fps)))
