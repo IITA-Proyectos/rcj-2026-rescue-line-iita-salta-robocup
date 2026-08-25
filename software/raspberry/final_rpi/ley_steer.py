@@ -190,6 +190,30 @@ def errores(res, hfov=HFOV_NOMINAL, arco=ARCO_PSI):
     # de sobre que tramo se la calcule -geometria normal-, no un defecto.
     #
     # Conclusion: `e` estaba mal y se arreglo; `psi` no esta afectado.
+    #
+    # VALIDACION CRUZADA, que no fui a buscar. Benjamin observo que `entrada`
+    # se ve centrada y `start` corrido, y pregunto si el atan2 viejo y el start
+    # daban lo mismo. Medido sobre 13.061 frames:
+    #
+    #     corr(atan2, entrada)  -0,642
+    #     corr(atan2, start)    -0,301
+    #     corr(entrada, start)  +0,789
+    #
+    # El atan2 -la ley que lleva anios funcionando en este robot- correlaciona
+    # MAS DEL DOBLE con `entrada` que con `start`. O sea que lo que la ley vieja
+    # venia midiendo se parece mucho mas al centro de la cinta que al nodo del
+    # esqueleto. El cambio se justifico por geometria y resulta que la ley que
+    # ya andaba estaba del lado correcto.
+    #
+    # Y la observacion de Benjamin es CONDICIONAL A LA CURVA, que es donde
+    # importa. |start - entrada| segun |psi|:
+    #
+    #     0-20 deg   10,5 px        60-80 deg   18,8 px
+    #    20-40       16,0           80-180      19,0
+    #
+    # En recta se separan 10 px; en curva cerrada, casi el doble. Sobre los
+    # 13.061 frames completos las dos distribuciones son parecidas (desviacion
+    # 35,9 contra 38,1) y `start` no tiene lado preferido: derecha en el 53,8 %.
     Xp, Zp = suelo(st[0], st[1], hfov)
 
     if not path or len(path) < 2:
