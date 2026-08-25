@@ -190,8 +190,27 @@ def restart_video_stream():
     vs = WebcamVideoStream(src=0).start()
     return vs
 
+# Ultimo (seq, edad_ms) que entrego la camara. Globales a proposito: el lazo
+# llama a read_frame_with_recovery en varios lados y la telemetria los lee
+# despues, sin cambiar la firma de la funcion ni el flujo.
+CAM_SEQ = 0
+CAM_EDAD_MS = 0.0
+CAM_REPETIDOS = 0     # veces que se proceso DOS veces el mismo frame
+CAM_SALTEADOS = 0     # frames que la camara entrego y el lazo nunca vio
+
+
 def read_frame_with_recovery(none_count, context):
-    frame = vs.read()
+    global CAM_SEQ, CAM_EDAD_MS, CAM_REPETIDOS, CAM_SALTEADOS
+    try:
+        frame, seq, edad = vs.read_meta()
+        if seq == CAM_SEQ:
+            CAM_REPETIDOS += 1        # el lazo corrio mas rapido que la camara
+        elif seq > CAM_SEQ + 1:
+            CAM_SALTEADOS += seq - CAM_SEQ - 1
+        CAM_SEQ, CAM_EDAD_MS = seq, edad
+    except AttributeError:
+        # un WebcamVideoStream viejo sin read_meta: el lazo sigue igual
+        frame = vs.read()
     if frame is not None:
         return frame, 0
 
@@ -1022,6 +1041,10 @@ def main():
                        # dict; telemetria_vision lo traduce a enteros. Con la
                        # vision vieja viene vacio y todos los campos van en 0.
                        ctrl_source=tlm_ctrl,
+                       cam_seq=CAM_SEQ,
+                       cam_edad=int(CAM_EDAD_MS * 10),
+                       cam_rep=CAM_REPETIDOS,
+                       cam_salt=CAM_SALTEADOS,
                        vision=vision_linea.ultimo())
             line_frames += 1
             if time.time() - line_t0 >= 30:

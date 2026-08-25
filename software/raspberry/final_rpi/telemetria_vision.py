@@ -50,6 +50,14 @@ CAMPOS = [
     # clave de union con el `rxf` del Teensy no se mueve.
     # Todos enteros, porque el volcado es str(int(...)). El factor de escala
     # va en el nombre y en el comentario, igual que xr/yr.
+    # ---- LA CAMARA: el primer eslabon del retardo, el que faltaba ---------
+    # Sin estos cuatro campos el retardo total no se puede ATRIBUIR: si el robot
+    # reacciona tarde, no se distingue "la camara entrego un frame viejo" de "la
+    # Pi tardo en procesar" o de "la Teensy tardo en ejecutar".
+    "cam_seq",      # numero de frame que la camara entrego
+    "cam_edad",     # ms x10 desde que ESE frame se capturo, al empezar a procesar
+    "cam_rep",      # acumulado: veces que se proceso DOS veces el mismo frame
+    "cam_salt",     # acumulado: frames que la camara entrego y el lazo no vio
     "ctrl_source",  # QUIEN mando este comando. Sin esto, un comando raro no
                     # se puede atribuir: `angle` es la misma variable para los
                     # tres controladores.
