@@ -45,7 +45,110 @@ CAMPOS = [
     "silver",       # silver_line enviado
     "rojo_bandas",  # cuantas bandas rojas se contaron
     "fps",          # fps instantaneo x10
+    # ---- LA CANDIDATA (vision_linea.ultimo()) -----------------------------
+    # Se agregan AL FINAL a proposito: un CSV viejo sigue siendo legible y la
+    # clave de union con el `rxf` del Teensy no se mueve.
+    # Todos enteros, porque el volcado es str(int(...)). El factor de escala
+    # va en el nombre y en el comentario, igual que xr/yr.
+    "vl_modo",      # 0 apagada  1 base  2 camino+mono  3 v1
+    "vl_estado",    # 0 -  1 HIGH 2 MEDIUM 3 LOW 4 LOW_FORWARD 5 SIN_CERCA 6 PERDIDA
+    "tg_x",         # target FINAL, x10   (etapa 5)
+    "tg_y",
+    "geo_x",        # etapa 1: target geometrico del planificador, x10
+    "geo_y",
+    "bra_x",        # etapa 2: despues del guard de rama, x10
+    "bra_y",
+    "salto_px",     # proposed_jump_px x10: cuanto QUERIA saltar el target
+    "guard_sp",     # 0 -  1 ACCEPT 2 SPATIAL_LIMIT 3 REACQ_ACCEPT
+                    # 4 REACQ_PENDING 5 NO_TARGET 6 NO_SKELETON
+    "razon",        # modo del planificador: 0 desconocido  1 near  2 ahead
+                    # 3 ahead_bridge  4 perdida  5 sin_componente  6 sin_path
+    "razon_fl",     # bitmask de guards que ACTUARON: 1 continuidad, 2 low_proj
+    "kappa",        # curvatura del camino visible x10
+    "fvel",         # factor de velocidad anticipada x1000 (1000 = sin frenar)
+    # ---- LA LEY DE STEER (ley_steer.py) -----------------------------------
+    "ley",          # 0 la de siempre  1 stanley  2 stanley no pudo y cayo
+    "e_pos",        # cross-track en el suelo x1000  (signo: + a la derecha)
+    "psi",          # rumbo de la tangente del camino, grados x10
+    "t_pos",        # termino de POSICION del comando, grados x10
+    "t_psi",        # termino de RUMBO del comando, grados x10
+    "ang_viejo",    # lo que la ley VIEJA habria mandado en este mismo frame,
+                    # grados x10. Con esto el A/B de leyes se hace sobre la
+                    # corrida real, sin correr el robot dos veces.
 ]
+
+_MODO = {"base": 1, "camino+mono": 2, "v1": 3}
+_ESTADO = {"HIGH": 1, "MEDIUM": 2, "LOW": 3, "LOW_FORWARD": 4,
+           "SIN_CERCA": 5, "PERDIDA": 6}
+_GUARD = {"ACCEPT": 1, "SPATIAL_LIMIT": 2, "REACQ_ACCEPT": 3,
+          "REACQ_PENDING": 4, "NO_TARGET": 5, "NO_SKELETON": 6}
+# `reason` sale de `mode`, que NO es lo mismo que `state`: choose_component
+# devuelve NEAR / AHEAD / AHEAD_BRIDGE / PERDIDA, y ademas hay dos razones sin
+# sufijo `_path` cuando no llega a planificar. La primera version de esta tabla
+# usaba los estados (HIGH/MEDIUM/LOW) y dejaba el 93 % de los frames en 0.
+_RAZON = {"near": 1, "ahead": 2, "ahead_bridge": 3, "perdida": 4,
+          "sin_componente": 5, "sin_path": 6}
+_LEY = {"stanley": 1, "cae_a_vieja": 2}
+
+
+def _e(v, escala=1):
+    """A entero, tolerante a None y a NaN. Fuera de rango -> 0."""
+    try:
+        if v is None:
+            return 0
+        v = float(v) * escala
+        if v != v or v in (float("inf"), float("-inf")):
+            return 0
+        return int(round(v))
+    except Exception:
+        return 0
+
+
+def _punto(p, pref, d):
+    d[pref + "_x"] = _e(None if p is None else p[0], 10)
+    d[pref + "_y"] = _e(None if p is None else p[1], 10)
+
+
+def campos_vision(u):
+    """Traduce vision_linea.ultimo() a los campos enteros del CSV.
+
+    NUNCA levanta. Un dict vacio -la vision apagada- devuelve todo en 0, que
+    es exactamente lo que el CSV ya escribia antes de existir estos campos.
+    """
+    d = {}
+    if not u:
+        return d
+    try:
+        d["vl_modo"] = _MODO.get(u.get("modo"), 0)
+        d["vl_estado"] = _ESTADO.get(u.get("estado"), 0)
+        _punto(u.get("target"), "tg", d)
+        _punto(u.get("geom"), "geo", d)
+        _punto(u.get("branch"), "bra", d)
+        d["salto_px"] = _e(u.get("salto"), 10)
+        d["guard_sp"] = _GUARD.get(u.get("spatial"), 0)
+
+        raz = (u.get("razon") or "")
+        partes = raz.split("|")
+        base = partes[0][:-5] if partes[0].endswith("_path") else partes[0]
+        d["razon"] = _RAZON.get(base, 0)
+        fl = 0
+        if "continuidad" in partes:
+            fl |= 1
+        if "low_proj" in partes:
+            fl |= 2
+        d["razon_fl"] = fl
+
+        d["kappa"] = _e(u.get("kappa"), 10)
+        d["fvel"] = _e(u.get("factor_vel", 1.0), 1000)
+        d["ley"] = _LEY.get(u.get("ley"), 0)
+        d["e_pos"] = _e(u.get("e_pos"), 1000)
+        d["psi"] = _e(u.get("psi"), 10)
+        d["t_pos"] = _e(u.get("t_pos"), 10)
+        d["t_psi"] = _e(u.get("t_psi"), 10)
+        d["ang_viejo"] = _e(u.get("ang_viejo"), 10)
+    except Exception:
+        pass                      # un registro roto no puede voltear el lazo
+    return d
 
 
 class TelemetriaVision:
@@ -83,6 +186,12 @@ class TelemetriaVision:
             return
         try:
             ahora = time.monotonic()
+            # `vision=vision_linea.ultimo()` se expande aca y no en el lazo,
+            # asi el llamador agrega UNA linea y el objeto nulo la ignora
+            # sin enterarse.
+            u = k.pop("vision", None)
+            if u:
+                k.update(campos_vision(u))
             k.setdefault("t_ms", int((ahora - self._t0) * 1000))
             self._buf.append(",".join(str(int(k.get(c, 0))) for c in CAMPOS))
             if len(self._buf) >= self._cada or (ahora - self._ult_volcado) >= self._cada_s:

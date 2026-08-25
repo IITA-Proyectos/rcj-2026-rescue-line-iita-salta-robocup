@@ -998,7 +998,12 @@ def main():
                        green=int(green_state),
                        silver=1 if silver_line else 0,
                        rojo_bandas=int(red_bands),
-                       fps=0)
+                       fps=0,
+                       # Las cinco etapas del target, las razones de cada
+                       # guard y los dos terminos de la ley de steer. Es un
+                       # dict; telemetria_vision lo traduce a enteros. Con la
+                       # vision vieja viene vacio y todos los campos van en 0.
+                       vision=vision_linea.ultimo())
             line_frames += 1
             if time.time() - line_t0 >= 30:
                 print(f"[LINE-FPS] avg={line_frames / (time.time() - line_t0):.2f}")
