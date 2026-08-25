@@ -276,19 +276,19 @@ def pintar_datos(vid, i, n, r, u, ang, vel_base, vel, prog):
     y += 26
     tp, tq = u.get("t_pos"), u.get("t_psi")
     barra(p, 22, y, 200, 16, tp or 0.0, 90.0, NARANJA, "POSICION")
-    txt(p, "%+6.1f" % (tp or 0.0), 232, y + 13, NARANJA, 0.42)
+    txt(p, "  --  " if tp is None else "%+6.1f" % tp, 232, y + 13, NARANJA, 0.42)
     barra(p, 22, y + 30, 200, 16, tq or 0.0, 90.0, VERDE, "RUMBO")
-    txt(p, "%+6.1f" % (tq or 0.0), 232, y + 43, VERDE, 0.42)
+    txt(p, "  --  " if tq is None else "%+6.1f" % tq, 232, y + 43, VERDE, 0.42)
 
     y += 54
     cv2.line(p, (14, y), (LW - 14, y), (55, 55, 55), 1)
     y += 20
     av = u.get("ang_viejo")
     barra(p, 22, y, 300, 20, av or 0.0, 90.0, GRIS, "LEY DE HOY")
-    txt(p, "%+6.1f" % (av or 0.0), 332, y + 16, GRIS, 0.46)
+    txt(p, "  --  " if av is None else "%+6.1f" % av, 332, y + 16, GRIS, 0.46)
     y += 38
     barra(p, 22, y, 300, 20, ang or 0.0, 90.0, CIAN, "STANLEY  (es la que sale)")
-    txt(p, "%+6.1f" % (ang or 0.0), 332, y + 16, CIAN, 0.46)
+    txt(p, "  --  " if ang is None else "%+6.1f" % ang, 332, y + 16, CIAN, 0.46)
     y += 28
     if ang is not None and av is not None:
         d = ang - av

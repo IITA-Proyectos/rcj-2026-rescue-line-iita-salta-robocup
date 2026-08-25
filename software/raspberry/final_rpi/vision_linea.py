@@ -303,12 +303,18 @@ def _ley(r):
         _LS_FALLO = True
         print("[LEY-STEER] fallo (%s): APAGADA, sigo con la ley de hoy" % e)
         return viejo
+    # `ang_viejo` se registra SIEMPRE, tambien cuando la ley nueva no pudo
+    # opinar. Es lo que hace posible el A/B sobre una sola corrida, y dejarlo
+    # vacio justo en los frames donde la ley CAYO seria perder la referencia
+    # donde mas hace falta: sin el, un cero en el CSV no distingue "mando 0
+    # grados" de "no se registro".
+    _ULT["ang_viejo"] = round(viejo, 2)
     if c is None:
         _ULT["ley"] = "cae_a_vieja"
         return viejo
     _ULT.update(ley="stanley", e_pos=round(c["e"], 4),
                 psi=round(c["psi"], 2), t_pos=round(c["t_pos"], 2),
-                t_psi=round(c["t_psi"], 2), ang_viejo=round(viejo, 2))
+                t_psi=round(c["t_psi"], 2))
     return c["delta"]
 
 
