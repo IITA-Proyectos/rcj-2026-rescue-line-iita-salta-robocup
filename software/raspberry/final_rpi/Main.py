@@ -34,6 +34,31 @@ except Exception as _e:                      # ImportError, y tambien cualquier 
 
     tlmv = _TlmvNulo()
 
+# Vision de linea nueva. MISMO CONTRATO que telemetria_vision: apagada salvo que
+# exista la variable de entorno VISION_LINEA, import protegido, y si algo falla
+# se apaga sola y se sigue con la vision vieja. Sin la variable no importa nada
+# pesado y no cuesta un microsegundo.
+#     VISION_LINEA=camino python3 Main.py    candidata + CAMINO + MONO
+#     VISION_LINEA=v1     python3 Main.py    POI sobre contorno
+#     python3 Main.py                        vision vieja, sin cambios
+try:
+    import vision_linea
+except Exception as _e:
+    print("[VISION-LINEA] no se pudo importar (%s): sigo con la vision vieja" % _e)
+
+    class _VisionNula(object):
+        ACTIVA = False
+
+        @staticmethod
+        def angulo(_f):
+            return None
+
+        @staticmethod
+        def ultimo():
+            return {}
+
+    vision_linea = _VisionNula()
+
 HEADLESS = os.environ.get("DISPLAY") is None
 DEBUG_VIEW = os.environ.get("DEBUG_VIEW") == "1"
 SHOW_DEBUG_WINDOWS = (not HEADLESS) or DEBUG_VIEW
@@ -837,6 +862,14 @@ def main():
             tlm_ang_crudo = angle
             tlm_degenerado = 1 if (x_resultant == 0 and y_resultant == 0) else 0
             tlm_perdida = 0
+
+            # VISION NUEVA. Devuelve None si no opina -o si esta apagada-, y en
+            # ese caso se conserva el angulo de arriba. El resto del lazo
+            # -verde, plateado, rojo- no se toca: sigue usando frame_resized y
+            # sus propias mascaras.
+            _ang_nuevo = vision_linea.angulo(frame_resized)
+            if _ang_nuevo is not None:
+                angle = _ang_nuevo
 
             if np.sum(green_mask) > min_square_size * 255:
                 green_pixels = np.amax(green_mask, axis=0)
