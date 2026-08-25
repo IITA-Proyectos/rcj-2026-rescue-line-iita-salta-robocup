@@ -263,6 +263,12 @@ inline constexpr uint32_t kTofBudgetUs = 20000;
 //   3. la velocidad mediana mientras gira tiene que SUBIR de 0,81 cm/s.
 //   4. si las intersecciones o los giros de 90 grados con verde empeoran,
 //      es que ese caso SI necesitaba girar en el lugar -> se apaga.
+// OJO, LEER ANTES DE ENCENDERLO: medido despues de escribirlo, este techo
+// GLOBAL cambia 198,8 s de las corridas del 22-ago, y 65,5 de esos son con
+// la vision pidiendo FONDO DE ESCALA (absSteer >= 0,92), donde le saca el
+// giro en el lugar que la vision pide a proposito. El fix (8) hace lo mismo
+// tocando solo 44,8 s y sin meterse en la zona de fondo de escala.
+// SI HAY QUE ELEGIR UNO, ES EL (8). Este queda para poder comparar.
 inline constexpr bool kFixPivoteAvanza = false;
 // 0,681 traza R = 4,9 cm con b_eff = 20,9 cm. Subirlo a 1,0 es el de hoy.
 inline constexpr double kPivoteRotMax = 0.681;
@@ -349,4 +355,50 @@ inline constexpr unsigned long kSerialCiegoMs = 250;
 inline constexpr bool kFixMapeoRot = false;
 // 0,681 = b_eff/(2R + b_eff) con R = 4,9 cm y b_eff = 20,9 cm.
 inline constexpr double kMapeoRotMax = 0.681;
+
+// (8) EL PIVOTE POR MEMORIA. APAGADO POR DEFECTO. Es la version QUIRURGICA
+//     del fix (5), y si hay que elegir uno, es este.
+//
+// `s_en_pivote` es PEGAJOSO: entra con absSteer >= LINE_PIVOTE_ENTRA (0,60) y
+// no suelta hasta bajar de LINE_PIVOTE_SALE (0,15). Entre esos dos umbrales
+// hay una region -"la memoria"- donde el comando FRESCO ya pide poco angulo
+// pero `rot` sigue clavado en 1,0. Y con rot = 1, v_centro = vel*(1-1) = 0:
+// el robot gira sin avanzar por pura inercia de la maquina de estados.
+//
+// El fix devuelve la rampa normal SOLO en esa region, con un piso:
+//     if (s_en_pivote && absSteer < LINE_PIVOTE_ENTRA)
+//         rot = max(pow(absSteer, LINE_ROT_EXP), kPivoteMemoriaPiso)
+//
+// POR QUE ESTE Y NO EL (5), con los numeros de las 6 corridas del 22-ago
+// (57.328 muestras con speed > 0 = 286,6 s), verificado dos veces de forma
+// independiente:
+//
+//     fix (5) techo global    cambia 198,8 s   (69 % del tiempo de pista)
+//     fix (8) solo memoria    cambia  44,8 s   (16 %)
+//
+// y de los 198,8 s que toca el (5), 65,5 s son con la vision pidiendo FONDO
+// DE ESCALA (absSteer >= 0,92): ahi el (5) le SACA el giro en el lugar que la
+// vision esta pidiendo a proposito. El (8) en esa zona no toca nada, por
+// construccion. Benjamin fue explicito: "que lo que esta funcionando de
+// movimiento no deje de funcionar".
+//
+// FALSADORES, preregistrados y barridos en banda
+// (gain 1,30/1,35/1,40 x ENTRA 0,55/0,60/0,65 x rxage sin filtro / <=100 ms):
+//   H-M1 la region de memoria es >= 10 % del tiempo   -> 14,1 a 18,6 %  PASA
+//   H-M2 R p50 pedido queda en [3,0 ; 8,0] cm         -> 4,65 a 4,90    PASA
+//        y v_centro/vel p50 >= 0,20 (hoy es 0,00)     -> 0,308          PASA
+//   H-M3 el rot=1 pedido POR NIVEL es identico con y sin fix -> las 18 celdas
+//   CONTROL POSITIVO: con el piso en 1,000 el fix es la IDENTIDAD exacta
+//        (max |rot_fix - rot_hoy| = 0,0e+00 sobre las 6 corridas)
+//
+// BARRIDO DEL PISO, que es la constante a tunear en banco:
+//     piso 0,800 -> traza 2,61 cm, recupera 147,1 cm de avance
+//     piso 0,681 -> traza 4,90 cm, recupera 217,3 cm   <- default
+//     piso 0,600 -> traza 6,97 cm, recupera 243,8 cm
+//
+// FALSADOR DE BANCO: si el robot corta una curva que hoy toma, se apaga.
+inline constexpr bool kFixPivoteMemoria = false;
+// 0,681 = b_eff/(2R + b_eff) con R = 4,9 cm (la curva mas cerrada del
+// reglamento) y b_eff = 20,9 cm.
+inline constexpr double kPivoteMemoriaPiso = 0.681;
 } // namespace priority_fix_flags

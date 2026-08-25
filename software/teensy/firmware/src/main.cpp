@@ -3808,7 +3808,35 @@ if (green_state == 2)
                     }
                     double rot;
                     if (s_en_pivote)
+                    {
                         rot = 1.0;
+                        // EL PIVOTE POR MEMORIA TRAZA EN VEZ DE GIRAR EN EL
+                        // LUGAR. Apagado por defecto; fix (8) de
+                        // priority_fix_flags.h.
+                        //
+                        // `s_en_pivote` es PEGAJOSO: entra con absSteer >=
+                        // LINE_PIVOTE_ENTRA (0,60) y no suelta hasta bajar de
+                        // LINE_PIVOTE_SALE (0,15). En el medio hay una region
+                        // -"la memoria"- donde el comando FRESCO ya pide poco
+                        // angulo pero el rot sigue clavado en 1,0, y con
+                        // rot = 1 el centro del robot no avanza nada.
+                        //
+                        // Aca, y SOLO aca, se vuelve a la rampa normal con un
+                        // piso. Cuando la vision pide angulo grande DE VERDAD
+                        // (absSteer >= ENTRA, o la regla puntual de 0,92) no
+                        // se toca nada: el giro en el lugar sigue disponible.
+                        // Eso es lo que lo diferencia del fix (5), que pone un
+                        // techo GLOBAL y toca 198,8 s de las corridas del
+                        // 22-ago contra los 44,8 s de este.
+                        if (priority_fix_flags::kFixPivoteMemoria &&
+                            absSteer < LINE_PIVOTE_ENTRA)
+                        {
+                            double r = pow(absSteer, LINE_ROT_EXP);
+                            rot = (r > priority_fix_flags::kPivoteMemoriaPiso)
+                                      ? r
+                                      : priority_fix_flags::kPivoteMemoriaPiso;
+                        }
+                    }
                     else
                         rot = pow(absSteer, LINE_ROT_EXP);
                     if (absSteer >= LINE_PIVOT_STEER) rot = 1.0;
