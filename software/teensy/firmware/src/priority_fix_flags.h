@@ -79,4 +79,24 @@ inline constexpr bool kFixLazoLineaSensoresBloqueantes = true;
 inline constexpr bool kFixVelocidadDesdeVision = true;
 inline constexpr int  kVelVisionMin = 20;    // por debajo se ignora
 inline constexpr int  kVelVisionMax = 60;    // por encima se ignora
+
+// Watchdog de COMUNICACION en el seguimiento de linea.
+//
+// Hoy no hay ninguno. `grep 'WDT|watchdog' src/main.cpp` da cero. `g_last_rx_ms`
+// se calcula y se usa SOLO en telemetria: ninguna rama apaga los motores por
+// comando rancio.
+//
+// Medido en una corrida grabada: 49 % de las muestras con mas de 1 s sin trama
+// nueva, una ventana continua de 17,1 s sobre el mismo comando, y un maximo de
+// 27,0 s. Si la Raspberry se cuelga en pista, la Teensy sigue ejecutando la
+// ultima orden indefinidamente y el robot se va dando vueltas.
+//
+// PRECAUCION QUE HACE FALTA: durante runAngle/runTime la Teensy NO lee el serie
+// (kFixIssue63KeepSerialDuringMotions esta en false), asi que al volver de un
+// esquive o de un verde el `rxage` puede venir legitimamente viejo -medido: p50
+// 1849 ms, max 4677 ms durante maniobra-. Por eso no alcanza con el timeout:
+// se exige que la condicion se sostenga varias vueltas seguidas del lazo.
+inline constexpr bool kFixWatchdogComunicacion = true;
+inline constexpr unsigned long kWatchdogMs = 400;   // sin trama valida
+inline constexpr int kWatchdogVueltas = 10;         // vueltas de confirmacion
 } // namespace priority_fix_flags

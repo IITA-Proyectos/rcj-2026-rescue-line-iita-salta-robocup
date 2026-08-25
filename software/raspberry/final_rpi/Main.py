@@ -919,7 +919,15 @@ def main():
                 greenSquare = False
                 green_state = 0
 
-            if black_sum >= min_line_size:
+            # ACOPLE ENTRE LAS DOS VISIONES. `black_sum >= min_line_size` es la
+            # decision de "hay linea" de la vision VIEJA, y no sabe nada de la
+            # nueva. Medido sobre 13.900 frames: en el 9,6 % la vision nueva
+            # TIENE target valido y esta condicion declara linea perdida, y la
+            # busqueda pisa el angulo bueno.
+            # Y es justo donde la nueva mas vale: sigue lineas finas o lejanas,
+            # que son las que tienen pocos pixeles negros.
+            # Si la nueva opino, la linea NO esta perdida.
+            if black_sum >= min_line_size or _ang_nuevo is not None:
                 last_line_angle = angle
                 if abs(angle) > 8:
                     last_line_search_dir = 1 if angle > 0 else -1

@@ -273,6 +273,8 @@ int g_line_branch = 0;
 // ultimo `steer` para siempre y el robot se va derecho creyendo que obedece.
 // Con esto, en la telemetria se ve al instante si el comando esta rancio.
 unsigned long g_last_rx_ms = 0;
+int  g_wd_vueltas = 0;      // vueltas seguidas con la trama vieja
+bool g_wd_activo  = false;  // el watchdog esta frenando
 
 // Copia INTOCABLE del ultimo angulo que mando la RPi. La global `steer` la
 // pisa el propio firmware (por ejemplo la alineacion por IMU), asi que no
@@ -615,6 +617,12 @@ bool fixLazoLineaSensoresBloqueantesEnabled()
 {
     return priority_fix_flags::kEnableAllPriorityFixes ||
            priority_fix_flags::kFixLazoLineaSensoresBloqueantes;
+}
+
+bool fixWatchdogComunicacionEnabled()
+{
+    return priority_fix_flags::kEnableAllPriorityFixes ||
+           priority_fix_flags::kFixWatchdogComunicacion;
 }
 
 bool fixVelocidadDesdeVisionEnabled()
@@ -3138,6 +3146,39 @@ void loop()
         while (rutina == "linea" && digitalRead(32) == 0)
         {
             serialEvent5();
+
+            // WATCHDOG DE COMUNICACION. Si la Raspberry dejo de hablar, frenar.
+            // Ejecutar una orden vieja indefinidamente es peor que quedarse
+            // quieto: el robot se va de la pista solo. Ver priority_fix_flags.h.
+            if (fixWatchdogComunicacionEnabled())
+            {
+                const long edadRx = g_last_rx_ms
+                                  ? (long)(millis() - g_last_rx_ms) : -1L;
+                if (edadRx >= 0 && (unsigned long)edadRx > priority_fix_flags::kWatchdogMs)
+                    ++g_wd_vueltas;
+                else
+                    g_wd_vueltas = 0;
+
+                if (g_wd_vueltas >= priority_fix_flags::kWatchdogVueltas)
+                {
+                    if (!g_wd_activo)
+                    {
+                        g_wd_activo = true;
+                        DBG_PRINT("[WD] sin tramas hace ");
+                        DBG_PRINT(edadRx);
+                        DBG_PRINTLN(" ms: FRENO");
+                    }
+                    robot.steer(0, FORWARD, 0);
+                    digitalWrite(LED_BUILTIN, (millis() / 150) % 2);
+                    continue;          // no se decide nada con datos rancios
+                }
+                if (g_wd_activo)
+                {
+                    g_wd_activo = false;
+                    DBG_PRINTLN("[WD] volvieron las tramas: sigo");
+                }
+            }
+
             DIAG_TICK();   // drenaje del registrador DURANTE el seguimiento de linea
             enviarTelemetria();   // TELEMETRIA (seguimiento de linea)
             bool plateadoDetectado = false;
