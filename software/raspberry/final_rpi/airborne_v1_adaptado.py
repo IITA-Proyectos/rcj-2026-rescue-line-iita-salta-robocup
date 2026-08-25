@@ -92,7 +92,16 @@ class AirborneV1:
         return m
 
     def seleccionar_contorno(self,m):
-        contours,_=cv2.findContours(m,cv2.RETR_LIST,cv2.CHAIN_APPROX_NONE)
+        # RETR_EXTERNAL y no RETR_LIST: `RETR_LIST` devuelve tambien los
+        # AGUJEROS, y un reflejo blanco adentro de la cinta negra es un
+        # agujero. Pasaba el filtro de area, pasaba el de borde inferior y
+        # competia por continuidad como si fuera la trayectoria.
+        # Medido sobre los 13.900 frames de los 10 autonomos: el contorno
+        # elegido ERA un agujero en 295 frames (2,12 %), con la traza del
+        # traspaso reproducida en hist.avi f626-627. Con EXTERNAL cambian 687
+        # frames (4,94 %), los saltos>24 px bajan de 928 a 910, ninguna de las
+        # cinco metricas empeora y el gate queda identico.  (ab_retr_external.py)
+        contours,_=cv2.findContours(m,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_NONE)
         cand=[]
         for c in contours:
             if len(c)<2:continue
