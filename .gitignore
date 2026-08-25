@@ -71,3 +71,5 @@ software/raspberry/final_rpi/_tlm_test.csv
 
 # derivados de leyes.py: se regeneran, y uno pesa 40 MB
 software/raspberry/final_rpi/leyes_*.avi
+software/raspberry/final_rpi/_*.pkl
+software/raspberry/final_rpi/_*.png
