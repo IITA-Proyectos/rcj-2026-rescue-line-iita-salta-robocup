@@ -59,6 +59,44 @@ FACTOR_MIN = 0.55
 MODO = (os.environ.get("VISION_LINEA") or "").strip().lower()
 ACTIVA = MODO in ("1", "si", "base", "camino", "v1")
 
+# --- ley de steer: separar POSICION de RUMBO -------------------------------
+# Defecto 3.5.1 del traspaso. La ley de hoy es un solo numero y mezcla las dos
+# cosas con UNA ganancia, y nunca ve la velocidad. Stanley las separa:
+#
+#     delta = psi + arctan(k*e / v)
+#
+# APAGADA POR DEFECTO. Sin LEY_STEER=stanley el angulo que sale es el mismo de
+# siempre, bit a bit -verificado sobre 13.061 frames, 0 discrepancias-.
+#
+#     VISION_LINEA=camino LEY_STEER=stanley python3 Main.py
+#
+# Los parametros salen de sep_pos_rumbo2.py y NO se eligieron para ganar una
+# metrica: k por reparto de varianza -conserva el balance 47,5/52,5 que la ley
+# actual ya tiene- y g para conservar EXACTAMENTE el maximo de +89 del control
+# positivo de lineal f800-872, que es la regla que no se negocia. Se pueden
+# barrer por entorno el dia de robot sin tocar el codigo.
+LEY = (os.environ.get("LEY_STEER") or "").strip().lower()
+LEY_ACTIVA = LEY in ("stanley", "1", "si")
+
+
+def _envf(nombre, defecto):
+    try:
+        return float(os.environ.get(nombre) or defecto)
+    except Exception:
+        return defecto
+
+
+LEY_K = _envf("LEY_STEER_K", 4.4794)
+LEY_G = _envf("LEY_STEER_G", 0.7419)
+LEY_KPSI = _envf("LEY_STEER_KPSI", 1.0)
+LEY_HFOV = _envf("LEY_STEER_HFOV", 60.0)
+LEY_ARCO = _envf("LEY_STEER_ARCO", 0.60)
+
+_LS = None                 # ley_steer, importado perezosamente igual que todo
+_NFRAME = 0
+_FACTOR = 1.0
+_FACTOR_EN = -1
+
 _tr = None
 _v2 = None
 _CP = None
@@ -195,13 +233,33 @@ def velocidad(base):
     """
     if not ACTIVA or _tr is None:
         return None
-    k = _curvatura()
-    if k is None or k <= KAPPA_REF:
+    f = _factor_velocidad()
+    if f >= 1.0:
         return None
-    f = max(FACTOR_MIN, min(1.0, KAPPA_REF / k))
-    _ULT["kappa"] = round(k, 1)
-    _ULT["factor_vel"] = round(f, 3)
     return int(round(base * f))
+
+
+def _factor_velocidad():
+    """Factor de velocidad anticipada en [FACTOR_MIN, 1,0], 1,0 = sin frenar.
+
+    Se cachea por frame porque ahora hay DOS consumidores: `velocidad()`, que
+    lo manda por el byte `speed`, y la ley de steer, que lo necesita como `v`
+    para dividir el termino de posicion. Los dos tienen que ver el MISMO
+    numero: si la ley usara una velocidad distinta de la que se comanda, el
+    lazo estaria compensando una velocidad que el robot no va a tener.
+    """
+    global _FACTOR, _FACTOR_EN
+    if _FACTOR_EN == _NFRAME:
+        return _FACTOR
+    k = _curvatura()
+    if k is None:
+        f = 1.0
+    else:
+        _ULT["kappa"] = round(k, 1)
+        f = 1.0 if k <= KAPPA_REF else max(FACTOR_MIN, min(1.0, KAPPA_REF / k))
+    _ULT["factor_vel"] = round(f, 3)
+    _FACTOR, _FACTOR_EN = f, _NFRAME
+    return f
 
 
 def _angulo_de(x):
@@ -210,14 +268,53 @@ def _angulo_de(x):
     return max(-90.0, min(90.0, a))
 
 
+def _ley(r):
+    """El angulo que sale. Ley de hoy, o Stanley si LEY_STEER esta encendida.
+
+    Contrato: si la ley nueva no puede opinar -no hay camino, no hay rumbo-
+    NO devuelve None. Cae a la ley de hoy. `None` significa "quedate con el
+    atan2 viejo de Main.py", que es peor que cualquiera de las dos.
+    """
+    global _LS
+    viejo = _angulo_de(float(r["target"][0]))
+    if not LEY_ACTIVA:
+        return viejo
+    try:
+        if _LS is None:
+            import importlib.util
+            import sys
+            aqui = os.path.dirname(os.path.abspath(__file__))
+            sp = importlib.util.spec_from_file_location(
+                "ley_steer", os.path.join(aqui, "ley_steer.py"))
+            m = importlib.util.module_from_spec(sp)
+            sp.loader.exec_module(m)
+            _LS = m
+            print("[LEY-STEER] stanley  k=%.4f g=%.4f k_psi=%.2f hfov=%.0f "
+                  "arco=%.2f" % (LEY_K, LEY_G, LEY_KPSI, LEY_HFOV, LEY_ARCO))
+        c = _LS.componentes(r, v_norm=_factor_velocidad(), k=LEY_K,
+                            k_psi=LEY_KPSI, g=LEY_G, hfov=LEY_HFOV,
+                            arco=LEY_ARCO)
+    except Exception as e:                                # pragma: no cover
+        print("[LEY-STEER] fallo (%s): sigo con la ley de hoy" % e)
+        return viejo
+    if c is None:
+        _ULT["ley"] = "cae_a_vieja"
+        return viejo
+    _ULT.update(ley="stanley", e_pos=round(c["e"], 4),
+                psi=round(c["psi"], 2), t_pos=round(c["t_pos"], 2),
+                t_psi=round(c["t_psi"], 2), ang_viejo=round(viejo, 2))
+    return c["delta"]
+
+
 def angulo(frame_resized):
     """Devuelve el angulo en grados, o None si no opina.
 
     None significa "quedate con el que ya tenias". Nunca levanta excepcion.
     """
-    global _tr, ACTIVA, _fallos
+    global _tr, ACTIVA, _fallos, _NFRAME
     if not ACTIVA:
         return None
+    _NFRAME += 1
     try:
         if _tr is None:
             _arrancar()
@@ -240,10 +337,11 @@ def angulo(frame_resized):
                     branch=r.get("target_branch"),
                     spatial=r.get("spatial_guard"),
                     salto=r.get("proposed_jump_px"),
-                    razon=r.get("reason"), modo=_modo_real)
+                    razon=r.get("reason"), modo=_modo_real,
+                    inicio=r.get("start"), rumbo_chord=r.get("heading"))
         if t is None:
             return None
-        return _angulo_de(float(t[0]))
+        return _ley(r)
     except Exception as e:                            # pragma: no cover
         _fallos += 1
         print("[VISION-LINEA] fallo %d/%d: %s" % (_fallos, MAX_FALLOS, e))
