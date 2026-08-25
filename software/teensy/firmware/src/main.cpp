@@ -273,6 +273,10 @@ int g_line_branch = 0;
 // ultimo `steer` para siempre y el robot se va derecho creyendo que obedece.
 // Con esto, en la telemetria se ve al instante si el comando esta rancio.
 unsigned long g_last_rx_ms = 0;
+// Cuantas veces se drenaron tramas viejas al volver de una maniobra
+// bloqueante (fix (6) de priority_fix_flags.h). Si esto es 0 en una
+// corrida entera, el fix nunca actuo y no puede haber cambiado nada.
+unsigned long g_serial_drenados = 0;
 int  g_wd_vueltas = 0;      // OBSOLETO, se dejo por compatibilidad
 unsigned long g_wd_stale_ms = 0;  // desde cuando la trama esta vieja (0 = no)
 unsigned long g_wd_ref_ms = 0;    // referencia si NUNCA llego una trama
@@ -1749,6 +1753,63 @@ void maybePrintSerialTelemetry()
 // Read Data from Raspberry by Serial TX-RX
 void serialEvent5()
 {
+    // ------------------------------------------------------------------
+    //  TRAMA VIEJA SELLADA COMO FRESCA  (fix (6), apagado por defecto)
+    //
+    //  Cuando el robot entra en una maniobra bloqueante nadie llama a
+    //  serialEvent5() -kFixIssue63KeepSerialDuringMotions esta en false-, y
+    //  los bytes de la Raspberry se apilan en el buffer de Serial5. Al volver
+    //  al lazo, la PRIMERA trama que se termina de parsear ejecuta
+    //
+    //      g_last_rx_ms = millis();   // main.cpp, mas abajo
+    //
+    //  sellando con la hora de AHORA un comando que se emitio ANTES de la
+    //  maniobra. El watchdog de comunicacion (main.cpp:3227) mide
+    //  `millis() - g_last_rx_ms` y por lo tanto ve "fresco" algo que puede
+    //  tener segundos. Es el tercer problema que marco ChatGPT y que seguia
+    //  sin arreglar.
+    //
+    //  QUE HACE EL FIX: si paso demasiado tiempo desde la ultima vez que se
+    //  leyo el serial, todo lo que este en el buffer es anterior a ese hueco
+    //  -> se descarta y se resincroniza el parser, SIN tocar g_last_rx_ms.
+    //  Asi el watchdog sigue viendo el comando viejo como viejo hasta que
+    //  llegue una trama de verdad nueva. Es "exigir trama nueva
+    //  post-maniobra" sin cambiar el protocolo ni el lado de la Pi.
+    //
+    //  EL UMBRAL SALE DE LOS DATOS, no de la intuicion. Periodo del lazo
+    //  medido sobre las 6 corridas de pista del 22-ago (n = 4264 periodos,
+    //  intervalo entre cambios de ls/rs):
+    //
+    //      p50  35 ms     p90  95 ms     p99  445 ms     max 1640 ms
+    //
+    //      periodos > 100 ms   7,5 %
+    //      periodos > 150 ms   5,4 %
+    //      periodos > 250 ms   2,6 %      <- el default
+    //      periodos > 500 ms   0,8 %      <- estos son maniobras seguro
+    //
+    //  250 ms queda MUY por encima del lazo normal (p90 = 95) y por debajo de
+    //  las maniobras. Un falso positivo cuesta descartar una o dos tramas: la
+    //  Pi manda a 66-86 Hz, asi que la siguiente llega en ~15 ms y refresca
+    //  todo. Un falso negativo cuesta el watchdog ciego. La asimetria de
+    //  costos justifica pecar de sensible.
+    //
+    //  OJO: Serial5.clear() puede cortar una trama por la mitad, por eso hay
+    //  que resincronizar `serial5state`. El framing se recupera solo en el
+    //  siguiente byte de sync (255/254/253/252).
+    if (priority_fix_flags::kFixWatchdogTramaFresca)
+    {
+        static unsigned long ultimaLectura = 0;
+        const unsigned long ahora = millis();
+        if (ultimaLectura != 0 &&
+            (ahora - ultimaLectura) > priority_fix_flags::kSerialCiegoMs)
+        {
+            Serial5.clear();
+            serial5state = 0;      // el clear puede cortar una trama al medio
+            g_serial_drenados++;   // para verlo en la telemetria
+        }
+        ultimaLectura = ahora;
+    }
+
     while (Serial5.available() > 0)
     {
         int data = Serial5.read(); // read serial code
@@ -3752,6 +3813,22 @@ if (green_state == 2)
                         rot = pow(absSteer, LINE_ROT_EXP);
                     if (absSteer >= LINE_PIVOT_STEER) rot = 1.0;
                     if (rot > 1.0) rot = 1.0;
+
+                    // TECHO DE ROT PARA QUE EL PIVOTE AVANCE. Apagado por
+                    // defecto; el razonamiento y el falsador estan en
+                    // priority_fix_flags.h, fix (5).
+                    //
+                    // v_centro = vel*(1 - rot): en rot = 1 el robot gira sin
+                    // avanzar, y ahi se pasa el 51 % del tiempo que gira. El
+                    // techo 0,681 traza R = 4,9 cm, que es la curva mas
+                    // cerrada del reglamento (RCJ 2.2.2).
+                    //
+                    // Va DESPUES de los dos rot = 1.0 a proposito: es un techo
+                    // sobre el resultado final, no una rama nueva. Con el flag
+                    // apagado esta linea no existe.
+                    if (priority_fix_flags::kFixPivoteAvanza &&
+                        rot > priority_fix_flags::kPivoteRotMax)
+                        rot = priority_fix_flags::kPivoteRotMax;
 
                     // --- la velocidad tambien continua: de la de recta a la de pivote. Un
                     //     escalon de velocidad tambien es un tiron, aunque menos grave que dar

@@ -307,6 +307,42 @@ void DriveBase::steerAxleBias(double speed, int direction, double rotation,
     _br->setSpeed(!_rightdir, _rightspeed * rearScale);
 }
 
+// ============================================================================
+//  steerRadius - pedir un RADIO, no una rotacion adimensional.
+//
+//  No reimplementa nada: convierte el radio a `rotation` y delega en steer(),
+//  que es el codigo que lleva meses andando. Si esta funcion nunca se llama,
+//  el robot se comporta EXACTAMENTE igual que antes.
+//
+//  DE DONDE SALE LA FORMULA
+//      v_centro = vel * (1 - rot)          drivebase.cpp:212-215
+//      omega    = 2 * vel * rot / b_eff
+//      R        = v_centro / omega = b_eff * (1 - rot) / (2 * rot)
+//  y despejando rot:
+//      rot = b_eff / (2*R + b_eff)
+//
+//  Notar que `vel` se cancela: el RADIO no depende de la velocidad. Ese es el
+//  punto y es la razon por la que subir LINE_PIVOT_SPEED no abre una curva
+//  cerrada -sube omega y v en la misma proporcion-.
+// ============================================================================
+void DriveBase::steerRadius(double speed, int direction, double radius_cm,
+                            int sign)
+{
+    double rot;
+    if (radius_cm <= 0.0)
+    {
+        rot = 1.0;                 // girar en el lugar: lo de hoy, sin cambios
+    }
+    else
+    {
+        rot = DRIVE_ANCHO_VIA_EFECTIVO /
+              (2.0 * radius_cm + DRIVE_ANCHO_VIA_EFECTIVO);
+        if (rot > 1.0) rot = 1.0;  // no puede pasar (R>0), pero es gratis
+        if (rot < 0.0) rot = 0.0;
+    }
+    steer(speed, direction, sign >= 0 ? rot : -rot);
+}
+
 void DriveBase::reset(){
     _fl->reset();
     _fr->reset();

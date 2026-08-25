@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 namespace priority_fix_flags
 {
@@ -207,4 +207,83 @@ inline constexpr unsigned long kI2cHz = 400000UL;
 // que si los relee: ahi cada lectura pasa de 33 a 20 ms.
 inline constexpr bool kFixTofPresupuesto = true;
 inline constexpr uint32_t kTofBudgetUs = 20000;
+
+// (5) EL PIVOTE NO AVANZA.  APAGADO POR DEFECTO. Necesita banco.
+//
+// `steer()` reparte  v_ext = vel  y  v_int = vel*(1 - 2*rot)
+// (drivebase.cpp:212-215), asi que
+//
+//      v_centro = vel * (1 - rot)
+//
+// y en `rot = 1` el centro del robot NO AVANZA: las dos ruedas van iguales y
+// opuestas. Eso no es un efecto secundario, es la definicion del pivote.
+//
+// El problema es CUANTO tiempo se pasa ahi. `main.cpp:3749-3753` pone rot = 1
+// en dos casos, y el primero es pegajoso:
+//
+//      if (s_en_pivote)                  rot = 1.0;   <-- se queda enganchado
+//      if (absSteer >= LINE_PIVOT_STEER) rot = 1.0;   <-- 0,92, puntual
+//
+// `s_en_pivote` no se suelta hasta que `absSteer <= LINE_PIVOTE_SALE` (0,15)
+// se sostenga LINE_PIVOTE_CONFIRMA_MS. O sea: se entra por un pico y se sale
+// recien cuando el robot esta casi alineado.
+//
+// MEDIDO el 2026-08-26 sobre los CSV del 22-ago (`radio_minimo.py`), en las
+// tres corridas que pasan el control de signo, con el lag de 14 muestras:
+//
+//      radio trazado      n        v p50       omega p50     rot p50
+//      R < 2 cm          4087    0,81 cm/s     58,3 d/s       1,00
+//      2 - 4,9 cm        1599    2,70 cm/s     50,0 d/s       1,00
+//      4,9 - 8 cm        1233    4,59 cm/s     41,7 d/s       0,79
+//      8 - 15 cm          893    5,94 cm/s     35,2 d/s       0,65
+//      15 - 30 cm         151   10,36 cm/s     33,7 d/s       0,43
+//
+// El 51 % del tiempo que el robot GIRA lo hace con radio < 2 cm avanzando
+// 0,81 cm/s. La curva del reglamento que hay que trazar es de 4,9 cm.
+//
+// QUE HACE EL FIX: pone un TECHO a `rot` mientras se sigue la linea, de modo
+// que el robot conserve avance. El techo por defecto es el que traza
+// exactamente la curva mas cerrada del reglamento:
+//
+//      rot = b_eff / (2*R + b_eff) = 20,9 / (2*4,9 + 20,9) = 0,681
+//
+// con eso v_centro = 0,319*vel en vez de 0.
+//
+// POR QUE VA APAGADO, y hay que decirlo fuerte: esto le SACA autoridad de giro
+// instantanea al robot, y la regla 3 del traspaso dice que nunca se limite la
+// magnitud del steer. No es lo mismo -aquel steer es el angulo que manda la
+// vision, esto es el reparto entre ruedas- pero esta cerca, y el argumento a
+// favor es de trayectoria, no de magnitud: para SEGUIR una curva de 4,9 cm hay
+// que TRAZAR 4,9 cm, y girando en el lugar no se traza nada.
+//
+// COMO SE VALIDA EN BANCO (falsador, antes de encenderlo):
+//   1. el robot tiene que SEGUIR pasando las curvas que hoy pasa. Si pierde
+//      una que hoy toma, se apaga y listo.
+//   2. la fraccion de muestras con radio < 2 cm tiene que BAJAR de 51 %.
+//   3. la velocidad mediana mientras gira tiene que SUBIR de 0,81 cm/s.
+//   4. si las intersecciones o los giros de 90 grados con verde empeoran,
+//      es que ese caso SI necesitaba girar en el lugar -> se apaga.
+inline constexpr bool kFixPivoteAvanza = false;
+// 0,681 traza R = 4,9 cm con b_eff = 20,9 cm. Subirlo a 1,0 es el de hoy.
+inline constexpr double kPivoteRotMax = 0.681;
+
+// (6) EL WATCHDOG SELLA TRAMAS VIEJAS COMO FRESCAS. APAGADO POR DEFECTO.
+//
+// El razonamiento completo, con los numeros del periodo del lazo que fijan el
+// umbral, esta en el comentario de serialEvent5() en main.cpp.
+//
+// Resumen: durante una maniobra bloqueante nadie lee el serial; al volver, la
+// primera trama parseada hace `g_last_rx_ms = millis()` y el watchdog cree que
+// el comando es fresco cuando puede tener segundos.
+//
+// FALSADOR PARA EL BANCO, antes de encenderlo:
+//   1. `g_serial_drenados` tiene que ser > 0 en una corrida con maniobras. Si
+//      es 0, el fix no actuo y cualquier diferencia que se vea es otra cosa.
+//   2. el robot NO tiene que frenar en tramos donde hoy anda bien. Si el
+//      watchdog empieza a disparar en linea recta, el umbral quedo corto.
+//   3. desconectar el cable de la Pi A PROPOSITO durante una maniobra: con el
+//      fix el robot tiene que frenar; sin el fix sigue con la orden vieja.
+inline constexpr bool kFixWatchdogTramaFresca = false;
+// 250 ms: p90 del lazo es 95 ms y p99 es 445. Ver la tabla en main.cpp.
+inline constexpr unsigned long kSerialCiegoMs = 250;
 } // namespace priority_fix_flags

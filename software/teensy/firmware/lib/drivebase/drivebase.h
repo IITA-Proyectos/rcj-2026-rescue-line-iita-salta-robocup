@@ -171,11 +171,66 @@ public:
     PID _motoPID = PID(&_realrpm, &_pwmVal, &_rpm, _kp, _ki, _kd, DIRECT);
 };
 
+// ============================================================================
+//  EL ANCHO DE VIA EFECTIVO, MEDIDO. No es el del CAD y no puede serlo.
+//
+//  `steer()` reparte v_ext = vel y v_int = vel*(1 - 2*rot), asi que el giro
+//  que sale es  omega = (v_ext - v_int) / b  = 2*vel*rot / b.  Ese `b` NO es
+//  la distancia entre ruedas: es la que hace cerrar la cuenta CON el patinaje
+//  del skid steer, que en un robot de 4 ruedas fijas de silicona A10 es
+//  grande. Por eso se llama EFECTIVO y por eso se mide, no se deduce.
+//
+//  MEDIDO el 2026-08-26 sobre los 10 CSV del 22-ago (`radio_minimo.py`), como
+//  b = dv_encoder / gz_giroscopio muestra a muestra, con el lag comando->giro
+//  de 14 muestras aplicado:
+//
+//      pista_pivote35              21,35 cm      (C1 signo: 95,9 %)
+//      pista_pivote_con_histeresis 21,38 cm      (C1 signo: 97,2 %)
+//      pista_pivote_sin_histeresis 21,28 cm      (C1 signo: 95,2 %)
+//      -------------------------------------------------------------
+//      banco_piso_historico        22,41 cm      <- OTRA superficie
+//      banco_piso_con_fixes        22,31 cm      <- y OTRO firmware
+//
+//  Las tres de pista coinciden en 0,5 % entre si, y el banco -que es otra
+//  superficie y otro binario- cae a 7 %. Ese es el control C4 del falsador
+//  FALSADOR-RADIO-MINIMO.md, y lo pasa.
+//
+//  SANIDAD FISICA: el CAD da 17,69 cm de ANCHO TOTAL del robot
+//  (docs/tdp/TDP-IITA-2026.md:161), asi que la via real es MENOR que eso. Un
+//  b_eff de 20,9 > 17,69 es exactamente lo que tiene que pasar: el skid steer
+//  patina y necesita mas diferencial del que pediria la geometria pura. Si
+//  hubiera dado MENOR que la via real, habria que sospechar del metodo.
+//
+//  SE REVALIDA: volver a correr `radio_minimo.py` sobre las corridas nuevas.
+//  Si cambian las ruedas o la superficie, este numero cambia.
+#define DRIVE_ANCHO_VIA_EFECTIVO 20.9
+
 class DriveBase
 {
 public:
     DriveBase(Moto *fl, Moto *fr, Moto *bl, Moto *br);
     void steer(double speed, int direction, double rotation);
+    // Pide un RADIO en centimetros en vez de una rotacion adimensional.
+    //
+    // POR QUE EXISTE: `rot` no es una magnitud fisica y no se puede razonar
+    // con ella. El radio si. Y la diferencia importa porque
+    //
+    //     v_centro = vel * (1 - rot)
+    //
+    // o sea que en rot = 1 el robot NO AVANZA: gira en el lugar. Medido sobre
+    // las corridas del 22-ago, el 51 % del tiempo que el robot gira lo hace
+    // con radio < 2 cm y avanzando 0,81 cm/s. Para SEGUIR una curva de 4,9 cm
+    // hay que TRAZAR 4,9 cm, no girar en el lugar.
+    //
+    //     rot = b_eff / (2*R + b_eff)
+    //
+    //   R = 4,9 cm (la curva mas cerrada del reglamento) -> rot = 0,681
+    //   R = 15 cm  (curva suave de un tile)              -> rot = 0,411
+    //
+    // radius_cm <= 0 significa girar en el lugar (rot = 1), que es el
+    // comportamiento de hoy y se conserva.
+    // `sign` > 0 gira a la izquierda, igual que el signo de rotation.
+    void steerRadius(double speed, int direction, double radius_cm, int sign);
     // Igual que steer(), pero escala la consigna de cada EJE por separado.
     // frontScale/rearScale en 0..1 multiplican la RPM pedida a las ruedas
     // delanteras y traseras. Sirve para correr el centro de rotacion hacia
