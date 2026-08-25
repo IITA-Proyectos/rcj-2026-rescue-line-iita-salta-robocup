@@ -117,6 +117,7 @@ def extraer(videos=None, forzar=False):
                 geo=_pt(r.get("target_geometric")),
                 bra=_pt(r.get("target_branch")),
                 spatial=r.get("spatial_guard"),
+                entrada=_pt(r.get("entrada")),
                 salto=r.get("proposed_jump_px"),
                 factor=factor,
                 ang_prod=None if t is None else vl._angulo_de(float(t[0])),

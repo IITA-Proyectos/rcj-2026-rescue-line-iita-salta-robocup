@@ -86,8 +86,8 @@ def _envf(nombre, defecto):
         return defecto
 
 
-LEY_K = _envf("LEY_STEER_K", 4.4794)
-LEY_G = _envf("LEY_STEER_G", 0.7419)
+LEY_K = _envf("LEY_STEER_K", 6.1328)
+LEY_G = _envf("LEY_STEER_G", 0.6406)
 LEY_KPSI = _envf("LEY_STEER_KPSI", 1.0)
 LEY_HFOV = _envf("LEY_STEER_HFOV", 60.0)
 LEY_ARCO = _envf("LEY_STEER_ARCO", 0.60)

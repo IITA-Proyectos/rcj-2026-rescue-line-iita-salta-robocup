@@ -387,11 +387,30 @@ class NuevoCodeV2:
         # clasificar una falla, porque `target_geometric` de V4 ya viene con
         # estos dos guards aplicados y no es el geometrico crudo.
         # Fidelidad verificada sobre los 10 autonomos: 0 discrepancias.
+        # ENTRADA: donde esta la CINTA bajo el robot, no donde el esqueleto
+        # puso un nodo. Solo para registro y para el cross-track; no cambia
+        # ningun calculo de este archivo.
+        #
+        # Por que hace falta: `start` es un nodo del ESQUELETO en la fila mas
+        # baja, y con la camara casi horizontal la cinta ocupa ~65 px de ancho
+        # ahi. El eje medial de una franja tan ancha no pasa por su centro:
+        # medido sobre 13.257 frames, `start` esta a 14 px del centro real en
+        # la mediana y a 35 en el p90, con maximos de 152 en una imagen de 160.
+        # Quien lo vio fue Benjamin, mirando el registro: "el start no esta en
+        # el centro, fijate que esta en el costado".
+        ys_c, xs_c = np.nonzero(comp)
+        entrada = None
+        if len(xs_c):
+            my = ys_c.max()
+            sel = ys_c >= my - 2          # 3 filas: robusto a un pixel suelto
+            if sel.any():
+                entrada = (float(xs_c[sel].mean()), float(my))
+
         return dict(ok=True,state=st,mask=m,comp=comp,skel=sk,
                     start=res["start"],target=target,path=res["path"],
                     heading=res["heading"],reason=reason,mode=mode,
                     target_raw=raw,target_cap=target_cap,
-                    target_lowproj=target)
+                    target_lowproj=target,entrada=entrada)
 
 def pxi(p):
     return None if p is None else (int(round(p[0])),int(round(p[1])))

@@ -109,8 +109,28 @@ def errores(res, hfov=HFOV_NOMINAL, arco=ARCO_PSI):
     if st is None:
         return None, None
 
-    X0, Z0 = suelo(st[0], st[1], hfov)
+    # El cross-track se mide en la CINTA, no en el nodo del esqueleto.
+    #
+    # `start` es un nodo del eje medial en la fila mas baja, y con la camara
+    # casi horizontal la cinta ocupa ~65 px de ancho ahi (44 % del cuadro,
+    # medido en birdeye.py). El eje medial de una franja tan ancha no pasa por
+    # su centro. Medido sobre 13.257 frames: |start_x - centro real| da p50 14,
+    # p90 35 y max 152 px, con el 58,5 % de los frames arriba de 10 px.
+    #
+    # Eso sesga `e` de forma masiva: 35 px son ~0,25 de cross-track en el suelo,
+    # que con la ganancia calibrada valen ~48 grados de comando POR UN ERROR
+    # QUE NO EXISTE. Es un defecto que introduje al construir `e` sobre el
+    # start; la ley vieja no lo tiene porque usa el target.
+    #
+    # `entrada` es el centroide de la componente en sus 3 filas mas bajas: la
+    # posicion lateral de la cinta en el punto del camino mas cercano al robot,
+    # que es la definicion de cross-track. Si no esta -un dict viejo, otro
+    # modo-, se cae al start y se sigue como antes.
+    ent = res.get("entrada") or st
+    X0, Z0 = suelo(ent[0], ent[1], hfov)
     e = X0
+    # la tangente se sigue midiendo sobre el camino, que arranca en el start
+    Xp, Zp = suelo(st[0], st[1], hfov)
 
     if not path or len(path) < 2:
         # sin camino no hay tangente; se cae al chord start->target, que es lo
@@ -119,7 +139,7 @@ def errores(res, hfov=HFOV_NOMINAL, arco=ARCO_PSI):
         if t is None:
             return e, None
         X1, Z1 = suelo(t[0], t[1], hfov)
-        dX, dZ = X1 - X0, Z1 - Z0
+        dX, dZ = X1 - Xp, Z1 - Zp
         if abs(dZ) < 1e-9 and abs(dX) < 1e-9:
             return e, None
         return e, math.degrees(math.atan2(dX, dZ))
