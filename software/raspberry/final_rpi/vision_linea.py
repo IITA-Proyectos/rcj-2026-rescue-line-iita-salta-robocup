@@ -106,6 +106,17 @@ def _arrancar():
 
     _tr = SinBranch(fps)
 
+    # poi_component es SOLO DIAGNOSTICO: `r["poi"]` lo lee unicamente
+    # draw_panel, que en el robot no corre. Y pesa: medido sobre 31.030 frames,
+    # sacarlo baja el p50 de CAMINO+MONO de 1,609 a 1,483 ms, que es EXACTAMENTE
+    # el p50 del baseline. O sea que apagarlo paga integro el sobrecosto de
+    # CAMINO+MONO: la version buena sale al mismo precio que la de hoy.
+    # Se neutraliza aca, en el modulo de integracion, sin tocar nuevo_code_v3.
+    _v3 = v4.v3
+    if not os.environ.get("VISION_LINEA_CON_POI"):
+        _v3.poi_component = lambda comp, ref_x=None: dict(
+            top=None, bottom=None, left=None, right=None)
+
     if MODO in ("1", "si", "camino"):
         sp2 = importlib.util.spec_from_file_location(
             "camino_principal", os.path.join(aqui, "camino_principal.py"))
