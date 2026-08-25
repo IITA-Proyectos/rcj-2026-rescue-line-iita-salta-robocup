@@ -206,7 +206,7 @@ def pintar_imagen(g, r, u):
     return vis
 
 
-def transportador(vis, viejo, stanley):
+def transportador(vis, viejo, stanley, ley_activa):
     """EL ANGULO, dibujado sobre la imagen y no solo como numero.
 
     Benjamin: "no veo cual es el angulo". Tenia razon: el comando vivia en una
@@ -242,11 +242,20 @@ def transportador(vis, viejo, stanley):
         cv2.ellipse(capa, (cx, cy), (R - 20, R - 20), 0,
                     -90 - hi, -90 - lo, (120, 120, 255), 3, cv2.LINE_AA)
 
+    # LA QUE MANDA se dibuja gruesa y con punto en la punta; la otra, fina.
+    # Cual manda NO es una propiedad del dibujo: es LEY_STEER. En el robot va
+    # apagada por defecto, o sea que ahi manda la GRIS.
     if viejo is not None:
-        cv2.line(capa, (cx, cy), punta(viejo, R - 22), (190, 190, 190), 3,
+        gr = 3 if ley_activa else 5
+        cv2.line(capa, (cx, cy), punta(viejo, R - 22), (190, 190, 190), gr,
                  cv2.LINE_AA)
+        if not ley_activa:
+            cv2.circle(capa, punta(viejo, R - 22), 8, (235, 235, 235), -1)
     if stanley is not None:
-        cv2.line(capa, (cx, cy), punta(stanley, R), CIAN, 4, cv2.LINE_AA)
+        gr = 5 if ley_activa else 3
+        cv2.line(capa, (cx, cy), punta(stanley, R), CIAN, gr, cv2.LINE_AA)
+        if ley_activa:
+            cv2.circle(capa, punta(stanley, R), 8, CIAN, -1)
     cv2.circle(capa, (cx, cy), 6, (235, 235, 235), -1)
 
     m = capa.any(axis=2)
@@ -263,9 +272,12 @@ def transportador(vis, viejo, stanley):
     if stanley is not None:
         e = punta(stanley, R + 34)
         txt(vis, "%+.0f" % stanley, e[0] - 16, e[1] + 4, CIAN, 0.56, 2)
-    txt(vis, "el ANGULO que se manda", 10, PH - 26, (140, 140, 140), 0.4)
-    txt(vis, "gris = ley de hoy   celeste = la que sale", 10, PH - 8,
-        (120, 120, 120), 0.36)
+    txt(vis, "el ANGULO.  El PUNTO marca la que se manda.", 10, PH - 42,
+        (150, 150, 150), 0.4)
+    txt(vis, "gris = ley de hoy (la del robot por defecto)", 10, PH - 24,
+        (185, 185, 185), 0.36)
+    txt(vis, "celeste = Stanley (solo con LEY_STEER=stanley, como este video)",
+        10, PH - 8, CIAN, 0.36)
     return vis
 
 
@@ -299,7 +311,11 @@ def pintar_datos(vid, i, n, r, u, ang, vel_base, vel, prog):
                       (15 + int((LW - 30) * prog[2] / float(prog[3])), y + 4),
                       CIAN, -1)
     y += 18
-    txt(p, "VISION_LINEA=camino   LEY_STEER=stanley", 14, y, GRIS, 0.36)
+    txt(p, "VISION_LINEA=camino   LEY_STEER=stanley   VEL_ANTICIPADA=1",
+        14, y, GRIS, 0.34)
+    y += 14
+    txt(p, "las tres van APAGADAS por defecto en el robot", 14, y,
+        (120, 120, 120), 0.34)
 
     y += 30
     cv2.line(p, (14, y), (LW - 14, y), (55, 55, 55), 1)
@@ -359,14 +375,16 @@ def pintar_datos(vid, i, n, r, u, ang, vel_base, vel, prog):
     barra(p, 22, y + 30, 200, 16, tq or 0.0, 90.0, VERDE, "RUMBO")
     txt(p, "  --  " if tq is None else "%+6.1f" % tq, 232, y + 43, VERDE, 0.42)
 
-    y += 54
+    y += 42
     cv2.line(p, (14, y), (LW - 14, y), (55, 55, 55), 1)
-    y += 20
+    y += 18
     av = u.get("ang_viejo")
-    barra(p, 22, y, 300, 20, av or 0.0, 90.0, GRIS, "LEY DE HOY")
+    barra(p, 22, y, 300, 20, av or 0.0, 90.0, GRIS,
+          "LEY DE HOY  (la que sale en el robot por defecto)")
     txt(p, "  --  " if av is None else "%+6.1f" % av, 332, y + 16, GRIS, 0.46)
     y += 38
-    barra(p, 22, y, 300, 20, ang or 0.0, 90.0, CIAN, "STANLEY  (es la que sale)")
+    barra(p, 22, y, 300, 20, ang or 0.0, 90.0, CIAN,
+          "STANLEY  (sale SOLO con LEY_STEER=stanley)")
     txt(p, "  --  " if ang is None else "%+6.1f" % ang, 332, y + 16, CIAN, 0.46)
     y += 28
     if ang is not None and av is not None:
@@ -481,7 +499,8 @@ def main():
 
             marco = np.zeros((OUT_H, OUT_W, 3), np.uint8)
             img = pintar_imagen(g, r, u)
-            transportador(img, u.get("ang_viejo"), ang)
+            transportador(img, u.get("ang_viejo"), ang,
+                          bool(getattr(vl, "LEY_ACTIVA", False)))
             marco[:PH, :PW] = img
             marco[:PH, PW:] = pintar_datos(
                 vid, i, n, r, u, ang, a.vel_base, vel,
