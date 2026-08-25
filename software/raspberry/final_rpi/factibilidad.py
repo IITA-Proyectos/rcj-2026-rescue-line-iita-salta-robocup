@@ -131,10 +131,57 @@ def main():
         print("  A esta velocidad la curva ES posible. El problema no es")
         print("  cinematico y el esfuerzo va al retardo y a la ley.")
     print("")
-    print("  INCERTIDUMBRES, y son grandes:")
-    print("     * el DIAMETRO es un dato de Benjamin, no del codigo. Todo escala")
-    print("       lineal: si la rueda es de 5 cm, v baja a %.1f cm/s."
-          % (v * 5.0 / a.diametro))
+    print("=" * 100)
+    print("  EL DIAMETRO CAMBIA EL NUMERO, NO EL VEREDICTO")
+    print("=" * 100)
+    print("")
+    print("  Benjamin pregunto si los 65 mm son CON las gomas. Importa, porque el")
+    print("  que cuenta es el diametro EFECTIVO DE RODADURA: la rueda con la")
+    print("  banda puesta y COMPRIMIDA bajo el peso del robot, medida en el punto")
+    print("  de contacto. Con silicona Shore A20-30 la compresion es de 1 a 3 mm,")
+    print("  asi que el efectivo es algo MENOR que el libre.")
+    print("")
+    rpm50 = float(np.nanmedian([np.nanpercentile(
+        np.where((np.vstack([RR.col(RR.cargar(r)[0], "%s_rpm" % w)
+                             for w in ("fl", "fr", "bl", "br")]) > 0) &
+                 (np.vstack([RR.col(RR.cargar(r)[0], "%s_rpm" % w)
+                             for w in ("fl", "fr", "bl", "br")]) < 500),
+                 np.vstack([RR.col(RR.cargar(r)[0], "%s_rpm" % w)
+                            for w in ("fl", "fr", "bl", "br")]), np.nan), 50)
+        for r in sorted(glob.glob(os.path.join(RR.CORRIDAS, "*.csv")))
+        if os.path.basename(r).replace("2026-08-22_", "").startswith("pista")]))
+    vmax49 = math.radians(w) * R_CERRADA
+    print("  %-14s %10s %10s %11s %16s"
+          % ("diametro", "circunf", "v cm/s", "v/v_max", "veredicto"))
+    for D in (4.445, 5.08, 6.0, 6.35, 6.5, 7.0, 7.62, 8.5):
+        c = math.pi * D
+        vv = rpm50 / 60.0 * c
+        print("  %-14s %10.1f %10.1f %10.2fx %16s"
+              % ("%.2f cm" % D, c, vv, vv / vmax49,
+                 "OK" if vv <= vmax49 else "%.0f %% por encima"
+                 % (100 * (vv / vmax49 - 1))))
+    dcrit = vmax49 * 60 / rpm50 / math.pi
+    print("")
+    print("  Para que la curva cerrada fuera POSIBLE la rueda tendria que medir")
+    print("  %.2f cm. Ninguna rueda de robot mide eso." % dcrit)
+    print("")
+    print("  -> LA CONCLUSION NO DEPENDE DEL DIAMETRO. Con cualquier rueda entre")
+    print("     44 y 85 mm el robot esta entre 24 % y 137 % por encima del")
+    print("     limite. Con gomas o sin gomas, la curva cerrada no da.")
+    print("")
+    print("  Y COMO SE MIDE BIEN, sin calibre y sin suponer: hacer rodar el robot")
+    print("  una distancia MEDIDA -un metro alcanza- y contar los pulsos del")
+    print("  encoder. `runDistance()` ya imprime flCount y frCount.")
+    print("")
+    print("      D_efectivo = distancia / (vueltas * pi)")
+    print("")
+    print("  Eso da el diametro EFECTIVO directo, con la goma puesta, comprimida")
+    print("  y sobre la superficie real. Es lo unico que importa y sale gratis.")
+    print("")
+    print("=" * 100)
+    print("  OTRAS INCERTIDUMBRES")
+    print("=" * 100)
+    print("")
     print("     * `omega_max` sale del p90 del giroscopio en esas corridas, que")
     print("       no es lo mismo que el techo del robot: si nunca se le pidio")
     print("       mas, el p90 subestima. Por eso la salida 2 empieza por BARRER.")
