@@ -1,0 +1,58 @@
+
+========================================================================================================
+  SUELO SOBRE CAMINO PRINCIPAL
+  pursuit.py midio SUELO sobre el baseline crudo y empeoro las
+  inversiones (+21 a HFOV 60, +31 a HFOV 45). Pero ese esqueleto
+  tiene 3+ extremos en el 55,7 % de los frames: la metrica de suelo
+  se calculaba sobre un grafo lleno de costillas del eje medial.
+  Aca se repite sobre CAMINO+MONO, que las elimina.
+========================================================================================================
+
+  CALIBRACION DEL ld DE SUELO  (mediana del arco que consigue el
+  BASELINE, mismo procedimiento que pursuit.py --medir)
+  HFOV        p05      p25      p50      p75      p95      p95/p05  shell
+  45        0.187    0.497    0.635    0.825    1.313         7.0x  [0.489, 0.800]
+  60        0.230    0.613    0.735    0.909    1.370         5.9x  [0.566, 0.926]
+  75        0.266    0.752    0.867    1.020    1.440         5.4x  [0.668, 1.092]
+  n = 4737 frames medidos.  (12 s)
+
+  VALORES ABSOLUTOS
+  variante           disp %  sin_aut   huecos  saltos>24  inversiones     suav   controles
+  FIDELIDAD: 12065 frames, 0 discrepancias  OK
+  BASE                93.78      864      276        247          392     1.91   hist 100/100  lineal 73/73  smax +89 OK
+  CAMINO+MONO         93.96      839      265        236          389     1.24   hist 100/100  lineal 73/73  smax +89 OK
+  CM+SUELO  @45       93.87      852      268        238          418     1.69   hist 100/100  lineal 73/73  smax +89 OK
+  CM+SUELO  @60       93.91      847      269        239          412     1.69   hist 100/100  lineal 73/73  smax +89 OK
+  CM+SUELO  @75       93.87      852      267        235          401     1.46   hist 100/100  lineal 73/73  smax +89 OK
+  CM+SUELO-N @45      93.78      864      274        245          414     1.57   hist 100/100  lineal 73/73  smax +89 OK
+  CM+SUELO-N @60      93.75      869      277        247          416     1.69   hist 100/100  lineal 73/73  smax +89 OK
+  CM+SUELO-N @75      93.89      849      274        243          406     1.57   hist 100/100  lineal 73/73  smax +89 OK
+
+  DELTAS CONTRA BASE (la candidata SinBranch tal cual)
+  variante           disp %  sin_aut   huecos  saltos>24  inversiones     suav
+  BASE                +0.00       +0       +0         +0           +0    +0.00   OK
+  CAMINO+MONO         +0.18      -25      -11        -11           -3    -0.68   OK
+  CM+SUELO  @45       +0.09      -12       -8         -9          +26    -0.23   OK
+  CM+SUELO  @60       +0.12      -17       -7         -8          +20    -0.23   OK
+  CM+SUELO  @75       +0.09      -12       -9        -12           +9    -0.45   OK
+  CM+SUELO-N @45      +0.00       +0       -2         -2          +22    -0.34   OK
+  CM+SUELO-N @60      -0.04       +5       +1         +0          +24    -0.23   OK
+  CM+SUELO-N @75      +0.11      -15       -2         -4          +14    -0.34   OK
+
+  DELTAS CONTRA CAMINO+MONO  <-- ESTA ES LA PREGUNTA DEL EXPERIMENTO
+  variante           disp %  sin_aut   huecos  saltos>24  inversiones     suav
+  CAMINO+MONO         +0.00       +0       +0         +0           +0    +0.00   OK
+  CM+SUELO  @45       -0.09      +13       +3         +2          +29    +0.45   OK
+  CM+SUELO  @60       -0.06       +8       +4         +3          +23    +0.45   OK
+  CM+SUELO  @75       -0.09      +13       +2         -1          +12    +0.22   OK
+  CM+SUELO-N @45      -0.18      +25       +9         +9          +25    +0.34   OK
+  CM+SUELO-N @60      -0.22      +30      +12        +11          +27    +0.45   OK
+  CM+SUELO-N @75      -0.07      +10       +9         +7          +17    +0.34   OK
+
+  BASELINE ABSOLUTO  disp 93.78 %  sin_aut 864  huecos 276  saltos 247  inversiones 392  suav 1.91
+
+  CRITERIO PREREGISTRADO: SUELO entra solo si, contra CAMINO+MONO,
+  mejora sin empeorar disponibilidad, huecos ni saltos, y sin romper
+  ningun control (hist 100/100, lineal 73/73, smax >= +85).
+  REPLAY OPEN-LOOP: mide percepcion, no trayectoria.
+========================================================================================================

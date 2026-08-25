@@ -78,6 +78,25 @@ ACTIVA = MODO in ("1", "si", "base", "camino", "v1")
 LEY = (os.environ.get("LEY_STEER") or "").strip().lower()
 LEY_ACTIVA = LEY in ("stanley", "1", "si")
 
+# --- anticipacion de velocidad: APAGADA por defecto ------------------------
+# Estaba encendida junto con VISION_LINEA, y no debia estarlo, por dos razones.
+#
+# 1. LA EVIDENCIA QUE LA JUSTIFICABA NO VALE. El "84 % de las curvas con ~1 s
+#    de anticipacion" salia de un test sesgado: buscaba si habia ALGUNA kappa
+#    sobre el umbral en 40 frames y se quedaba con la MAS ANTIGUA, sin break.
+#    Con el umbral en el p75, el 25 % de los frames lo supera, asi que "al
+#    menos uno en 40" sale casi siempre por azar. Rehecho con precision, tasa
+#    base y placebo (`curva_cerrada2.py`): el lift maximo es 1,47x contra la
+#    base y 1,26x contra el placebo, por debajo del 1,5 preregistrado. MUERE.
+#    Lo encontro ChatGPT en la auditoria del 25-ago.
+#
+# 2. UN CAMBIO POR FASE. Con VISION_LINEA=camino se cambiaba percepcion, path,
+#    steer Y velocidad a la vez. Si el sabado mejora o empeora, no se sabe por
+#    cual de los cuatro.
+#
+#     VEL_ANTICIPADA=1  VISION_LINEA=camino  python3 Main.py
+VEL_ANTICIPADA = (os.environ.get("VEL_ANTICIPADA") or "").strip().lower()     in ("1", "si", "true")
+
 
 def _envf(nombre, defecto):
     try:
@@ -232,7 +251,7 @@ def velocidad(base):
     ESTO NO SE PUEDE VALIDAR CON REPLAY: frenar cambia la trayectoria y por lo
     tanto cambia lo que la camara ve. Es prueba de sabado.
     """
-    if not ACTIVA or _tr is None:
+    if not ACTIVA or _tr is None or not VEL_ANTICIPADA:
         return None
     f = _factor_velocidad()
     if f >= 1.0:
@@ -325,6 +344,14 @@ def angulo(frame_resized):
     """
     global _tr, ACTIVA, _fallos, _NFRAME
     if not ACTIVA:
+        # `_ULT` se limpia SIEMPRE. Si la vision se apago sola a los 5 fallos,
+        # Main.py pasa a la vision vieja pero `ultimo()` seguia devolviendo el
+        # ultimo dict bueno de la candidata: el CSV mostraba raw/cap/target de
+        # un frame viejo como si fueran de este. Verificado y arreglado el
+        # 25-ago; lo senalo ChatGPT en su auditoria.
+        if _ULT.get("vl_activa") != 0:
+            _ULT.clear()
+            _ULT["vl_activa"] = 0
         return None
     _NFRAME += 1
     try:
@@ -351,7 +378,8 @@ def angulo(frame_resized):
                     salto=r.get("proposed_jump_px"),
                     razon=r.get("reason"), modo=_modo_real,
                     inicio=r.get("start"), rumbo_chord=r.get("heading"),
-                    raw=r.get("target_raw"), cap=r.get("target_cap"))
+                    raw=r.get("target_raw"), cap=r.get("target_cap"),
+                    vl_activa=1)
         if t is None:
             return None
         return _ley(r)

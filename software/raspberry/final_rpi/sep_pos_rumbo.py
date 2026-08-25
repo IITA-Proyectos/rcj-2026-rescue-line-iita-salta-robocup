@@ -102,6 +102,7 @@ def extraer(videos=None, forzar=False):
             # cableada en produccion. El bug era del extractor, no del cableado.
             vl._NFRAME += 1
             factor = vl._factor_velocidad()
+            kappa = vl._ULT.get("kappa")
             filas.append(dict(
                 i=i,
                 start=None if st is None else (float(st[0]), float(st[1])),
@@ -120,6 +121,7 @@ def extraer(videos=None, forzar=False):
                 entrada=_pt(r.get("entrada")),
                 salto=r.get("proposed_jump_px"),
                 factor=factor,
+                kappa=kappa,
                 ang_prod=None if t is None else vl._angulo_de(float(t[0])),
             ))
             i += 1

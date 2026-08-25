@@ -1,0 +1,65 @@
+
+========================================================================================================
+  DECIMACION DEL COMANDO - el banco mide 33,3 Hz, el robot cambia el
+  comando a 8,6-20,6 Hz (commit 4c1d456, ToF bloqueante en el lazo).
+  Banda preregistrada D = 1,2,3,4, promediando las D fases.
+========================================================================================================
+
+  FIDELIDAD (espia apagado contra la candidata): 10908 frames, 0 discrepancias  OK
+  CONTROL de que la variante esta viva: CAMINO+MONO cambia 7568 de 13900 targets (54.4 %)
+
+--------------------------------------------------------------------------------------------------------
+  ANCLA D=1 (tiene que reproducir el BASELINE ABSOLUTO y las filas publicadas)
+--------------------------------------------------------------------------------------------------------
+  variante         disp %   sin_aut   huecos  saltos>24 inversiones     suav
+  BASE              93.78     864.0    276.0      247.0       392.0     1.91
+  CAMINO+MONO       93.96     839.0    265.0      236.0       389.0     1.24
+  V1                95.61     610.0     72.0      928.0       345.0     1.63
+
+  BASELINE ABSOLUTO esperado 93.78 / 864 / 276 / 247 / 392 / 1.91   ->  REPRODUCE
+
+  CONTROLES OBLIGATORIOS (D=1): hist C+M 100/100 V1 100/100 | lineal C+M 73/73 V1 73/73 | smax C+M +89.44 V1 +89.44
+
+--------------------------------------------------------------------------------------------------------
+  BARRIDO DE LA BANDA PREREGISTRADA (promedio de las D fases)
+--------------------------------------------------------------------------------------------------------
+  variante         disp %   sin_aut   huecos  saltos>24 inversiones     suav
+  --- D = 1   (comando efectivo 33.3 Hz) ---
+  BASE              93.78     864.0    276.0      247.0       392.0     1.91
+  CAMINO+MONO       93.96     839.0    265.0      236.0       389.0     1.24
+  V1                95.61     610.0     72.0      928.0       345.0     1.63
+  --- D = 2   (comando efectivo 16.7 Hz) ---
+  BASE              93.78     432.0    150.0      798.5       371.0     4.42
+  CAMINO+MONO       93.96     419.5    146.0      719.0       363.0     3.71
+  V1                95.61     305.0     64.0     1034.0       335.5     3.43
+  --- D = 3   (comando efectivo 11.1 Hz) ---
+  BASE              93.78     288.0    123.7      801.0       355.3     6.71
+  CAMINO+MONO       93.96     279.7    118.7      723.0       347.0     6.24
+  V1                95.61     203.3     57.0      971.0       327.3     5.34
+  --- D = 4   (comando efectivo 8.3 Hz) ---
+  BASE              93.78     216.0    101.5      852.5       339.8     8.76
+  CAMINO+MONO       93.96     209.8     99.5      781.0       330.8     8.38
+  V1                95.61     152.5     50.5      922.2       319.8     7.35
+
+--------------------------------------------------------------------------------------------------------
+  FALSADOR: como cambia el ORDEN con D
+--------------------------------------------------------------------------------------------------------
+  D              saltos>24 C+M|V1                disp C+M|V1         inversiones C+M|V1
+  1         236.0 vs 928.0 -> C+M         94.0 vs 95.6 -> V1       389.0 vs 345.0 -> V1
+  2        719.0 vs 1034.0 -> C+M         94.0 vs 95.6 -> V1       363.0 vs 335.5 -> V1
+  3         723.0 vs 971.0 -> C+M         94.0 vs 95.6 -> V1       347.0 vs 327.3 -> V1
+  4         781.0 vs 922.2 -> C+M         94.0 vs 95.6 -> V1       330.8 vs 319.8 -> V1
+
+  falsador del falsador (disp no deberia moverse con D):
+    BASE           disp  93.78  93.78  93.78  93.78   rango 0.00 pp
+    CAMINO+MONO    disp  93.96  93.96  93.96  93.96   rango 0.00 pp
+    V1             disp  95.61  95.61  95.61  95.61   rango 0.00 pp
+
+  DELTAS CAMINO+MONO menos BASE, por D (asi se lee si la ganancia de
+  CAMINO+MONO sobrevive al punto de operacion del robot)
+  D       disp %   sin_aut   huecos  saltos>24 inversiones     suav
+  1        +0.18     -25.0    -11.0      -11.0        -3.0    -0.68
+  2        +0.18     -12.5     -4.0      -79.5        -8.0    -0.70
+  3        +0.18      -8.3     -5.0      -78.0        -8.3    -0.47
+  4        +0.18      -6.2     -2.0      -71.5        -9.0    -0.38
+========================================================================================================

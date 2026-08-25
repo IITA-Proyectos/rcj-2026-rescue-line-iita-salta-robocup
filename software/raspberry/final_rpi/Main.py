@@ -870,6 +870,23 @@ def main():
             _ang_nuevo = vision_linea.angulo(frame_resized)
             if _ang_nuevo is not None:
                 angle = _ang_nuevo
+            # QUIEN ESTA MANEJANDO. Sin esto, si el robot hace algo raro no se
+            # puede saber si el comando salio de la vision nueva, de la vieja o
+            # de la busqueda de linea perdida: `angle` es la misma variable en
+            # los tres casos. La metrica de replay "sin autoridad = 839" NO
+            # equivale a "839 frames sin comando": en produccion muchos de esos
+            # frames llevan una orden de la vision VIEJA.
+            #   0 vision vieja (la nueva esta apagada)
+            #   1 vision nueva
+            #   2 la nueva no opino -> vieja
+            #   3 la nueva no opino y no hay linea -> busqueda   (se fija abajo)
+            #   4 la nueva se apago sola por fallos -> vieja
+            if _ang_nuevo is not None:
+                tlm_ctrl = 1
+            elif not getattr(vision_linea, "ACTIVA", False):
+                tlm_ctrl = 4 if getattr(vision_linea, "_fallos", 0) else 0
+            else:
+                tlm_ctrl = 2
 
             # ANTICIPACION DE CURVA. La Teensy ya frena con absSteer, pero frena
             # tarde: absSteer sube cuando la curva ya esta encima. Esto mide la
@@ -939,6 +956,7 @@ def main():
                 angle = last_line_search_dir * line_lost_search_angle
                 speed = line_lost_search_speed
                 tlm_perdida = 1
+                tlm_ctrl = 3
 
             silver_contours, _ = cv2.findContours(silver_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             silver_line = False
@@ -1003,6 +1021,7 @@ def main():
                        # guard y los dos terminos de la ley de steer. Es un
                        # dict; telemetria_vision lo traduce a enteros. Con la
                        # vision vieja viene vacio y todos los campos van en 0.
+                       ctrl_source=tlm_ctrl,
                        vision=vision_linea.ultimo())
             line_frames += 1
             if time.time() - line_t0 >= 30:

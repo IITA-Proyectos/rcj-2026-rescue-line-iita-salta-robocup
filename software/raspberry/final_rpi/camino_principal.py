@@ -34,17 +34,53 @@ Del arbol de caminos mas cortos que Dijkstra YA calculo desde `start`:
     F = el nodo alcanzable mas lejano
     camino principal = la cadena start -> F
 
-Las costillas no estan en esa cadena, por construccion. Se restringen los
-candidatos de la shell al camino principal.
+Se restringen los candidatos de la shell a esa cadena.
 
 SIN UMBRALES. Sin parametros nuevos. Sin tocar la mascara ni skeletonize.
+
+CORRECCION DE ALCANCE, 25-ago (auditoria de ChatGPT)
+----------------------------------------------------
+Este archivo decia "las costillas no estan en esa cadena, POR CONSTRUCCION".
+Eso es falso, y la refutacion es de una linea: si una costilla espuria resulta
+ser el nodo geodesicamente MAS LEJANO desde `start`, entonces F es la punta de
+la costilla y la cadena reconstruida ES la costilla.
+
+Lo que la construccion garantiza es una sola cosa:
+
+    me quedo con UNA cadena raiz->hoja del esqueleto
+
+y NO garantiza que esa cadena sea la cinta semanticamente correcta. La
+literatura de eje medial dice lo mismo: preservar conectividad no equivale a
+recuperar la semantica, y una perturbacion chica del borde genera ramas.
+
+Como hay que hablar de CAMINO, entonces:
+
+    NO  "extrae el camino principal correcto"
+    SI  "elige heuristicamente una cadena larga y temporalmente consistente"
+
+El A/B sigue valiendo -mejora las cinco metricas- y eso no cambia. Lo que cambia
+es que es una heuristica que funciona, no un problema resuelto.
+
+Y el limite se ve en los datos: todavia queda un 2,7 % de frames donde el camino
+proyectado al suelo apunta hacia ATRAS (|psi| > 90 grados).
 
 VARIANTES QUE SE PRUEBAN
 ------------------------
   BASE      la candidata tal cual
-  CAMINO    candidatos restringidos al camino principal
-  MONO      busqueda monotona hacia adelante (Coulter 1992)
+  CAMINO    candidatos restringidos a la cadena elegida
+  MONO      monotonia temporal INSPIRADA en Coulter 1992 (ver abajo)
   CAMINO+MONO
+
+SOBRE MONO Y COULTER, tambien corregido
+---------------------------------------
+Coulter parte de un camino YA ORDENADO: busca el punto mas cercano y avanza "up
+the path". Nuestro problema es ANTERIOR -un esqueleto sin orientacion, donde ni
+siquiera se sabe cual rama es "adelante"-. MONO fabrica ese orden proyectando el
+target anterior al esqueleto actual y exigiendo relacion ancestro->descendiente
+en el arbol de Dijkstra.
+
+Es una buena heuristica TEMPORAL, y es de donde salio la idea. Pero Coulter no
+valida esa decision: el ya presupone conocida la secuencia del camino.
 
 FIDELIDAD: el selector se re-implementa para poder restringir, asi que con todo
 apagado tiene que reproducir el target de la candidata EXACTAMENTE. Se verifica

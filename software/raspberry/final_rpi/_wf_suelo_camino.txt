@@ -1,0 +1,61 @@
+
+========================================================================================================
+  SUELO SOBRE CAMINO PRINCIPAL
+  pursuit.py probo SUELO sobre el esqueleto crudo (55,7 % de los
+  frames tienen costillas) y empeoro. Aca se prueba sobre CAMINO+MONO.
+  HFOV preregistrado: 45 / 60 / 75.  ld = mediana del arco de suelo.
+========================================================================================================
+
+  FIDELIDAD DEL SELECTOR RE-IMPLEMENTADO
+    12065 frames, 0 discrepancias  OK
+
+  BASELINE ABSOLUTO (candidata SinBranch)
+    disp 93.78 %  sin_aut 864  huecos 276  saltos>24 247  inversiones 392  suav 1.91
+
+  REFERENCIA DE ESTA PRUEBA: CAMINO+MONO
+    disp 93.96 %  sin_aut 839  huecos 265  saltos>24 236  inversiones 389  suav 1.24
+    contra el baseline absoluto: disp +0.18  sin_aut -25  huecos -11  saltos -11  inv -3  suav -0.68
+
+  CALIBRACION  arco de suelo hasta el target de CAMINO+MONO
+  (4 primeros videos; unidades Z(fila 119) = 1,0)
+    HFOV         n      p05      p25      p50      p75      p95   p95/p05
+    45        4736    0.221    0.541    0.721    0.953    1.418      6.4x
+    60        4736    0.270    0.657    0.822    1.052    1.481      5.5x
+    75        4736    0.310    0.790    0.957    1.177    1.570      5.1x
+
+    HFOV 45 -> ld 0.721   shell [0.555, 0.908]
+    HFOV 60 -> ld 0.822   shell [0.633, 1.035]
+    HFOV 75 -> ld 0.957   shell [0.737, 1.206]
+
+  TODO LO DE ABAJO ES DELTA CONTRA **CAMINO+MONO**, no contra el
+  baseline absoluto. Negativo es mejor salvo en disp y smax.
+
+  variante              disp %   sin_aut    huecos saltos>24 inversiones      suav   controles
+  CAMINO+MONO            +0.00        +0        +0        +0          +0     +0.00   hist 100/100  lineal 73/73  smax +89 OK
+  +SUELO h45             -0.17       +23        +5        +4         +13     +0.34   hist 100/100  lineal 73/73  smax +89 OK
+       camino ok 12064 / vacio 0   mono vacio 1639   shell vacia 1156
+  +SUELO-N h45           +0.01        -1        +5        +5         +23     +0.34   hist 100/100  lineal 73/73  smax +89 OK
+       camino ok 12064 / vacio 0   mono vacio 1062   shell vacia 1156
+  +SUELO h60             -0.07       +10        +0        -1         +15     +0.45   hist 100/100  lineal 73/73  smax +89 OK
+       camino ok 12062 / vacio 2   mono vacio 1611   shell vacia 1037
+  +SUELO-N h60           -0.17       +24        +7        +7         +15     +0.22   hist 100/100  lineal 73/73  smax +89 OK
+       camino ok 12062 / vacio 2   mono vacio 1029   shell vacia 1039
+  +SUELO h75             -0.04        +6        +0        -1          +1     +0.11   hist 100/100  lineal 73/73  smax +89 OK
+       camino ok 12044 / vacio 21   mono vacio 1592   shell vacia 936
+  +SUELO-N h75           -0.16       +22        +6        +6         +14     +0.39   hist 100/100  lineal 73/73  smax +89 OK
+       camino ok 12043 / vacio 21   mono vacio 1061   shell vacia 939
+
+  CRITERIO PREREGISTRADO: entra solo si mejora alguna metrica sin
+  empeorar disponibilidad, huecos ni saltos, y sin romper controles.
+
+    +SUELO h45         controles OK        mejora no   no-empeora no   -> no pasa
+    +SUELO-N h45       controles OK        mejora si   no-empeora no   -> no pasa
+    +SUELO h60         controles OK        mejora si   no-empeora no   -> no pasa
+    +SUELO-N h60       controles OK        mejora no   no-empeora no   -> no pasa
+    +SUELO h75         controles OK        mejora si   no-empeora no   -> no pasa
+    +SUELO-N h75       controles OK        mejora no   no-empeora no   -> no pasa
+
+  NINGUNA VARIANTE DE SUELO PASA EL CRITERIO SOBRE CAMINO+MONO.
+  La hipotesis queda refutada tambien sobre el camino limpio:
+  el problema de SUELO no era que el esqueleto tuviera costillas.
+========================================================================================================

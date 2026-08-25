@@ -1,0 +1,96 @@
+
+==========================================================================================================================
+  WF_SLEW - capa de COMANDO sobre CAMINO+MONO
+  A) limitador de velocidad de comando   B) sostener el angulo en el hueco
+  El target NO se toca: disp, sin_aut, huecos y saltos>24 son INVARIANTES
+  por construccion. Que salgan +0 es el chequeo, no el resultado.
+==========================================================================================================================
+
+  percepcion 1/2 (espia apagado, fidelidad) ..........cc listo
+  FIDELIDAD DEL ESPIA: 12065 frames, 0 discrepancias  OK
+  percepcion 2/2 (CAMINO+MONO) ..........cc listo
+  FIDELIDAD DE COMANDO (slew=sin, hold=0): 13900 frames, 0 discrepancias  OK
+
+  REFERENCIA - candidata SinBranch SIN camino ni mono (baseline absoluto)
+  variante        disp % sin_aut  huecos saltos>24 inversion  suav_t lag p90  sin_cmd |ds| max |ds|max T |ds|max ef  esc_ef
+  BASELINE         93.78     864     276      247       392    1.91    0.00     864    27.00     27.00      89.44     480   hist 100/100  lineal 73/73  smax +89.4 OK
+
+  TRONCO DE ESTE EXPERIMENTO - CAMINO+MONO, slew=sin, hold=0
+  variante        disp % sin_aut  huecos saltos>24 inversion  suav_t lag p90  sin_cmd |ds| max |ds|max T |ds|max ef  esc_ef
+  CAMINO+MONO      93.96     839     265      236       389    1.24    0.00     839    27.00     27.00      89.44     447   hist 100/100  lineal 73/73  smax +89.4 OK
+  (vs baseline: disp +0.18  sin_aut -25  huecos -11  saltos -11  inv -3)
+
+  A) BANDA DE SLEW PREREGISTRADA, hold = 0   (deltas contra CAMINO+MONO)
+  variante        disp % sin_aut  huecos saltos>24 inversion  suav_t lag p90  sin_cmd |ds| max |ds|max T |ds|max ef  esc_ef
+  sin              +0.00      +0      +0       +0        +0   +0.00   +0.00      +0    27.00     27.00      89.44     447   hist 100/100  lineal 73/73  smax +89.4 OK
+  1500 d/s         +0.00      +0      +0       +0        +0   +0.11   +0.00      +0    44.44     44.44      89.44     542   hist 100/100  lineal 73/73  smax +89.4 OK
+  1000 d/s         +0.00      +0      +0       +0        +0   +0.22   +0.00      +0    30.00     30.00      89.44     624   hist 100/100  lineal 73/73  smax +89.4 OK
+  500 d/s          +0.00      +0      +0       +0       -10   +0.45   +3.05      +0    15.00     15.00      89.44     184   hist 100/100  lineal 73/73  smax +89.4 OK
+  350 d/s          +0.00      +0      +0       +0       -32   +1.09  +13.55      +0    10.50     10.50      89.44     159   hist 100/100  lineal 73/73  smax +89.4 OK
+
+  Pasan el criterio duro (controles + smax >= 88.5): sin, 1500 d/s, 1000 d/s, 500 d/s, 350 d/s
+  SLEW ELEGIDO por criterio preregistrado: 350 d/s (|ds| max 10.50 contra 27.00 sin limitador)
+
+  LECTURA DE LA BANDA A
+  1) Sin limitador el |ds| max ya es 27.00 grados = 24 px x 1.125 grados/px:
+     es EXACTAMENTE el cap de 24 px del SpatialTargetGuard traducido
+     a grados. La candidata ya viene topeada. Cualquier slew por
+     encima de 900 grados/s no puede morder nada.
+  2) Ojo con la columna '|ds| max' cuando el slew esta prendido: con
+     hold=0 el integrador vuelve a 0 en el hueco, y el primer paso al
+     salir del hueco vale min(slew/fps, |raw|). Por eso 1500 y 1000
+     d/s dan un |ds| max PEOR que no poner nada. La columna honesta
+     para el latigazo de percepcion es '|ds|max T'.
+  3) MI CRITERIO DE ELECCION ESTA MAL Y LO DIGO AHORA QUE YA CORRIO.
+     'menor |ds| max' es MONOTONO en el slew: bajar el slew SIEMPRE
+     baja |ds| max hasta que se rompe un control. Un objetivo asi no
+     elige, arrastra: iba a devolver el valor mas chico de la banda
+     pasara lo que pasara, y si hubiera preregistrado 200 d/s habria
+     devuelto 200. Que el ganador sea el extremo de la banda es la
+     firma de eso. Ademas el criterio NO cobra el costo, que esta
+     medido en la columna de al lado: lag p90 +13.55 grados a 350
+     d/s contra +3.05 a 500 y +0.00 de 1000 para arriba.
+  4) Por eso el veredicto que reporto NO es 'poner 350 d/s'. Es:
+     sobre esta candidata el slew NO TIENE NADA QUE CORTAR. El
+     latigazo que justificaba el slew en V1 (88 grados) aca no
+     existe: el SpatialTargetGuard ya topea en 27. Bajar de ahi es
+     comprar retardo a cambio de un numero que ya estaba acotado.
+
+  B) BANDA DE HOLD PREREGISTRADA, slew = 350 d/s   (deltas contra slew=350 d/s hold=0)
+  variante        disp % sin_aut  huecos saltos>24 inversion  suav_t lag p90  sin_cmd |ds| max |ds|max T |ds|max ef  esc_ef
+  hold 0           +0.00      +0      +0       +0        +0   +0.00   +0.00      +0    10.50     10.50      89.44     159   hist 100/100  lineal 73/73  smax +89.4 OK
+  hold 0.2s        +0.00      +0      +0       +0       -49   -0.04   +3.94    -554    10.50     10.50      89.44      25   hist 100/100  lineal 73/73  smax +89.4 OK
+  hold 0.4s        +0.00      +0      +0       +0       -49   +0.04   +4.84    -695    10.50     10.50      89.44      11   hist 100/100  lineal 73/73  smax +89.4 OK
+  hold inf  DIAG   +0.00      +0      +0       +0       -55   +0.04   +4.80    -839    10.50     10.50      10.50       0   hist 100/100  lineal 73/73  smax +89.4 OK
+
+  NINGUN hold cumple el criterio. Queda hold = 0.
+
+  LECTURA DE LA BANDA B - donde el criterio preregistrado se quedo corto
+  El objetivo que preregistre para el hold era el MAXIMO del |ds|
+  efectivo. Un maximo lo fija UN evento: alcanza con que exista un solo
+  hueco mas largo que el hold para que no baje nada. Eso es lo que
+  paso. La version de TASA de la misma cosa (esc_ef = cuantos
+  escalones > 24 grados hay en el comando efectivo) si se mueve:
+      hold 0     esc_ef   159   sin_cmd   839   inversiones  357
+      hold 0.2s  esc_ef    25   sin_cmd   285   inversiones  308
+      hold 0.4s  esc_ef    11   sin_cmd   144   inversiones  308
+      hold inf   esc_ef     0   sin_cmd     0   inversiones  302   (DIAG, no elegible)
+  No cambio el criterio despues de ver los numeros: la eleccion
+  preregistrada es hold=0 y asi queda. Esto es diagnostico, y para
+  adoptarlo hay que preregistrar esc_ef y volver a correr.
+
+  CONTROL DE SEPARACION - la misma banda de hold pero con slew=sin,
+  para saber si lo que mueve el hold depende del slew o no.
+  (Sale gratis: la percepcion ya esta cacheada, no se vuelve a correr.)
+  variante        disp % sin_aut  huecos saltos>24 inversion  suav_t lag p90  sin_cmd |ds| max |ds|max T |ds|max ef  esc_ef
+  sin + hold 0     +0.00      +0      +0       +0        +0   +0.00   +0.00      +0    27.00     27.00      89.44     447   hist 100/100  lineal 73/73  smax +89.4 OK
+  sin + hold 0.2s   +0.00      +0      +0       +0        +0   +0.00   +0.00    -554   178.88     27.00     178.88     241   hist 100/100  lineal 73/73  smax +89.4 OK
+  sin + hold 0.4s   +0.00      +0      +0       +0        +0   +0.00   +0.00    -695   178.88     27.00     178.88     220   hist 100/100  lineal 73/73  smax +89.4 OK
+  sin + hold inf   +0.00      +0      +0       +0        +0   +0.00   +0.00    -839   178.88     27.00     178.88     205   hist 100/100  lineal 73/73  smax +89.4 OK
+
+  CONFIGURACION FINAL POR CRITERIO PREREGISTRADO: slew=350 d/s, hold 0
+  Recordatorio: replay OPEN-LOOP. Mide el comando que la percepcion
+  habria emitido sobre video grabado, no como habria doblado el robot.
+==========================================================================================================================
+[mjpeg @ 0000020998922600] overread 8
+[mjpeg @ 00000209989deb00] overread 8

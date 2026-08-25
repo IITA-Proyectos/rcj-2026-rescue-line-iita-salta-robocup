@@ -1,0 +1,84 @@
+
+================================================================================================================
+  ROI ADAPTATIVO sobre CAMINO+MONO   -   la idea de Airborne, no sus constantes
+  ROI CORTO si estado(N-1) en {LOW, SIN_CERCA}  o  |steer(N-1)| > UMBRAL
+  ROI NORMAL (FLOOR_TOP=35) en HIGH / MEDIUM / PERDIDA
+  BANDA PREREGISTRADA   FLOOR_TOP alt: 35 45 55 65    UMBRAL |steer|: 30 45 60 inf
+  UMBRAL=inf  =  disparador puro por estado.   Se corre la grilla entera.
+================================================================================================================
+
+  FIDELIDAD 1 (selector re-implementado, todo apagado): 12065 frames, 0 discrepancias  OK
+  BASELINE  disp 93.78 %  sin_aut 864  huecos 276  saltos 247  inversiones 392  suav 1.91
+  FIDELIDAD 2 (maquineria ROI encendida con alt=35 vs CAMINO+MONO): 13900 frames  IDENTICO OK
+
+  TABLA A   deltas contra el BASELINE ABSOLUTO (comparable con la tabla de camino_principal)
+  config            disp %   sin_aut    huecos saltos>24 inversiones      suav  corto  controles
+  CAMINO+MONO        +0.18       -25       -11       -11          -3     -0.68  -      hist 100/100  lineal 73/73  smax +89 OK
+  ROI45/u30          -0.92      +128      +137        -1         +14     -0.68  56%    hist 100/100  lineal 73/73  smax +89 OK
+  ROI45/u45          -0.93      +129      +137        +1         +12     -0.68  40%    hist 100/100  lineal 73/73  smax +89 OK
+  ROI45/u60          -0.94      +131      +139        +4         +14     -0.68  30%    hist 100/100  lineal 73/73  smax +89 OK
+  ROI45/uinf         -0.96      +134      +130        +3         +12     -0.68  19%    hist 100/100  lineal 73/73  smax +89 OK
+  ROI55/u30          -2.53      +351      +346        +8         +10     -0.45  54%    hist 100/100  lineal 73/73  smax +89 OK
+  ROI55/u45          -2.55      +354      +346        +8          +6     -0.45  38%    hist 100/100  lineal 73/73  smax +89 OK
+  ROI55/u60          -2.56      +356      +347        +9          +6     -0.45  28%    hist 100/100  lineal 73/73  smax +89 OK
+  ROI55/uinf         -2.60      +361      +338        +9          +6     -0.45  17%    hist 100/100  lineal 73/73  smax +89 OK
+  ROI65/u30          -4.42      +615      +607       +44         +21     -0.34  54%    hist 100/100  lineal 73/73  smax +89 OK
+  ROI65/u45          -4.40      +612      +602       +36         +13     -0.34  37%    hist 100/100  lineal 73/73  smax +89 OK
+  ROI65/u60          -4.36      +606      +595       +28         +18     -0.23  26%    hist 100/100  lineal 73/73  smax +89 OK
+  ROI65/uinf         -4.35      +605      +584       +22         +12     -0.28  15%    hist 100/100  lineal 73/73  smax +89 OK
+
+  TABLA B   deltas contra CAMINO+MONO  <-- ESTA es la pregunta: el ROI adaptativo, aporta algo?
+  config            disp %   sin_aut    huecos saltos>24 inversiones      suav  corto  controles
+  ROI35 (no-op)      +0.00        +0        +0        +0          +0     +0.00  -      hist 100/100  lineal 73/73  smax +89 OK
+  ROI45/u30          -1.10      +153      +148       +10         +17     +0.00  56%    hist 100/100  lineal 73/73  smax +89 OK
+  ROI45/u45          -1.11      +154      +148       +12         +15     +0.00  40%    hist 100/100  lineal 73/73  smax +89 OK
+  ROI45/u60          -1.12      +156      +150       +15         +17     +0.00  30%    hist 100/100  lineal 73/73  smax +89 OK
+  ROI45/uinf         -1.14      +159      +141       +14         +15     +0.00  19%    hist 100/100  lineal 73/73  smax +89 OK
+  ROI55/u30          -2.71      +376      +357       +19         +13     +0.22  54%    hist 100/100  lineal 73/73  smax +89 OK
+  ROI55/u45          -2.73      +379      +357       +19          +9     +0.22  38%    hist 100/100  lineal 73/73  smax +89 OK
+  ROI55/u60          -2.74      +381      +358       +20          +9     +0.22  28%    hist 100/100  lineal 73/73  smax +89 OK
+  ROI55/uinf         -2.78      +386      +349       +20          +9     +0.22  17%    hist 100/100  lineal 73/73  smax +89 OK
+  ROI65/u30          -4.60      +640      +618       +55         +24     +0.34  54%    hist 100/100  lineal 73/73  smax +89 OK
+  ROI65/u45          -4.58      +637      +613       +47         +16     +0.34  37%    hist 100/100  lineal 73/73  smax +89 OK
+  ROI65/u60          -4.54      +631      +606       +39         +21     +0.45  26%    hist 100/100  lineal 73/73  smax +89 OK
+  ROI65/uinf         -4.53      +630      +595       +33         +15     +0.39  15%    hist 100/100  lineal 73/73  smax +89 OK
+
+  DOSIS del disparador (frames con ROI corto, sobre autonomos+controles)
+  config              corto      total   por estado    por steer
+  ROI45/u30            8618      15453         2903         7812
+  ROI45/u45            6129      15453         2904         5060
+  ROI45/u60            4615      15453         2904         3251
+  ROI45/uinf           2897      15453         2902            0
+  ROI55/u30            8411      15453         2629         7654
+  ROI55/u45            5904      15453         2627         4906
+  ROI55/u60            4336      15453         2627         3035
+  ROI55/uinf           2621      15453         2625            0
+  ROI65/u30            8272      15453         2360         7565
+  ROI65/u45            5703      15453         2358         4763
+  ROI65/u60            4063      15453         2357         2830
+  ROI65/uinf           2346      15453         2350            0
+
+  BRAZO POST-HOC (no preregistrado): SOLO el disparador de |steer|.
+  El estado nunca acorta el ROI. Es el turn_crop de Airborne literal.
+  deltas contra CAMINO+MONO
+  config            disp %   sin_aut    huecos saltos>24 inversiones      suav  corto  controles
+  PH45/u30           -0.92      +128      +140        +9         +13     +0.00  51%    hist 100/100  lineal 73/73  smax +89 OK
+  PH45/u45           -0.68       +94      +109        +6          +7     +0.11  33%    hist 100/100  lineal 73/73  smax +89 OK
+  PH45/u60           -0.63       +87       +82        +7         +13     +0.11  21%    hist 100/100  lineal 73/73  smax +89 OK
+  PH55/u30           -2.28      +317      +309       +17         +19     +0.22  49%    hist 100/100  lineal 73/73  smax +89 OK
+  PH55/u45           -1.96      +273      +279       +16         +15     +0.22  32%    hist 100/100  lineal 73/73  smax +89 OK
+  PH55/u60           -1.76      +244      +241       +15         +11     +0.22  20%    hist 100/100  lineal 73/73  smax +89 OK
+  PH65/u30           -3.94      +547      +547       +49         +24     +0.34  49%    hist 100/100  lineal 73/73  smax +89 OK
+  PH65/u45           -3.50      +487      +493       +34          +8     +0.34  31%    hist 100/100  lineal 73/73  smax +89 OK
+  PH65/u60           -2.98      +414      +424       +28         +15     +0.45  19%    hist 100/100  lineal 73/73  smax +89 OK
+
+  CRITERIO PREREGISTRADO: entra solo si contra CAMINO+MONO mejora
+  algo y NO empeora disponibilidad, huecos ni saltos>24, y no rompe
+  ningun control (hist 100/100, lineal 73/73, steer max >= +88).
+
+  NINGUNA configuracion de la banda pasa el criterio.
+  Resultado negativo: el ROI adaptativo no aporta sobre CAMINO+MONO.
+
+  (el brazo post-hoc queda fuera del criterio por construccion:
+   se miro despues de los datos, no puede adoptarse sin re-correr)
+================================================================================================================

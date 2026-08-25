@@ -50,6 +50,15 @@ CAMPOS = [
     # clave de union con el `rxf` del Teensy no se mueve.
     # Todos enteros, porque el volcado es str(int(...)). El factor de escala
     # va en el nombre y en el comentario, igual que xr/yr.
+    "ctrl_source",  # QUIEN mando este comando. Sin esto, un comando raro no
+                    # se puede atribuir: `angle` es la misma variable para los
+                    # tres controladores.
+                    #   0 vision vieja (la nueva esta apagada)
+                    #   1 vision nueva
+                    #   2 la nueva no opino -> vieja
+                    #   3 la nueva no opino y no hay linea -> busqueda
+                    #   4 la nueva se apago sola por fallos -> vieja
+    "vl_activa",    # 1 mientras la vision nueva sigue viva; 0 si se apago sola
     "vl_modo",      # 0 apagada  1 base  2 camino+mono  3 v1
     "vl_estado",    # 0 -  1 HIGH 2 MEDIUM 3 LOW 4 LOW_FORWARD 5 SIN_CERCA 6 PERDIDA
     "tg_x",         # target FINAL, x10   (etapa 5)
@@ -130,6 +139,7 @@ def campos_vision(u):
     if not u:
         return d
     try:
+        d["vl_activa"] = _e(u.get("vl_activa"))
         d["vl_modo"] = _MODO.get(u.get("modo"), 0)
         d["vl_estado"] = _ESTADO.get(u.get("estado"), 0)
         _punto(u.get("target"), "tg", d)
@@ -152,7 +162,10 @@ def campos_vision(u):
         d["razon_fl"] = fl
 
         d["kappa"] = _e(u.get("kappa"), 10)
-        d["fvel"] = _e(u.get("factor_vel", 1.0), 1000)
+        # sin default: si no se calculo el factor -la anticipacion esta
+        # apagada- va 0, que significa "no se midio". Un 1000 ahi seria decir
+        # "velocidad plena" cuando en realidad nadie la evaluo.
+        d["fvel"] = _e(u.get("factor_vel"), 1000)
         d["ley"] = _LEY.get(u.get("ley"), 0)
         d["e_pos"] = _e(u.get("e_pos"), 1000)
         d["psi"] = _e(u.get("psi"), 10)

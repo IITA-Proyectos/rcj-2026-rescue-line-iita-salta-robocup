@@ -102,14 +102,14 @@ def main():
     if largos != {len(TV.CAMPOS)}:
         fallos.append("largo de fila")
 
-    nuevos = TV.CAMPOS[TV.CAMPOS.index("vl_modo"):]
+    nuevos = TV.CAMPOS[TV.CAMPOS.index("ctrl_source"):]
     print("")
     print("  %-12s %8s %10s %10s %10s" % ("campo", "no-cero", "min", "max", ""))
     for c in nuevos:
         v = [int(f[c]) for f in filas]
         nz = sum(1 for x in v if x != 0)
         marca = ""
-        if nz == 0 and c not in ("razon_fl",):
+        if nz == 0 and c not in ("razon_fl", "ctrl_source"):
             marca = "*** SIEMPRE CERO"
             fallos.append("campo vacio: %s" % c)
         print("  %-12s %8d %10d %10d %10s" % (c, nz, min(v), max(v), marca))

@@ -11,6 +11,14 @@ la ley nueva los separa DE VERDAD, si el instrumento es sano, y si rompe algo.
 
 CRITERIOS DE CALIBRACION, escritos antes de correr
 --------------------------------------------------
+NO ES "SIN TUNING". Es una INICIALIZACION hecha mirando el dataset, no una
+optimizacion sobre desempeno de lazo cerrado -que no se puede medir aca-. La
+version anterior de este archivo decia "calibracion sin tuning por metrica", y
+eso confunde dos cosas: no se maximizo ninguna metrica de replay, pero las
+ganancias igual salieron de mirar estos datos. Y conservar el reparto 47/52 de
+la ley que se quiere reemplazar no demuestra que sea optimo: es conservador, y
+nada mas. (Auditoria de ChatGPT, 25-ago.)
+
   k_psi = 1,0  FIJO. Es lo que dice Stanley: el rumbo entra con ganancia
                unitaria. No se toca.
 

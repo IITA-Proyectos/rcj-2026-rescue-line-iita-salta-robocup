@@ -1,0 +1,1069 @@
+source_frame,source_time_s,estado,origen_componente,ang_actual,ang_estados,x_near,x_mid,e_lat,e_head,target_x,target_y,ang_lookahead,motivo_target
+0,0.000,HIGH,toca_abajo,-7.9,-0.118,84.4,84.2,4.9,-1.1,84.2,100.1,13.2,punto adelante de la componente
+1,0.030,HIGH,toca_abajo,72.2,1.000,5.9,4.2,-73.6,-6.6,4.2,100.1,-75.2,punto adelante de la componente
+2,0.060,HIGH,toca_abajo,70.7,1.000,3.9,2.6,-75.6,-5.2,2.6,100.2,-75.6,punto adelante de la componente
+3,0.090,HIGH,toca_abajo,67.2,1.000,2.2,1.5,-77.3,-2.6,1.5,100.0,-75.6,punto adelante de la componente
+4,0.120,HIGH,toca_abajo,67.2,1.000,4.3,4.4,-75.2,0.3,4.4,99.8,-75.0,punto adelante de la componente
+5,0.150,HIGH,toca_abajo,67.9,1.000,9.8,9.7,-69.7,-0.3,9.7,99.9,-74.0,punto adelante de la componente
+6,0.180,HIGH,toca_abajo,67.5,1.000,17.2,17.0,-62.3,-0.8,17.0,100.0,-72.3,punto adelante de la componente
+7,0.210,HIGH,toca_abajo,66.9,1.000,23.7,22.5,-55.8,-4.6,22.5,100.0,-70.7,punto adelante de la componente
+8,0.240,HIGH,toca_abajo,66.9,1.000,23.7,22.5,-55.8,-4.6,22.5,100.0,-70.7,punto adelante de la componente
+9,0.270,HIGH,toca_abajo,64.8,0.972,30.2,30.1,-49.3,-0.3,30.1,100.1,-68.0,punto adelante de la componente
+10,0.300,HIGH,toca_abajo,60.0,0.901,39.9,39.4,-39.6,-2.2,39.4,100.1,-63.6,punto adelante de la componente
+11,0.330,HIGH,toca_abajo,49.2,0.738,52.7,52.3,-26.8,-1.5,52.3,100.1,-53.8,punto adelante de la componente
+12,0.360,HIGH,toca_abajo,49.2,0.738,52.7,52.3,-26.8,-1.5,52.3,100.1,-53.8,punto adelante de la componente
+13,0.390,HIGH,toca_abajo,27.7,0.415,68.4,67.0,-11.1,-5.7,67.0,100.1,-32.2,punto adelante de la componente
+14,0.420,HIGH,toca_abajo,-8.1,-0.121,84.5,82.1,5.0,-9.3,82.1,100.1,7.4,punto adelante de la componente
+15,0.450,HIGH,toca_abajo,-8.1,-0.121,84.5,82.1,5.0,-9.3,82.1,100.1,7.4,punto adelante de la componente
+16,0.480,HIGH,toca_abajo,-34.7,-0.521,98.4,94.8,18.9,-13.9,94.8,100.1,37.6,punto adelante de la componente
+17,0.511,HIGH,toca_abajo,-40.5,-0.607,102.3,98.5,22.8,-14.7,98.5,100.1,43.6,punto adelante de la componente
+18,0.541,HIGH,toca_abajo,-39.9,-0.598,101.5,98.0,22.0,-13.6,98.0,100.1,42.9,punto adelante de la componente
+19,0.571,HIGH,toca_abajo,-39.9,-0.598,101.5,98.0,22.0,-13.6,98.0,100.1,42.9,punto adelante de la componente
+20,0.601,HIGH,toca_abajo,-40.3,-0.605,102.0,98.5,22.5,-13.6,98.5,100.1,43.7,punto adelante de la componente
+21,0.631,HIGH,toca_abajo,-36.2,-0.542,99.0,95.6,19.5,-13.2,95.6,100.1,38.9,punto adelante de la componente
+22,0.661,HIGH,toca_abajo,-34.2,-0.514,97.7,94.3,18.2,-13.3,94.3,100.1,36.5,punto adelante de la componente
+23,0.691,HIGH,toca_abajo,-34.2,-0.514,97.7,94.3,18.2,-13.3,94.3,100.1,36.5,punto adelante de la componente
+24,0.721,HIGH,toca_abajo,-29.4,-0.440,94.7,91.5,15.2,-12.3,91.5,100.1,31.2,punto adelante de la componente
+25,0.751,HIGH,toca_abajo,-22.9,-0.344,90.6,87.9,11.1,-10.3,87.9,100.1,23.0,punto adelante de la componente
+26,0.781,HIGH,toca_abajo,-22.9,-0.344,90.6,87.9,11.1,-10.3,87.9,100.1,23.0,punto adelante de la componente
+27,0.811,HIGH,toca_abajo,-18.4,-0.276,88.0,85.7,8.5,-9.1,85.7,100.1,17.2,punto adelante de la componente
+28,0.841,HIGH,toca_abajo,-10.3,-0.155,84.3,82.3,4.8,-8.0,82.3,100.1,8.0,punto adelante de la componente
+29,0.871,HIGH,toca_abajo,-10.3,-0.155,84.3,82.3,4.8,-8.0,82.3,100.1,8.0,punto adelante de la componente
+30,0.901,HIGH,toca_abajo,3.5,0.052,77.6,76.6,-1.9,-3.8,76.6,100.1,-8.3,punto adelante de la componente
+31,0.931,HIGH,toca_abajo,12.1,0.182,72.9,73.1,-6.6,0.9,73.1,100.1,-17.9,punto adelante de la componente
+32,0.961,HIGH,toca_abajo,14.5,0.217,70.7,72.0,-8.8,5.1,72.0,100.1,-20.7,punto adelante de la componente
+33,0.991,HIGH,toca_abajo,14.5,0.217,70.7,72.0,-8.8,5.1,72.0,100.1,-20.7,punto adelante de la componente
+34,1.021,HIGH,toca_abajo,12.5,0.188,70.7,72.9,-8.8,8.4,72.9,100.1,-18.4,punto adelante de la componente
+35,1.051,HIGH,toca_abajo,8.0,0.121,72.3,74.8,-7.2,10.0,74.8,100.1,-13.2,punto adelante de la componente
+36,1.081,HIGH,toca_abajo,3.9,0.059,73.8,76.8,-5.7,11.6,76.8,100.1,-7.9,punto adelante de la componente
+37,1.111,HIGH,toca_abajo,-5.7,-0.086,77.9,80.5,-1.6,10.2,80.5,100.1,3.0,punto adelante de la componente
+38,1.141,HIGH,toca_abajo,-5.7,-0.086,77.9,80.5,-1.6,10.2,80.5,100.1,3.0,punto adelante de la componente
+39,1.171,HIGH,toca_abajo,-10.6,-0.159,80.7,80.8,1.2,0.2,80.8,100.0,3.6,punto adelante de la componente
+40,1.201,HIGH,toca_abajo,-9.4,-0.141,78.0,81.6,-1.5,14.0,81.6,100.1,6.0,punto adelante de la componente
+41,1.231,HIGH,toca_abajo,-8.3,-0.125,77.4,81.6,-2.1,16.1,81.6,100.1,5.9,punto adelante de la componente
+42,1.261,HIGH,toca_abajo,-5.3,-0.080,76.2,80.4,-3.3,16.4,80.4,100.1,2.7,punto adelante de la componente
+43,1.291,HIGH,toca_abajo,-5.3,-0.080,76.2,80.4,-3.3,16.4,80.4,100.1,2.7,punto adelante de la componente
+44,1.321,HIGH,toca_abajo,-9.1,-0.137,77.8,81.9,-1.7,15.8,81.9,100.1,6.9,punto adelante de la componente
+45,1.351,HIGH,toca_abajo,-5.6,-0.084,76.9,80.7,-2.6,14.8,80.7,100.1,3.4,punto adelante de la componente
+46,1.381,HIGH,toca_abajo,-5.6,-0.084,76.9,80.7,-2.6,14.8,80.7,100.1,3.4,punto adelante de la componente
+47,1.411,HIGH,toca_abajo,-4.3,-0.065,76.8,80.3,-2.7,13.6,80.3,100.1,2.4,punto adelante de la componente
+48,1.441,HIGH,toca_abajo,0.3,0.005,75.5,78.7,-4.0,12.2,78.7,100.1,-2.4,punto adelante de la componente
+49,1.471,HIGH,toca_abajo,9.2,0.138,72.2,75.2,-7.3,11.8,75.2,100.1,-12.1,punto adelante de la componente
+50,1.502,HIGH,toca_abajo,9.2,0.138,72.2,75.2,-7.3,11.8,75.2,100.1,-12.1,punto adelante de la componente
+51,1.532,HIGH,toca_abajo,15.0,0.225,69.9,73.2,-9.6,12.8,73.2,100.1,-17.7,punto adelante de la componente
+52,1.562,HIGH,toca_abajo,13.7,0.206,70.9,73.9,-8.6,11.7,73.9,100.1,-15.8,punto adelante de la componente
+53,1.592,HIGH,toca_abajo,8.4,0.126,73.6,76.4,-5.9,11.2,76.4,100.1,-8.8,punto adelante de la componente
+54,1.622,HIGH,toca_abajo,8.4,0.126,73.6,76.4,-5.9,11.2,76.4,100.1,-8.8,punto adelante de la componente
+55,1.652,HIGH,toca_abajo,5.6,0.083,75.5,77.5,-4.0,7.8,77.5,100.1,-5.7,punto adelante de la componente
+56,1.682,HIGH,toca_abajo,2.5,0.037,77.6,79.5,-1.9,7.7,79.5,100.1,0.1,punto adelante de la componente
+57,1.712,HIGH,toca_abajo,2.5,0.037,77.6,79.5,-1.9,7.7,79.5,100.1,0.1,punto adelante de la componente
+58,1.742,HIGH,toca_abajo,-0.7,-0.010,82.3,83.6,2.8,5.1,83.6,100.1,11.7,punto adelante de la componente
+59,1.772,HIGH,toca_abajo,7.6,0.114,83.6,84.4,4.1,3.2,84.4,100.1,13.9,punto adelante de la componente
+60,1.802,HIGH,toca_abajo,7.4,0.111,86.6,87.2,7.1,2.3,87.2,100.1,21.2,punto adelante de la componente
+61,1.832,HIGH,toca_abajo,7.4,0.111,86.6,87.2,7.1,2.3,87.2,100.1,21.2,punto adelante de la componente
+62,1.862,HIGH,toca_abajo,5.5,0.083,90.1,90.7,10.6,2.1,90.7,100.1,29.3,punto adelante de la componente
+63,1.892,HIGH,toca_abajo,-1.4,-0.021,96.5,97.1,17.0,2.3,97.1,100.1,41.5,punto adelante de la componente
+64,1.922,HIGH,toca_abajo,-1.4,-0.021,96.5,97.1,17.0,2.3,97.1,100.1,41.5,punto adelante de la componente
+65,1.952,HIGH,toca_abajo,-7.5,-0.112,102.8,103.0,23.3,0.6,103.0,100.1,49.7,punto adelante de la componente
+66,1.982,HIGH,toca_abajo,-8.2,-0.123,108.7,104.9,29.2,-14.2,104.9,99.7,51.4,punto adelante de la componente
+67,2.012,HIGH,toca_abajo,-7.8,-0.117,114.3,98.0,34.8,-47.0,98.0,99.4,42.0,punto adelante de la componente
+68,2.042,HIGH,toca_abajo,-7.8,-0.117,114.3,98.0,34.8,-47.0,98.0,99.4,42.0,punto adelante de la componente
+69,2.072,HIGH,toca_abajo,-8.7,-0.131,119.1,95.0,39.6,-58.2,95.0,99.6,37.2,punto adelante de la componente
+70,2.102,HIGH,toca_abajo,-9.6,-0.144,121.6,92.7,42.1,-63.2,92.7,99.7,33.1,punto adelante de la componente
+71,2.132,HIGH,toca_abajo,-13.4,-0.201,119.8,92.6,40.3,-62.5,92.6,99.8,33.1,punto adelante de la componente
+72,2.162,HIGH,toca_abajo,-10.6,-0.158,111.2,90.4,31.7,-55.4,90.4,99.8,28.4,punto adelante de la componente
+73,2.192,HIGH,toca_abajo,-10.6,-0.158,111.2,90.4,31.7,-55.4,90.4,99.8,28.4,punto adelante de la componente
+74,2.222,HIGH,toca_abajo,2.5,0.038,101.9,86.9,22.4,-46.1,86.9,99.9,20.1,punto adelante de la componente
+75,2.252,HIGH,toca_abajo,5.5,0.082,100.9,87.2,21.4,-43.5,87.2,99.9,21.0,punto adelante de la componente
+76,2.282,HIGH,toca_abajo,-2.0,-0.030,105.1,92.0,25.6,-42.1,92.0,99.9,32.0,punto adelante de la componente
+77,2.312,HIGH,toca_abajo,-8.6,-0.130,109.9,95.9,30.4,-44.2,95.9,99.9,39.2,punto adelante de la componente
+78,2.342,HIGH,toca_abajo,-14.3,-0.214,112.2,97.7,32.7,-45.5,97.7,100.0,42.3,punto adelante de la componente
+79,2.372,HIGH,toca_abajo,-14.3,-0.214,112.2,97.7,32.7,-45.5,97.7,100.0,42.3,punto adelante de la componente
+80,2.402,HIGH,toca_abajo,-27.5,-0.413,120.8,105.6,41.3,-46.8,105.6,99.9,52.4,punto adelante de la componente
+81,2.432,HIGH,toca_abajo,-39.2,-0.588,129.4,113.9,49.9,-47.5,113.9,99.9,59.6,punto adelante de la componente
+82,2.462,HIGH,toca_abajo,-39.2,-0.588,129.4,113.9,49.9,-47.5,113.9,99.9,59.6,punto adelante de la componente
+83,2.492,HIGH,toca_abajo,-45.2,-0.678,142.2,124.8,62.7,-51.3,124.8,99.8,65.9,punto adelante de la componente
+84,2.523,HIGH,toca_abajo,-46.5,-0.697,146.9,128.5,67.4,-53.5,128.5,99.8,67.6,punto adelante de la componente
+85,2.553,HIGH,toca_abajo,-46.5,-0.697,146.9,128.5,67.4,-53.5,128.5,99.8,67.6,punto adelante de la componente
+86,2.583,SIN_CERCA,continuidad,-47.3,-0.600,149.9,131.7,70.4,-54.1,131.7,99.7,68.7,componente visible arriba
+87,2.613,HIGH,toca_abajo,-46.4,-0.696,149.8,130.3,70.3,-55.7,130.3,99.5,68.1,punto adelante de la componente
+88,2.643,HIGH,toca_abajo,-47.7,-0.716,144.8,127.4,65.3,-51.3,127.4,99.8,67.1,punto adelante de la componente
+89,2.673,HIGH,toca_abajo,-47.7,-0.716,144.8,127.4,65.3,-51.3,127.4,99.8,67.1,punto adelante de la componente
+90,2.703,HIGH,toca_abajo,-47.2,-0.709,138.9,123.3,59.4,-47.7,123.3,99.8,65.3,punto adelante de la componente
+91,2.733,HIGH,toca_abajo,-39.6,-0.594,127.2,111.1,47.7,-48.6,111.1,100.1,57.7,punto adelante de la componente
+92,2.763,HIGH,toca_abajo,-31.2,-0.468,118.1,99.4,38.6,-52.9,99.4,100.2,45.0,punto adelante de la componente
+93,2.793,HIGH,toca_abajo,-31.2,-0.468,118.1,99.4,38.6,-52.9,99.4,100.2,45.0,punto adelante de la componente
+94,2.823,HIGH,toca_abajo,-20.1,-0.302,111.5,88.2,32.0,-58.5,88.2,100.2,23.7,punto adelante de la componente
+95,2.853,HIGH,toca_abajo,-3.8,-0.057,100.5,77.3,21.0,-57.9,77.3,100.1,-6.3,punto adelante de la componente
+96,2.883,HIGH,toca_abajo,-3.8,-0.057,100.5,77.3,21.0,-57.9,77.3,100.1,-6.3,punto adelante de la componente
+97,2.913,HIGH,toca_abajo,-0.7,-0.010,94.9,73.1,15.4,-56.4,73.1,100.1,-17.8,punto adelante de la componente
+98,2.943,HIGH,toca_abajo,2.0,0.030,86.7,66.0,7.2,-55.0,66.0,100.1,-34.1,punto adelante de la componente
+99,2.973,HIGH,toca_abajo,2.4,0.037,70.6,60.5,-8.9,-34.3,60.5,99.8,-43.3,punto adelante de la componente
+100,3.003,HIGH,toca_abajo,2.4,0.037,70.6,60.5,-8.9,-34.3,60.5,99.8,-43.3,punto adelante de la componente
+101,3.033,HIGH,toca_abajo,-10.9,-0.164,63.0,72.7,-16.5,34.0,72.7,100.2,-19.0,punto adelante de la componente
+102,3.063,HIGH,toca_abajo,-9.4,-0.141,57.1,77.9,-22.4,55.6,77.9,100.2,-4.7,punto adelante de la componente
+103,3.093,HIGH,toca_abajo,-16.4,-0.246,57.5,83.4,-22.0,61.1,83.4,100.2,11.2,punto adelante de la componente
+104,3.123,HIGH,toca_abajo,-16.4,-0.246,57.5,83.4,-22.0,61.1,83.4,100.2,11.2,punto adelante de la componente
+105,3.153,HIGH,toca_abajo,-18.6,-0.279,58.8,84.5,-20.7,60.8,84.5,100.2,14.3,punto adelante de la componente
+106,3.183,HIGH,toca_abajo,-19.8,-0.297,60.1,84.5,-19.4,59.4,84.5,100.2,14.2,punto adelante de la componente
+107,3.213,HIGH,toca_abajo,-19.8,-0.297,60.1,84.5,-19.4,59.4,84.5,100.2,14.2,punto adelante de la componente
+108,3.243,HIGH,toca_abajo,-17.6,-0.265,59.7,83.1,-19.8,58.3,83.1,100.2,10.4,punto adelante de la componente
+109,3.273,HIGH,toca_abajo,-24.7,-0.370,64.4,85.5,-15.1,55.7,85.5,100.2,16.9,punto adelante de la componente
+110,3.303,HIGH,toca_abajo,-24.7,-0.370,64.9,84.9,-14.6,54.1,84.9,100.2,15.2,punto adelante de la componente
+111,3.333,HIGH,toca_abajo,-24.7,-0.370,64.9,84.9,-14.6,54.1,84.9,100.2,15.2,punto adelante de la componente
+112,3.363,HIGH,toca_abajo,-24.0,-0.360,65.5,83.8,-14.0,51.7,83.8,100.2,12.3,punto adelante de la componente
+113,3.393,HIGH,toca_abajo,-18.0,-0.269,62.9,80.2,-16.6,50.2,80.2,100.2,2.1,punto adelante de la componente
+114,3.423,HIGH,toca_abajo,-6.9,-0.103,57.0,74.3,-22.5,50.2,74.3,100.2,-14.6,punto adelante de la componente
+115,3.453,HIGH,toca_abajo,-6.9,-0.103,57.0,74.3,-22.5,50.2,74.3,100.2,-14.6,punto adelante de la componente
+116,3.483,HIGH,toca_abajo,2.9,0.043,51.5,68.2,-28.0,49.0,68.2,100.1,-29.7,punto adelante de la componente
+117,3.514,HIGH,toca_abajo,12.1,0.181,45.5,62.0,-34.0,48.9,62.0,100.1,-41.4,punto adelante de la componente
+118,3.544,HIGH,toca_abajo,17.5,0.263,41.3,56.5,-38.2,46.7,56.5,100.1,-49.1,punto adelante de la componente
+119,3.574,HIGH,toca_abajo,17.5,0.263,41.3,56.5,-38.2,46.7,56.5,100.1,-49.1,punto adelante de la componente
+120,3.604,HIGH,toca_abajo,23.0,0.345,37.2,50.0,-42.3,41.9,50.0,100.1,-56.0,punto adelante de la componente
+121,3.634,HIGH,toca_abajo,26.4,0.396,34.7,45.1,-44.8,36.1,45.1,100.1,-60.0,punto adelante de la componente
+122,3.664,HIGH,toca_abajo,23.8,0.356,33.3,50.6,-46.2,49.8,50.6,99.8,-55.1,punto adelante de la componente
+123,3.694,HIGH,toca_abajo,23.8,0.356,33.3,50.6,-46.2,49.8,50.6,99.8,-55.1,punto adelante de la componente
+124,3.724,HIGH,toca_abajo,20.1,0.301,32.6,69.2,-46.9,67.7,69.2,99.4,-26.6,punto adelante de la componente
+125,3.754,HIGH,toca_abajo,15.1,0.226,32.0,83.8,-47.5,74.1,83.8,99.7,11.9,punto adelante de la componente
+126,3.784,HIGH,toca_abajo,-3.6,-0.055,67.7,87.2,-11.8,55.1,87.2,100.1,21.2,punto adelante de la componente
+127,3.814,HIGH,toca_abajo,-3.6,-0.055,67.7,87.2,-11.8,55.1,87.2,100.1,21.2,punto adelante de la componente
+128,3.844,HIGH,toca_abajo,-22.6,-0.339,82.1,90.7,2.6,30.7,90.7,100.1,29.4,punto adelante de la componente
+129,3.874,HIGH,toca_abajo,-31.5,-0.472,86.1,87.4,6.6,5.1,87.4,100.6,22.1,punto adelante de la componente
+130,3.904,HIGH,toca_abajo,-31.5,-0.472,86.1,87.4,6.6,5.1,87.4,100.6,22.1,punto adelante de la componente
+131,3.934,MEDIUM,toca_abajo,-40.6,-0.609,89.5,81.0,10.0,-31.9,81.0,100.9,4.6,punto adelante de la componente
+132,3.964,MEDIUM,toca_abajo,-51.4,-0.771,93.2,74.5,13.7,-54.1,74.5,101.0,-14.8,punto adelante de la componente
+133,3.994,MEDIUM,toca_abajo,-42.9,-0.644,92.8,63.6,13.3,-65.6,63.6,101.3,-40.4,punto adelante de la componente
+134,4.024,MEDIUM,toca_abajo,-42.9,-0.644,92.8,63.6,13.3,-65.6,63.6,101.3,-40.4,punto adelante de la componente
+135,4.054,MEDIUM,toca_abajo,17.0,0.255,84.6,52.7,5.1,-68.3,52.7,102.4,-56.7,punto adelante de la componente
+136,4.084,MEDIUM,toca_abajo,81.4,1.000,56.5,39.0,-23.0,-57.8,39.0,104.2,-68.7,punto adelante de la componente
+137,4.114,LOW,toca_abajo,86.3,1.000,38.0,,-41.5,,39.0,104.2,-68.7,ultimo objetivo confiable (memoria)
+138,4.144,LOW,toca_abajo,86.3,1.000,38.0,,-41.5,,39.0,104.2,-68.7,ultimo objetivo confiable (memoria)
+139,4.174,LOW,toca_abajo,89.1,1.000,24.3,,-55.2,,39.0,104.2,-68.7,ultimo objetivo confiable (memoria)
+140,4.204,PERDIDA,sin_componente,0.0,0.000,,,,,,,0.0,sin objetivo
+141,4.234,PERDIDA,sin_componente,0.0,0.000,,,,,,,0.0,sin objetivo
+142,4.264,PERDIDA,sin_componente,0.0,0.000,,,,,,,0.0,sin objetivo
+143,4.294,PERDIDA,sin_componente,0.0,0.000,,,,,,,0.0,sin objetivo
+144,4.324,PERDIDA,sin_componente,0.0,0.000,,,,,,,0.0,sin objetivo
+145,4.354,PERDIDA,sin_componente,0.0,0.000,,,,,,,0.0,sin objetivo
+146,4.384,PERDIDA,sin_componente,0.0,0.000,,,,,,,0.0,sin objetivo
+147,4.414,PERDIDA,sin_componente,47.2,0.000,,,,,,,0.0,sin objetivo
+148,4.444,PERDIDA,sin_componente,47.2,0.000,,,,,,,0.0,sin objetivo
+149,4.474,PERDIDA,sin_componente,39.8,0.000,,,,,,,0.0,sin objetivo
+150,4.505,PERDIDA,sin_componente,42.7,0.000,,,,,,,0.0,sin objetivo
+151,4.535,PERDIDA,sin_componente,42.7,0.000,,,,,,,0.0,sin objetivo
+152,4.565,PERDIDA,sin_componente,42.5,0.000,,,,,,,0.0,sin objetivo
+153,4.595,PERDIDA,sin_componente,40.2,0.000,,,,,,,0.0,sin objetivo
+154,4.625,PERDIDA,sin_componente,40.2,0.000,,,,,,,0.0,sin objetivo
+155,4.655,PERDIDA,sin_componente,36.1,0.000,,,,,,,0.0,sin objetivo
+156,4.685,PERDIDA,sin_componente,35.7,0.000,,,,,,,0.0,sin objetivo
+157,4.715,PERDIDA,sin_componente,35.7,0.000,,,,,,,0.0,sin objetivo
+158,4.745,PERDIDA,sin_componente,26.6,0.000,,,,,,,0.0,sin objetivo
+159,4.775,PERDIDA,sin_componente,11.8,0.000,,,,,,,0.0,sin objetivo
+160,4.805,PERDIDA,sin_componente,11.8,0.000,,,,,,,0.0,sin objetivo
+161,4.835,PERDIDA,sin_componente,2.9,0.000,,,,,,,0.0,sin objetivo
+162,4.865,PERDIDA,sin_componente,-2.3,0.000,,,,,,,0.0,sin objetivo
+163,4.895,PERDIDA,sin_componente,-5.2,0.000,,,,,,,0.0,sin objetivo
+164,4.925,PERDIDA,sin_componente,-5.2,0.000,,,,,,,0.0,sin objetivo
+165,4.955,PERDIDA,sin_componente,-19.5,0.000,,,,,,,0.0,sin objetivo
+166,4.985,PERDIDA,sin_componente,-22.0,0.000,,,,,,,0.0,sin objetivo
+167,5.015,PERDIDA,sin_componente,-22.0,0.000,,,,,,,0.0,sin objetivo
+168,5.045,SIN_CERCA,salto_grande,-27.8,-0.600,,,,,39.0,104.2,-68.7,memoria
+169,5.075,SIN_CERCA,salto_grande,-26.2,-0.600,,,,,39.0,104.2,-68.7,memoria
+170,5.105,SIN_CERCA,salto_grande,-26.2,-0.600,,,,,39.0,104.2,-68.7,memoria
+171,5.135,SIN_CERCA,salto_grande,-26.0,-0.600,,,,,39.0,104.2,-68.7,memoria
+172,5.165,SIN_CERCA,salto_grande,-25.2,-0.600,,94.5,,,94.5,76.5,19.0,componente visible arriba
+173,5.195,SIN_CERCA,continuidad,-23.1,-0.600,,92.9,,,92.9,77.7,17.5,componente visible arriba
+174,5.225,SIN_CERCA,continuidad,-24.2,-0.600,,91.5,,,91.5,79.2,16.4,componente visible arriba
+175,5.255,SIN_CERCA,continuidad,-24.2,-0.600,,91.5,,,91.5,79.2,16.4,componente visible arriba
+176,5.285,SIN_CERCA,continuidad,-22.3,-0.600,,96.8,,,96.8,76.8,21.9,componente visible arriba
+177,5.315,SIN_CERCA,continuidad,-20.8,-0.600,,92.3,,,92.3,79.0,17.4,componente visible arriba
+178,5.345,SIN_CERCA,continuidad,-20.8,-0.600,,92.3,,,92.3,79.0,17.4,componente visible arriba
+179,5.375,SIN_CERCA,continuidad,-19.0,-0.600,,92.0,,,92.0,79.3,17.1,componente visible arriba
+180,5.405,SIN_CERCA,continuidad,-13.8,-0.600,,92.0,,,92.0,78.4,16.7,componente visible arriba
+181,5.435,SIN_CERCA,continuidad,-13.8,-0.600,,92.0,,,92.0,78.4,16.7,componente visible arriba
+182,5.465,SIN_CERCA,continuidad,-14.0,-0.600,,90.1,,,90.1,79.5,14.6,componente visible arriba
+183,5.495,SIN_CERCA,continuidad,-10.4,-0.600,,90.9,,,90.9,79.3,15.7,componente visible arriba
+184,5.526,SIN_CERCA,continuidad,-10.4,-0.600,,90.9,,,90.9,79.3,15.7,componente visible arriba
+185,5.556,SIN_CERCA,continuidad,-11.2,-0.600,,89.4,,,89.4,79.4,13.7,componente visible arriba
+186,5.586,SIN_CERCA,continuidad,-9.4,-0.600,,64.6,,,64.6,98.5,-34.7,componente visible arriba
+187,5.616,SIN_CERCA,continuidad,-9.4,-0.600,,64.6,,,64.6,98.5,-34.7,componente visible arriba
+188,5.646,SIN_CERCA,continuidad,-9.3,-0.139,,64.6,,,64.6,99.4,-35.9,componente visible arriba
+189,5.676,SIN_CERCA,continuidad,-11.6,-0.174,,66.3,,,66.3,99.6,-32.9,componente visible arriba
+190,5.706,SIN_CERCA,continuidad,-11.6,-0.174,,66.3,,,66.3,99.6,-32.9,componente visible arriba
+191,5.736,SIN_CERCA,continuidad,-6.4,-0.096,56.2,71.3,-23.3,48.2,71.3,99.6,-21.8,componente visible arriba
+192,5.766,HIGH,toca_abajo,-6.3,-0.094,56.5,72.2,-23.0,47.4,72.2,99.7,-19.9,punto adelante de la componente
+193,5.796,HIGH,toca_abajo,-4.2,-0.062,56.5,71.8,-23.0,45.1,71.8,99.4,-20.6,punto adelante de la componente
+194,5.826,HIGH,toca_abajo,-4.2,-0.062,56.5,71.8,-23.0,45.1,71.8,99.4,-20.6,punto adelante de la componente
+195,5.856,HIGH,toca_abajo,3.3,0.049,52.8,68.1,-26.7,45.8,68.1,99.9,-29.5,punto adelante de la componente
+196,5.886,SIN_CERCA,continuidad,23.4,0.600,49.3,63.1,-30.2,46.7,63.1,99.9,-39.2,componente visible arriba
+197,5.916,SIN_CERCA,continuidad,23.4,0.600,49.3,63.1,-30.2,46.7,63.1,99.9,-39.2,componente visible arriba
+198,5.946,SIN_CERCA,continuidad,31.1,0.600,57.7,72.1,-21.8,47.4,72.1,99.6,-19.9,componente visible arriba
+199,5.976,MEDIUM,toca_abajo,-33.0,-0.494,68.4,79.6,-11.1,43.1,79.6,102.6,0.4,punto adelante de la componente
+200,6.006,SIN_CERCA,salto_grande,-39.3,-0.600,,,,,79.6,102.6,0.4,memoria
+201,6.036,SIN_CERCA,salto_grande,-39.3,-0.600,,,,,79.6,102.6,0.4,memoria
+202,6.066,SIN_CERCA,salto_grande,-34.1,-0.600,,,,,79.6,102.6,0.4,memoria
+203,6.096,SIN_CERCA,continuidad,-34.2,-0.600,,126.8,,,126.8,78.1,48.5,componente visible arriba
+204,6.126,SIN_CERCA,continuidad,-37.9,-0.600,,,,,126.8,78.1,48.5,memoria
+205,6.156,SIN_CERCA,continuidad,-37.9,-0.600,,,,,126.8,78.1,48.5,memoria
+206,6.186,SIN_CERCA,continuidad,-41.1,-0.600,,156.1,,,156.1,75.9,60.1,componente visible arriba
+207,6.216,PERDIDA,sin_componente,-42.8,0.000,,,,,,,0.0,sin objetivo
+208,6.246,PERDIDA,sin_componente,-42.8,0.000,,,,,,,0.0,sin objetivo
+209,6.276,PERDIDA,sin_componente,0.0,0.000,,,,,,,0.0,sin objetivo
+210,6.306,PERDIDA,sin_componente,0.0,0.000,,,,,,,0.0,sin objetivo
+211,6.336,HIGH,toca_abajo,-70.7,-1.000,127.0,127.2,47.5,0.9,127.2,100.0,67.3,punto adelante de la componente
+212,6.366,HIGH,toca_abajo,-70.7,-1.000,127.0,127.2,47.5,0.9,127.2,100.0,67.3,punto adelante de la componente
+213,6.396,HIGH,toca_abajo,-66.0,-0.990,130.0,129.7,50.5,-1.3,129.7,100.1,68.3,punto adelante de la componente
+214,6.426,HIGH,toca_abajo,-68.1,-1.000,133.8,133.3,54.3,-2.3,133.3,100.1,69.6,punto adelante de la componente
+215,6.456,SIN_CERCA,continuidad,-61.9,-0.600,,141.7,,,141.7,99.2,71.5,componente visible arriba
+216,6.486,SIN_CERCA,continuidad,-61.9,-0.600,,141.7,,,141.7,99.2,71.5,componente visible arriba
+217,6.517,SIN_CERCA,continuidad,-61.2,-0.600,,143.6,,,143.6,98.9,71.8,componente visible arriba
+218,6.547,SIN_CERCA,continuidad,-64.6,-0.600,144.2,135.9,64.7,-36.7,135.9,100.0,70.5,componente visible arriba
+219,6.577,SIN_CERCA,continuidad,-61.4,-0.600,141.4,130.4,61.9,-47.1,130.4,100.0,68.6,componente visible arriba
+220,6.607,SIN_CERCA,continuidad,-61.4,-0.600,141.4,130.4,61.9,-47.1,130.4,100.0,68.6,componente visible arriba
+221,6.637,SIN_CERCA,continuidad,-59.2,-0.600,136.2,123.7,56.7,-50.0,123.7,100.0,65.7,componente visible arriba
+222,6.667,SIN_CERCA,continuidad,-58.6,-0.600,126.6,119.0,47.1,-32.8,119.0,100.0,63.2,componente visible arriba
+223,6.697,HIGH,toca_abajo,-57.6,-0.864,114.6,113.8,35.1,-3.2,113.8,100.0,59.8,punto adelante de la componente
+224,6.727,HIGH,toca_abajo,-57.6,-0.864,114.6,113.8,35.1,-3.2,113.8,100.0,59.8,punto adelante de la componente
+225,6.757,HIGH,toca_abajo,-52.4,-0.786,105.4,106.9,25.9,6.1,106.9,100.0,54.0,punto adelante de la componente
+226,6.787,SIN_CERCA,continuidad,-35.9,-0.600,98.1,96.6,18.6,-6.7,96.6,100.0,40.6,componente visible arriba
+227,6.817,HIGH,toca_abajo,-20.8,-0.312,91.6,88.9,12.1,-11.8,88.9,100.0,25.1,punto adelante de la componente
+228,6.847,HIGH,toca_abajo,-20.8,-0.312,91.6,88.9,12.1,-11.8,88.9,100.0,25.1,punto adelante de la componente
+229,6.877,HIGH,toca_abajo,-6.4,-0.096,85.2,84.6,5.7,-2.2,84.6,100.0,14.4,punto adelante de la componente
+230,6.907,HIGH,toca_abajo,7.0,0.105,81.0,82.7,1.5,6.8,82.7,100.0,9.1,punto adelante de la componente
+231,6.937,HIGH,toca_abajo,7.0,0.105,81.0,82.7,1.5,6.8,82.7,100.0,9.1,punto adelante de la componente
+232,6.967,HIGH,toca_abajo,11.2,0.168,79.5,83.8,0.0,16.4,83.8,100.1,12.0,punto adelante de la componente
+233,6.997,HIGH,toca_abajo,9.2,0.138,81.1,85.2,1.6,16.3,85.2,100.4,16.3,punto adelante de la componente
+234,7.027,HIGH,toca_abajo,22.4,0.336,83.1,64.2,3.6,-54.2,64.2,100.9,-38.7,punto adelante de la componente
+235,7.057,HIGH,toca_abajo,22.4,0.336,83.1,64.2,3.6,-54.2,64.2,100.9,-38.7,punto adelante de la componente
+236,7.087,HIGH,toca_abajo,25.8,0.387,85.6,51.6,6.1,-67.2,51.6,100.2,-54.6,punto adelante de la componente
+237,7.117,HIGH,toca_abajo,30.9,0.464,82.6,53.8,3.1,-62.3,53.8,100.1,-52.3,punto adelante de la componente
+238,7.147,HIGH,toca_abajo,30.9,0.464,82.6,53.8,3.1,-62.3,53.8,100.1,-52.3,punto adelante de la componente
+239,7.177,HIGH,toca_abajo,34.6,0.520,53.5,58.7,-26.0,19.6,58.7,100.1,-46.3,punto adelante de la componente
+240,7.207,HIGH,toca_abajo,31.6,0.474,59.3,64.3,-20.2,19.3,64.3,100.1,-37.3,punto adelante de la componente
+241,7.237,HIGH,toca_abajo,22.2,0.333,63.9,68.5,-15.6,17.6,68.5,100.1,-28.9,punto adelante de la componente
+242,7.267,HIGH,toca_abajo,22.2,0.333,63.9,68.5,-15.6,17.6,68.5,100.1,-28.9,punto adelante de la componente
+243,7.297,HIGH,toca_abajo,3.4,0.052,70.4,74.7,-9.1,16.6,74.7,100.1,-13.5,punto adelante de la componente
+244,7.327,HIGH,toca_abajo,-7.6,-0.114,75.2,78.8,-4.3,14.0,78.8,100.1,-1.9,punto adelante de la componente
+245,7.357,HIGH,toca_abajo,-7.6,-0.114,75.2,78.8,-4.3,14.0,78.8,100.1,-1.9,punto adelante de la componente
+246,7.387,HIGH,toca_abajo,-17.4,-0.261,79.9,83.4,0.4,13.8,83.4,100.1,11.2,punto adelante de la componente
+247,7.417,HIGH,toca_abajo,-20.4,-0.306,82.6,84.6,3.1,8.0,84.6,100.1,14.4,punto adelante de la componente
+248,7.447,HIGH,toca_abajo,-21.8,-0.326,81.7,84.3,2.2,10.2,84.3,100.1,13.7,punto adelante de la componente
+249,7.477,HIGH,toca_abajo,-21.8,-0.326,81.7,84.3,2.2,10.2,84.3,100.1,13.7,punto adelante de la componente
+250,7.508,HIGH,toca_abajo,-23.1,-0.346,82.5,84.3,3.0,6.8,84.3,100.1,13.5,punto adelante de la componente
+251,7.538,HIGH,toca_abajo,-17.8,-0.267,78.4,80.4,-1.1,7.5,80.4,100.1,2.4,punto adelante de la componente
+252,7.568,HIGH,toca_abajo,-17.8,-0.267,78.4,80.4,-1.1,7.5,80.4,100.1,2.4,punto adelante de la componente
+253,7.598,HIGH,toca_abajo,-11.1,-0.167,73.8,75.6,-5.7,7.2,75.6,100.1,-11.0,punto adelante de la componente
+254,7.628,HIGH,toca_abajo,-2.7,-0.040,67.8,69.7,-11.7,7.4,69.7,100.1,-26.3,punto adelante de la componente
+255,7.658,HIGH,toca_abajo,6.5,0.097,60.5,62.9,-19.0,9.5,62.9,100.1,-39.8,punto adelante de la componente
+256,7.688,HIGH,toca_abajo,11.3,0.169,55.4,58.3,-24.1,11.2,58.3,100.1,-46.9,punto adelante de la componente
+257,7.718,HIGH,toca_abajo,11.3,0.169,55.4,58.3,-24.1,11.2,58.3,100.1,-46.9,punto adelante de la componente
+258,7.748,HIGH,toca_abajo,13.9,0.209,50.6,53.6,-28.9,11.5,53.6,100.1,-52.5,punto adelante de la componente
+259,7.778,HIGH,toca_abajo,19.1,0.287,44.5,47.4,-35.0,11.5,47.4,100.1,-58.2,punto adelante de la componente
+260,7.808,HIGH,toca_abajo,19.1,0.287,44.5,47.4,-35.0,11.5,47.4,100.1,-58.2,punto adelante de la componente
+261,7.838,HIGH,toca_abajo,21.9,0.329,38.6,41.7,-40.9,11.8,41.7,100.1,-62.2,punto adelante de la componente
+262,7.868,HIGH,toca_abajo,24.5,0.368,31.8,53.5,-47.7,54.6,53.5,99.1,-51.1,punto adelante de la componente
+263,7.898,HIGH,toca_abajo,17.3,0.259,30.8,76.7,-48.7,72.4,76.7,99.8,-8.0,punto adelante de la componente
+264,7.928,HIGH,toca_abajo,17.3,0.259,30.8,76.7,-48.7,72.4,76.7,99.8,-8.0,punto adelante de la componente
+265,7.958,HIGH,toca_abajo,7.7,0.115,57.9,80.7,-21.6,58.4,80.7,100.0,3.4,punto adelante de la componente
+266,7.988,HIGH,toca_abajo,-4.2,-0.063,70.7,79.7,-8.8,32.1,79.7,100.0,0.5,punto adelante de la componente
+267,8.018,HIGH,toca_abajo,-4.2,-0.063,70.7,79.7,-8.8,32.1,79.7,100.0,0.5,punto adelante de la componente
+268,8.048,HIGH,toca_abajo,-10.1,-0.152,73.9,79.5,-5.6,21.3,79.5,100.0,0.0,punto adelante de la componente
+269,8.078,HIGH,toca_abajo,-14.8,-0.221,75.4,79.5,-4.1,16.0,79.5,100.0,0.0,punto adelante de la componente
+270,8.108,HIGH,toca_abajo,-14.8,-0.221,75.4,79.5,-4.1,16.0,79.5,100.0,0.0,punto adelante de la componente
+271,8.138,HIGH,toca_abajo,-24.7,-0.370,79.3,79.5,-0.2,0.8,79.5,100.0,0.0,punto adelante de la componente
+272,8.168,MEDIUM,toca_abajo,-32.5,-0.487,79.5,86.6,0.0,27.6,86.6,101.0,20.4,punto adelante de la componente
+273,8.198,MEDIUM,toca_abajo,-32.5,-0.487,79.5,86.6,0.0,27.6,86.6,101.0,20.4,punto adelante de la componente
+274,8.228,MEDIUM,toca_abajo,-54.8,-0.822,79.5,127.6,0.0,75.2,127.6,101.8,69.2,punto adelante de la componente
+275,8.258,MEDIUM,toca_abajo,-82.3,-1.000,128.6,153.8,49.1,65.2,153.8,103.5,77.5,punto adelante de la componente
+276,8.288,LOW,toca_abajo,-89.0,-1.000,153.5,,74.0,,153.8,103.5,77.5,ultimo objetivo confiable (memoria)
+277,8.318,LOW,toca_abajo,-89.0,-1.000,153.5,,74.0,,153.8,103.5,77.5,ultimo objetivo confiable (memoria)
+278,8.348,PERDIDA,sin_componente,0.0,0.000,,,,,,,0.0,sin objetivo
+279,8.378,PERDIDA,sin_componente,0.0,0.000,,,,,,,0.0,sin objetivo
+280,8.408,PERDIDA,sin_componente,0.0,0.000,,,,,,,0.0,sin objetivo
+281,8.438,PERDIDA,sin_componente,0.0,0.000,,,,,,,0.0,sin objetivo
+282,8.468,PERDIDA,sin_componente,0.0,0.000,,,,,,,0.0,sin objetivo
+283,8.498,PERDIDA,sin_componente,0.0,0.000,,,,,,,0.0,sin objetivo
+284,8.529,PERDIDA,sin_componente,0.0,0.000,,,,,,,0.0,sin objetivo
+285,8.559,PERDIDA,sin_componente,0.0,0.000,,,,,,,0.0,sin objetivo
+286,8.589,PERDIDA,sin_componente,0.0,0.000,,,,,,,0.0,sin objetivo
+287,8.619,PERDIDA,sin_componente,0.0,0.000,,,,,,,0.0,sin objetivo
+288,8.649,PERDIDA,sin_componente,0.0,0.000,,,,,,,0.0,sin objetivo
+289,8.679,PERDIDA,sin_componente,0.0,0.000,,,,,,,0.0,sin objetivo
+290,8.709,PERDIDA,sin_componente,0.0,0.000,,,,,,,0.0,sin objetivo
+291,8.739,SIN_CERCA,continuidad,-44.0,-0.600,,,,,153.8,103.5,77.5,memoria
+292,8.769,SIN_CERCA,continuidad,-45.1,-0.600,,,,,153.8,103.5,77.5,memoria
+293,8.799,SIN_CERCA,continuidad,-46.3,-0.600,,,,,153.8,103.5,77.5,memoria
+294,8.829,SIN_CERCA,continuidad,-46.3,-0.600,,,,,153.8,103.5,77.5,memoria
+295,8.859,SIN_CERCA,continuidad,-46.6,-0.600,,,,,153.8,103.5,77.5,memoria
+296,8.889,SIN_CERCA,continuidad,-46.4,-0.600,,,,,153.8,103.5,77.5,memoria
+297,8.919,SIN_CERCA,continuidad,-46.4,-0.600,,,,,153.8,103.5,77.5,memoria
+298,8.949,SIN_CERCA,continuidad,-45.1,-0.600,,,,,153.8,103.5,77.5,memoria
+299,8.979,SIN_CERCA,continuidad,-45.1,-0.600,,,,,153.8,103.5,77.5,memoria
+300,9.009,SIN_CERCA,continuidad,-43.0,-0.600,,,,,153.8,103.5,77.5,memoria
+301,9.039,SIN_CERCA,continuidad,-39.7,-0.600,,,,,153.8,103.5,77.5,memoria
+302,9.069,SIN_CERCA,continuidad,-35.3,-0.600,,,,,153.8,103.5,77.5,memoria
+303,9.099,SIN_CERCA,continuidad,-35.3,-0.600,,,,,153.8,103.5,77.5,memoria
+304,9.129,SIN_CERCA,continuidad,-30.3,-0.600,,,,,153.8,103.5,77.5,memoria
+305,9.159,SIN_CERCA,continuidad,-23.3,-0.600,,,,,153.8,103.5,77.5,memoria
+306,9.189,SIN_CERCA,continuidad,-23.3,-0.600,,,,,153.8,103.5,77.5,memoria
+307,9.219,SIN_CERCA,salto_grande,-14.7,-0.600,,,,,153.8,103.5,77.5,memoria
+308,9.249,SIN_CERCA,salto_grande,-7.2,-0.600,,,,,153.8,103.5,77.5,memoria
+309,9.279,SIN_CERCA,salto_grande,-7.2,-0.600,,,,,153.8,103.5,77.5,memoria
+310,9.309,SIN_CERCA,salto_grande,0.5,0.600,,,,,153.8,103.5,77.5,memoria
+311,9.339,SIN_CERCA,salto_grande,8.3,0.124,,,,,153.8,103.5,77.5,memoria
+312,9.369,SIN_CERCA,salto_grande,14.4,0.216,,,,,153.8,103.5,77.5,memoria
+313,9.399,SIN_CERCA,salto_grande,14.4,0.216,,,,,153.8,103.5,77.5,memoria
+314,9.429,SIN_CERCA,salto_grande,17.5,0.263,,,,,153.8,103.5,77.5,memoria
+315,9.459,SIN_CERCA,salto_grande,17.5,0.263,,,,,153.8,103.5,77.5,memoria
+316,9.489,SIN_CERCA,salto_grande,16.9,0.253,,,,,153.8,103.5,77.5,memoria
+317,9.520,SIN_CERCA,salto_grande,17.2,0.258,,,,,153.8,103.5,77.5,memoria
+318,9.550,SIN_CERCA,salto_grande,17.2,0.258,,,,,153.8,103.5,77.5,memoria
+319,9.580,SIN_CERCA,salto_grande,14.0,0.211,,55.8,,,55.8,75.3,-27.9,componente visible arriba
+320,9.610,SIN_CERCA,continuidad,10.2,0.154,,60.6,,,60.6,76.3,-23.4,componente visible arriba
+321,9.640,SIN_CERCA,continuidad,10.2,0.154,,60.6,,,60.6,76.3,-23.4,componente visible arriba
+322,9.670,SIN_CERCA,continuidad,8.1,0.122,,63.2,,,63.2,77.0,-20.8,componente visible arriba
+323,9.700,SIN_CERCA,continuidad,4.4,0.066,,67.4,,,67.4,77.7,-16.0,componente visible arriba
+324,9.730,SIN_CERCA,continuidad,0.1,0.001,,72.7,,,72.7,78.7,-9.3,componente visible arriba
+325,9.760,SIN_CERCA,continuidad,0.1,0.001,,72.7,,,72.7,78.7,-9.3,componente visible arriba
+326,9.790,SIN_CERCA,continuidad,-4.2,-0.063,,78.5,,,78.5,79.4,-1.5,componente visible arriba
+327,9.820,SIN_CERCA,continuidad,-8.3,-0.125,,76.4,,,76.4,97.6,-7.7,componente visible arriba
+328,9.850,SIN_CERCA,continuidad,-8.3,-0.125,,76.4,,,76.4,97.6,-7.7,componente visible arriba
+329,9.880,SIN_CERCA,continuidad,-11.4,-0.171,77.4,79.6,-2.1,10.6,79.6,99.6,0.2,componente visible arriba
+330,9.910,HIGH,toca_abajo,-12.5,-0.187,77.8,82.6,-1.7,19.0,82.6,99.7,8.8,punto adelante de la componente
+331,9.940,HIGH,toca_abajo,-12.5,-0.187,77.8,82.6,-1.7,19.0,82.6,99.7,8.8,punto adelante de la componente
+332,9.970,HIGH,toca_abajo,-13.2,-0.198,78.9,84.3,-0.6,20.4,84.3,99.9,13.4,punto adelante de la componente
+333,10.000,HIGH,toca_abajo,-17.9,-0.268,83.5,87.5,4.0,15.6,87.5,99.9,21.7,punto adelante de la componente
+334,10.030,HIGH,toca_abajo,-13.5,-0.202,83.0,85.5,3.5,9.8,85.5,99.9,16.7,punto adelante de la componente
+335,10.060,HIGH,toca_abajo,-13.5,-0.202,83.0,85.5,3.5,9.8,85.5,99.9,16.7,punto adelante de la componente
+336,10.090,HIGH,toca_abajo,-11.1,-0.166,84.0,85.6,4.5,6.5,85.6,100.2,17.1,punto adelante de la componente
+337,10.120,HIGH,toca_abajo,-3.7,-0.055,83.4,83.7,3.9,1.4,83.7,100.2,12.1,punto adelante de la componente
+338,10.150,HIGH,toca_abajo,20.3,0.305,40.2,31.3,-39.3,-31.8,31.3,100.1,-67.6,punto adelante de la componente
+339,10.180,HIGH,toca_abajo,20.3,0.305,40.2,31.3,-39.3,-31.8,31.3,100.1,-67.6,punto adelante de la componente
+340,10.210,HIGH,toca_abajo,42.5,0.637,32.0,25.6,-47.5,-24.0,25.6,100.2,-69.8,punto adelante de la componente
+341,10.240,HIGH,toca_abajo,58.8,0.882,27.8,22.8,-51.7,-19.1,22.8,100.1,-70.7,punto adelante de la componente
+342,10.270,HIGH,toca_abajo,66.1,0.992,26.9,22.4,-52.6,-17.5,22.4,100.1,-70.8,punto adelante de la componente
+343,10.300,HIGH,toca_abajo,66.1,0.992,26.9,22.4,-52.6,-17.5,22.4,100.1,-70.8,punto adelante de la componente
+344,10.330,HIGH,toca_abajo,67.4,1.000,29.5,25.3,-50.0,-16.1,25.3,100.1,-69.8,punto adelante de la componente
+345,10.360,HIGH,toca_abajo,64.3,0.965,37.9,33.2,-41.6,-17.9,33.2,100.1,-66.8,punto adelante de la componente
+346,10.390,HIGH,toca_abajo,64.3,0.965,37.9,33.2,-41.6,-17.9,33.2,100.1,-66.8,punto adelante de la componente
+347,10.420,HIGH,toca_abajo,58.1,0.872,48.3,43.3,-31.2,-19.0,43.3,100.1,-61.2,punto adelante de la componente
+348,10.450,HIGH,toca_abajo,47.3,0.710,60.5,54.8,-19.0,-21.4,54.8,100.1,-51.1,punto adelante de la componente
+349,10.480,HIGH,toca_abajo,31.4,0.471,71.6,64.9,-7.9,-25.1,64.9,100.1,-36.3,punto adelante de la componente
+350,10.511,HIGH,toca_abajo,5.2,0.079,82.7,76.1,3.2,-24.5,76.1,100.1,-9.6,punto adelante de la componente
+351,10.541,HIGH,toca_abajo,-21.4,-0.321,94.2,86.6,14.7,-27.6,86.6,100.1,19.8,punto adelante de la componente
+352,10.571,HIGH,toca_abajo,-21.4,-0.321,94.2,86.6,14.7,-27.6,86.6,100.1,19.8,punto adelante de la componente
+353,10.601,HIGH,toca_abajo,-41.5,-0.623,105.7,98.0,26.2,-28.1,98.0,100.1,42.9,punto adelante de la componente
+354,10.631,HIGH,toca_abajo,-50.6,-0.758,114.3,105.4,34.8,-31.8,105.4,100.1,52.4,punto adelante de la componente
+355,10.661,HIGH,toca_abajo,-51.9,-0.779,115.6,108.2,36.1,-28.0,108.2,100.5,55.7,punto adelante de la componente
+356,10.691,HIGH,toca_abajo,-51.9,-0.779,115.6,108.2,36.1,-28.0,108.2,100.5,55.7,punto adelante de la componente
+357,10.721,HIGH,toca_abajo,-47.6,-0.714,110.0,109.7,30.5,-1.1,109.7,99.9,56.4,punto adelante de la componente
+358,10.751,HIGH,toca_abajo,-43.6,-0.654,112.9,107.8,33.4,-18.5,107.8,99.7,54.3,punto adelante de la componente
+359,10.781,HIGH,toca_abajo,-43.6,-0.654,112.9,107.8,33.4,-18.5,107.8,99.7,54.3,punto adelante de la componente
+360,10.811,HIGH,toca_abajo,-38.5,-0.577,110.2,105.2,30.7,-19.2,105.2,100.1,52.2,punto adelante de la componente
+361,10.841,HIGH,toca_abajo,-35.7,-0.536,107.0,101.2,27.5,-22.3,101.2,100.2,47.6,punto adelante de la componente
+362,10.871,HIGH,toca_abajo,-35.7,-0.536,107.0,101.2,27.5,-22.3,101.2,100.2,47.6,punto adelante de la componente
+363,10.901,HIGH,toca_abajo,-31.2,-0.468,106.3,94.9,26.8,-38.8,94.9,100.2,37.8,punto adelante de la componente
+364,10.931,HIGH,toca_abajo,-23.5,-0.353,102.8,89.8,23.3,-41.9,89.8,100.1,27.4,punto adelante de la componente
+365,10.961,HIGH,toca_abajo,-14.7,-0.221,97.5,86.6,18.0,-37.1,86.6,100.1,19.6,punto adelante de la componente
+366,10.991,HIGH,toca_abajo,-14.7,-0.221,97.5,86.6,18.0,-37.1,86.6,100.1,19.6,punto adelante de la componente
+367,11.021,HIGH,toca_abajo,-2.4,-0.036,91.0,80.8,11.5,-35.1,80.8,100.1,3.8,punto adelante de la componente
+368,11.051,HIGH,toca_abajo,8.9,0.133,84.2,75.2,4.7,-31.7,75.2,100.1,-12.1,punto adelante de la componente
+369,11.081,HIGH,toca_abajo,8.9,0.133,84.2,75.2,4.7,-31.7,75.2,100.1,-12.1,punto adelante de la componente
+370,11.111,HIGH,toca_abajo,6.8,0.102,83.5,74.8,4.0,-31.0,74.8,100.1,-13.3,punto adelante de la componente
+371,11.141,HIGH,toca_abajo,7.7,0.115,81.1,73.1,1.6,-29.1,73.1,100.1,-17.9,punto adelante de la componente
+372,11.171,HIGH,toca_abajo,4.9,0.074,79.8,72.6,0.3,-26.5,72.6,100.2,-19.2,punto adelante de la componente
+373,11.201,HIGH,toca_abajo,4.9,0.074,79.8,72.6,0.3,-26.5,72.6,100.2,-19.2,punto adelante de la componente
+374,11.231,HIGH,toca_abajo,3.7,0.056,78.1,70.7,-1.4,-27.4,70.7,100.2,-24.0,punto adelante de la componente
+375,11.261,HIGH,toca_abajo,6.4,0.097,70.4,68.5,-9.1,-7.4,68.5,100.1,-28.9,punto adelante de la componente
+376,11.291,HIGH,toca_abajo,6.4,0.097,70.4,68.5,-9.1,-7.4,68.5,100.1,-28.9,punto adelante de la componente
+377,11.321,HIGH,toca_abajo,-0.9,-0.014,65.9,75.8,-13.6,34.7,75.8,100.2,-10.5,punto adelante de la componente
+378,11.351,HIGH,toca_abajo,-10.1,-0.151,68.5,80.9,-11.0,40.4,80.9,100.1,3.9,punto adelante de la componente
+379,11.381,HIGH,toca_abajo,-16.0,-0.240,72.4,83.3,-7.1,36.8,83.3,100.1,10.8,punto adelante de la componente
+380,11.411,HIGH,toca_abajo,-16.0,-0.240,72.4,83.3,-7.1,36.8,83.3,100.1,10.8,punto adelante de la componente
+381,11.441,HIGH,toca_abajo,-16.6,-0.249,73.6,83.5,-5.9,34.3,83.5,100.1,11.4,punto adelante de la componente
+382,11.471,HIGH,toca_abajo,-11.2,-0.168,72.1,81.3,-7.4,32.6,81.3,100.1,5.1,punto adelante de la componente
+383,11.502,HIGH,toca_abajo,-8.0,-0.120,71.2,80.2,-8.3,31.6,80.2,100.1,1.9,punto adelante de la componente
+384,11.532,HIGH,toca_abajo,-8.0,-0.120,71.2,80.2,-8.3,31.6,80.2,100.1,1.9,punto adelante de la componente
+385,11.562,HIGH,toca_abajo,-2.8,-0.042,69.5,78.1,-10.0,30.7,78.1,100.1,-3.9,punto adelante de la componente
+386,11.592,HIGH,toca_abajo,2.3,0.035,67.6,76.4,-11.9,31.3,76.4,100.1,-8.9,punto adelante de la componente
+387,11.622,HIGH,toca_abajo,8.1,0.122,65.9,74.1,-13.6,29.6,74.1,100.1,-15.3,punto adelante de la componente
+388,11.652,HIGH,toca_abajo,8.1,0.122,65.9,74.1,-13.6,29.6,74.1,100.1,-15.3,punto adelante de la componente
+389,11.682,HIGH,toca_abajo,17.6,0.264,61.8,70.0,-17.7,29.5,70.0,100.1,-25.6,punto adelante de la componente
+390,11.712,HIGH,toca_abajo,19.4,0.291,61.0,69.3,-18.5,30.0,69.3,100.1,-27.1,punto adelante de la componente
+391,11.742,HIGH,toca_abajo,20.8,0.311,61.0,68.7,-18.5,28.2,68.7,100.1,-28.5,punto adelante de la componente
+392,11.772,HIGH,toca_abajo,20.8,0.311,61.0,68.7,-18.5,28.2,68.7,100.1,-28.5,punto adelante de la componente
+393,11.802,HIGH,toca_abajo,21.5,0.323,60.8,68.5,-18.7,28.0,68.5,100.1,-29.0,punto adelante de la componente
+394,11.832,HIGH,toca_abajo,23.7,0.355,60.3,67.4,-19.2,26.3,67.4,100.1,-31.3,punto adelante de la componente
+395,11.862,HIGH,toca_abajo,28.8,0.432,57.6,64.8,-21.9,26.6,64.8,100.1,-36.4,punto adelante de la componente
+396,11.892,HIGH,toca_abajo,28.8,0.432,57.6,64.8,-21.9,26.6,64.8,100.1,-36.4,punto adelante de la componente
+397,11.922,HIGH,toca_abajo,24.0,0.360,60.4,67.7,-19.1,26.8,67.7,100.1,-30.7,punto adelante de la componente
+398,11.952,HIGH,toca_abajo,18.2,0.272,63.0,70.2,-16.5,26.5,70.2,100.1,-25.0,punto adelante de la componente
+399,11.982,HIGH,toca_abajo,18.2,0.272,63.0,70.2,-16.5,26.5,70.2,100.1,-25.0,punto adelante de la componente
+400,12.012,HIGH,toca_abajo,6.5,0.097,68.8,75.0,-10.7,23.2,75.0,100.1,-12.9,punto adelante de la componente
+401,12.042,HIGH,toca_abajo,1.4,0.021,71.6,77.0,-7.9,20.6,77.0,100.1,-7.1,punto adelante de la componente
+402,12.072,HIGH,toca_abajo,2.7,0.041,70.9,76.5,-8.6,21.1,76.5,100.1,-8.7,punto adelante de la componente
+403,12.102,HIGH,toca_abajo,2.7,0.041,70.9,76.5,-8.6,21.1,76.5,100.1,-8.7,punto adelante de la componente
+404,12.132,HIGH,toca_abajo,-2.3,-0.035,74.0,78.8,-5.5,18.2,78.8,100.1,-2.1,punto adelante de la componente
+405,12.162,HIGH,toca_abajo,-0.4,-0.006,73.2,78.2,-6.3,19.0,78.2,100.1,-3.8,punto adelante de la componente
+406,12.192,HIGH,toca_abajo,-0.4,-0.006,73.2,78.2,-6.3,19.0,78.2,100.1,-3.8,punto adelante de la componente
+407,12.222,HIGH,toca_abajo,1.6,0.024,73.7,77.7,-5.8,15.4,77.7,100.1,-5.1,punto adelante de la componente
+408,12.252,HIGH,toca_abajo,9.0,0.135,71.3,75.2,-8.2,15.3,75.2,100.1,-12.1,punto adelante de la componente
+409,12.282,HIGH,toca_abajo,9.0,0.135,71.3,75.2,-8.2,15.3,75.2,100.1,-12.1,punto adelante de la componente
+410,12.312,HIGH,toca_abajo,14.4,0.216,69.9,74.5,-9.6,17.9,74.5,100.1,-14.0,punto adelante de la componente
+411,12.342,HIGH,toca_abajo,16.6,0.250,73.1,77.4,-6.4,16.5,77.4,100.1,-6.1,punto adelante de la componente
+412,12.372,HIGH,toca_abajo,17.1,0.256,75.4,80.1,-4.1,17.9,80.1,100.1,1.6,punto adelante de la componente
+413,12.402,HIGH,toca_abajo,17.1,0.256,75.4,80.1,-4.1,17.9,80.1,100.1,1.6,punto adelante de la componente
+414,12.432,HIGH,toca_abajo,11.4,0.171,82.0,85.9,2.5,15.2,85.9,100.1,17.9,punto adelante de la componente
+415,12.462,HIGH,toca_abajo,12.8,0.191,86.5,91.2,7.0,17.9,91.2,100.0,30.3,punto adelante de la componente
+416,12.492,HIGH,toca_abajo,12.8,0.191,86.5,91.2,7.0,17.9,91.2,100.0,30.3,punto adelante de la componente
+417,12.523,HIGH,toca_abajo,5.7,0.086,97.0,96.0,17.5,-3.6,96.0,99.6,39.1,punto adelante de la componente
+418,12.553,HIGH,toca_abajo,4.3,0.064,104.4,90.3,24.9,-43.1,90.3,99.6,28.0,punto adelante de la componente
+419,12.583,HIGH,toca_abajo,4.3,0.064,104.4,90.3,24.9,-43.1,90.3,99.6,28.0,punto adelante de la componente
+420,12.613,HIGH,toca_abajo,2.5,0.038,112.7,88.0,33.2,-59.1,88.0,99.7,22.9,punto adelante de la componente
+421,12.643,HIGH,toca_abajo,-1.5,-0.022,115.4,87.4,35.9,-63.3,87.4,99.8,21.5,punto adelante de la componente
+422,12.673,HIGH,toca_abajo,-7.7,-0.116,112.1,88.3,32.6,-59.1,88.3,99.9,23.7,punto adelante de la componente
+423,12.703,HIGH,toca_abajo,6.0,0.089,101.7,84.0,22.2,-50.9,84.0,100.0,12.8,punto adelante de la componente
+424,12.733,HIGH,toca_abajo,6.0,0.089,101.7,84.0,22.2,-50.9,84.0,100.0,12.8,punto adelante de la componente
+425,12.763,HIGH,toca_abajo,15.4,0.231,98.0,79.9,18.5,-52.1,79.9,100.3,1.2,punto adelante de la componente
+426,12.793,HIGH,toca_abajo,2.9,0.043,104.0,88.1,24.5,-48.4,88.1,100.1,23.4,punto adelante de la componente
+427,12.823,HIGH,toca_abajo,2.9,0.043,104.0,88.1,24.5,-48.4,88.1,100.1,23.4,punto adelante de la componente
+428,12.853,HIGH,toca_abajo,-18.2,-0.273,115.8,100.7,36.3,-46.3,100.7,99.8,46.4,punto adelante de la componente
+429,12.883,HIGH,toca_abajo,-27.9,-0.418,123.2,106.9,43.7,-48.6,106.9,99.8,53.6,punto adelante de la componente
+430,12.913,HIGH,toca_abajo,-33.4,-0.501,126.5,110.4,47.0,-48.1,110.4,99.8,56.9,punto adelante de la componente
+431,12.943,HIGH,toca_abajo,-33.4,-0.501,126.5,110.4,47.0,-48.1,110.4,99.8,56.9,punto adelante de la componente
+432,12.973,HIGH,toca_abajo,-42.3,-0.634,133.6,117.5,54.1,-48.3,117.5,99.8,62.0,punto adelante de la componente
+433,13.003,HIGH,toca_abajo,-46.9,-0.704,145.8,128.5,66.3,-51.4,128.5,99.6,67.4,punto adelante de la componente
+434,13.033,HIGH,toca_abajo,-46.9,-0.704,145.8,128.5,66.3,-51.4,128.5,99.6,67.4,punto adelante de la componente
+435,13.063,SIN_CERCA,continuidad,-46.4,-0.600,153.6,137.8,74.1,-52.8,137.8,99.4,70.6,componente visible arriba
+436,13.093,SIN_CERCA,continuidad,-47.5,-0.600,154.7,139.9,75.2,-51.5,139.9,99.4,71.2,componente visible arriba
+437,13.123,SIN_CERCA,continuidad,-47.8,-0.600,154.9,140.4,75.4,-50.9,140.4,99.4,71.3,componente visible arriba
+438,13.153,SIN_CERCA,continuidad,-47.8,-0.600,154.9,140.4,75.4,-50.9,140.4,99.4,71.3,componente visible arriba
+439,13.183,SIN_CERCA,continuidad,-47.7,-0.600,154.4,140.0,74.9,-50.3,140.0,99.4,71.2,componente visible arriba
+440,13.213,SIN_CERCA,salto_grande,-47.8,-0.600,150.1,134.5,70.6,-49.9,134.5,99.5,69.6,componente visible arriba
+441,13.243,SIN_CERCA,continuidad,-47.8,-0.600,150.1,134.5,70.6,-49.9,134.5,99.5,69.6,componente visible arriba
+442,13.273,HIGH,toca_abajo,-46.1,-0.692,144.6,127.7,65.1,-50.3,127.7,99.7,67.1,punto adelante de la componente
+443,13.303,HIGH,toca_abajo,-43.9,-0.659,138.4,121.8,58.9,-49.3,121.8,99.7,64.4,punto adelante de la componente
+444,13.333,HIGH,toca_abajo,-37.9,-0.569,130.7,114.2,51.2,-49.1,114.2,99.8,59.8,punto adelante de la componente
+445,13.363,HIGH,toca_abajo,-37.9,-0.569,130.7,114.2,51.2,-49.1,114.2,99.8,59.8,punto adelante de la componente
+446,13.393,HIGH,toca_abajo,-31.1,-0.466,123.4,107.2,43.9,-48.6,107.2,100.0,54.2,punto adelante de la componente
+447,13.423,HIGH,toca_abajo,-23.5,-0.352,117.0,99.4,37.5,-51.2,99.4,100.2,45.1,punto adelante de la componente
+448,13.453,HIGH,toca_abajo,-23.5,-0.352,117.0,99.4,37.5,-51.2,99.4,100.2,45.1,punto adelante de la componente
+449,13.483,HIGH,toca_abajo,-20.0,-0.299,115.2,95.7,35.7,-54.1,95.7,100.2,39.3,punto adelante de la componente
+450,13.514,HIGH,toca_abajo,-17.0,-0.255,113.0,92.3,33.5,-55.6,92.3,100.2,32.9,punto adelante de la componente
+451,13.544,HIGH,toca_abajo,-11.7,-0.175,111.4,89.0,31.9,-57.6,89.0,100.2,25.6,punto adelante de la componente
+452,13.574,HIGH,toca_abajo,-12.5,-0.188,110.2,89.5,30.7,-55.5,89.5,100.2,26.8,punto adelante de la componente
+453,13.604,HIGH,toca_abajo,-12.5,-0.188,110.2,89.5,30.7,-55.5,89.5,100.2,26.8,punto adelante de la componente
+454,13.634,HIGH,toca_abajo,-6.3,-0.095,108.6,85.3,29.1,-58.6,85.3,100.2,16.4,punto adelante de la componente
+455,13.664,HIGH,toca_abajo,2.2,0.033,104.6,80.6,25.1,-59.1,80.6,100.2,3.0,punto adelante de la componente
+456,13.694,HIGH,toca_abajo,2.2,0.033,104.6,80.6,25.1,-59.1,80.6,100.2,3.0,punto adelante de la componente
+457,13.724,HIGH,toca_abajo,6.9,0.103,102.1,78.5,22.6,-58.6,78.5,100.2,-2.9,punto adelante de la componente
+458,13.754,HIGH,toca_abajo,10.6,0.159,99.3,77.2,19.8,-56.7,77.2,100.2,-6.6,punto adelante de la componente
+459,13.784,HIGH,toca_abajo,10.4,0.156,98.1,77.4,18.6,-55.1,77.4,100.2,-6.1,punto adelante de la componente
+460,13.814,HIGH,toca_abajo,10.4,0.156,98.1,77.4,18.6,-55.1,77.4,100.2,-6.1,punto adelante de la componente
+461,13.844,HIGH,toca_abajo,8.7,0.130,98.2,78.2,18.7,-54.1,78.2,100.1,-3.8,punto adelante de la componente
+462,13.874,HIGH,toca_abajo,17.3,0.259,92.8,74.8,13.3,-51.1,74.8,100.1,-13.2,punto adelante de la componente
+463,13.904,HIGH,toca_abajo,21.0,0.315,89.8,73.2,10.3,-48.9,73.2,100.1,-17.5,punto adelante de la componente
+464,13.934,HIGH,toca_abajo,21.0,0.315,89.8,73.2,10.3,-48.9,73.2,100.1,-17.5,punto adelante de la componente
+465,13.964,HIGH,toca_abajo,13.5,0.203,92.1,76.3,12.6,-47.3,76.3,100.1,-9.1,punto adelante de la componente
+466,13.994,HIGH,toca_abajo,-1.5,-0.022,97.8,82.3,18.3,-46.9,82.3,100.0,7.9,punto adelante de la componente
+467,14.024,HIGH,toca_abajo,-1.7,-0.026,97.7,82.9,18.2,-45.6,82.9,100.1,9.6,punto adelante de la componente
+468,14.054,HIGH,toca_abajo,-1.7,-0.026,97.7,82.9,18.2,-45.6,82.9,100.1,9.6,punto adelante de la componente
+469,14.084,HIGH,toca_abajo,-3.9,-0.058,96.9,83.4,17.4,-43.0,83.4,100.2,11.1,punto adelante de la componente
+470,14.114,HIGH,toca_abajo,-5.7,-0.086,96.4,84.2,16.9,-40.4,84.2,100.1,13.3,punto adelante de la componente
+471,14.144,HIGH,toca_abajo,-12.7,-0.191,99.4,87.1,19.9,-40.6,87.1,100.1,20.8,punto adelante de la componente
+472,14.174,HIGH,toca_abajo,-12.7,-0.191,99.4,87.1,19.9,-40.6,87.1,100.1,20.8,punto adelante de la componente
+473,14.204,HIGH,toca_abajo,-21.7,-0.326,103.8,91.3,24.3,-41.0,91.3,100.1,30.6,punto adelante de la componente
+474,14.234,HIGH,toca_abajo,-17.2,-0.258,103.8,90.9,24.3,-41.8,90.9,100.1,29.7,punto adelante de la componente
+475,14.264,HIGH,toca_abajo,-6.2,-0.093,100.0,88.1,20.5,-39.3,88.1,100.1,23.5,punto adelante de la componente
+476,14.294,HIGH,toca_abajo,-6.2,-0.093,100.0,88.1,20.5,-39.3,88.1,100.1,23.5,punto adelante de la componente
+477,14.324,HIGH,toca_abajo,-1.2,-0.018,98.1,87.0,18.6,-37.8,87.0,100.1,20.5,punto adelante de la componente
+478,14.354,HIGH,toca_abajo,-2.4,-0.036,98.5,88.0,19.0,-35.8,88.0,100.1,23.2,punto adelante de la componente
+479,14.384,HIGH,toca_abajo,-2.4,-0.036,98.5,88.0,19.0,-35.8,88.0,100.1,23.2,punto adelante de la componente
+480,14.414,HIGH,toca_abajo,-5.8,-0.087,101.9,91.0,22.4,-36.9,91.0,100.1,30.1,punto adelante de la componente
+481,14.444,HIGH,toca_abajo,-1.6,-0.024,101.0,91.4,21.5,-33.6,91.4,100.1,30.9,punto adelante de la componente
+482,14.474,HIGH,toca_abajo,-2.0,-0.030,103.8,94.3,24.3,-33.4,94.3,100.1,36.7,punto adelante de la componente
+483,14.505,HIGH,toca_abajo,-2.0,-0.030,103.8,94.3,24.3,-33.4,94.3,100.1,36.7,punto adelante de la componente
+484,14.535,HIGH,toca_abajo,-4.7,-0.071,107.2,97.9,27.7,-32.6,97.9,100.1,42.8,punto adelante de la componente
+485,14.565,HIGH,toca_abajo,-12.1,-0.181,113.9,104.8,34.4,-32.0,104.8,100.1,51.8,punto adelante de la componente
+486,14.595,HIGH,toca_abajo,-12.1,-0.181,113.9,104.8,34.4,-32.0,104.8,100.1,51.8,punto adelante de la componente
+487,14.625,HIGH,toca_abajo,-12.7,-0.190,117.3,107.7,37.8,-33.5,107.7,100.1,54.8,punto adelante de la componente
+488,14.655,HIGH,toca_abajo,-6.8,-0.103,119.6,85.8,40.1,-65.2,85.8,98.9,16.6,punto adelante de la componente
+489,14.685,HIGH,toca_abajo,-4.0,-0.060,122.6,75.0,43.1,-72.2,75.0,99.2,-12.3,punto adelante de la componente
+490,14.715,HIGH,toca_abajo,-3.9,-0.058,127.0,72.3,47.5,-75.2,72.3,100.1,-20.0,punto adelante de la componente
+491,14.745,HIGH,toca_abajo,-3.9,-0.058,127.0,72.3,47.5,-75.2,72.3,100.1,-20.0,punto adelante de la componente
+492,14.775,HIGH,toca_abajo,2.9,0.043,85.1,74.1,5.6,-38.8,74.1,100.1,-15.2,punto adelante de la componente
+493,14.805,HIGH,toca_abajo,11.0,0.164,78.1,71.5,-1.4,-24.5,71.5,100.1,-21.8,punto adelante de la componente
+494,14.835,MEDIUM,toca_abajo,19.6,0.294,75.6,71.5,-3.9,-16.4,71.5,100.4,-22.3,punto adelante de la componente
+495,14.865,MEDIUM,toca_abajo,19.6,0.294,75.6,71.5,-3.9,-16.4,71.5,100.4,-22.3,punto adelante de la componente
+496,14.895,MEDIUM,toca_abajo,26.1,0.392,72.9,78.8,-6.6,24.2,78.8,101.4,-2.2,punto adelante de la componente
+497,14.925,MEDIUM,toca_abajo,5.5,0.083,71.2,111.4,-8.3,72.4,111.4,101.8,60.2,punto adelante de la componente
+498,14.955,MEDIUM,toca_abajo,5.5,0.083,71.2,111.4,-8.3,72.4,111.4,101.8,60.2,punto adelante de la componente
+499,14.985,MEDIUM,toca_abajo,-73.4,-1.000,86.2,126.4,6.7,73.0,126.4,103.3,70.4,punto adelante de la componente
+500,15.015,LOW,toca_abajo,-84.4,-1.000,127.8,,48.3,,126.4,103.3,70.4,ultimo objetivo confiable (memoria)
+501,15.045,LOW,toca_abajo,-84.4,-1.000,127.8,,48.3,,126.4,103.3,70.4,ultimo objetivo confiable (memoria)
+502,15.075,LOW,toca_abajo,-75.9,-1.000,142.1,,62.6,,126.4,103.3,70.4,ultimo objetivo confiable (memoria)
+503,15.105,PERDIDA,sin_componente,-55.0,0.000,,,,,,,0.0,sin objetivo
+504,15.135,PERDIDA,sin_componente,-55.0,0.000,,,,,,,0.0,sin objetivo
+505,15.165,PERDIDA,sin_componente,-48.1,0.000,,,,,,,0.0,sin objetivo
+506,15.195,SIN_CERCA,continuidad,-44.1,-0.600,,,,,126.4,103.3,70.4,memoria
+507,15.225,SIN_CERCA,continuidad,-45.3,-0.600,,,,,126.4,103.3,70.4,memoria
+508,15.255,SIN_CERCA,continuidad,-45.3,-0.600,,,,,126.4,103.3,70.4,memoria
+509,15.285,SIN_CERCA,continuidad,-46.3,-0.600,,,,,126.4,103.3,70.4,memoria
+510,15.315,SIN_CERCA,continuidad,-42.2,-0.600,,,,,126.4,103.3,70.4,memoria
+511,15.345,SIN_CERCA,continuidad,-42.2,-0.600,,,,,126.4,103.3,70.4,memoria
+512,15.375,SIN_CERCA,continuidad,-43.0,-0.600,,,,,126.4,103.3,70.4,memoria
+513,15.405,SIN_CERCA,continuidad,-41.2,-0.600,,,,,126.4,103.3,70.4,memoria
+514,15.435,SIN_CERCA,continuidad,-41.2,-0.600,,,,,126.4,103.3,70.4,memoria
+515,15.465,SIN_CERCA,continuidad,-37.4,-0.600,,,,,126.4,103.3,70.4,memoria
+516,15.495,SIN_CERCA,continuidad,-35.7,-0.600,,,,,126.4,103.3,70.4,memoria
+517,15.526,SIN_CERCA,continuidad,-35.7,-0.600,,,,,126.4,103.3,70.4,memoria
+518,15.556,SIN_CERCA,continuidad,-33.5,-0.600,,,,,126.4,103.3,70.4,memoria
+519,15.586,SIN_CERCA,continuidad,-33.1,-0.600,,,,,126.4,103.3,70.4,memoria
+520,15.616,SIN_CERCA,continuidad,-30.8,-0.600,,,,,126.4,103.3,70.4,memoria
+521,15.646,SIN_CERCA,continuidad,-30.8,-0.600,,,,,126.4,103.3,70.4,memoria
+522,15.676,SIN_CERCA,continuidad,-27.6,-0.600,,,,,126.4,103.3,70.4,memoria
+523,15.706,SIN_CERCA,continuidad,-22.4,-0.600,,,,,126.4,103.3,70.4,memoria
+524,15.736,SIN_CERCA,continuidad,-22.4,-0.600,,,,,126.4,103.3,70.4,memoria
+525,15.766,SIN_CERCA,continuidad,-11.4,-0.600,,,,,126.4,103.3,70.4,memoria
+526,15.796,SIN_CERCA,continuidad,5.2,0.078,,,,,126.4,103.3,70.4,memoria
+527,15.826,SIN_CERCA,continuidad,10.0,0.150,,,,,126.4,103.3,70.4,memoria
+528,15.856,SIN_CERCA,salto_grande,13.5,0.202,,,,,126.4,103.3,70.4,memoria
+529,15.886,SIN_CERCA,salto_grande,13.5,0.203,,,,,126.4,103.3,70.4,memoria
+530,15.916,SIN_CERCA,salto_grande,13.5,0.203,,,,,126.4,103.3,70.4,memoria
+531,15.946,SIN_CERCA,continuidad,10.2,0.153,,,,,126.4,103.3,70.4,memoria
+532,15.976,SIN_CERCA,salto_grande,8.7,0.131,,69.2,,,69.2,79.6,-14.2,componente visible arriba
+533,16.006,SIN_CERCA,continuidad,8.7,0.131,,69.2,,,69.2,79.6,-14.2,componente visible arriba
+534,16.036,SIN_CERCA,continuidad,8.7,0.131,,48.6,,,48.6,97.8,-54.2,componente visible arriba
+535,16.066,SIN_CERCA,continuidad,8.8,0.133,43.1,68.2,-36.4,65.0,68.2,99.7,-29.1,componente visible arriba
+536,16.096,SIN_CERCA,continuidad,8.8,0.133,43.1,68.2,-36.4,65.0,68.2,99.7,-29.1,componente visible arriba
+537,16.126,HIGH,toca_abajo,10.2,0.153,51.4,73.9,-28.1,58.2,73.9,99.8,-15.5,punto adelante de la componente
+538,16.156,SIN_CERCA,continuidad,11.0,0.600,48.5,69.5,-31.0,58.7,69.5,99.8,-26.3,componente visible arriba
+539,16.186,SIN_CERCA,continuidad,11.0,0.600,48.5,69.5,-31.0,58.7,69.5,99.8,-26.3,componente visible arriba
+540,16.216,SIN_CERCA,salto_grande,-45.4,-0.600,,147.1,,,147.1,78.3,58.3,componente visible arriba
+541,16.246,SIN_CERCA,continuidad,-43.6,-0.600,,,,,147.1,78.3,58.3,memoria
+542,16.276,SIN_CERCA,continuidad,-43.6,-0.600,,,,,147.1,78.3,58.3,memoria
+543,16.306,LOW,toca_abajo,20.8,0.312,11.9,,-67.6,,147.1,78.3,58.3,ultimo objetivo confiable (memoria)
+544,16.336,MEDIUM,toca_abajo,83.7,1.000,20.8,16.3,-58.7,-20.4,16.3,102.0,-74.1,punto adelante de la componente
+545,16.366,HIGH,toca_abajo,75.7,1.000,40.0,24.3,-39.5,-47.3,24.3,100.1,-70.1,punto adelante de la componente
+546,16.396,HIGH,toca_abajo,75.7,1.000,40.0,24.3,-39.5,-47.3,24.3,100.1,-70.1,punto adelante de la componente
+547,16.426,HIGH,toca_abajo,70.7,1.000,45.7,30.2,-33.8,-47.9,30.2,100.2,-68.1,punto adelante de la componente
+548,16.456,HIGH,toca_abajo,66.0,0.990,46.9,32.6,-32.6,-46.3,32.6,100.2,-67.1,punto adelante de la componente
+549,16.486,HIGH,toca_abajo,66.0,0.990,46.9,32.6,-32.6,-46.3,32.6,100.2,-67.1,punto adelante de la componente
+550,16.517,HIGH,toca_abajo,61.7,0.926,49.2,38.0,-30.3,-40.3,38.0,100.1,-64.4,punto adelante de la componente
+551,16.547,HIGH,toca_abajo,59.9,0.898,54.7,41.0,-24.8,-46.0,41.0,100.2,-62.8,punto adelante de la componente
+552,16.577,HIGH,toca_abajo,59.9,0.898,54.7,41.0,-24.8,-46.0,41.0,100.2,-62.8,punto adelante de la componente
+553,16.607,HIGH,toca_abajo,51.8,0.778,58.9,41.1,-20.6,-51.3,41.1,100.1,-62.6,punto adelante de la componente
+554,16.637,HIGH,toca_abajo,37.1,0.556,52.7,35.5,-26.8,-50.1,35.5,100.2,-65.8,punto adelante de la componente
+555,16.667,HIGH,toca_abajo,11.0,0.165,40.8,26.0,-38.7,-45.7,26.0,100.2,-69.7,punto adelante de la componente
+556,16.697,HIGH,toca_abajo,11.0,0.165,40.8,26.0,-38.7,-45.7,26.0,100.2,-69.7,punto adelante de la componente
+557,16.727,HIGH,toca_abajo,-7.6,-0.115,147.3,137.6,67.8,-33.3,137.6,100.1,71.1,punto adelante de la componente
+558,16.757,HIGH,toca_abajo,-16.7,-0.251,140.7,131.3,61.2,-30.9,131.3,100.0,68.9,punto adelante de la componente
+559,16.787,HIGH,toca_abajo,-27.0,-0.404,142.6,135.7,63.1,-24.6,135.7,100.2,70.6,punto adelante de la componente
+560,16.817,HIGH,toca_abajo,-27.0,-0.404,142.6,135.7,63.1,-24.6,135.7,100.2,70.6,punto adelante de la componente
+561,16.847,HIGH,toca_abajo,-34.8,-0.522,78.8,62.8,-0.7,-46.9,62.8,100.1,-40.1,punto adelante de la componente
+562,16.877,HIGH,toca_abajo,-43.7,-0.655,77.2,89.3,-2.3,41.1,89.3,100.8,27.2,punto adelante de la componente
+563,16.907,HIGH,toca_abajo,0.5,0.007,51.1,78.0,-28.4,61.7,78.0,100.2,-4.4,punto adelante de la componente
+564,16.937,HIGH,toca_abajo,0.5,0.007,51.1,78.0,-28.4,61.7,78.0,100.2,-4.4,punto adelante de la componente
+565,16.967,HIGH,toca_abajo,52.4,0.786,18.4,49.1,-61.1,65.7,49.1,100.3,-57.0,punto adelante de la componente
+566,16.997,HIGH,toca_abajo,54.2,0.813,6.8,21.3,-72.7,45.4,21.3,99.9,-70.9,punto adelante de la componente
+567,17.027,HIGH,toca_abajo,55.9,0.839,10.7,18.2,-68.8,27.3,18.2,100.0,-71.9,punto adelante de la componente
+568,17.057,HIGH,toca_abajo,55.9,0.839,10.7,18.2,-68.8,27.3,18.2,100.0,-71.9,punto adelante de la componente
+569,17.087,HIGH,toca_abajo,56.2,0.843,14.0,26.3,-65.5,40.7,26.3,100.0,-69.4,punto adelante de la componente
+570,17.117,HIGH,toca_abajo,56.0,0.840,22.3,30.2,-57.2,28.6,30.2,100.0,-67.9,punto adelante de la componente
+571,17.147,HIGH,toca_abajo,53.6,0.803,34.6,41.3,-44.9,24.9,41.3,100.1,-62.5,punto adelante de la componente
+572,17.177,HIGH,toca_abajo,53.6,0.803,34.6,41.3,-44.9,24.9,41.3,100.1,-62.5,punto adelante de la componente
+573,17.207,HIGH,toca_abajo,-29.7,-0.446,148.8,96.3,69.3,-74.0,96.3,99.5,39.4,punto adelante de la componente
+574,17.237,SIN_CERCA,continuidad,-41.1,-0.600,,156.9,,,156.9,98.6,74.6,componente visible arriba
+575,17.267,SIN_CERCA,continuidad,-52.4,-0.600,,157.0,,,157.0,77.7,61.4,componente visible arriba
+576,17.297,SIN_CERCA,continuidad,-52.4,-0.600,,157.0,,,157.0,77.7,61.4,componente visible arriba
+577,17.327,SIN_CERCA,continuidad,-1.5,0.600,,,,,157.0,77.7,61.4,memoria
+578,17.357,SIN_CERCA,continuidad,-1.5,0.600,,,,,157.0,77.7,61.4,memoria
+579,17.387,SIN_CERCA,continuidad,-15.6,-0.600,,,,,157.0,77.7,61.4,memoria
+580,17.417,PERDIDA,sin_componente,-43.5,0.000,,,,,,,0.0,sin objetivo
+581,17.447,PERDIDA,sin_componente,-43.5,0.000,,,,,,,0.0,sin objetivo
+582,17.477,MEDIUM,toca_abajo,87.0,1.000,11.6,1.4,-67.9,-43.4,1.4,104.4,-78.7,punto adelante de la componente
+583,17.508,HIGH,toca_abajo,71.8,1.000,19.8,21.5,-59.7,6.9,21.5,99.9,-70.9,punto adelante de la componente
+584,17.538,HIGH,toca_abajo,69.0,1.000,13.3,16.1,-66.2,10.7,16.1,99.9,-72.4,punto adelante de la componente
+585,17.568,HIGH,toca_abajo,69.0,1.000,13.3,16.1,-66.2,10.7,16.1,99.9,-72.4,punto adelante de la componente
+586,17.598,HIGH,toca_abajo,71.4,1.000,11.3,14.4,-68.2,12.1,14.4,99.8,-72.8,punto adelante de la componente
+587,17.628,HIGH,toca_abajo,71.9,1.000,10.5,13.7,-69.0,12.4,13.7,99.8,-72.9,punto adelante de la componente
+588,17.658,HIGH,toca_abajo,68.2,1.000,8.5,11.9,-71.0,13.3,11.9,99.8,-73.4,punto adelante de la componente
+589,17.688,HIGH,toca_abajo,68.2,1.000,8.5,11.9,-71.0,13.3,11.9,99.8,-73.4,punto adelante de la componente
+590,17.718,HIGH,toca_abajo,62.5,0.938,9.6,13.2,-69.9,13.9,13.2,99.8,-73.1,punto adelante de la componente
+591,17.748,HIGH,toca_abajo,62.7,0.940,10.9,14.6,-68.6,14.3,14.6,99.8,-72.7,punto adelante de la componente
+592,17.778,HIGH,toca_abajo,60.9,0.914,15.0,19.5,-64.5,17.1,19.5,99.8,-71.4,punto adelante de la componente
+593,17.808,HIGH,toca_abajo,60.9,0.914,15.0,19.5,-64.5,17.1,19.5,99.8,-71.4,punto adelante de la componente
+594,17.838,HIGH,toca_abajo,60.2,0.903,21.5,25.5,-58.0,15.6,25.5,99.9,-69.6,punto adelante de la componente
+595,17.868,HIGH,toca_abajo,58.6,0.879,28.2,35.9,-51.3,28.1,35.9,100.1,-65.5,punto adelante de la componente
+596,17.898,HIGH,toca_abajo,58.6,0.879,28.2,35.9,-51.3,28.1,35.9,100.1,-65.5,punto adelante de la componente
+597,17.928,HIGH,toca_abajo,51.0,0.765,35.9,46.9,-43.6,37.4,46.9,100.1,-58.6,punto adelante de la componente
+598,17.958,HIGH,toca_abajo,38.5,0.577,49.8,60.8,-29.7,37.1,60.8,100.1,-43.3,punto adelante de la componente
+599,17.988,HIGH,toca_abajo,22.0,0.330,61.0,71.4,-18.5,35.7,71.4,100.1,-22.2,punto adelante de la componente
+600,18.018,HIGH,toca_abajo,2.9,0.043,72.7,82.2,-6.8,33.3,82.2,100.1,7.7,punto adelante de la componente
+601,18.048,HIGH,toca_abajo,2.9,0.043,72.7,82.2,-6.8,33.3,82.2,100.1,7.7,punto adelante de la componente
+602,18.078,HIGH,toca_abajo,-15.1,-0.227,84.2,93.3,4.7,32.2,93.3,100.1,34.8,punto adelante de la componente
+603,18.108,HIGH,toca_abajo,-34.7,-0.521,95.8,104.5,16.3,31.0,104.5,100.1,51.5,punto adelante de la componente
+604,18.138,HIGH,toca_abajo,-42.4,-0.637,105.8,113.0,26.3,26.7,113.0,100.1,59.3,punto adelante de la componente
+605,18.168,HIGH,toca_abajo,-49.7,-0.745,117.4,124.0,37.9,24.5,124.0,100.1,65.9,punto adelante de la componente
+606,18.198,HIGH,toca_abajo,-49.7,-0.745,117.4,124.0,37.9,24.5,124.0,100.1,65.9,punto adelante de la componente
+607,18.228,HIGH,toca_abajo,-48.7,-0.730,128.1,132.0,48.6,14.9,132.0,99.9,69.1,punto adelante de la componente
+608,18.258,HIGH,toca_abajo,-42.3,-0.634,132.6,123.8,53.1,-30.4,123.8,99.6,65.3,punto adelante de la componente
+609,18.288,HIGH,toca_abajo,-42.3,-0.634,132.6,123.8,53.1,-30.4,123.8,99.6,65.3,punto adelante de la componente
+610,18.318,HIGH,toca_abajo,-31.1,-0.466,131.1,111.8,51.6,-53.5,111.8,99.8,58.0,punto adelante de la componente
+611,18.348,HIGH,toca_abajo,-21.1,-0.317,119.1,101.9,39.6,-50.4,101.9,100.0,48.3,punto adelante de la componente
+612,18.378,HIGH,toca_abajo,-17.7,-0.266,115.8,99.0,36.3,-49.9,99.0,100.1,44.4,punto adelante de la componente
+613,18.408,HIGH,toca_abajo,-17.7,-0.266,115.8,99.0,36.3,-49.9,99.0,100.1,44.4,punto adelante de la componente
+614,18.438,HIGH,toca_abajo,-4.4,-0.067,109.3,88.8,29.8,-55.4,88.8,100.2,25.2,punto adelante de la componente
+615,18.468,HIGH,toca_abajo,3.0,0.045,106.7,82.1,27.2,-60.0,82.1,100.2,7.6,punto adelante de la componente
+616,18.498,HIGH,toca_abajo,3.0,0.045,106.7,82.1,27.2,-60.0,82.1,100.2,7.6,punto adelante de la componente
+617,18.529,HIGH,toca_abajo,10.1,0.151,104.4,77.6,24.9,-62.0,77.6,100.2,-5.4,punto adelante de la componente
+618,18.559,HIGH,toca_abajo,9.6,0.143,104.0,77.9,24.5,-61.3,77.9,100.2,-4.6,punto adelante de la componente
+619,18.589,HIGH,toca_abajo,12.4,0.186,102.8,76.5,23.3,-61.4,76.5,100.2,-8.5,punto adelante de la componente
+620,18.619,HIGH,toca_abajo,12.4,0.186,102.8,76.5,23.3,-61.4,76.5,100.2,-8.5,punto adelante de la componente
+621,18.649,HIGH,toca_abajo,23.4,0.351,96.5,70.8,17.0,-60.6,70.8,100.2,-23.7,punto adelante de la componente
+622,18.679,HIGH,toca_abajo,26.6,0.399,93.1,69.3,13.6,-58.6,69.3,100.2,-27.1,punto adelante de la componente
+623,18.709,HIGH,toca_abajo,26.1,0.391,91.3,69.6,11.8,-56.2,69.6,100.2,-26.4,punto adelante de la componente
+624,18.739,HIGH,toca_abajo,26.1,0.391,91.3,69.6,11.8,-56.2,69.6,100.2,-26.4,punto adelante de la componente
+625,18.769,HIGH,toca_abajo,12.8,0.192,96.3,76.0,16.8,-54.5,76.0,100.2,-9.9,punto adelante de la componente
+626,18.799,HIGH,toca_abajo,-1.1,-0.016,101.7,81.4,22.2,-54.5,81.4,100.2,5.6,punto adelante de la componente
+627,18.829,HIGH,toca_abajo,-1.1,-0.016,101.7,81.4,22.2,-54.5,81.4,100.2,5.6,punto adelante de la componente
+628,18.859,HIGH,toca_abajo,-8.7,-0.130,103.6,84.4,24.1,-52.9,84.4,100.1,14.0,punto adelante de la componente
+629,18.889,HIGH,toca_abajo,-19.3,-0.290,107.8,89.3,28.3,-52.0,89.3,100.1,26.3,punto adelante de la componente
+630,18.919,HIGH,toca_abajo,-27.2,-0.408,111.4,93.7,31.9,-50.8,93.7,100.1,35.5,punto adelante de la componente
+631,18.949,HIGH,toca_abajo,-27.2,-0.408,111.4,93.7,31.9,-50.8,93.7,100.1,35.5,punto adelante de la componente
+632,18.979,HIGH,toca_abajo,-36.2,-0.543,116.1,99.9,36.6,-48.5,99.9,100.1,45.8,punto adelante de la componente
+633,19.009,HIGH,toca_abajo,-33.5,-0.502,112.8,96.5,33.3,-48.4,96.5,100.1,40.5,punto adelante de la componente
+634,19.039,HIGH,toca_abajo,-33.5,-0.502,112.8,96.5,33.3,-48.4,96.5,100.1,40.5,punto adelante de la componente
+635,19.069,HIGH,toca_abajo,-33.0,-0.495,109.7,94.0,30.2,-47.3,94.0,100.1,36.2,punto adelante de la componente
+636,19.099,HIGH,toca_abajo,-30.5,-0.457,103.7,87.9,24.2,-47.6,87.9,100.1,22.7,punto adelante de la componente
+637,19.129,HIGH,toca_abajo,-23.6,-0.355,94.9,79.4,15.4,-46.9,79.4,100.1,-0.3,punto adelante de la componente
+638,19.159,HIGH,toca_abajo,-23.6,-0.355,94.9,79.4,15.4,-46.9,79.4,100.1,-0.3,punto adelante de la componente
+639,19.189,HIGH,toca_abajo,-14.4,-0.216,83.2,70.4,3.7,-41.3,70.4,100.0,-24.4,punto adelante de la componente
+640,19.219,HIGH,toca_abajo,-7.4,-0.110,73.0,66.6,-6.5,-23.4,66.6,99.8,-32.6,punto adelante de la componente
+641,19.249,HIGH,toca_abajo,-7.4,-0.110,73.0,66.6,-6.5,-23.4,66.6,99.8,-32.6,punto adelante de la componente
+642,19.279,HIGH,toca_abajo,-6.3,-0.094,68.4,67.0,-11.1,-5.1,67.0,99.8,-31.7,punto adelante de la componente
+643,19.309,HIGH,toca_abajo,2.0,0.030,59.2,64.1,-20.3,18.6,64.1,99.8,-37.3,punto adelante de la componente
+644,19.339,HIGH,toca_abajo,2.0,0.030,59.2,64.1,-20.3,18.6,64.1,99.8,-37.3,punto adelante de la componente
+645,19.369,HIGH,toca_abajo,4.2,0.062,53.3,63.5,-26.2,34.8,63.5,99.9,-38.5,punto adelante de la componente
+646,19.399,HIGH,toca_abajo,5.3,0.080,51.8,64.2,-27.7,41.0,64.2,100.0,-37.4,punto adelante de la componente
+647,19.429,HIGH,toca_abajo,5.3,0.080,51.8,64.2,-27.7,41.0,64.2,100.0,-37.4,punto adelante de la componente
+648,19.459,HIGH,toca_abajo,9.6,0.144,49.4,64.2,-30.1,46.3,64.2,100.2,-37.6,punto adelante de la componente
+649,19.489,HIGH,toca_abajo,8.9,0.133,50.2,65.3,-29.3,46.9,65.3,100.2,-35.6,punto adelante de la componente
+650,19.520,HIGH,toca_abajo,9.5,0.142,49.2,66.3,-30.3,50.5,66.3,100.3,-33.7,punto adelante de la componente
+651,19.550,HIGH,toca_abajo,9.5,0.142,49.2,66.3,-30.3,50.5,66.3,100.3,-33.7,punto adelante de la componente
+652,19.580,HIGH,toca_abajo,9.1,0.136,48.6,67.8,-30.9,53.5,67.8,100.2,-30.7,punto adelante de la componente
+653,19.610,HIGH,toca_abajo,11.1,0.166,47.1,66.3,-32.4,53.7,66.3,100.2,-33.6,punto adelante de la componente
+654,19.640,HIGH,toca_abajo,11.1,0.166,47.1,66.3,-32.4,53.7,66.3,100.2,-33.6,punto adelante de la componente
+655,19.670,HIGH,toca_abajo,13.3,0.200,45.8,64.3,-33.7,52.5,64.3,100.2,-37.6,punto adelante de la componente
+656,19.700,HIGH,toca_abajo,18.4,0.276,43.5,59.1,-36.0,47.8,59.1,100.2,-45.8,punto adelante de la componente
+657,19.730,HIGH,toca_abajo,18.4,0.276,43.5,59.1,-36.0,47.8,59.1,100.2,-45.8,punto adelante de la componente
+658,19.760,HIGH,toca_abajo,16.5,0.248,43.3,60.8,-36.2,50.9,60.8,100.2,-43.3,punto adelante de la componente
+659,19.790,HIGH,toca_abajo,16.8,0.251,41.8,58.7,-37.7,50.0,58.7,100.2,-46.4,punto adelante de la componente
+660,19.820,HIGH,toca_abajo,17.9,0.269,40.3,56.2,-39.2,48.2,56.2,100.1,-49.5,punto adelante de la componente
+661,19.850,HIGH,toca_abajo,17.9,0.269,40.3,56.2,-39.2,48.2,56.2,100.1,-49.5,punto adelante de la componente
+662,19.880,HIGH,toca_abajo,19.9,0.299,38.3,52.3,-41.2,44.5,52.3,100.1,-53.9,punto adelante de la componente
+663,19.910,HIGH,toca_abajo,20.7,0.310,37.3,54.5,-42.2,50.1,54.5,100.0,-51.3,punto adelante de la componente
+664,19.940,HIGH,toca_abajo,15.9,0.239,37.7,68.5,-41.8,64.5,68.5,99.7,-28.4,punto adelante de la componente
+665,19.970,HIGH,toca_abajo,15.9,0.239,37.7,68.5,-41.8,64.5,68.5,99.7,-28.4,punto adelante de la componente
+666,20.000,HIGH,toca_abajo,10.8,0.163,37.3,81.9,-42.2,71.8,81.9,99.7,6.8,punto adelante de la componente
+667,20.030,HIGH,toca_abajo,4.5,0.067,44.2,87.0,-35.3,71.5,87.0,99.9,20.4,punto adelante de la componente
+668,20.060,HIGH,toca_abajo,4.5,0.067,44.2,87.0,-35.3,71.5,87.0,99.9,20.4,punto adelante de la componente
+669,20.090,HIGH,toca_abajo,-9.7,-0.145,67.1,88.6,-12.4,57.1,88.6,100.1,24.6,punto adelante de la componente
+670,20.120,HIGH,toca_abajo,-29.1,-0.436,81.5,93.1,2.0,39.3,93.1,100.1,34.4,punto adelante de la componente
+671,20.150,HIGH,toca_abajo,-41.3,-0.619,86.8,94.4,7.3,27.8,94.4,100.3,37.0,punto adelante de la componente
+672,20.180,HIGH,toca_abajo,-41.3,-0.619,86.8,94.4,7.3,27.8,94.4,100.3,37.0,punto adelante de la componente
+673,20.210,HIGH,toca_abajo,-49.0,-0.734,91.0,89.9,11.5,-4.8,89.9,100.7,28.2,punto adelante de la componente
+674,20.240,MEDIUM,toca_abajo,-53.8,-0.807,94.8,74.4,15.3,-56.4,74.4,101.0,-15.2,punto adelante de la componente
+675,20.270,MEDIUM,toca_abajo,35.4,0.530,81.6,57.1,2.1,-61.5,57.1,101.8,-50.9,punto adelante de la componente
+676,20.300,MEDIUM,toca_abajo,35.4,0.530,81.6,57.1,2.1,-61.5,57.1,101.8,-50.9,punto adelante de la componente
+677,20.330,MEDIUM,toca_abajo,81.9,1.000,54.7,41.0,-24.8,-51.1,41.0,104.2,-67.7,punto adelante de la componente
+678,20.360,LOW,toca_abajo,87.1,1.000,41.5,,-38.0,,41.0,104.2,-67.7,ultimo objetivo confiable (memoria)
+679,20.390,LOW,toca_abajo,71.4,1.000,25.2,,-54.3,,41.0,104.2,-67.7,ultimo objetivo confiable (memoria)
+680,20.420,LOW,toca_abajo,71.4,1.000,25.2,,-54.3,,41.0,104.2,-67.7,ultimo objetivo confiable (memoria)
+681,20.450,LOW,toca_abajo,20.4,0.306,11.6,,-67.9,,41.0,104.2,-67.7,ultimo objetivo confiable (memoria)
+682,20.480,MEDIUM,toca_abajo,61.2,0.918,13.7,6.0,-65.8,-36.3,6.0,104.6,-78.2,punto adelante de la componente
+683,20.511,MEDIUM,toca_abajo,61.2,0.918,13.7,6.0,-65.8,-36.3,6.0,104.6,-78.2,punto adelante de la componente
+684,20.541,MEDIUM,toca_abajo,76.4,1.000,31.8,16.0,-47.7,-48.4,16.0,100.9,-73.2,punto adelante de la componente
+685,20.571,HIGH,toca_abajo,44.7,0.670,85.0,53.4,5.5,-66.4,53.4,100.5,-53.2,punto adelante de la componente
+686,20.601,HIGH,toca_abajo,44.7,0.670,85.0,53.4,5.5,-66.4,53.4,100.5,-53.2,punto adelante de la componente
+687,20.631,HIGH,toca_abajo,15.9,0.238,27.9,89.5,-51.6,77.3,89.5,99.6,26.2,punto adelante de la componente
+688,20.661,HIGH,toca_abajo,16.9,0.254,2.0,6.5,-77.5,18.3,6.5,99.5,-74.3,punto adelante de la componente
+689,20.691,SIN_CERCA,continuidad,45.4,0.600,,3.6,,,3.6,99.1,-74.6,componente visible arriba
+690,20.721,SIN_CERCA,continuidad,45.4,0.600,,3.6,,,3.6,99.1,-74.6,componente visible arriba
+691,20.751,SIN_CERCA,continuidad,56.5,0.600,,2.1,,,2.1,98.7,-74.6,componente visible arriba
+692,20.781,SIN_CERCA,continuidad,57.2,0.600,,3.4,,,3.4,99.1,-74.6,componente visible arriba
+693,20.811,HIGH,toca_abajo,61.6,0.925,4.3,8.9,-75.2,17.8,8.9,99.6,-73.9,punto adelante de la componente
+694,20.841,HIGH,toca_abajo,61.6,0.925,4.3,8.9,-75.2,17.8,8.9,99.6,-73.9,punto adelante de la componente
+695,20.871,HIGH,toca_abajo,63.5,0.953,10.8,14.8,-68.7,15.4,14.8,99.8,-72.7,punto adelante de la componente
+696,20.901,HIGH,toca_abajo,63.1,0.946,11.6,15.6,-67.9,15.2,15.6,99.8,-72.5,punto adelante de la componente
+697,20.931,HIGH,toca_abajo,62.3,0.935,14.3,19.1,-65.2,18.3,19.1,99.8,-71.5,punto adelante de la componente
+698,20.961,HIGH,toca_abajo,62.3,0.935,14.3,19.1,-65.2,18.3,19.1,99.8,-71.5,punto adelante de la componente
+699,20.991,HIGH,toca_abajo,57.9,0.869,22.5,27.4,-57.0,18.6,27.4,99.9,-68.9,punto adelante de la componente
+700,21.021,HIGH,toca_abajo,44.4,0.666,30.3,37.6,-49.2,27.2,37.6,100.1,-64.6,punto adelante de la componente
+701,21.051,HIGH,toca_abajo,28.7,0.430,39.8,52.3,-39.7,40.7,52.3,100.1,-53.8,punto adelante de la componente
+702,21.081,HIGH,toca_abajo,11.8,0.177,52.2,63.5,-27.3,38.0,63.5,100.1,-38.8,punto adelante de la componente
+703,21.111,HIGH,toca_abajo,1.1,0.017,59.6,69.0,-19.9,33.1,69.0,100.1,-27.8,punto adelante de la componente
+704,21.141,HIGH,toca_abajo,1.1,0.017,59.6,69.0,-19.9,33.1,69.0,100.1,-27.8,punto adelante de la componente
+705,21.171,HIGH,toca_abajo,4.6,0.068,57.2,66.1,-22.3,31.6,66.1,100.1,-33.9,punto adelante de la componente
+706,21.201,HIGH,toca_abajo,8.4,0.126,53.8,63.2,-25.7,33.1,63.2,100.1,-39.3,punto adelante de la componente
+707,21.231,HIGH,toca_abajo,5.9,0.088,55.5,64.5,-24.0,31.7,64.5,100.1,-37.0,punto adelante de la componente
+708,21.261,HIGH,toca_abajo,5.9,0.088,55.5,64.5,-24.0,31.7,64.5,100.1,-37.0,punto adelante de la componente
+709,21.291,HIGH,toca_abajo,8.9,0.133,52.6,61.3,-26.9,30.9,61.3,100.1,-42.5,punto adelante de la componente
+710,21.321,HIGH,toca_abajo,11.2,0.168,49.9,58.3,-29.6,30.4,58.3,100.1,-46.8,punto adelante de la componente
+711,21.351,HIGH,toca_abajo,13.9,0.208,46.8,55.2,-32.7,30.2,55.2,100.1,-50.7,punto adelante de la componente
+712,21.381,HIGH,toca_abajo,16.9,0.253,43.3,51.6,-36.2,29.9,51.6,100.1,-54.5,punto adelante de la componente
+713,21.411,HIGH,toca_abajo,16.9,0.253,43.3,51.6,-36.2,29.9,51.6,100.1,-54.5,punto adelante de la componente
+714,21.441,HIGH,toca_abajo,20.3,0.304,39.1,47.3,-40.4,29.6,47.3,100.1,-58.3,punto adelante de la componente
+715,21.471,HIGH,toca_abajo,18.0,0.270,38.4,47.0,-41.1,30.7,47.0,100.1,-58.5,punto adelante de la componente
+716,21.502,HIGH,toca_abajo,11.0,0.165,39.2,77.8,-40.3,68.0,77.8,99.0,-4.5,punto adelante de la componente
+717,21.532,HIGH,toca_abajo,3.4,0.051,37.0,87.5,-42.5,74.0,87.5,100.1,21.8,punto adelante de la componente
+718,21.562,HIGH,toca_abajo,3.4,0.051,37.0,87.5,-42.5,74.0,87.5,100.1,21.8,punto adelante de la componente
+719,21.592,HIGH,toca_abajo,-16.2,-0.242,76.4,87.3,-3.1,37.6,87.3,100.1,21.2,punto adelante de la componente
+720,21.622,HIGH,toca_abajo,-20.6,-0.309,81.7,87.2,2.2,20.5,87.2,100.1,21.0,punto adelante de la componente
+721,21.652,HIGH,toca_abajo,-20.6,-0.309,81.7,87.2,2.2,20.5,87.2,100.1,21.0,punto adelante de la componente
+722,21.682,MEDIUM,toca_abajo,-28.0,-0.420,83.4,89.2,3.9,21.7,89.2,100.1,25.9,punto adelante de la componente
+723,21.712,MEDIUM,toca_abajo,-40.7,-0.610,87.0,88.0,7.5,4.4,88.0,100.6,23.8,punto adelante de la componente
+724,21.742,MEDIUM,toca_abajo,-37.9,-0.568,86.3,77.3,6.8,-35.8,77.3,101.9,-7.1,punto adelante de la componente
+725,21.772,MEDIUM,toca_abajo,-37.9,-0.568,86.3,77.3,6.8,-35.8,77.3,101.9,-7.1,punto adelante de la componente
+726,21.802,MEDIUM,toca_abajo,-15.4,-0.230,85.6,31.9,6.1,-78.9,31.9,104.1,-71.5,punto adelante de la componente
+727,21.832,LOW,toca_abajo,86.3,-1.000,34.5,,-45.0,,31.9,104.1,-71.5,ultimo objetivo confiable (memoria)
+728,21.862,LOW,toca_abajo,86.3,-1.000,34.5,,-45.0,,31.9,104.1,-71.5,ultimo objetivo confiable (memoria)
+729,21.892,PERDIDA,sin_componente,89.8,0.000,,,,,,,0.0,sin objetivo
+730,21.922,PERDIDA,sin_componente,0.0,0.000,,,,,,,0.0,sin objetivo
+731,21.952,PERDIDA,sin_componente,0.0,0.000,,,,,,,0.0,sin objetivo
+732,21.982,PERDIDA,sin_componente,0.0,0.000,,,,,,,0.0,sin objetivo
+733,22.012,PERDIDA,sin_componente,0.0,0.000,,,,,,,0.0,sin objetivo
+734,22.042,PERDIDA,sin_componente,0.0,0.000,,,,,,,0.0,sin objetivo
+735,22.072,PERDIDA,sin_componente,0.0,0.000,,,,,,,0.0,sin objetivo
+736,22.102,PERDIDA,sin_componente,0.0,0.000,,,,,,,0.0,sin objetivo
+737,22.132,PERDIDA,sin_componente,0.0,0.000,,,,,,,0.0,sin objetivo
+738,22.162,PERDIDA,sin_componente,0.0,0.000,,,,,,,0.0,sin objetivo
+739,22.192,PERDIDA,sin_componente,0.0,0.000,,,,,,,0.0,sin objetivo
+740,22.222,PERDIDA,sin_componente,0.0,0.000,,,,,,,0.0,sin objetivo
+741,22.252,PERDIDA,sin_componente,0.0,0.000,,,,,,,0.0,sin objetivo
+742,22.282,PERDIDA,sin_componente,0.0,0.000,,,,,,,0.0,sin objetivo
+743,22.312,PERDIDA,sin_componente,0.0,0.000,,,,,,,0.0,sin objetivo
+744,22.342,PERDIDA,sin_componente,0.0,0.000,,,,,,,0.0,sin objetivo
+745,22.372,PERDIDA,sin_componente,0.0,0.000,,,,,,,0.0,sin objetivo
+746,22.402,PERDIDA,sin_componente,0.0,0.000,,,,,,,0.0,sin objetivo
+747,22.432,PERDIDA,sin_componente,0.0,0.000,,,,,,,0.0,sin objetivo
+748,22.462,PERDIDA,sin_componente,45.4,0.000,,,,,,,0.0,sin objetivo
+749,22.492,PERDIDA,sin_componente,45.6,0.000,,,,,,,0.0,sin objetivo
+750,22.523,PERDIDA,sin_componente,45.6,0.000,,,,,,,0.0,sin objetivo
+751,22.553,PERDIDA,sin_componente,45.6,0.000,,,,,,,0.0,sin objetivo
+752,22.583,PERDIDA,sin_componente,45.8,0.000,,,,,,,0.0,sin objetivo
+753,22.613,PERDIDA,sin_componente,45.8,0.000,,,,,,,0.0,sin objetivo
+754,22.643,PERDIDA,sin_componente,46.4,0.000,,,,,,,0.0,sin objetivo
+755,22.673,PERDIDA,sin_componente,46.4,0.000,,,,,,,0.0,sin objetivo
+756,22.703,PERDIDA,sin_componente,46.4,0.000,,,,,,,0.0,sin objetivo
+757,22.733,PERDIDA,sin_componente,45.3,0.000,,,,,,,0.0,sin objetivo
+758,22.763,SIN_CERCA,continuidad,47.9,0.600,,,,,31.9,104.1,-71.5,memoria
+759,22.793,SIN_CERCA,continuidad,47.9,0.600,,,,,31.9,104.1,-71.5,memoria
+760,22.823,PERDIDA,sin_componente,47.3,0.000,,,,,,,0.0,sin objetivo
+761,22.853,PERDIDA,sin_componente,-46.4,0.000,,,,,,,0.0,sin objetivo
+762,22.883,PERDIDA,sin_componente,-46.4,0.000,,,,,,,0.0,sin objetivo
+763,22.913,SIN_CERCA,salto_grande,-46.9,-0.600,,,,,31.9,104.1,-71.5,memoria
+764,22.943,PERDIDA,sin_componente,0.0,0.000,,,,,,,0.0,sin objetivo
+765,22.973,PERDIDA,sin_componente,0.0,0.000,,,,,,,0.0,sin objetivo
+766,23.003,PERDIDA,sin_componente,0.0,0.000,,,,,,,0.0,sin objetivo
+767,23.033,HIGH,toca_abajo,-24.4,-0.366,82.1,85.6,2.6,13.9,85.6,100.0,17.1,punto adelante de la componente
+768,23.063,HIGH,toca_abajo,-2.1,-0.032,46.8,73.0,-32.7,59.9,73.0,99.3,-17.5,punto adelante de la componente
+769,23.093,HIGH,toca_abajo,-2.1,-0.032,46.8,73.0,-32.7,59.9,73.0,99.3,-17.5,punto adelante de la componente
+770,23.123,HIGH,toca_abajo,-4.2,-0.063,56.6,63.3,-22.9,24.3,63.3,99.7,-38.5,punto adelante de la componente
+771,23.153,HIGH,toca_abajo,-3.0,-0.045,55.7,61.4,-23.8,20.8,61.4,99.6,-41.6,punto adelante de la componente
+772,23.183,HIGH,toca_abajo,2.8,0.043,52.1,61.8,-27.4,32.7,61.8,99.4,-40.6,punto adelante de la componente
+773,23.213,HIGH,toca_abajo,2.8,0.043,52.1,61.8,-27.4,32.7,61.8,99.4,-40.6,punto adelante de la componente
+774,23.243,HIGH,toca_abajo,-0.3,-0.004,48.0,74.0,-31.5,59.9,74.0,99.5,-15.0,punto adelante de la componente
+775,23.273,HIGH,toca_abajo,-1.1,-0.017,44.7,81.7,-34.8,68.7,81.7,99.8,6.2,punto adelante de la componente
+776,23.303,HIGH,toca_abajo,-6.7,-0.101,61.1,83.5,-18.4,57.7,83.5,100.0,11.3,punto adelante de la componente
+777,23.333,HIGH,toca_abajo,-6.7,-0.101,61.1,83.5,-18.4,57.7,83.5,100.0,11.3,punto adelante de la componente
+778,23.363,HIGH,toca_abajo,-2.7,-0.041,64.8,80.8,-14.7,48.3,80.8,100.0,3.8,punto adelante de la componente
+779,23.393,HIGH,toca_abajo,-8.2,-0.123,68.2,79.4,-11.3,38.0,79.4,100.0,-0.3,punto adelante de la componente
+780,23.423,HIGH,toca_abajo,-8.5,-0.128,66.6,78.7,-12.9,40.1,78.7,100.0,-2.2,punto adelante de la componente
+781,23.453,HIGH,toca_abajo,-8.5,-0.128,66.6,78.7,-12.9,40.1,78.7,100.0,-2.2,punto adelante de la componente
+782,23.483,HIGH,toca_abajo,-3.3,-0.049,62.5,76.8,-17.0,44.5,76.8,99.9,-7.8,punto adelante de la componente
+783,23.514,HIGH,toca_abajo,-6.1,-0.092,64.0,77.8,-15.5,43.8,77.8,99.9,-4.8,punto adelante de la componente
+784,23.544,HIGH,toca_abajo,-1.7,-0.026,60.8,75.2,-18.7,44.9,75.2,99.9,-12.1,punto adelante de la componente
+785,23.574,HIGH,toca_abajo,-1.7,-0.026,60.8,75.2,-18.7,44.9,75.2,99.9,-12.1,punto adelante de la componente
+786,23.604,HIGH,toca_abajo,8.8,0.132,52.8,70.0,-26.7,50.1,70.0,99.9,-25.3,punto adelante de la componente
+787,23.634,HIGH,toca_abajo,13.5,0.203,48.2,66.0,-31.3,51.1,66.0,99.8,-33.8,punto adelante de la componente
+788,23.664,HIGH,toca_abajo,16.5,0.247,44.5,62.1,-35.0,50.9,62.1,99.8,-40.8,punto adelante de la componente
+789,23.694,HIGH,toca_abajo,16.5,0.247,44.5,62.1,-35.0,50.9,62.1,99.8,-40.8,punto adelante de la componente
+790,23.724,HIGH,toca_abajo,23.7,0.356,36.3,55.6,-43.2,53.8,55.6,99.8,-49.8,punto adelante de la componente
+791,23.754,HIGH,toca_abajo,29.7,0.446,27.2,48.7,-52.3,56.9,48.7,99.8,-56.7,punto adelante de la componente
+792,23.784,HIGH,toca_abajo,29.7,0.446,27.2,48.7,-52.3,56.9,48.7,99.8,-56.7,punto adelante de la componente
+793,23.814,SIN_CERCA,continuidad,35.6,0.600,16.0,38.3,-63.5,59.5,38.3,99.7,-63.7,componente visible arriba
+794,23.844,SIN_CERCA,continuidad,34.8,0.600,7.4,30.5,-72.1,63.4,30.5,99.5,-67.3,componente visible arriba
+795,23.874,SIN_CERCA,salto_grande,34.8,0.600,7.4,30.5,-72.1,63.4,30.5,99.5,-67.3,componente visible arriba
+796,23.904,SIN_CERCA,salto_grande,39.7,0.600,7.2,27.2,-72.3,59.2,27.2,99.5,-68.6,componente visible arriba
+797,23.934,SIN_CERCA,continuidad,39.9,0.600,,17.9,,,17.9,99.1,-71.2,componente visible arriba
+798,23.964,SIN_CERCA,continuidad,37.9,0.600,,19.0,,,19.0,99.0,-70.9,componente visible arriba
+799,23.994,SIN_CERCA,continuidad,37.9,0.600,,19.0,,,19.0,99.0,-70.9,componente visible arriba
+800,24.024,SIN_CERCA,continuidad,37.9,0.600,6.1,26.7,-73.4,60.4,26.7,99.4,-68.7,componente visible arriba
+801,24.054,SIN_CERCA,salto_grande,35.7,0.600,7.2,29.0,-72.3,61.7,29.0,99.5,-67.9,componente visible arriba
+802,24.084,SIN_CERCA,salto_grande,35.7,0.600,7.2,29.0,-72.3,61.7,29.0,99.5,-67.9,componente visible arriba
+803,24.114,SIN_CERCA,salto_grande,33.1,0.600,6.7,30.0,-72.8,63.9,30.0,99.4,-67.4,componente visible arriba
+804,24.144,SIN_CERCA,salto_grande,31.2,0.600,9.8,34.0,-69.7,64.0,34.0,99.5,-65.8,componente visible arriba
+805,24.174,HIGH,toca_abajo,29.9,0.449,20.8,44.9,-58.7,60.4,44.9,99.7,-59.6,punto adelante de la componente
+806,24.204,HIGH,toca_abajo,29.9,0.449,20.8,44.9,-58.7,60.4,44.9,99.7,-59.6,punto adelante de la componente
+807,24.234,HIGH,toca_abajo,25.5,0.383,33.0,53.3,-46.5,55.1,53.3,99.8,-52.3,punto adelante de la componente
+808,24.264,HIGH,toca_abajo,17.8,0.267,42.1,59.9,-37.4,51.1,59.9,99.8,-44.3,punto adelante de la componente
+809,24.294,HIGH,toca_abajo,17.8,0.267,42.1,59.9,-37.4,51.1,59.9,99.8,-44.3,punto adelante de la componente
+810,24.324,HIGH,toca_abajo,19.2,0.289,42.0,59.0,-37.5,49.8,59.0,99.8,-45.5,punto adelante de la componente
+811,24.354,HIGH,toca_abajo,26.3,0.395,35.2,53.2,-44.3,51.5,53.2,99.8,-52.5,punto adelante de la componente
+812,24.384,HIGH,toca_abajo,26.3,0.395,35.2,53.2,-44.3,51.5,53.2,99.8,-52.5,punto adelante de la componente
+813,24.414,HIGH,toca_abajo,33.0,0.495,26.6,46.4,-52.9,54.5,46.4,99.8,-58.5,punto adelante de la componente
+814,24.444,SIN_CERCA,continuidad,35.5,0.600,15.3,37.4,-64.2,59.5,37.4,99.6,-64.2,componente visible arriba
+815,24.474,SIN_CERCA,salto_grande,36.7,0.600,11.3,32.9,-68.2,60.3,32.9,99.6,-66.3,componente visible arriba
+816,24.505,SIN_CERCA,salto_grande,36.7,0.600,11.3,32.9,-68.2,60.3,32.9,99.6,-66.3,componente visible arriba
+817,24.535,SIN_CERCA,salto_grande,38.6,0.600,9.3,29.8,-70.2,59.3,29.8,99.5,-67.6,componente visible arriba
+818,24.565,SIN_CERCA,salto_grande,39.0,0.600,10.2,31.0,-69.3,58.9,31.0,99.6,-67.2,componente visible arriba
+819,24.595,SIN_CERCA,salto_grande,39.0,0.600,10.2,31.0,-69.3,58.9,31.0,99.6,-67.2,componente visible arriba
+820,24.625,SIN_CERCA,salto_grande,38.6,0.600,10.9,31.8,-68.6,58.5,31.8,99.6,-66.8,componente visible arriba
+821,24.655,HIGH,toca_abajo,38.6,0.580,17.9,38.4,-61.6,55.9,38.4,99.7,-63.7,punto adelante de la componente
+822,24.685,HIGH,toca_abajo,38.6,0.580,17.9,38.4,-61.6,55.9,38.4,99.7,-63.7,punto adelante de la componente
+823,24.715,HIGH,toca_abajo,33.0,0.495,29.4,47.9,-50.1,52.4,47.9,99.8,-57.4,punto adelante de la componente
+824,24.745,HIGH,toca_abajo,16.1,0.241,42.6,63.8,-36.9,56.5,63.8,100.3,-38.6,punto adelante de la componente
+825,24.775,HIGH,toca_abajo,-21.6,-0.324,56.4,92.0,-23.1,68.6,92.0,100.5,32.5,punto adelante de la componente
+826,24.805,HIGH,toca_abajo,-21.6,-0.324,56.4,92.0,-23.1,68.6,92.0,100.5,32.5,punto adelante de la componente
+827,24.835,HIGH,toca_abajo,-49.8,-0.747,64.2,114.7,-15.3,74.6,114.7,100.5,61.0,punto adelante de la componente
+828,24.865,HIGH,toca_abajo,-65.6,-0.984,74.9,127.9,-4.6,75.1,127.9,100.6,68.1,punto adelante de la componente
+829,24.895,HIGH,toca_abajo,-65.6,-0.984,74.9,127.9,-4.6,75.1,127.9,100.6,68.1,punto adelante de la componente
+830,24.925,HIGH,toca_abajo,-68.3,-1.000,81.8,126.3,2.3,72.9,126.3,100.7,67.5,punto adelante de la componente
+831,24.955,HIGH,toca_abajo,-65.4,-0.980,84.4,111.6,4.9,63.5,111.6,100.5,58.8,punto adelante de la componente
+832,24.985,HIGH,toca_abajo,-65.4,-0.980,84.4,111.6,4.9,63.5,111.6,100.5,58.8,punto adelante de la componente
+833,25.015,HIGH,toca_abajo,-57.7,-0.866,104.6,103.5,25.1,-4.3,103.5,99.7,49.7,punto adelante de la componente
+834,25.045,HIGH,toca_abajo,-63.4,-0.951,146.1,140.4,66.6,-21.6,140.4,100.1,71.9,punto adelante de la componente
+835,25.075,HIGH,toca_abajo,-61.0,-0.915,156.3,151.4,76.8,-19.3,151.4,99.5,74.1,punto adelante de la componente
+836,25.105,SIN_CERCA,continuidad,-59.8,-0.600,158.0,153.7,78.5,-19.5,153.7,99.3,74.4,componente visible arriba
+837,25.135,SIN_CERCA,continuidad,-59.8,-0.600,158.0,153.7,78.5,-19.5,153.7,99.3,74.4,componente visible arriba
+838,25.165,SIN_CERCA,continuidad,-59.4,-0.600,158.1,153.7,78.6,-20.0,153.7,99.3,74.4,componente visible arriba
+839,25.195,SIN_CERCA,continuidad,-59.4,-0.600,158.1,153.7,78.6,-20.0,153.7,99.3,74.4,componente visible arriba
+840,25.225,HIGH,toca_abajo,-61.1,-0.916,156.4,150.7,76.9,-22.7,150.7,99.5,73.9,punto adelante de la componente
+841,25.255,HIGH,toca_abajo,-62.4,-0.936,154.9,149.9,75.4,-19.6,149.9,99.6,73.8,punto adelante de la componente
+842,25.285,HIGH,toca_abajo,-62.4,-0.936,154.9,149.9,75.4,-19.6,149.9,99.6,73.8,punto adelante de la componente
+843,25.315,HIGH,toca_abajo,-60.6,-0.909,156.7,151.8,77.2,-19.8,151.8,99.5,74.2,punto adelante de la componente
+844,25.345,HIGH,toca_abajo,-61.3,-0.919,155.1,149.0,75.6,-23.2,149.0,99.6,73.6,punto adelante de la componente
+845,25.375,HIGH,toca_abajo,-63.1,-0.946,147.5,141.3,68.0,-23.6,141.3,99.8,71.8,punto adelante de la componente
+846,25.405,HIGH,toca_abajo,-63.1,-0.946,147.5,141.3,68.0,-23.6,141.3,99.8,71.8,punto adelante de la componente
+847,25.435,HIGH,toca_abajo,-62.8,-0.942,142.4,136.4,62.9,-22.6,136.4,99.8,70.5,punto adelante de la componente
+848,25.465,HIGH,toca_abajo,-61.5,-0.922,137.5,131.4,58.0,-22.6,131.4,99.9,68.8,punto adelante de la componente
+849,25.495,HIGH,toca_abajo,-61.5,-0.922,137.5,131.4,58.0,-22.6,131.4,99.9,68.8,punto adelante de la componente
+850,25.526,HIGH,toca_abajo,-59.2,-0.888,130.9,125.6,51.4,-20.1,125.6,99.9,66.4,punto adelante de la componente
+851,25.556,HIGH,toca_abajo,-54.9,-0.824,121.1,118.6,41.6,-9.9,118.6,99.9,62.8,punto adelante de la componente
+852,25.586,HIGH,toca_abajo,-49.6,-0.744,110.9,111.8,31.4,3.9,111.8,99.9,58.1,punto adelante de la componente
+853,25.616,HIGH,toca_abajo,-49.6,-0.744,110.9,111.8,31.4,3.9,111.8,99.9,58.1,punto adelante de la componente
+854,25.646,HIGH,toca_abajo,-41.9,-0.629,101.0,103.4,21.5,9.7,103.4,99.8,49.9,punto adelante de la componente
+855,25.676,HIGH,toca_abajo,-33.5,-0.502,92.0,95.6,12.5,13.8,95.6,99.9,38.6,punto adelante de la componente
+856,25.706,HIGH,toca_abajo,-28.4,-0.426,88.4,92.3,8.9,15.1,92.3,99.9,32.4,punto adelante de la componente
+857,25.736,HIGH,toca_abajo,-28.4,-0.426,88.4,92.3,8.9,15.1,92.3,99.9,32.4,punto adelante de la componente
+858,25.766,HIGH,toca_abajo,-22.2,-0.333,85.7,89.7,6.2,15.5,89.7,99.9,26.9,punto adelante de la componente
+859,25.796,HIGH,toca_abajo,-15.0,-0.226,84.5,87.9,5.0,13.5,87.9,100.2,22.9,punto adelante de la componente
+860,25.826,HIGH,toca_abajo,-8.5,-0.128,83.5,86.1,4.0,10.3,86.1,100.3,18.4,punto adelante de la componente
+861,25.856,HIGH,toca_abajo,-8.5,-0.128,83.5,86.1,4.0,10.3,86.1,100.3,18.4,punto adelante de la componente
+862,25.886,HIGH,toca_abajo,11.5,0.172,81.8,79.5,2.3,-9.3,79.5,100.3,-0.1,punto adelante de la componente
+863,25.916,HIGH,toca_abajo,38.1,0.572,29.6,24.7,-49.9,-18.9,24.7,100.1,-70.1,punto adelante de la componente
+864,25.946,HIGH,toca_abajo,38.1,0.572,29.6,24.7,-49.9,-18.9,24.7,100.1,-70.1,punto adelante de la componente
+865,25.976,HIGH,toca_abajo,50.2,0.753,24.7,20.6,-54.8,-15.8,20.6,100.1,-71.4,punto adelante de la componente
+866,26.006,HIGH,toca_abajo,59.9,0.898,24.0,20.7,-55.5,-13.1,20.7,100.1,-71.3,punto adelante de la componente
+867,26.036,HIGH,toca_abajo,65.2,0.978,25.5,22.3,-54.0,-12.4,22.3,100.1,-70.8,punto adelante de la componente
+868,26.066,HIGH,toca_abajo,65.2,0.978,25.5,22.3,-54.0,-12.4,22.3,100.1,-70.8,punto adelante de la componente
+869,26.096,HIGH,toca_abajo,66.1,0.992,33.0,30.0,-46.5,-11.9,30.0,100.1,-68.1,punto adelante de la componente
+870,26.126,HIGH,toca_abajo,61.0,0.914,45.3,41.7,-34.2,-14.2,41.7,100.1,-62.3,punto adelante de la componente
+871,26.156,HIGH,toca_abajo,51.9,0.779,56.9,51.5,-22.6,-20.4,51.5,100.1,-54.6,punto adelante de la componente
+872,26.186,HIGH,toca_abajo,41.2,0.619,64.4,59.2,-15.1,-20.0,59.2,100.1,-45.6,punto adelante de la componente
+873,26.216,HIGH,toca_abajo,41.2,0.619,64.4,59.2,-15.1,-20.0,59.2,100.1,-45.6,punto adelante de la componente
+874,26.246,HIGH,toca_abajo,24.0,0.360,74.7,69.3,-4.8,-20.4,69.3,100.1,-27.1,punto adelante de la componente
+875,26.276,HIGH,toca_abajo,-12.4,-0.186,90.2,84.3,10.7,-22.1,84.3,100.1,13.6,punto adelante de la componente
+876,26.306,HIGH,toca_abajo,-12.4,-0.186,90.2,84.3,10.7,-22.1,84.3,100.1,13.6,punto adelante de la componente
+877,26.336,HIGH,toca_abajo,-43.2,-0.649,109.9,102.6,30.4,-26.9,102.6,100.1,49.2,punto adelante de la componente
+878,26.366,HIGH,toca_abajo,-51.7,-0.775,121.9,112.8,42.4,-32.2,112.8,100.1,59.1,punto adelante de la componente
+879,26.396,HIGH,toca_abajo,-51.9,-0.779,124.2,114.5,44.7,-33.8,114.5,100.1,60.4,punto adelante de la componente
+880,26.426,HIGH,toca_abajo,-51.7,-0.776,123.2,114.3,43.7,-31.6,114.3,100.1,60.3,punto adelante de la componente
+881,26.456,HIGH,toca_abajo,-48.9,-0.734,121.2,111.3,41.7,-34.5,111.3,100.1,57.9,punto adelante de la componente
+882,26.486,HIGH,toca_abajo,-45.2,-0.678,113.1,104.2,33.6,-31.9,104.2,100.1,51.1,punto adelante de la componente
+883,26.517,HIGH,toca_abajo,-45.2,-0.678,113.1,104.2,33.6,-31.9,104.2,100.1,51.1,punto adelante de la componente
+884,26.547,HIGH,toca_abajo,-41.9,-0.629,108.6,99.1,29.1,-33.4,99.1,100.1,44.5,punto adelante de la componente
+885,26.577,HIGH,toca_abajo,-35.6,-0.534,100.4,91.8,20.9,-30.9,91.8,100.1,31.7,punto adelante de la componente
+886,26.607,HIGH,toca_abajo,-30.9,-0.463,94.6,86.4,15.1,-29.7,86.4,100.1,19.1,punto adelante de la componente
+887,26.637,HIGH,toca_abajo,-24.5,-0.368,87.8,79.6,8.3,-29.7,79.6,100.1,0.3,punto adelante de la componente
+888,26.667,HIGH,toca_abajo,-15.4,-0.232,80.3,72.7,0.8,-27.6,72.7,100.1,-18.8,punto adelante de la componente
+889,26.697,HIGH,toca_abajo,-15.4,-0.232,80.3,72.7,0.8,-27.6,72.7,100.1,-18.8,punto adelante de la componente
+890,26.727,HIGH,toca_abajo,-9.2,-0.137,73.3,66.0,-6.2,-26.7,66.0,100.1,-34.1,punto adelante de la componente
+891,26.757,HIGH,toca_abajo,-2.9,-0.044,64.9,59.8,-14.6,-18.9,59.8,99.8,-44.2,punto adelante de la componente
+892,26.787,HIGH,toca_abajo,-2.9,-0.044,64.9,59.8,-14.6,-18.9,59.8,99.8,-44.2,punto adelante de la componente
+893,26.817,HIGH,toca_abajo,3.6,0.055,56.0,57.7,-23.5,6.1,57.7,99.6,-46.9,punto adelante de la componente
+894,26.847,HIGH,toca_abajo,9.2,0.138,45.6,57.9,-33.9,39.4,57.9,99.6,-46.7,punto adelante de la componente
+895,26.877,HIGH,toca_abajo,18.7,0.281,34.3,54.3,-45.2,54.2,54.3,99.7,-51.1,punto adelante de la componente
+896,26.907,HIGH,toca_abajo,18.7,0.281,34.3,54.3,-45.2,54.2,54.3,99.7,-51.1,punto adelante de la componente
+897,26.937,HIGH,toca_abajo,25.6,0.384,30.0,51.6,-49.5,56.5,51.6,99.7,-54.0,punto adelante de la componente
+898,26.967,HIGH,toca_abajo,22.9,0.344,36.5,54.8,-43.0,52.0,54.8,99.8,-50.7,punto adelante de la componente
+899,26.997,HIGH,toca_abajo,21.5,0.323,38.9,55.7,-40.6,49.4,55.7,99.8,-49.7,punto adelante de la componente
+900,27.027,HIGH,toca_abajo,21.5,0.323,38.9,55.7,-40.6,49.4,55.7,99.8,-49.7,punto adelante de la componente
+901,27.057,HIGH,toca_abajo,21.8,0.327,40.9,55.9,-38.6,46.3,55.9,99.8,-49.5,punto adelante de la componente
+902,27.087,HIGH,toca_abajo,28.3,0.425,37.7,52.2,-41.8,45.1,52.2,99.8,-53.6,punto adelante de la componente
+903,27.117,HIGH,toca_abajo,32.3,0.485,35.8,49.8,-43.7,44.4,49.8,99.8,-55.8,punto adelante de la componente
+904,27.147,HIGH,toca_abajo,32.3,0.485,35.8,49.8,-43.7,44.4,49.8,99.8,-55.8,punto adelante de la componente
+905,27.177,HIGH,toca_abajo,36.6,0.549,32.7,47.0,-46.8,44.9,47.0,99.8,-58.2,punto adelante de la componente
+906,27.207,HIGH,toca_abajo,38.9,0.583,30.6,45.1,-48.9,45.4,45.1,99.8,-59.6,punto adelante de la componente
+907,27.237,HIGH,toca_abajo,42.3,0.634,28.7,42.4,-50.8,43.9,42.4,99.8,-61.4,punto adelante de la componente
+908,27.267,HIGH,toca_abajo,42.3,0.634,28.7,42.4,-50.8,43.9,42.4,99.8,-61.4,punto adelante de la componente
+909,27.297,HIGH,toca_abajo,43.4,0.651,23.8,39.3,-55.7,47.7,39.3,99.8,-63.3,punto adelante de la componente
+910,27.327,HIGH,toca_abajo,42.5,0.638,29.9,42.9,-49.6,42.2,42.9,99.8,-61.1,punto adelante de la componente
+911,27.357,HIGH,toca_abajo,41.9,0.628,32.8,44.6,-46.7,39.5,44.6,99.9,-60.0,punto adelante de la componente
+912,27.387,HIGH,toca_abajo,41.9,0.628,32.8,44.6,-46.7,39.5,44.6,99.9,-60.0,punto adelante de la componente
+913,27.417,HIGH,toca_abajo,41.1,0.617,34.7,46.4,-44.8,39.4,46.4,100.0,-58.8,punto adelante de la componente
+914,27.447,HIGH,toca_abajo,40.1,0.602,36.9,48.2,-42.6,38.2,48.2,100.0,-57.5,punto adelante de la componente
+915,27.477,HIGH,toca_abajo,40.1,0.602,36.9,48.2,-42.6,38.2,48.2,100.0,-57.5,punto adelante de la componente
+916,27.508,HIGH,toca_abajo,34.4,0.516,41.4,55.4,-38.1,44.5,55.4,100.2,-50.6,punto adelante de la componente
+917,27.538,HIGH,toca_abajo,29.0,0.436,44.6,61.4,-34.9,49.8,61.4,100.1,-42.3,punto adelante de la componente
+918,27.568,HIGH,toca_abajo,29.0,0.436,44.6,61.4,-34.9,49.8,61.4,100.1,-42.3,punto adelante de la componente
+919,27.598,HIGH,toca_abajo,23.7,0.355,46.9,65.9,-32.6,53.1,65.9,100.1,-34.4,punto adelante de la componente
+920,27.628,HIGH,toca_abajo,23.6,0.354,48.4,66.1,-31.1,51.1,66.1,100.1,-34.0,punto adelante de la componente
+921,27.658,HIGH,toca_abajo,20.6,0.309,49.7,68.1,-29.8,52.0,68.1,100.1,-29.9,punto adelante de la componente
+922,27.688,HIGH,toca_abajo,20.6,0.309,49.7,68.1,-29.8,52.0,68.1,100.1,-29.9,punto adelante de la componente
+923,27.718,HIGH,toca_abajo,18.5,0.277,52.0,69.4,-27.5,50.2,69.4,100.1,-27.0,punto adelante de la componente
+924,27.748,HIGH,toca_abajo,19.0,0.286,52.4,69.2,-27.1,49.3,69.2,100.1,-27.4,punto adelante de la componente
+925,27.778,HIGH,toca_abajo,19.1,0.287,53.3,69.1,-26.2,47.5,69.1,100.1,-27.6,punto adelante de la componente
+926,27.808,HIGH,toca_abajo,19.1,0.287,53.3,69.1,-26.2,47.5,69.1,100.1,-27.6,punto adelante de la componente
+927,27.838,HIGH,toca_abajo,22.7,0.341,52.4,67.4,-27.1,46.1,67.4,100.1,-31.3,punto adelante de la componente
+928,27.868,HIGH,toca_abajo,21.6,0.324,54.0,68.0,-25.5,44.1,68.0,100.1,-30.0,punto adelante de la componente
+929,27.898,HIGH,toca_abajo,21.6,0.324,54.0,68.0,-25.5,44.1,68.0,100.1,-30.0,punto adelante de la componente
+930,27.928,HIGH,toca_abajo,23.3,0.349,53.6,67.2,-25.9,43.3,67.2,100.1,-31.7,punto adelante de la componente
+931,27.958,HIGH,toca_abajo,21.5,0.322,55.1,68.0,-24.4,41.8,68.0,100.1,-30.1,punto adelante de la componente
+932,27.988,HIGH,toca_abajo,19.7,0.295,56.7,68.8,-22.8,40.0,68.8,100.1,-28.2,punto adelante de la componente
+933,28.018,HIGH,toca_abajo,19.7,0.295,56.7,68.8,-22.8,40.0,68.8,100.1,-28.2,punto adelante de la componente
+934,28.048,HIGH,toca_abajo,21.3,0.319,56.3,68.3,-23.2,39.7,68.3,100.1,-29.5,punto adelante de la componente
+935,28.078,HIGH,toca_abajo,11.7,0.176,61.7,72.3,-17.8,36.2,72.3,100.1,-19.9,punto adelante de la componente
+936,28.108,HIGH,toca_abajo,11.7,0.176,61.7,72.3,-17.8,36.2,72.3,100.1,-19.9,punto adelante de la componente
+937,28.138,HIGH,toca_abajo,10.9,0.163,62.5,72.6,-17.0,35.0,72.6,100.1,-19.1,punto adelante de la componente
+938,28.168,HIGH,toca_abajo,7.3,0.110,64.8,74.2,-14.7,32.9,74.2,100.1,-15.0,punto adelante de la componente
+939,28.198,HIGH,toca_abajo,7.3,0.110,64.8,74.2,-14.7,32.9,74.2,100.1,-15.0,punto adelante de la componente
+940,28.228,HIGH,toca_abajo,10.0,0.149,64.6,73.3,-14.9,31.1,73.3,100.1,-17.4,punto adelante de la componente
+941,28.258,HIGH,toca_abajo,10.9,0.163,64.4,72.9,-15.1,30.5,72.9,100.1,-18.3,punto adelante de la componente
+942,28.288,HIGH,toca_abajo,13.0,0.195,64.0,72.1,-15.5,29.2,72.1,100.1,-20.5,punto adelante de la componente
+943,28.318,HIGH,toca_abajo,13.0,0.195,64.0,72.1,-15.5,29.2,72.1,100.1,-20.5,punto adelante de la componente
+944,28.348,HIGH,toca_abajo,13.3,0.200,64.1,72.1,-15.4,28.8,72.1,100.1,-20.5,punto adelante de la componente
+945,28.378,HIGH,toca_abajo,16.1,0.242,63.6,70.9,-15.9,26.7,70.9,100.1,-23.4,punto adelante de la componente
+946,28.408,HIGH,toca_abajo,22.6,0.339,60.6,67.8,-18.9,26.6,67.8,100.1,-30.4,punto adelante de la componente
+947,28.438,HIGH,toca_abajo,22.6,0.339,60.6,67.8,-18.9,26.6,67.8,100.1,-30.4,punto adelante de la componente
+948,28.468,HIGH,toca_abajo,23.8,0.357,60.6,68.3,-18.9,27.9,68.3,100.1,-29.4,punto adelante de la componente
+949,28.498,HIGH,toca_abajo,22.6,0.339,64.0,71.6,-15.5,27.8,71.6,100.1,-21.7,punto adelante de la componente
+950,28.529,HIGH,toca_abajo,22.6,0.339,64.0,71.6,-15.5,27.8,71.6,100.1,-21.7,punto adelante de la componente
+951,28.559,HIGH,toca_abajo,18.7,0.281,71.7,78.3,-7.8,24.4,78.3,100.1,-3.5,punto adelante de la componente
+952,28.589,HIGH,toca_abajo,20.4,0.306,75.8,81.9,-3.7,23.0,81.9,100.1,6.9,punto adelante de la componente
+953,28.619,HIGH,toca_abajo,15.3,0.229,82.3,87.7,2.8,20.6,87.7,100.1,22.4,punto adelante de la componente
+954,28.649,HIGH,toca_abajo,11.0,0.165,90.0,92.1,10.5,8.1,92.1,99.8,31.9,punto adelante de la componente
+955,28.679,HIGH,toca_abajo,11.0,0.165,90.0,92.1,10.5,8.1,92.1,99.8,31.9,punto adelante de la componente
+956,28.709,HIGH,toca_abajo,1.3,0.019,100.7,95.8,21.2,-18.1,95.8,99.6,38.7,punto adelante de la componente
+957,28.739,HIGH,toca_abajo,3.2,0.048,108.8,90.4,29.3,-51.4,90.4,99.7,28.3,punto adelante de la componente
+958,28.769,HIGH,toca_abajo,3.2,0.048,108.8,90.4,29.3,-51.4,90.4,99.7,28.3,punto adelante de la componente
+959,28.799,HIGH,toca_abajo,2.1,0.032,109.3,90.4,29.8,-52.7,90.4,99.8,28.4,punto adelante de la componente
+960,28.829,HIGH,toca_abajo,-4.0,-0.060,110.0,93.2,30.5,-49.5,93.2,99.8,34.2,punto adelante de la componente
+961,28.859,HIGH,toca_abajo,-14.4,-0.216,114.2,98.1,34.7,-48.2,98.1,99.9,42.8,punto adelante de la componente
+962,28.889,HIGH,toca_abajo,-18.7,-0.280,117.5,101.2,38.0,-48.7,101.2,99.9,47.2,punto adelante de la componente
+963,28.919,HIGH,toca_abajo,-18.7,-0.280,117.5,101.2,38.0,-48.7,101.2,99.9,47.2,punto adelante de la componente
+964,28.949,HIGH,toca_abajo,-19.7,-0.296,116.4,99.8,36.9,-49.5,99.8,100.1,45.5,punto adelante de la componente
+965,28.979,HIGH,toca_abajo,-37.2,-0.559,127.8,112.6,48.3,-46.7,112.6,99.9,58.7,punto adelante de la componente
+966,29.009,HIGH,toca_abajo,-37.2,-0.559,127.8,112.6,48.3,-46.7,112.6,99.9,58.7,punto adelante de la componente
+967,29.039,HIGH,toca_abajo,-43.4,-0.650,139.0,122.5,59.5,-49.1,122.5,99.7,64.8,punto adelante de la componente
+968,29.069,HIGH,toca_abajo,-43.1,-0.647,146.2,128.8,66.7,-51.4,128.8,99.6,67.6,punto adelante de la componente
+969,29.099,HIGH,toca_abajo,-41.8,-0.628,144.5,127.9,65.0,-49.7,127.9,99.7,67.2,punto adelante de la componente
+970,29.129,HIGH,toca_abajo,-41.8,-0.628,144.5,127.9,65.0,-49.7,127.9,99.7,67.2,punto adelante de la componente
+971,29.159,HIGH,toca_abajo,-40.4,-0.606,146.1,130.3,66.6,-48.4,130.3,99.6,68.1,punto adelante de la componente
+972,29.189,HIGH,toca_abajo,-39.2,-0.588,143.4,127.9,63.9,-47.4,127.9,99.7,67.2,punto adelante de la componente
+973,29.219,HIGH,toca_abajo,-37.3,-0.559,138.7,124.2,59.2,-45.5,124.2,99.8,65.6,punto adelante de la componente
+974,29.249,HIGH,toca_abajo,-34.7,-0.520,134.2,119.0,54.7,-46.8,119.0,99.9,63.1,punto adelante de la componente
+975,29.279,HIGH,toca_abajo,-34.7,-0.520,134.2,119.0,54.7,-46.8,119.0,99.9,63.1,punto adelante de la componente
+976,29.309,HIGH,toca_abajo,-25.1,-0.377,123.9,106.3,44.4,-51.0,106.3,100.1,53.5,punto adelante de la componente
+977,29.339,HIGH,toca_abajo,-15.0,-0.225,117.7,97.0,38.2,-55.6,97.0,100.1,41.4,punto adelante de la componente
+978,29.369,HIGH,toca_abajo,-11.4,-0.172,114.7,95.0,35.2,-54.0,95.0,100.1,38.0,punto adelante de la componente
+979,29.399,HIGH,toca_abajo,-10.6,-0.159,113.9,93.3,34.4,-55.4,93.3,100.1,34.8,punto adelante de la componente
+980,29.429,HIGH,toca_abajo,-10.6,-0.159,113.9,93.3,34.4,-55.4,93.3,100.1,34.8,punto adelante de la componente
+981,29.459,HIGH,toca_abajo,0.9,0.014,109.1,84.2,29.6,-59.6,84.2,99.9,13.1,punto adelante de la componente
+982,29.489,HIGH,toca_abajo,11.8,0.177,106.9,69.6,27.4,-68.1,69.6,99.6,-26.0,punto adelante de la componente
+983,29.520,HIGH,toca_abajo,20.6,0.308,105.0,63.0,25.5,-70.7,63.0,99.9,-39.4,punto adelante de la componente
+984,29.550,HIGH,toca_abajo,26.8,0.402,100.6,61.8,21.1,-69.8,61.8,100.1,-41.7,punto adelante de la componente
+985,29.580,HIGH,toca_abajo,26.8,0.402,100.6,61.8,21.1,-69.8,61.8,100.1,-41.7,punto adelante de la componente
+986,29.610,HIGH,toca_abajo,35.5,0.532,82.2,62.2,2.7,-54.9,62.2,100.1,-41.0,punto adelante de la componente
+987,29.640,HIGH,toca_abajo,49.3,0.740,70.7,58.4,-8.8,-40.4,58.4,100.1,-46.8,punto adelante de la componente
+988,29.670,HIGH,toca_abajo,49.3,0.740,70.7,58.4,-8.8,-40.4,58.4,100.1,-46.8,punto adelante de la componente
+989,29.700,HIGH,toca_abajo,53.6,0.804,67.8,61.9,-11.7,-22.6,61.9,100.6,-42.1,punto adelante de la componente
+990,29.730,MEDIUM,toca_abajo,57.9,0.869,64.3,73.1,-15.2,32.7,73.1,100.9,-18.6,punto adelante de la componente
+991,29.760,MEDIUM,toca_abajo,46.2,0.693,65.9,87.6,-13.6,57.8,87.6,101.0,23.0,punto adelante de la componente
+992,29.790,MEDIUM,toca_abajo,46.2,0.693,65.9,87.6,-13.6,57.8,87.6,101.0,23.0,punto adelante de la componente
+993,29.820,MEDIUM,toca_abajo,-42.7,-0.641,78.6,98.8,-0.9,57.8,98.8,102.5,47.9,punto adelante de la componente
+994,29.850,MEDIUM,toca_abajo,-81.9,-1.000,102.2,110.7,22.7,38.7,110.7,104.7,63.8,punto adelante de la componente
+995,29.880,LOW,toca_abajo,-86.1,-1.000,112.7,,33.2,,110.7,104.7,63.8,ultimo objetivo confiable (memoria)
+996,29.910,LOW,toca_abajo,-86.1,-1.000,112.7,,33.2,,110.7,104.7,63.8,ultimo objetivo confiable (memoria)
+997,29.940,LOW,toca_abajo,-87.8,-1.000,121.4,,41.9,,110.7,104.7,63.8,ultimo objetivo confiable (memoria)
+998,29.970,PERDIDA,sin_componente,-57.1,0.000,,,,,,,0.0,sin objetivo
+999,30.000,PERDIDA,sin_componente,-57.1,0.000,,,,,,,0.0,sin objetivo
+1000,30.030,PERDIDA,sin_componente,-47.3,0.000,,,,,,,0.0,sin objetivo
+1001,30.060,SIN_CERCA,continuidad,-46.0,-0.600,,,,,110.7,104.7,63.8,memoria
+1002,30.090,SIN_CERCA,continuidad,-45.8,-0.600,,,,,110.7,104.7,63.8,memoria
+1003,30.120,SIN_CERCA,continuidad,-45.8,-0.600,,,,,110.7,104.7,63.8,memoria
+1004,30.150,SIN_CERCA,continuidad,-45.8,-0.600,,,,,110.7,104.7,63.8,memoria
+1005,30.180,SIN_CERCA,continuidad,-45.7,-0.600,,,,,110.7,104.7,63.8,memoria
+1006,30.210,SIN_CERCA,continuidad,-45.4,-0.600,,,,,110.7,104.7,63.8,memoria
+1007,30.240,SIN_CERCA,continuidad,-45.4,-0.600,,,,,110.7,104.7,63.8,memoria
+1008,30.270,SIN_CERCA,continuidad,-45.3,-0.600,,,,,110.7,104.7,63.8,memoria
+1009,30.300,SIN_CERCA,continuidad,-45.1,-0.600,,,,,110.7,104.7,63.8,memoria
+1010,30.330,SIN_CERCA,continuidad,-44.6,-0.600,,,,,110.7,104.7,63.8,memoria
+1011,30.360,SIN_CERCA,continuidad,-44.6,-0.600,,,,,110.7,104.7,63.8,memoria
+1012,30.390,SIN_CERCA,continuidad,-44.1,-0.600,,,,,110.7,104.7,63.8,memoria
+1013,30.420,SIN_CERCA,continuidad,-42.6,-0.600,,,,,110.7,104.7,63.8,memoria
+1014,30.450,SIN_CERCA,continuidad,-42.6,-0.600,,,,,110.7,104.7,63.8,memoria
+1015,30.480,SIN_CERCA,continuidad,-41.7,-0.600,,,,,110.7,104.7,63.8,memoria
+1016,30.511,SIN_CERCA,continuidad,-41.5,-0.600,,,,,110.7,104.7,63.8,memoria
+1017,30.541,SIN_CERCA,continuidad,-41.5,-0.600,,,,,110.7,104.7,63.8,memoria
+1018,30.571,SIN_CERCA,continuidad,-39.0,-0.600,,,,,110.7,104.7,63.8,memoria
+1019,30.601,SIN_CERCA,continuidad,-36.8,-0.600,,156.4,,,156.4,75.1,59.7,componente visible arriba
+1020,30.631,SIN_CERCA,continuidad,-36.8,-0.600,,156.4,,,156.4,75.1,59.7,componente visible arriba
+1021,30.661,SIN_CERCA,continuidad,-35.2,-0.528,,,,,156.4,75.1,59.7,memoria
+1022,30.691,SIN_CERCA,continuidad,-33.7,-0.505,,,,,156.4,75.1,59.7,memoria
+1023,30.721,SIN_CERCA,continuidad,-33.7,-0.505,,,,,156.4,75.1,59.7,memoria
+1024,30.751,SIN_CERCA,continuidad,-29.7,-0.445,,,,,156.4,75.1,59.7,memoria
+1025,30.781,SIN_CERCA,salto_grande,-25.1,-0.377,,,,,156.4,75.1,59.7,memoria
+1026,30.811,SIN_CERCA,salto_grande,-25.1,-0.377,,,,,156.4,75.1,59.7,memoria
+1027,30.841,SIN_CERCA,salto_grande,-19.8,-0.298,,,,,156.4,75.1,59.7,memoria
+1028,30.871,SIN_CERCA,salto_grande,-13.7,-0.206,,,,,156.4,75.1,59.7,memoria
+1029,30.901,SIN_CERCA,salto_grande,-9.0,-0.135,,,,,156.4,75.1,59.7,memoria
+1030,30.931,SIN_CERCA,salto_grande,-9.0,-0.135,,,,,156.4,75.1,59.7,memoria
+1031,30.961,SIN_CERCA,salto_grande,-6.1,-0.092,,,,,156.4,75.1,59.7,memoria
+1032,30.991,SIN_CERCA,salto_grande,-2.5,-0.037,,,,,156.4,75.1,59.7,memoria
+1033,31.021,SIN_CERCA,salto_grande,-2.5,-0.037,,,,,156.4,75.1,59.7,memoria
+1034,31.051,SIN_CERCA,salto_grande,1.8,0.028,,,,,156.4,75.1,59.7,memoria
+1035,31.081,SIN_CERCA,salto_grande,2.3,0.034,,59.4,,,59.4,75.9,-24.5,componente visible arriba
+1036,31.111,SIN_CERCA,continuidad,1.3,0.020,,67.1,,,67.1,77.5,-16.3,componente visible arriba
+1037,31.141,SIN_CERCA,continuidad,1.3,0.020,,67.1,,,67.1,77.5,-16.3,componente visible arriba
+1038,31.171,SIN_CERCA,continuidad,1.8,0.026,,71.5,,,71.5,79.3,-11.1,componente visible arriba
+1039,31.201,SIN_CERCA,continuidad,-9.5,-0.142,,104.2,,,104.2,79.2,31.2,componente visible arriba
+1040,31.231,SIN_CERCA,continuidad,-15.9,-0.239,,86.1,,,86.1,96.5,15.8,componente visible arriba
+1041,31.261,SIN_CERCA,continuidad,-24.4,-0.366,,140.3,,,140.3,100.0,71.8,componente visible arriba
+1042,31.291,SIN_CERCA,continuidad,-24.4,-0.366,,140.3,,,140.3,100.0,71.8,componente visible arriba
+1043,31.321,LOW,toca_abajo,-39.3,-0.589,146.3,,66.8,,140.3,100.0,71.8,ultimo objetivo confiable (memoria)
+1044,31.351,SIN_CERCA,continuidad,-21.2,-0.318,,153.0,,,153.0,97.7,73.1,componente visible arriba
+1045,31.381,SIN_CERCA,continuidad,-21.2,-0.318,,153.0,,,153.0,97.7,73.1,componente visible arriba
+1046,31.411,SIN_CERCA,continuidad,18.6,0.279,156.9,149.7,77.4,-32.0,149.7,99.3,73.6,componente visible arriba
+1047,31.441,PERDIDA,sin_componente,52.0,0.000,,,,,,,0.0,sin objetivo
+1048,31.471,PERDIDA,sin_componente,52.0,0.000,,,,,,,0.0,sin objetivo
+1049,31.502,SIN_CERCA,salto_grande,48.8,0.600,,,,,149.7,99.3,73.6,memoria
+1050,31.532,SIN_CERCA,salto_grande,48.9,0.600,,,,,149.7,99.3,73.6,memoria
+1051,31.562,SIN_CERCA,salto_grande,48.9,0.600,,,,,149.7,99.3,73.6,memoria
+1052,31.592,SIN_CERCA,salto_grande,47.3,0.600,,,,,149.7,99.3,73.6,memoria
+1053,31.622,SIN_CERCA,salto_grande,40.2,0.600,,,,,149.7,99.3,73.6,memoria
+1054,31.652,PERDIDA,sin_componente,0.0,0.000,,,,,,,0.0,sin objetivo
+1055,31.682,PERDIDA,sin_componente,-78.7,0.000,,,,,,,0.0,sin objetivo
+1056,31.712,PERDIDA,sin_componente,-78.7,0.000,,,,,,,0.0,sin objetivo
+1057,31.742,SIN_CERCA,continuidad,-67.8,-0.600,,150.5,,,150.5,83.8,63.0,componente visible arriba
+1058,31.772,SIN_CERCA,continuidad,-67.8,-0.600,,150.5,,,150.5,83.8,63.0,componente visible arriba
+1059,31.802,HIGH,toca_abajo,69.3,1.000,5.9,5.0,-73.6,-3.4,5.0,100.0,-75.0,punto adelante de la componente
+1060,31.832,HIGH,toca_abajo,48.7,0.731,51.6,43.0,-27.9,-32.2,43.0,99.8,-61.1,punto adelante de la componente
+1061,31.862,HIGH,toca_abajo,6.6,0.099,81.0,79.7,1.5,-5.3,79.7,100.5,0.6,punto adelante de la componente
+1062,31.892,HIGH,toca_abajo,6.6,0.099,81.0,79.7,1.5,-5.3,79.7,100.5,0.6,punto adelante de la componente
+1063,31.922,HIGH,toca_abajo,-31.7,-0.475,92.4,100.7,12.9,32.4,100.7,100.8,47.9,punto adelante de la componente
+1064,31.952,HIGH,toca_abajo,-44.6,-0.668,96.7,111.6,17.2,47.6,111.6,100.6,58.8,punto adelante de la componente
+1065,31.982,HIGH,toca_abajo,-50.0,-0.750,99.8,118.2,20.3,53.6,118.2,100.6,63.3,punto adelante de la componente
+1066,32.012,HIGH,toca_abajo,-52.2,-0.784,101.6,122.8,22.1,57.8,122.8,100.8,66.1,punto adelante de la componente
+1067,32.042,HIGH,toca_abajo,-52.2,-0.784,101.6,122.8,22.1,57.8,122.8,100.8,66.1,punto adelante de la componente

@@ -1,0 +1,26 @@
+
+================================================================================================
+  LOS DOS P0 DE VISION - A/B PREREGISTRADO
+  MONO  = busqueda monotona hacia adelante   (Coulter 1992)
+  SUELO = lookahead en unidades del suelo    (Snider 2009)
+  ld_suelo calibrado = 0.635 (mediana del baseline), HFOV 45
+================================================================================================
+
+  FIDELIDAD DEL SELECTOR RE-IMPLEMENTADO
+    14462 frames, 0 discrepancias  OK
+
+  variante        disp %    huecos saltos>24 INVERSIONES   sin_aut   controles
+  BASE             +0.00        +0        +0          +0        +0   hist_exit 100/100  lineal_po 73/73 
+  MONO             -0.06        +6        +7         -26        +9   hist_exit 100/100  lineal_po 73/73 
+  SUELO            +0.06        -2        +1         +31        -9   hist_exit 100/100  lineal_po 73/73 
+  MONO+SUELO       +0.04        +8       +10         +13        -5   hist_exit 100/100  lineal_po 73/73 
+
+  BASELINE ABSOLUTO  disp 93.78 %  huecos 276  saltos 247  inv 392
+
+  CRITERIO: una variante entra solo si mejora sin romper ningun
+  control y sin empeorar disponibilidad, huecos ni saltos.
+================================================================================================
+[mjpeg @ 0000016d54edb3c0] overread 8
+[mjpeg @ 0000016d7d6d3b40] overread 8
+[mjpeg @ 0000016d00794d40] overread 8
+[mjpeg @ 0000016d54ef91c0] overread 8

@@ -19,13 +19,30 @@ Dos cosas, las dos sobre el mismo tronco: la candidata SinBranch con CAMINO+MONO
      comando cae a neutro y despues tiene que volver a rampar desde 0. La
      variante sostiene el ULTIMO angulo durante el hueco, con limite de tiempo.
 
-     Nota honesta sobre el codigo real: `ControlPreview.step` de
-     nuevo_code_v3.py NO pone self.angle en 0 - devuelve control=None y se
-     guarda el valor interno. El 0 lo pone el arnes de replay. Y `Main.py`
-     (linea 922) en produccion ni siquiera manda 0 cuando pierde la linea:
-     manda un barrido de busqueda de 65 grados. Por eso el escalon del hueco se
-     reporta abajo bajo el MODELO EXPLICITO "el comando efectivo en el hueco es
-     0", que es el que usa el arnes. Con otro downstream el numero cambia.
+     NOTA HONESTA SOBRE EL CODIGO REAL - corregida despues de leerlo entero.
+     Una version previa de esta nota decia que el reset a 0 lo ponia solo el
+     arnes. Es falso, y ademas se queda corta por el otro lado. Lo que hay:
+
+       a) `ControlPreview.step` de nuevo_code_v3.py efectivamente NO resetea:
+          devuelve control=None y se guarda el valor interno.
+       b) Pero la candidata NO usa ese: usa `ControlPreviewV4`
+          (nuevo_code_v4.py:129-132), que SI hace `self.angle = 0.0` cuando
+          target is None. O sea que el escalon del hueco existe en el codigo
+          de la candidata, no solo en el arnes.
+       c) Y sin embargo ese preview esta MUERTO: `vision_linea.angulo()`
+          (vision_linea.py:233-234) devuelve `_angulo_de(t[0])`, el angulo
+          CRUDO del target. Nunca lee r["angle_control"]. El slew de 500 d/s
+          de ControlPreviewV4 no llega al robot.
+       d) Y en el hueco produccion no manda 0 NUNCA: `angulo()` devuelve None,
+          y Main.py (linea 870-872) conserva el `angle` que la vision VIEJA
+          calculo ese mismo frame; y si la mascara vieja tambien esta vacia,
+          Main.py manda un barrido de `last_line_search_dir * 65` grados.
+
+     Consecuencia para la banda B: el hold se mide bajo el MODELO EXPLICITO
+     "el comando efectivo en el hueco es 0", que es el del arnes y el de
+     ControlPreviewV4, pero NO el de produccion. Las columnas |ds|max ef y
+     esc_ef son validas dentro de ese modelo y no se pueden trasladar tal cual
+     al robot. Esta es la limitacion mas fuerte de este experimento.
 
 QUE PUEDE Y QUE NO PUEDE MOVER ESTE EXPERIMENTO
 -----------------------------------------------
@@ -550,6 +567,20 @@ def main():
     print("     salir del hueco vale min(slew/fps, |raw|). Por eso 1500 y 1000")
     print("     d/s dan un |ds| max PEOR que no poner nada. La columna honesta")
     print("     para el latigazo de percepcion es '|ds|max T'.")
+    print("  3) MI CRITERIO DE ELECCION ESTA MAL Y LO DIGO AHORA QUE YA CORRIO.")
+    print("     'menor |ds| max' es MONOTONO en el slew: bajar el slew SIEMPRE")
+    print("     baja |ds| max hasta que se rompe un control. Un objetivo asi no")
+    print("     elige, arrastra: iba a devolver el valor mas chico de la banda")
+    print("     pasara lo que pasara, y si hubiera preregistrado 200 d/s habria")
+    print("     devuelto 200. Que el ganador sea el extremo de la banda es la")
+    print("     firma de eso. Ademas el criterio NO cobra el costo, que esta")
+    print("     medido en la columna de al lado: lag p90 +13.55 grados a 350")
+    print("     d/s contra +3.05 a 500 y +0.00 de 1000 para arriba.")
+    print("  4) Por eso el veredicto que reporto NO es 'poner 350 d/s'. Es:")
+    print("     sobre esta candidata el slew NO TIENE NADA QUE CORTAR. El")
+    print("     latigazo que justificaba el slew en V1 (88 grados) aca no")
+    print("     existe: el SpatialTargetGuard ya topea en 27. Bajar de ahi es")
+    print("     comprar retardo a cambio de un numero que ya estaba acotado.")
 
     # ---- BANDA B: hold, con el slew elegido -----------------------------
     print("")

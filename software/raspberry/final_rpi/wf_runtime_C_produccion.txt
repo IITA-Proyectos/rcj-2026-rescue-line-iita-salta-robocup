@@ -1,0 +1,292 @@
+
+====================================================================================================
+  WF RUNTIME - costo de CPU por variante del seguimiento de linea
+  presupuesto 30.00 ms/frame  (33.333 fps nominales)
+====================================================================================================
+
+  MAQUINA   Windows-10-10.0.26200-SP0 / AMD64   24 nucleos
+            python 3.11.9  numpy 2.4.6  opencv 5.0.0 (hilos 1)  skimage 0.26.0
+  VIDEOS    hist.avi, lineal.avi, roi_auto.avi   warmup 100 frames por video   reps limpias 4
+
+  *** ESTA NO ES UNA RASPBERRY PI. Los ms absolutos NO valen. ***
+  *** Solo vale la RAZON entre variantes.                     ***
+
+----------------------------------------------------------------------------------------------------
+  0. poi_component: quien lee r['poi'] (escaneo del fuente)
+----------------------------------------------------------------------------------------------------
+     nuevo_code_v3.py       :61    def poi_component(comp, ref_x=None):
+     nuevo_code_v3.py       :353   r["poi"] = poi_component(r.get("comp"), ref)
+     nuevo_code_v3.py       :394   p = r["poi"].get(key)
+     nuevo_code_v4.py       :171   r["poi"] = v3.poi_component(r.get("comp"), ref)
+     nuevo_code_v4.py       :207   p = r["poi"].get(key)
+
+     lecturas de r['poi']: 2   -> nuevo_code_v3.py:394, nuevo_code_v4.py:207
+
+----------------------------------------------------------------------------------------------------
+  1. FIDELIDAD - con la variante apagada tiene que dar el MISMO target
+----------------------------------------------------------------------------------------------------
+     candidata pristina: 6506 frames en 15.3 s
+     shim CAMINO+MONO apagado : 0 discrepancias de serie   selector re-implementado 0/5115 frames mal   OK
+     poi_component anulado    : 0 discrepancias   OK
+     instrumentacion          : 0 discrepancias   OK
+
+----------------------------------------------------------------------------------------------------
+  2. CONTROL: CAMINO+MONO encendido cambia 3460 de 6506 targets (53.2 %)
+     camino aplicado 5116 frames (vacio 1)   mono aplicado 4647 (vacio 468)
+     Si esto fuera 0 la medicion de costo no significaria nada.
+
+----------------------------------------------------------------------------------------------------
+  3. PASADAS LIMPIAS - sin perfilador y sin un solo espia instalado
+----------------------------------------------------------------------------------------------------
+     rep 1/4  orden BASE > C+M > V1 > BASE sin POI > C+M sin POI > PROD base+shim > PROD camino+kappa  92.6 s
+     rep 2/4  orden C+M > V1 > BASE sin POI > C+M sin POI > PROD base+shim > PROD camino+kappa > BASE  171.6 s
+     rep 3/4  orden V1 > BASE sin POI > C+M sin POI > PROD base+shim > PROD camino+kappa > BASE > C+M  254.5 s
+     rep 4/4  orden BASE sin POI > C+M sin POI > PROD base+shim > PROD camino+kappa > BASE > C+M > V1  339.5 s
+
+  TIEMPO TOTAL POR FRAME  (preprocess + step, ms). 24824 frames por variante
+  variante                  media      p50      p90      p99      max x BASE p50 x BASE med
+  BASE                      1.385    1.405    1.791    3.057   30.654     1.000     1.000
+  CAMINO+MONO               1.517    1.541    1.974    3.641   37.432     1.097     1.096
+  V1                        0.440    0.410    0.544    1.300   21.626     0.292     0.318
+  BASE sin POI              1.323    1.296    1.694    3.541   84.006     0.923     0.955
+  CAMINO+MONO sin POI       1.395    1.417    1.819    3.301   49.490     1.009     1.007
+  PROD base+shim            1.421    1.449    1.840    3.106   10.146     1.032     1.026
+  PROD camino+kappa         1.602    1.602    2.146    3.766   47.767     1.141     1.156
+
+  DELTA CONTRA BASE  (ms por frame)
+  variante                  d media      d p50      d p90      d p99
+  BASE                       +0.000     +0.000     +0.000     +0.000
+  CAMINO+MONO                +0.132     +0.136     +0.183     +0.583
+  V1                         -0.945     -0.994     -1.247     -1.757
+  BASE sin POI               -0.062     -0.109     -0.097     +0.484
+  CAMINO+MONO sin POI        +0.010     +0.013     +0.028     +0.244
+  PROD base+shim             +0.036     +0.045     +0.049     +0.048
+  PROD camino+kappa          +0.217     +0.197     +0.355     +0.709
+
+  POR VIDEO  (p50 ms, pasadas limpias agrupadas)
+  variante                   hist.avi   lineal.avi roi_auto.avi
+  BASE                          1.349        1.381        1.435
+  CAMINO+MONO                   1.505        1.500        1.566
+  V1                            0.399        0.399        0.421
+  BASE sin POI                  1.240        1.269        1.323
+  CAMINO+MONO sin POI           1.376        1.384        1.445
+  PROD base+shim                1.424        1.433        1.464
+  PROD camino+kappa             1.552        1.541        1.643
+
+  DISPERSION ENTRE REPETICIONES (p50 de cada rep, ms) - ruido de la PC
+  variante               p50 por rep
+  BASE                   1.429  1.347  1.418  1.438   (spread 0.092 ms)
+  CAMINO+MONO            1.561  1.538  1.513  1.559   (spread 0.048 ms)
+  V1                     0.416  0.404  0.412  0.410   (spread 0.012 ms)
+  BASE sin POI           1.322  1.254  1.307  1.302   (spread 0.068 ms)
+  CAMINO+MONO sin POI    1.452  1.371  1.441  1.422   (spread 0.081 ms)
+  PROD base+shim         1.451  1.399  1.488  1.471   (spread 0.089 ms)
+  PROD camino+kappa      1.677  1.520  1.653  1.593   (spread 0.158 ms)
+
+----------------------------------------------------------------------------------------------------
+  4. DESGLOSE POR ETAPA (tiempo EXCLUSIVO, ms)
+----------------------------------------------------------------------------------------------------
+
+  --- BASE ---   6206 frames   ALGORITMO media 1.338  p50 1.385  p90 1.693  p99 2.566  max 13.108 ms
+      etapa                      media       p50       p90       max    % tot
+      frame_pi                  0.0039    0.0037    0.0047    0.1098     0.3
+      mask_linea                0.1127    0.1053    0.1288    1.5959     8.4
+      cc_candidates             0.2034    0.1841    0.2651    2.2686    15.2
+      component_distance        0.0831    0.0652    0.1303    9.3536     6.2
+      choose_component          0.0094    0.0085    0.0115    0.2919     0.7
+      fill_contornos            0.0324    0.0305    0.0416    1.2604     2.4
+      state                     0.0131    0.0119    0.0155    0.7131     1.0
+      skeletonize               0.2844    0.3295    0.4350    2.4218    21.3
+      graph_from_skeleton       0.1709    0.1749    0.2471    1.4958    12.8
+      dijkstra                  0.0416    0.0404    0.0649    1.5150     3.1
+      reconstruct               0.0040    0.0047    0.0058    0.1798     0.3
+      runs_1d                   0.0436    0.0436    0.0603    1.2475     3.3
+      path_target               0.1687    0.1764    0.2414    2.8741    12.6
+      percepcion_resto          0.0479    0.0363    0.0923    1.1124     3.6
+      spatial_guard             0.0024    0.0012    0.0015    0.1487     0.2
+      ctrl                      0.0145    0.0135    0.0166    0.8812     1.1
+      poi_component             0.0925    0.0888    0.1142    1.8852     6.9
+      v4_resto                  0.0090    0.0079    0.0098    1.0629     0.7
+      (decode, no cuenta)       0.4938    0.4466    0.6014    5.0935       -
+      interprete de Python (aprox) 32.8 % del frame
+
+  --- CAMINO+MONO ---   6206 frames   ALGORITMO media 1.490  p50 1.525  p90 1.916  p99 3.325  max 11.933 ms
+      etapa                      media       p50       p90       max    % tot
+      frame_pi                  0.0041    0.0039    0.0049    0.2527     0.3
+      mask_linea                0.1159    0.1074    0.1298    2.3724     7.8
+      cc_candidates             0.2065    0.1813    0.2672    3.1222    13.9
+      component_distance        0.0822    0.0651    0.1310    2.4328     5.5
+      choose_component          0.0092    0.0085    0.0115    0.3399     0.6
+      fill_contornos            0.0324    0.0310    0.0415    1.2781     2.2
+      state                     0.0146    0.0120    0.0153    4.5971     1.0
+      skeletonize               0.2917    0.3309    0.4344    5.2140    19.6
+      graph_from_skeleton       0.1729    0.1728    0.2459    2.8416    11.6
+      dijkstra                  0.0428    0.0411    0.0645    3.5167     2.9
+      reconstruct               0.0045    0.0047    0.0059    0.8855     0.3
+      runs_1d                   0.0485    0.0450    0.0617    3.6103     3.3
+      path_target               0.1835    0.1867    0.2516    5.1190    12.3
+      camino_extra              0.0169    0.0160    0.0208    9.4935     1.1
+      mono_extra                0.0507    0.0538    0.0860    1.5668     3.4
+      shim_resel                0.0380    0.0390    0.0558    4.0174     2.5
+      percepcion_resto          0.0484    0.0367    0.0893    2.4961     3.3
+      spatial_guard             0.0023    0.0013    0.0016    0.4052     0.2
+      ctrl                      0.0149    0.0133    0.0166    1.2394     1.0
+      poi_component             0.0996    0.0900    0.1149    2.9005     6.7
+      v4_resto                  0.0101    0.0080    0.0101    5.6288     0.7
+      (decode, no cuenta)       0.5784    0.4659    0.7744    9.1629       -
+      interprete de Python (aprox) 38.1 % del frame
+
+  --- V1 ---   6206 frames   ALGORITMO media 0.420  p50 0.401  p90 0.527  p99 1.136  max 2.571 ms
+      etapa                      media       p50       p90       max    % tot
+      v1_frame                  0.0037    0.0036    0.0047    0.0917     0.9
+      v1_mascara                0.0834    0.0772    0.0934    1.2881    19.8
+      v1_contorno               0.1262    0.1129    0.1799    1.5638    30.0
+      v1_confianza              0.0359    0.0349    0.0454    1.0774     8.5
+      v1_poi                    0.1313    0.1242    0.1674    1.9517    31.2
+      v1_interpretar            0.0127    0.0115    0.0151    0.7007     3.0
+      v1_resto                  0.0270    0.0248    0.0296    1.1839     6.4
+      (decode, no cuenta)       0.4893    0.4358    0.6116    6.3382       -
+      interprete de Python (aprox) 33.0 % del frame
+
+  --- BASE sin POI ---   6206 frames   ALGORITMO media 1.437  p50 1.377  p90 2.079  p99 3.566  max 45.723 ms
+      etapa                      media       p50       p90       max    % tot
+      frame_pi                  0.0049    0.0044    0.0054    0.7573     0.3
+      mask_linea                0.1353    0.1154    0.1550    3.0734     9.4
+      cc_candidates             0.2374    0.1996    0.3071    3.2925    16.5
+      component_distance        0.0945    0.0683    0.1431    3.7785     6.6
+      choose_component          0.0113    0.0094    0.0131    1.3233     0.8
+      fill_contornos            0.0369    0.0331    0.0458    1.6707     2.6
+      state                     0.0166    0.0129    0.0188    1.9817     1.2
+      skeletonize               0.3298    0.3450    0.4768   44.4896    23.0
+      graph_from_skeleton       0.1989    0.1832    0.2894    3.6992    13.8
+      dijkstra                  0.0494    0.0424    0.0715    2.4878     3.4
+      reconstruct               0.0047    0.0050    0.0063    0.6598     0.3
+      runs_1d                   0.0245    0.0248    0.0350    1.9826     1.7
+      path_target               0.2024    0.1893    0.2776    9.7178    14.1
+      percepcion_resto          0.0575    0.0398    0.1006    2.7594     4.0
+      spatial_guard             0.0026    0.0014    0.0019    0.2692     0.2
+      ctrl                      0.0193    0.0152    0.0204    6.2944     1.3
+      poi_component             0.0005    0.0005    0.0007    0.0859     0.0
+      v4_resto                  0.0103    0.0084    0.0107    1.4143     0.7
+      (decode, no cuenta)       0.6268    0.4939    0.8663   48.4894       -
+      interprete de Python (aprox) 34.2 % del frame
+
+  --- CAMINO+MONO sin POI ---   6206 frames   ALGORITMO media 1.482  p50 1.476  p90 2.055  p99 3.429  max 6.908 ms
+      etapa                      media       p50       p90       max    % tot
+      frame_pi                  0.0048    0.0044    0.0055    0.6122     0.3
+      mask_linea                0.1288    0.1149    0.1419    2.4201     8.7
+      cc_candidates             0.2263    0.1956    0.2972    3.1933    15.3
+      component_distance        0.0889    0.0674    0.1389    3.0532     6.0
+      choose_component          0.0110    0.0092    0.0126    1.5327     0.7
+      fill_contornos            0.0378    0.0328    0.0447    4.8526     2.6
+      state                     0.0157    0.0129    0.0176    1.1923     1.1
+      skeletonize               0.3130    0.3389    0.4593    5.3789    21.1
+      graph_from_skeleton       0.1899    0.1797    0.2696    4.8718    12.8
+      dijkstra                  0.0472    0.0425    0.0681    1.6125     3.2
+      reconstruct               0.0045    0.0050    0.0063    0.4794     0.3
+      runs_1d                   0.0235    0.0248    0.0346    1.7995     1.6
+      path_target               0.1980    0.1953    0.2809    4.3373    13.4
+      camino_extra              0.0158    0.0169    0.0225    1.4029     1.1
+      mono_extra                0.0541    0.0556    0.0889    3.9799     3.7
+      shim_resel                0.0388    0.0399    0.0577    1.9487     2.6
+      percepcion_resto          0.0535    0.0387    0.0943    4.9407     3.6
+      spatial_guard             0.0029    0.0014    0.0019    0.6987     0.2
+      ctrl                      0.0174    0.0147    0.0191    2.7523     1.2
+      poi_component             0.0005    0.0004    0.0006    0.0397     0.0
+      v4_resto                  0.0095    0.0082    0.0103    0.7290     0.6
+      (decode, no cuenta)       0.5908    0.4788    0.8390   10.9487       -
+      interprete de Python (aprox) 39.3 % del frame
+
+  --- PROD base+shim ---   6206 frames   ALGORITMO media 1.471  p50 1.499  p90 1.937  p99 3.069  max 10.037 ms
+      etapa                      media       p50       p90       max    % tot
+      frame_pi                  0.0048    0.0043    0.0053    1.2123     0.3
+      mask_linea                0.1240    0.1138    0.1354    1.4044     8.4
+      cc_candidates             0.2164    0.1895    0.2772    2.3240    14.7
+      component_distance        0.0873    0.0675    0.1367    5.2724     5.9
+      choose_component          0.0103    0.0091    0.0121    0.8652     0.7
+      fill_contornos            0.0345    0.0326    0.0433    1.6740     2.3
+      state                     0.0142    0.0127    0.0163    1.1354     1.0
+      skeletonize               0.3022    0.3366    0.4509    3.8834    20.5
+      graph_from_skeleton       0.1805    0.1779    0.2581    3.1109    12.3
+      dijkstra                  0.0440    0.0421    0.0660    1.3242     3.0
+      reconstruct               0.0045    0.0049    0.0061    1.4954     0.3
+      runs_1d                   0.0481    0.0470    0.0635    2.9079     3.3
+      path_target               0.1851    0.1897    0.2576    3.6262    12.6
+      shim_resel                0.0409    0.0432    0.0653    1.7260     2.8
+      percepcion_resto          0.0508    0.0380    0.0964    2.3283     3.4
+      spatial_guard             0.0025    0.0013    0.0018    0.2594     0.2
+      ctrl                      0.0158    0.0148    0.0183    1.1366     1.1
+      poi_component             0.0961    0.0924    0.1122    1.5987     6.5
+      v4_resto                  0.0092    0.0084    0.0102    0.7228     0.6
+      (decode, no cuenta)       0.5474    0.4663    0.7455    4.5582       -
+      interprete de Python (aprox) 34.9 % del frame
+
+  --- PROD camino+kappa ---   6206 frames   ALGORITMO media 1.577  p50 1.606  p90 2.006  p99 3.248  max 41.961 ms
+      etapa                      media       p50       p90       max    % tot
+      frame_pi                  0.0046    0.0044    0.0053    0.8835     0.3
+      mask_linea                0.1202    0.1137    0.1341    1.8514     7.6
+      cc_candidates             0.2149    0.1886    0.2722    3.2233    13.6
+      component_distance        0.0850    0.0671    0.1343    2.5333     5.4
+      choose_component          0.0099    0.0090    0.0120    0.4147     0.6
+      fill_contornos            0.0331    0.0321    0.0425    1.1186     2.1
+      state                     0.0140    0.0126    0.0158    1.5340     0.9
+      skeletonize               0.3003    0.3314    0.4377   33.9763    19.0
+      graph_from_skeleton       0.1797    0.1761    0.2502   21.4525    11.4
+      dijkstra                  0.0448    0.0416    0.0638    8.9199     2.8
+      reconstruct               0.0116    0.0117    0.0156    0.7743     0.7
+      runs_1d                   0.0527    0.0471    0.0631   38.4907     3.3
+      path_target               0.1837    0.1908    0.2547    3.4354    11.6
+      camino_extra              0.0146    0.0165    0.0215    0.8575     0.9
+      mono_extra                0.0509    0.0542    0.0857    2.3587     3.2
+      shim_resel                0.0352    0.0395    0.0554    1.3317     2.2
+      percepcion_resto          0.0499    0.0380    0.0913    1.4042     3.2
+      spatial_guard             0.0024    0.0013    0.0018    0.1538     0.2
+      ctrl                      0.0151    0.0143    0.0176    0.9363     1.0
+      poi_component             0.0989    0.0919    0.1103   20.3971     6.3
+      v4_resto                  0.0097    0.0084    0.0103    2.9329     0.6
+      curvatura_prod            0.0455    0.0424    0.0608    2.4906     2.9
+      (decode, no cuenta)       0.5526    0.4690    0.6886   28.1383       -
+      interprete de Python (aprox) 39.9 % del frame
+
+  OVERHEAD DEL PERFILADOR  (instrumentado p50 - limpio p50)
+  variante                   limpio    instrum    delta %
+  BASE                        1.405      1.385       -1.4
+  CAMINO+MONO                 1.541      1.525       -1.0
+  V1                          0.410      0.401       -2.2
+  BASE sin POI                1.296      1.377       +6.3
+  CAMINO+MONO sin POI         1.417      1.476       +4.1
+  PROD base+shim              1.449      1.499       +3.4
+  PROD camino+kappa           1.602      1.606       +0.3
+
+----------------------------------------------------------------------------------------------------
+  5. poi_component - cuanto pesa y cuanto se ahorra sacandolo
+----------------------------------------------------------------------------------------------------
+     peso medido de la etapa poi_component en BASE: 0.0925 ms = 6.91 % del frame
+     (poi_component llama a runs_1d: parte de su costo real esta
+      contabilizado en la etapa runs_1d, 0.0436 ms totales)
+     BASE                 -> BASE sin POI          p50 1.405 -> 1.296 ms  (-0.109 ms, -7.72 %)
+     CAMINO+MONO          -> CAMINO+MONO sin POI   p50 1.541 -> 1.417 ms  (-0.123 ms, -8.00 %)
+
+====================================================================================================
+  LECTURA
+====================================================================================================
+  CAMINO+MONO cuesta x1.097 el p50 de BASE (+0.136 ms/frame en ESTA PC).
+  De ese sobrecosto, 0.0676 ms/frame son las etapas NUEVAS de verdad
+  (camino_extra + mono_extra) y 0.0380 ms/frame son la RE-SELECCION
+  DUPLICADA que paga el shim y que una implementacion in-place no
+  pagaria. Cota inferior de produccion: x1.049. Cota superior (shim tal
+  cual): x1.096.
+
+  V1 cuesta x0.292 el p50 de BASE: es 70.8 % mas BARATA (-0.994 ms).
+  Es decir, BASE cuesta x3.42 lo que cuesta V1.
+
+  EL TIEMPO ABSOLUTO DE ESTA PC NO PREDICE EL DE LA PI. Ninguno de los
+  ms de arriba es un pronostico. Lo unico que se puede llevar a la Pi
+  es la RAZON entre variantes, y con reserva: el mix interprete/
+  compilado cambia entre x86 y ARM (ver la fila 'interprete de Python'
+  de cada variante). Si una variante es mas pesada JUSTO en la parte
+  interpretada, en la Pi la razon puede ser PEOR que aca.
+====================================================================================================
+
+  JSON: C:/Users/villa/AppData/Local/Temp/claude/C--Users-villa-rcj-2026-rescue-line-iita-salta-robocup-priority-fixes/01902b82-e6c4-4464-aea2-f64d7ce51b38/scratchpad/wf_runtime_prod.json
+EXIT_PROD=0

@@ -65,18 +65,34 @@ inline constexpr bool kFixLazoLineaSensoresBloqueantes = true;
 // de esa rampa dice que se midio en pista.
 //
 // El problema es que FRENA TARDE: absSteer sube cuando la curva ya esta encima,
-// porque el steer sale de un target a lookahead fijo. Del lado Raspberry ya se
-// midio que la curvatura del camino visible avisa la curva con ~1 segundo de
-// anticipacion en el 84 % de los casos (curva_cerrada.py, 13.220 frames).
+// porque el steer sale de un target a lookahead fijo.
 //
-// Con este flag, ese aviso llega: la Raspberry manda un speed menor ANTES de
-// entrar, y el robot llega a la curva ya frenado. Es la desigualdad que no se
-// negocia: v_max = omega_max * R.
+// APAGADO EL 25-ago. LA JUSTIFICACION QUE TENIA SE CAYO.
 //
-// SEGURIDAD. Si la Raspberry manda 0 o un valor absurdo NO se obedece: se usa el
-// 45 de siempre. Un byte perdido o una trama corrupta no puede frenar el robot.
-// El rango aceptado se eligio alrededor del 45 historico.
-inline constexpr bool kFixVelocidadDesdeVision = true;
+// Este comentario decia: "del lado Raspberry ya se midio que la curvatura del
+// camino visible avisa la curva con ~1 segundo de anticipacion en el 84 % de
+// los casos". Ese numero NO VALE. El test que lo produjo (`curva_cerrada.py`)
+// preguntaba si habia ALGUNA kappa sobre el umbral en los 40 frames previos y
+// se quedaba con la MAS ANTIGUA, sin cortar el lazo. Con el umbral en el p75 el
+// 25 % de los frames lo supera, asi que "al menos uno en 40" sale casi siempre
+// por azar, y el lead grande tambien.
+//
+// Rehecho con precision, tasa base y placebo (`curva_cerrada2.py`, 13.900
+// frames): el lift maximo es 1,47x contra la base y 1,26x contra el placebo,
+// por debajo del 1,5 preregistrado. Con el KAPPA_REF de produccion (139,5) da
+// 1,38x a 10 frames y 1,09x a 40. La anticipacion NO esta demostrada.
+// Lo encontro ChatGPT en la auditoria del 25-ago.
+//
+// Y hay una segunda razon para apagarlo, de diseno experimental: con la
+// anticipacion tambien apagada del lado Raspberry (VEL_ANTICIPADA), este flag
+// haria que la Teensy use el 40 que manda Main.py en vez del 45 historico. Eso
+// es un cambio de velocidad que se colaria adentro de una prueba de PERCEPCION.
+// Un cambio por fase.
+//
+// SEGURIDAD, cuando se vuelva a encender. Si la Raspberry manda 0 o un valor
+// absurdo NO se obedece: se usa el 45 de siempre. Un byte perdido o una trama
+// corrupta no puede frenar el robot. El rango se eligio alrededor del 45.
+inline constexpr bool kFixVelocidadDesdeVision = false;
 inline constexpr int  kVelVisionMin = 20;    // por debajo se ignora
 inline constexpr int  kVelVisionMax = 60;    // por encima se ignora
 
@@ -98,5 +114,13 @@ inline constexpr int  kVelVisionMax = 60;    // por encima se ignora
 // se exige que la condicion se sostenga varias vueltas seguidas del lazo.
 inline constexpr bool kFixWatchdogComunicacion = true;
 inline constexpr unsigned long kWatchdogMs = 400;   // sin trama valida
-inline constexpr int kWatchdogVueltas = 10;         // vueltas de confirmacion
+inline constexpr int kWatchdogVueltas = 10;         // OBSOLETO: ver kWatchdogConfirmaMs
+// Confirmacion por TIEMPO, no por vueltas del lazo.
+//
+// Estaba en 10 vueltas, y eso se rompia justo con el otro fix de este archivo:
+// sacar el ToF bloqueante baja el periodo del lazo de ~30 ms a menos de 10, asi
+// que "10 vueltas" pasaba de ~300 ms a ~100 sin que nadie lo decidiera. Un
+// criterio de seguridad no puede cambiar de significado porque otra bandera se
+// encienda. (Auditoria de ChatGPT, 25-ago.)
+inline constexpr unsigned long kWatchdogConfirmaMs = 300;
 } // namespace priority_fix_flags

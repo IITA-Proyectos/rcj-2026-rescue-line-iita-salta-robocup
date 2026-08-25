@@ -273,7 +273,9 @@ int g_line_branch = 0;
 // ultimo `steer` para siempre y el robot se va derecho creyendo que obedece.
 // Con esto, en la telemetria se ve al instante si el comando esta rancio.
 unsigned long g_last_rx_ms = 0;
-int  g_wd_vueltas = 0;      // vueltas seguidas con la trama vieja
+int  g_wd_vueltas = 0;      // OBSOLETO, se dejo por compatibilidad
+unsigned long g_wd_stale_ms = 0;  // desde cuando la trama esta vieja (0 = no)
+unsigned long g_wd_ref_ms = 0;    // referencia si NUNCA llego una trama
 bool g_wd_activo  = false;  // el watchdog esta frenando
 
 // Copia INTOCABLE del ultimo angulo que mando la RPi. La global `steer` la
@@ -3152,14 +3154,33 @@ void loop()
             // quieto: el robot se va de la pista solo. Ver priority_fix_flags.h.
             if (fixWatchdogComunicacionEnabled())
             {
-                const long edadRx = g_last_rx_ms
-                                  ? (long)(millis() - g_last_rx_ms) : -1L;
-                if (edadRx >= 0 && (unsigned long)edadRx > priority_fix_flags::kWatchdogMs)
-                    ++g_wd_vueltas;
+                // Si NUNCA llego una trama, `g_last_rx_ms` vale 0. La version
+                // anterior calculaba edadRx = -1 en ese caso y la comparacion
+                // `edadRx >= 0` lo dejaba pasar: con la Raspberry muerta DESDE
+                // EL ARRANQUE -que es el caso mas peligroso, porque el robot
+                // nunca recibe nada y ejecuta el default- el watchdog no
+                // disparaba nunca. Se cuenta desde la entrada al lazo de linea.
+                // (Auditoria de ChatGPT, 25-ago.)
+                if (g_wd_ref_ms == 0)
+                    g_wd_ref_ms = millis();
+                const unsigned long ref = g_last_rx_ms ? g_last_rx_ms
+                                                       : g_wd_ref_ms;
+                const long edadRx = (long)(millis() - ref);
+                if ((unsigned long)edadRx > priority_fix_flags::kWatchdogMs)
+                {
+                    if (g_wd_stale_ms == 0)
+                        g_wd_stale_ms = millis();
+                }
                 else
-                    g_wd_vueltas = 0;
+                {
+                    g_wd_stale_ms = 0;
+                }
 
-                if (g_wd_vueltas >= priority_fix_flags::kWatchdogVueltas)
+                // confirmacion por TIEMPO: no depende del periodo del lazo,
+                // que el otro fix de priority_fix_flags.h cambia a proposito
+                if (g_wd_stale_ms != 0 &&
+                    (millis() - g_wd_stale_ms)
+                        >= priority_fix_flags::kWatchdogConfirmaMs)
                 {
                     if (!g_wd_activo)
                     {

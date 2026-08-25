@@ -2,6 +2,32 @@
 """
 LEY DE STEER - separar POSICION de RUMBO. Defecto 3.5.1 del traspaso.
 
+QUE ES Y QUE NO ES, ANTES QUE NADA
+----------------------------------
+Esto es un controlador EXPERIMENTAL INSPIRADO EN LA ESTRUCTURA DE STANLEY. No
+es el Stanley de Thrun et al. y la demostracion de convergencia de ese paper NO
+aplica aca. Las cuatro diferencias, todas reales (auditoria de ChatGPT, 25-ago):
+
+  * el cross-track de Stanley se define desde el EJE DELANTERO respecto del
+    punto mas cercano de la trayectoria; el de aca se mide en la fila mas baja
+    de la imagen (ver la nota de `d_eje` mas abajo);
+  * `v` de Stanley es la velocidad longitudinal FISICA; aca es el factor
+    relativo [0,55 , 1,0] que la vision pide, y la Teensy lo vuelve a
+    transformar con su PID, el pivote y el patinaje;
+  * Stanley se demuestra sobre un modelo BICYCLE; este robot es skid-steer de
+    4 ruedas fijas;
+  * Stanley lleva coeficiente 1 sobre `psi`; aca toda la expresion se escala
+    por `g`.
+
+Lo que la estructura de Stanley aporta, y es lo unico que se reclama: DOS
+terminos con ganancias separadas, y el de posicion dividido por la velocidad.
+Nada mas.
+
+Para este problema exacto -camara fija, camino visible, robot no holonomico- la
+referencia mas cercana es el visual servoing de Cherubini, Chaumette y Oriolo,
+que usa el primer punto visible del camino y su tangente. Vale mirarlo, y NO se
+lo esta implementando aca.
+
 QUE ARREGLA
 -----------
 La ley de produccion es un solo numero:
@@ -30,16 +56,28 @@ NO es un modulo de percepcion. No elige el target, no toca la mascara, no toca
 el esqueleto. Consume el dict que la candidata YA devuelve y produce un numero.
 Es puro: misma entrada, misma salida, sin estado.
 
-POR QUE d_eje NO LO BLOQUEA
----------------------------
+POR QUE d_eje NO BLOQUEA EL CALCULO, Y POR QUE IGUAL IMPORTA
+-----------------------------------------------------------
 `d_eje` -la distancia del eje de rotacion al punto del piso de la fila 119- esta
-sin medir y tiene suspendido a T4. Pure pursuit lo necesita, porque el bearing
-al target se toma DESDE el eje de rotacion.
+sin medir y tiene suspendido a T4. Pure pursuit lo necesita de frente, porque el
+bearing al target se toma DESDE el eje de rotacion.
 
-Stanley no. `d_eje` es un corrimiento a lo largo de Z, y:
-  * la tangente del camino (psi) es invariante a una traslacion en Z;
-  * el cross-track en la fila mas baja (e) es una coordenada X, ortogonal a Z.
-Ninguno de los dos cambia. Por eso esta tarea se puede hacer con la Pi apagada.
+Las cantidades que calcula este modulo NO lo necesitan: `psi` es una direccion
+-invariante a una traslacion en Z- y `e` es una coordenada X en una fila fija.
+Por eso esto se pudo escribir con la Pi apagada.
+
+PERO -y la primera version de este archivo decia "d_eje no importa", que es
+demasiado fuerte- lo que se calcula NO es el cross-track canonico. El de
+Stanley se toma en el eje del vehiculo; el de aca, en la fila 119. Los dos
+difieren en
+
+    d_eje * sin(psi)
+
+que se anula solo con el camino paralelo al robot. Con el `|psi|` que este
+sistema tiene de mediana -unos 45 grados- el factor es 0,71: el sesgo es del
+mismo orden que `d_eje`. O sea que `e` es un PROXY del cross-track, bueno en
+recta y peor cuanto mas dobla, y medir `d_eje` sigue haciendo falta para saber
+cuanto vale ese "peor".
 
 LO QUE SIGUE SIN CALIBRAR, Y SE REPORTA EN BANDA
 ------------------------------------------------
@@ -189,6 +227,11 @@ def steer_stanley(res, v_norm=1.0, k=1.0, k_psi=1.0, g=1.0,
     Separar posicion de rumbo es REPARTIR esa autoridad entre dos terminos, no
     recortarla. `g` se calibra una sola vez para conservarla y despues no se
     toca.
+
+    Escalar toda la expresion por `g` es otra cosa que se aparta del Stanley
+    canonico, que lleva coeficiente 1 sobre `psi`. Es legitimo como controlador
+    empirico y es lo que permite conservar la autoridad; no es lo que el paper
+    demuestra.
     """
     c = componentes(res, v_norm, k, k_psi, g, hfov, arco)
     return None if c is None else c["delta"]

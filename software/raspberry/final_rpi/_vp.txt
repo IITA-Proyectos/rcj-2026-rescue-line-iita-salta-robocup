@@ -1,0 +1,13 @@
+  buscando frames donde eligen distinto...
+    lineal70.avi     400 frames distintos
+    como_esta.avi    671 frames distintos
+    rumbo.avi        442 frames distintos
+    a.avi            246 frames distintos
+    roi_auto.avi     1236 frames distintos
+    con_planner.avi  260 frames distintos
+    con_planner2.avi 476 frames distintos
+  220 tramos
+
+  REGISTRO_MONO.mp4   13207 frames   396.2 s   185.2 MB
+[mjpeg @ 00000229fffddf80] overread 8
+[mjpeg @ 00000229ad62df80] overread 8
