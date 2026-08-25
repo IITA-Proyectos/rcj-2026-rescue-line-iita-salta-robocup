@@ -15,6 +15,10 @@ orden para que la deriva térmica no le pegue siempre a la misma.
   B  la misma visión, ley Stanley       (+ LEY_STEER=stanley)
   C  sólo la ley, sobre dicts ya calculados -para separar los dos costos-
 
+Las dos variantes miden `angulo()` **y** `velocidad()`, que es lo que `Main.py`
+hace por frame. Ver el comentario de `medir()`: medir sólo `angulo()` le cobra a
+la ley el costo de la curvatura, que en producción se paga igual sin ella.
+
 ESTO NO ES EL RUNTIME DE LA PI. Esta máquina no es una Raspberry 4B. Lo que se
 puede leer acá es la RAZÓN entre las variantes, no el número absoluto: para el
 absoluto está `bench_runtime.py`, y hay que correrlo EN la Pi.
@@ -69,13 +73,23 @@ def frames(v2, n):
 
 
 def medir(vl, gs):
-    """ms por frame del paso completo. Devuelve el vector, no el promedio."""
+    """ms por frame de lo que Main.py hace de verdad: angulo() Y velocidad().
+
+    Las dos, siempre, en las dos variantes. La primera version media solo
+    `angulo()` y daba +7,0 % de sobrecosto, que era un artefacto: con la ley
+    apagada `angulo()` no toca la curvatura, y con la ley encendida si -la
+    necesita como `v`-. Pero en produccion la curvatura se paga IGUAL en los dos
+    casos, porque `Main.py` llama `velocidad(speed)` en la linea siguiente y el
+    factor esta cacheado por frame. Comparar una contra la otra era comparar
+    dos cosas distintas y cobrarle a la ley un costo que ya estaba.
+    """
     vl._tr = None
     vl._arrancar()
     t = np.empty(len(gs))
     for i, g in enumerate(gs):
         t0 = time.perf_counter()
         vl.angulo(g)
+        vl.velocidad(50)
         t[i] = (time.perf_counter() - t0) * 1000.0
     return t
 
@@ -134,12 +148,33 @@ def main():
             LS.componentes(r, v_norm=1.0, k=K, g=G)
             t[k] = (time.perf_counter() - t0) * 1000.0
             k += 1
+    solo = float(np.percentile(t, 50))
     print("")
     print("  C solo la ley, sobre dicts ya calculados: p50 %.4f ms  p90 %.4f ms"
-          % (np.percentile(t, 50), np.percentile(t, 90)))
+          % (solo, np.percentile(t, 90)))
     largos = [len(r.get("path") or []) for r in dicts]
     print("    largo del camino que recorre: p50 %d  p90 %d  max %d puntos"
           % (np.percentile(largos, 50), np.percentile(largos, 90), max(largos)))
+
+    print("")
+    print("  DISPERSION ENTRE REPETICIONES  (delta de p50, B menos A, en ms)")
+    deltas = [float(np.percentile(b, 50) - np.percentile(a, 50))
+              for a, b in zip(acc["A ley de hoy"], acc["B ley Stanley"])]
+    print("    %s   ->  min %+.3f   max %+.3f"
+          % ("  ".join("%+.3f" % d for d in deltas), min(deltas), max(deltas)))
+    print("")
+    print("  COMO LEER ESTO")
+    print("  La medicion directa (C) es la solida: %.1f microsegundos, o sea el"
+          % (solo * 1000))
+    print("  %.1f %% de un paso completo. El delta A-B de arriba es del MISMO"
+          % (100.0 * solo / base))
+    print("  ORDEN pero mas ruidoso -mirar la dispersion entre repeticiones-,")
+    print("  asi que el numero a citar es el de C, no el de la resta.")
+    print("")
+    print("  Y la referencia que importa: CAMINO+MONO entero costaba +0,126 ms")
+    print("  sobre el baseline, y apagar poi_component lo pago. Esto es una")
+    print("  fraccion de eso. Igual, el numero que manda es el de la Pi:")
+    print("  bench_runtime.py, y todavia no se corrio ahi.")
     print("=" * 92)
     return 0
 
