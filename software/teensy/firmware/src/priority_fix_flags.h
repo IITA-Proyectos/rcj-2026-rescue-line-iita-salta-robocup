@@ -123,4 +123,88 @@ inline constexpr int kWatchdogVueltas = 10;         // OBSOLETO: ver kWatchdogCo
 // criterio de seguridad no puede cambiar de significado porque otra bandera se
 // encienda. (Auditoria de ChatGPT, 25-ago.)
 inline constexpr unsigned long kWatchdogConfirmaMs = 300;
+
+// ===========================================================================
+//  PERIODO DEL LAZO, SEGUNDA VUELTA.  25-ago-2026
+//
+//  kFixLazoLineaSensoresBloqueantes saco el ToF (33 ms) del lazo de linea. Pero
+//  dejo `leer_ultrasonido_frontal()`, y ESE es ahora el que domina.
+//
+//  El numero, de la propia libreria vendorizada en lib/NewPing/NewPing.h:
+//      US_ROUNDTRIP_CM  = 57 us/cm      (NewPing.h:163)
+//      MAX_SENSOR_DELAY = 5800 us       (NewPing.h:172)
+//      _maxEchoTime = MAX_DISTANCE * 57 + 28
+//  Con MAX_DISTANCE = 150 (main.cpp:1230) eso da 8578 us = 8,58 ms, MAS hasta
+//  5800 us si el sensor tarda en arrancar el ping: 14,4 ms de peor caso.
+//
+//  Y ES EL CASO NORMAL, no el raro: `ping_cm()` bloquea hasta el TIMEOUT cuando
+//  NO hay eco, y en seguimiento de linea casi nunca hay una pared a menos de
+//  150 cm adelante. O sea que en pista abierta se pagan 8,6 ms por vuelta para
+//  que la unica pregunta del lazo -`front_distance < 12`- de siempre "no hay
+//  nada". El sensor NO es lento: el timeout esta puesto 5 veces mas lejos de lo
+//  que el lazo pregunta.
+// ===========================================================================
+
+// (1) Pedirle al ping frontal solo la distancia que el lazo de linea usa.
+//
+// `NewPing::ping_cm(unsigned int max_cm_distance = 0)` acepta la distancia por
+// llamada (NewPing.h:223), asi que no hay que tocar el objeto ni el resto de
+// las rutinas. El lazo de linea pregunta `front_distance < 12`; con 30 cm de
+// techo sobra el doble y el timeout cae a 30*57+28 = 1738 us.
+//
+//      8578 us  ->  1738 us     -6,84 ms por vuelta, 4,9x
+//
+// OJO: `set_max_distance()` PERSISTE en el objeto, asi que las otras rutinas
+// -evacuacion usa `front_distance < 120`- tienen que pasar su propio valor.
+// Por eso el fix pasa el numero EXPLICITO en los dos lados.
+inline constexpr bool kFixPingFrontalCorto = true;
+inline constexpr unsigned int kPingLineaCm = 30;    // el lazo pregunta < 12
+inline constexpr unsigned int kPingLargoCm = 150;   // el resto, como siempre
+
+// (2) No pingear en CADA vuelta.
+//
+// A 30 cm/s el robot recorre 3 mm en 10 ms. Un obstaculo no aparece entre dos
+// vueltas del lazo, y el umbral es de 12 cm. Pingear cada 40 ms deja 1,2 cm de
+// avance entre lecturas, que es un decimo del umbral.
+//
+// Con (1) y (2): 1738 us cada 40 ms en vez de 8578 us cada vuelta. Si el lazo
+// corre a 2 ms, el costo MEDIO del ultrasonido pasa de 8578 a ~87 us.
+inline constexpr bool kFixPingFrontalPeriodico = true;
+inline constexpr unsigned long kPingFrontalPeriodoMs = 40;
+
+// (3) I2C a 400 kHz.  APAGADO POR DEFECTO, Y HAY QUE MEDIRLO ANTES.
+//
+// No hay UN SOLO `Wire.setClock()` en las 4.146 lineas de main.cpp, asi que el
+// bus corre al default de `Wire.begin()`, que en Teensy 4.x es 100 kHz
+// (documentacion de PJRC). Todo lo que cuelga del bus paga eso:
+//
+//      enviarTelemetria()   dos lecturas del BNO055 (getEvent + getVector),
+//                           ~12 bytes utiles + overhead -> ~1,8 ms cada 100 ms
+//      get_color_fast()     colorDataReady() -> ~0,36 ms, hasta cada 2 ms
+//      leer_tof()           dos lecturas de 2 bytes (fuera del lazo de linea)
+//
+// A 400 kHz todo eso se divide por 4. `Wire.setClock()` soporta hasta 1 MHz en
+// Teensy 4.1.
+//
+// POR QUE VA APAGADO: los pull-up internos del Teensy 4.1 son debiles y el bus
+// tiene TRES esclavos (BNO055, APDS9960, dos VL53L0X). Si los modulos no traen
+// pull-up suficiente, a 400 kHz los flancos no llegan y el bus se cuelga -que
+// es peor que ser lento-. Es el unico fix de este bloque que puede ROMPER algo,
+// y no se enciende sin banco: 10 minutos leyendo los tres sensores seguidos y
+// mirando que ninguno devuelva basura ni se cuelgue.
+inline constexpr bool kFixI2cRapido = false;
+inline constexpr unsigned long kI2cHz = 400000UL;
+
+// (4) Presupuesto de medicion de los ToF.
+//
+// `readRangeContinuousMillimeters()` es espera activa hasta que hay muestra
+// nueva, y el presupuesto por defecto del VL53L0X es 33 ms (documentacion de
+// Pololu); el minimo admitido es 20 ms. Nunca se llamo
+// `setMeasurementTimingBudget()`.
+//
+// En el lazo de linea ya no se leen -ese es el fix anterior-, asi que esto NO
+// toca el periodo del seguimiento de linea. Importa en seguimiento de pared,
+// que si los relee: ahi cada lectura pasa de 33 a 20 ms.
+inline constexpr bool kFixTofPresupuesto = true;
+inline constexpr uint32_t kTofBudgetUs = 20000;
 } // namespace priority_fix_flags

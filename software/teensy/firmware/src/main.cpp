@@ -633,6 +633,30 @@ bool fixVelocidadDesdeVisionEnabled()
            priority_fix_flags::kFixVelocidadDesdeVision;
 }
 
+bool fixPingFrontalCortoEnabled()
+{
+    return priority_fix_flags::kEnableAllPriorityFixes ||
+           priority_fix_flags::kFixPingFrontalCorto;
+}
+
+bool fixPingFrontalPeriodicoEnabled()
+{
+    return priority_fix_flags::kEnableAllPriorityFixes ||
+           priority_fix_flags::kFixPingFrontalPeriodico;
+}
+
+bool fixI2cRapidoEnabled()
+{
+    return priority_fix_flags::kEnableAllPriorityFixes ||
+           priority_fix_flags::kFixI2cRapido;
+}
+
+bool fixTofPresupuestoEnabled()
+{
+    return priority_fix_flags::kEnableAllPriorityFixes ||
+           priority_fix_flags::kFixTofPresupuesto;
+}
+
 // Velocidad base de linea. Por defecto la de siempre; si la vision manda un
 // valor CREIBLE se le hace caso. Un byte perdido no puede frenar el robot.
 int velocidadBaseDeLinea()
@@ -1242,9 +1266,14 @@ int right_distance;
 // ULTRASONIDOS FRENTE IZQ DER
 void leer_ultrasonidos()
 {
-    front_distance = sonar[0].ping_cm();
-    left_distance = sonar[1].ping_cm();
-    right_distance = sonar[2].ping_cm();
+    // Rango LARGO explicito: si el lazo de linea corrio con kPingLineaCm, el
+    // objeto quedo con ese techo -set_max_distance() persiste- y evacuacion
+    // necesita 120 cm (`front_distance < 120`).
+    const unsigned int largo = fixPingFrontalCortoEnabled()
+                             ? priority_fix_flags::kPingLargoCm : 0;
+    front_distance = sonar[0].ping_cm(largo);
+    left_distance = sonar[1].ping_cm(largo);
+    right_distance = sonar[2].ping_cm(largo);
 }
 
 // Solo el frontal. Es el unico que el lazo de linea consulta en cada vuelta
@@ -1253,6 +1282,27 @@ void leer_ultrasonidos()
 // Ver kFixLazoLineaSensoresBloqueantes en priority_fix_flags.h.
 void leer_ultrasonido_frontal()
 {
+    // TIMEOUT CORTO. `ping_cm()` bloquea hasta el timeout cuando NO hay eco, y
+    // en linea casi nunca hay una pared a menos de 150 cm: el caso normal ES el
+    // peor caso. El lazo solo pregunta `front_distance < 12`, asi que 30 cm de
+    // techo sobra el doble y el timeout cae de 8578 a 1738 us.
+    // El valor va EXPLICITO porque set_max_distance() persiste en el objeto.
+    if (fixPingFrontalCortoEnabled())
+    {
+        // PERIODICO. A 30 cm/s el robot avanza 1,2 cm en 40 ms, un decimo del
+        // umbral de 12. No hace falta pingear en cada vuelta del lazo.
+        if (fixPingFrontalPeriodicoEnabled())
+        {
+            static unsigned long t_ping = 0;
+            unsigned long ahora = millis();
+            if (t_ping != 0 &&
+                (unsigned long)(ahora - t_ping) < priority_fix_flags::kPingFrontalPeriodoMs)
+                return;                       // se conserva la lectura anterior
+            t_ping = ahora;
+        }
+        front_distance = sonar[0].ping_cm(priority_fix_flags::kPingLineaCm);
+        return;
+    }
     front_distance = sonar[0].ping_cm();
 }
 
@@ -2886,13 +2936,35 @@ void setup()
     // apagado y puerto mudo, en la pista y delante del arbitro.
     // Regla general: un setTimeout() se configura en el mismo bloque donde se
     // construye el objeto, nunca despues de la primera llamada bloqueante.
+    // I2C a 400 kHz. Sin esto el bus corre al default de Wire.begin() en
+    // Teensy 4.x, que es 100 kHz, y TODO lo que cuelga del bus lo paga: las dos
+    // lecturas del BNO055 por telemetria, el colorDataReady() del APDS9960 y
+    // los dos ToF. APAGADO POR DEFECTO: los pull-up internos del Teensy 4.1 son
+    // debiles y hay tres esclavos en el bus. Ver priority_fix_flags.h.
+    if (fixI2cRapidoEnabled())
+    {
+        Wire.setClock(priority_fix_flags::kI2cHz);
+    }
+
     left_tof.setTimeout(500);
     right_tof.setTimeout(500);
 
     left_tof.init();
+    // Presupuesto de medicion: el default del VL53L0X es 33 ms y el minimo
+    // admitido 20 ms; nunca se habia llamado. En linea los ToF ya no se leen,
+    // asi que esto NO cambia el periodo del seguimiento de linea: importa en
+    // seguimiento de pared, que si los relee.
+    if (fixTofPresupuestoEnabled())
+    {
+        left_tof.setMeasurementTimingBudget(priority_fix_flags::kTofBudgetUs);
+    }
     left_tof.startContinuous();
 
     right_tof.init();
+    if (fixTofPresupuestoEnabled())
+    {
+        right_tof.setMeasurementTimingBudget(priority_fix_flags::kTofBudgetUs);
+    }
     right_tof.startContinuous();
 #endif   // !MODO_BANCO
     pinMode(FCL, INPUT);
