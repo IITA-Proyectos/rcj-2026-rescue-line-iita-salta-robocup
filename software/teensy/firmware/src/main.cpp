@@ -3814,6 +3814,24 @@ if (green_state == 2)
                     if (absSteer >= LINE_PIVOT_STEER) rot = 1.0;
                     if (rot > 1.0) rot = 1.0;
 
+                    // REMAPEO COMPLETO steer -> rot. Apagado por defecto; el
+                    // razonamiento, la tabla por decil y el falsador estan en
+                    // priority_fix_flags.h, fix (7).
+                    //
+                    //     rot = kMapeoRotMax * sqrt(|steer|)
+                    //
+                    // Usa `steer` CRUDO -sin LINE_STEER_GAIN- a proposito: la
+                    // ganancia 1,35 es uno de los tres eslabones que empujan
+                    // el rot de mas. Y pisa TAMBIEN el pivote pegajoso, que es
+                    // el otro. Con el flag apagado nada de esto existe.
+                    if (priority_fix_flags::kFixMapeoRot)
+                    {
+                        rot = priority_fix_flags::kMapeoRotMax *
+                              sqrt(fabs(steer));
+                        if (rot > priority_fix_flags::kMapeoRotMax)
+                            rot = priority_fix_flags::kMapeoRotMax;
+                    }
+
                     // TECHO DE ROT PARA QUE EL PIVOTE AVANCE. Apagado por
                     // defecto; el razonamiento y el falsador estan en
                     // priority_fix_flags.h, fix (5).

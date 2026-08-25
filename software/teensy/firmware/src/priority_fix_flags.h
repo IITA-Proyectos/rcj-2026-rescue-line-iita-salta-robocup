@@ -286,4 +286,67 @@ inline constexpr double kPivoteRotMax = 0.681;
 inline constexpr bool kFixWatchdogTramaFresca = false;
 // 250 ms: p90 del lazo es 95 ms y p99 es 445. Ver la tabla en main.cpp.
 inline constexpr unsigned long kSerialCiegoMs = 250;
+
+// (7) EL MAPEO steer -> rot PIDE RADIOS QUE NO EXISTEN. APAGADO POR DEFECTO.
+//
+// Derivado de la DISTRIBUCION REAL de lo que manda la Raspberry, no de teoria
+// -Benjamin, 26-ago: "guiate de lo que recibe y en base a eso hay q hacerlo"-.
+//
+// n = 50.962 muestras con comando fresco y speed > 0, sobre las SEIS corridas
+// del 22-ago que tienen tramas de la Pi. Las otras cuatro tienen rxf max = 0
+// -nunca llego una trama: son barridos de banco con la Pi callada-, asi que
+// para esta pregunta no aportan; para medir b_eff si aportaron (control C4).
+//
+//   decil  |steer|   rot HOY   R que pide HOY
+//     20    0,144     0,441      13,25 cm
+//     30    0,233     0,561       8,18 cm
+//     40    0,322     0,659       5,40 cm
+//     50    0,411     0,745       3,58 cm     <- ya mas cerrado que 4,9
+//     70    0,555     0,866       1,62 cm
+//     90    0,822     1,000     EN EL LUGAR
+//
+// EL 57,9 % DEL TIEMPO EL FIRMWARE PIDE UN RADIO MAS CERRADO QUE 4,9 cm, que
+// es la curva mas cerrada que EXISTE en el reglamento (RCJ 2.2.2, radio
+// interno >= 40 mm). Los radios que una pista Rescue Line realmente tiene van
+// de 4,9 cm a ~15 cm (cuarto de circulo en un tile de 30) mas las rectas, y a
+// ese rango le corresponden solo los deciles 20 a 40 del steer que llega.
+//
+// QUE HACE EL FIX:   rot = kMapeoRotMax * sqrt(|steer|)
+// saca la ganancia LINE_STEER_GAIN y escala para que el steer maximo pida
+// EXACTAMENTE la curva mas cerrada del reglamento:
+//
+//   |steer|   R nuevo    avanza        contra HOY
+//     0,144   29,99 cm     74 %        13,25 cm / 56 %
+//     0,411   13,49 cm     56 %         3,58 cm / 26 %
+//     0,822    6,48 cm     38 %       EN EL LUGAR / 0 %
+//     1,000    4,90 cm     32 %       EN EL LUGAR / 0 %
+//
+//   avance promedio             0,320 -> 0,595   (+86 %)
+//   tiempo en rot=1              19,0 % -> 0 %
+//   tiempo pidiendo R < 4,9 cm   62,1 % -> 0,3 %
+//
+// EL RIESGO, y es grande: ES MUCHO MENOS GIRO QUE HOY. En el decil 50 pasa de
+// pedir 3,58 cm a pedir 13,49. Si el robot NECESITABA ese giro, con esto CORTA
+// las curvas. El supuesto de abajo -que el cuantil k del steer tiene que
+// mapear al cuantil k del radio de la pista- es razonable pero NO ESTA
+// VERIFICADO: `steer` es un error angular, no un radio deseado, y elegir la
+// curva error->radio es elegir una ganancia de control.
+//
+// Por eso hay DOS flags y no uno:
+//   kFixPivoteAvanza  = techo sobre el rot de hoy. CAMBIO MINIMO, conserva la
+//                       forma actual y solo corta el exceso. avance 0,434.
+//   kFixMapeoRot      = este. CAMBIO GRANDE, rehace la curva entera.
+// Se prueban POR SEPARADO. Si los dos estan encendidos gana este, y el techo
+// queda redundante (kMapeoRotMax ya es el mismo 0,681).
+//
+// FALSADOR DE BANCO, antes de encenderlo:
+//   1. si el robot CORTA una curva que hoy toma, se apaga. Es el riesgo #1.
+//   2. la fraccion de muestras con rot=1 tiene que dar 0 (es aritmetica: el
+//      techo es 0,681). Si no da 0, el flag no esta actuando.
+//   3. la velocidad mediana mientras gira tiene que SUBIR de 0,81 cm/s.
+//   4. las intersecciones y los giros de 90 con verde no pasan por este
+//      camino (son otros case), pero verificar igual que no cambiaron.
+inline constexpr bool kFixMapeoRot = false;
+// 0,681 = b_eff/(2R + b_eff) con R = 4,9 cm y b_eff = 20,9 cm.
+inline constexpr double kMapeoRotMax = 0.681;
 } // namespace priority_fix_flags
