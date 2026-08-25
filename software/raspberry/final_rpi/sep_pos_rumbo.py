@@ -60,6 +60,10 @@ def _produccion():
     return vl, vl._v2
 
 
+def _pt(p):
+    return None if p is None else (float(p[0]), float(p[1]))
+
+
 def extraer(videos=None, forzar=False):
     if os.path.exists(CACHE) and not forzar:
         with open(CACHE, "rb") as f:
@@ -106,6 +110,14 @@ def extraer(videos=None, forzar=False):
                 heading=r.get("heading"),
                 state=r.get("state"),
                 reason=r.get("reason"),
+                # las CINCO etapas, para que el cache refleje el codigo:
+                #   raw -> cap -> geo(=lowproj) -> bra -> target
+                raw=_pt(r.get("target_raw")),
+                cap=_pt(r.get("target_cap")),
+                geo=_pt(r.get("target_geometric")),
+                bra=_pt(r.get("target_branch")),
+                spatial=r.get("spatial_guard"),
+                salto=r.get("proposed_jump_px"),
                 factor=factor,
                 ang_prod=None if t is None else vl._angulo_de(float(t[0])),
             ))
