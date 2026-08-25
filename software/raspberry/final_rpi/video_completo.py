@@ -125,6 +125,19 @@ def pintar_imagen(g, r, u):
         txt(vis, "start", int(st[0] * ESC) + 10, int(st[1] * ESC) + 4,
             (245, 160, 90), 0.38)
 
+    # ENTRADA: donde esta la CINTA bajo el robot, que es de donde sale `e`.
+    # Es distinto del `start` -que es un nodo del esqueleto- y la diferencia
+    # entre los dos es el defecto que encontro Benjamin mirando este video:
+    # p50 14 px, p90 35, max 152.
+    ent = r.get("entrada")
+    if ent:
+        px = (int(ent[0] * ESC), int(ent[1] * ESC) - 6)
+        cv2.drawMarker(vis, px, MAGENTA, cv2.MARKER_SQUARE, 14, 2)
+        txt(vis, "entrada (e)", px[0] + 10, px[1] + 4, MAGENTA, 0.38)
+        if math.hypot(ent[0] - st[0], ent[1] - st[1]) > 3:
+            cv2.line(vis, px, (int(st[0] * ESC), int(st[1] * ESC)),
+                     MAGENTA, 1)
+
     # LAS CINCO ETAPAS:  raw -> cap -> geo -> bra -> tg
     # Cada una se dibuja SOLO si movio el punto respecto de la anterior, y se
     # une con una linea roja. Asi se ve de un vistazo QUE guard lo movio, que es
@@ -178,6 +191,8 @@ def pintar_imagen(g, r, u):
     vis[0:96, x0:PW] = (sub * 0.25).astype(np.uint8)
     txt(vis, "camino de Dijkstra", x0 + 10, 18, NARANJA, 0.38)
     txt(vis, "arco donde se mide psi", x0 + 10, 34, CIAN, 0.38)
+    txt(vis, "cuadrado = entrada: de ahi sale e", x0 + 190, 18,
+        MAGENTA, 0.36)
     txt(vis, "las CINCO etapas del target, en orden:", x0 + 10, 52, GRIS, 0.36)
     for k, (et, col) in enumerate((("raw", VERDE), ("cap", AMARILLO),
                                    ("low", NARANJA), ("rama", MAGENTA))):
@@ -245,7 +260,8 @@ def pintar_datos(vid, i, n, r, u, ang, vel_base, vel, prog):
     y += 28
     cv2.line(p, (14, y), (LW - 14, y), (55, 55, 55), 1)
     y += 20
-    txt(p, "ANTICIPACION DE CURVA", 14, y, CIAN, 0.44)
+    txt(p, "ANTICIPACION DE CURVA   (APAGADA en produccion)", 14, y,
+        CIAN, 0.40)
     y += 22
     k = u.get("kappa")
     txt(p, "curvatura %s   (umbral %.1f)"
