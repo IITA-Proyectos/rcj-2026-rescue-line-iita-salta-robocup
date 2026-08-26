@@ -1,0 +1,44 @@
+# Primer dataset de codos etiquetado a mano del proyecto. hist.avi, 26-ago-2026.
+# Etiquetas de Benjamin Villagran mirando las hojas de contact sheet.
+# nivel=evento -> un disparo del detector entero. nivel=frame -> un frame suelto.
+# Las variables salen de detector_vertice.py sobre la cadena de CAMINO.
+nivel,id,frame_ini,frame_fin,etiqueta,ang,fila_v,flecha,s_max,npts
+evento,V1,355,361,codo,52.5,63.0,28.9,0.45,129
+evento,V2,560,594,codo,72.7,57.0,30.7,0.49,133
+evento,V3,672,681,codo,68.9,101.0,21.0,0.42,86
+evento,V4,739,753,codo,75.8,85.0,25.4,0.36,67
+evento,V5,874,879,codo,50.6,72.5,25.9,0.47,123
+evento,V6,1127,1127,sin_juzgar,68.9,97.0,25.3,0.38,89
+evento,V7,1357,1360,codo,45.5,78.0,23.8,0.27,127
+evento,V8,1737,1743,codo,52.6,77.0,26.2,0.38,125
+evento,V9,2048,2052,codo,59.8,51.0,34.8,0.40,153
+frame,E1_1,235,235,codo,47.2,76.0,43.6,0.41,122
+frame,E1_2,242,242,codo,64.7,76.0,45.4,0.38,137
+frame,E1_3,249,249,codo,53.3,93.0,25.2,0.23,104
+frame,E1_4,257,257,no_codo,35.7,104.0,19.5,0.75,117
+frame,E1_5,264,264,no_codo,14.5,54.0,88.1,0.44,244
+frame,E1_6,272,272,no_codo,17.1,58.0,80.7,0.44,206
+frame,E2_1,749,749,codo,44.5,94.0,49.5,0.41,115
+frame,E2_2,756,756,codo,17.3,47.0,101.2,0.49,235
+frame,E2_3,763,763,codo,19.3,85.0,19.3,0.23,109
+frame,E2_4,770,770,codo,52.1,94.0,19.0,0.25,76
+frame,E2_5,777,777,codo,16.0,47.0,94.0,0.43,252
+frame,E2_6,784,784,no_codo,14.2,51.0,98.1,0.44,254
+frame,E3_1,1247,1247,codo,29.0,71.0,19.4,0.56,113
+frame,E3_2,1254,1254,codo,26.7,84.0,13.3,0.33,115
+frame,E3_3,1261,1261,no_codo,20.6,104.0,16.9,0.85,137
+frame,E3_4,1269,1269,no_codo,39.1,109.0,15.8,0.74,90
+frame,E3_5,1276,1276,no_codo,14.7,63.0,75.9,0.43,231
+frame,E3_6,1284,1284,no_codo,42.5,62.0,44.9,0.43,119
+frame,E4_1,1607,1607,no_codo,17.4,55.0,78.8,0.41,244
+frame,E4_2,1614,1614,codo,52.3,59.0,29.7,0.39,145
+frame,E4_3,1621,1621,codo,43.1,53.0,29.6,0.54,143
+frame,E4_4,1628,1628,codo,16.0,59.0,16.1,0.74,100
+frame,E4_5,1635,1635,codo,47.8,59.0,26.6,0.52,124
+frame,E4_6,1643,1643,codo,46.4,64.0,26.1,0.46,134
+frame,E5_1,1648,1648,codo,28.5,69.0,20.7,0.52,122
+frame,E5_2,1655,1655,codo,19.9,85.0,10.4,0.41,109
+frame,E5_3,1663,1663,codo,20.6,103.0,16.1,0.75,135
+frame,E5_4,1671,1671,no_codo,34.5,109.0,14.6,0.74,88
+frame,E5_5,1679,1679,no_codo,16.4,56.0,80.3,0.44,228
+frame,E5_6,1687,1687,no_codo,30.9,60.0,52.6,0.45,144
