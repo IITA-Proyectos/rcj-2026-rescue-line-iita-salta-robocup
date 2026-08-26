@@ -252,6 +252,30 @@
 #define LINE_FRENO_FACTOR DriveBase::kFrenoComoSteer
 #endif
 
+// VELOCIDAD EN RECTA, como fraccion de la que manda la Pi. 1.0 = sin cambio.
+//
+// Benjamin, 26-ago: "tiene que ir mas lento normalmente como un 50 % y de ahi
+// girar brusco". Es como corrian con la traccion anterior: 40 de base y 55 en
+// la curva.
+//
+// OJO CON LO QUE ESTO NO HACE: bajar la velocidad NO cierra el radio. Eso es
+// algebra -R = b_eff*(1-rot)/(2*rot), y `vel` no aparece-. Ya se confirmo en
+// pista el 26-ago: la corrida freno_ctrl_1 subia la curva a 55 y dio igual que
+// la base en las cinco columnas.
+//
+// LO QUE SI HACE, y es la razon: mas TIEMPO DE REACCION. A la mitad de
+// velocidad el robot recorre la mitad de centimetros por frame, o sea el doble
+// de frames por centimetro de pista. Con el lazo de vision a ~50 fps y el lag
+// comando->giro de 60-70 ms medido, eso es el doble de margen para corregir
+// antes de llegar al codo.
+//
+// Y ADEMAS separa los dos regimenes que Benjamin describe: lento y estable en
+// la recta, fuerte y rapido en la curva. Hoy el robot usa la misma velocidad
+// para las dos cosas.
+#ifndef LINE_RECTA_FACTOR
+#define LINE_RECTA_FACTOR 1.0
+#endif
+
 // ============================================================================
 //  MODO_BANCO - barrido automatico de actuacion. SIN pista y SIN vision.
 //
@@ -1109,6 +1133,7 @@ void diagProcedencia()
     DIAG_OUT.print(" freno_f="); DIAG_OUT.print(LINE_FRENO_FACTOR, 2);
     DIAG_OUT.print(" freno_st="); DIAG_OUT.print(LINE_FRENO_STEER, 2);
     DIAG_OUT.print(" freno_vel="); DIAG_OUT.print(LINE_FRENO_VEL);
+    DIAG_OUT.print(" recta_f="); DIAG_OUT.print(LINE_RECTA_FACTOR, 2);
     DIAG_OUT.print(" commit=");
 #ifdef TLM_COMMIT
     DIAG_OUT.println(TLM_COMMIT);
@@ -4172,9 +4197,11 @@ if (green_state == 2)
                                                   LINE_FRENO_FACTOR);
                     }
                     else
-                        robot.steer(vel, FORWARD, signoCmd > 0 ? rot : -rot);
+                        robot.steer(vel * LINE_RECTA_FACTOR, FORWARD,
+                                    signoCmd > 0 ? rot : -rot);
 #else
-                    robot.steer(vel, FORWARD, signoCmd > 0 ? rot : -rot);
+                    robot.steer(vel * LINE_RECTA_FACTOR, FORWARD,
+                                signoCmd > 0 ? rot : -rot);
 #endif
 
 #else   // ---------------- arbol de ramas historico ----------------------
