@@ -3823,6 +3823,22 @@ if (green_state == 2)
                         // GAP". NO HACE FALTA DISTINGUIRLAS: en los dos casos
                         // lo correcto es IR RECTO.
                         //
+                        // CORRECCION 26-ago, la encontro un refutador y es un
+                        // error del comentario anterior: HAY UN TERCER CASO.
+                        // Cuando la Pi pierde la linea DEL TODO -black_sum por
+                        // debajo de min_line_size- NO manda 90: manda +-65 con
+                        // speed 12 (Main.py:987, `angle =
+                        // last_line_search_dir * line_lost_search_angle`).
+                        // O sea que "la Pi no ve nada" NO llega como steer 0.
+                        //
+                        // Eso NO invalida este fix -los 63 episodios de steer=0
+                        // medidos son reales, y en las corridas del 22-ago esa
+                        // rutina NUNCA se activo: rxspeed vale solo 0 o 40,
+                        // nunca 12- pero SI invalida la frase "el byte 90
+                        // significa las dos cosas". Significa DOS de TRES.
+                        // Si algun dia la rutina de linea perdida empieza a
+                        // correr, hay que volver a mirar esta condicion.
+                        //
                         // El reglamento da gaps de hasta 20 cm y exige avanzar
                         // recto en ciego antes de darse por perdido. Medido
                         // sobre las 6 corridas: 63 episodios de steer=0, el
