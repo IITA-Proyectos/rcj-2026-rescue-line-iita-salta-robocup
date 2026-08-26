@@ -1,0 +1,4 @@
+# Volcado literal del robot: preservar los finales de linea originales (LF).
+# Si esto se guarda con CRLF y alguien lo copia de vuelta a la Pi, un shebang
+# con  puede romper el arranque. Es evidencia: tiene que volver byte por byte.
+* -text
