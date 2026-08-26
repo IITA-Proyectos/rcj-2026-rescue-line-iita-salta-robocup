@@ -2,6 +2,30 @@
 
 namespace priority_fix_flags
 {
+// ===========================================================================
+//  EL 4,9 cm NO ESTA VERIFICADO EN EL REGLAMENTO.  Leer antes de tunear.
+//
+//  Varios fixes de este archivo anclan sus constantes en "R = 4,9 cm, la curva
+//  mas cerrada del reglamento (RCJ 2.2.2, radio interno >= 40 mm)". Ese numero
+//  viene de .claude/skills/seguimiento-de-trayectoria/SKILL.md:82 y se propago
+//  desde ahi a factibilidad.py, cuanto_es_el_retardo.py, para_que_d_eje.py y
+//  los traspasos.
+//
+//  Benjamin, 26-ago: "el reglamento no aclara cuanto es el radio de las lineas
+//  cerradas". Y la skill del reglamento (robocup-junior) lista baldosa, ancho
+//  de linea, gap, speed bump, obstaculo, marca verde, rampa y seesaw, y NO
+//  lista ningun radio de curva.
+//
+//  O sea que 4,9 cm es una CITA HEREDADA SIN VERIFICAR, no una constante del
+//  reglamento. Lo que si esta acotado por geometria: una curva de 90 grados
+//  dentro de una baldosa de 30 cm tiene radio de hasta ~15 cm.
+//
+//  QUE HACER: tratar el 0,681 (= b_eff/(2*4,9+b_eff)) como PARAMETRO A MEDIR
+//  EN LA PISTA DEL EQUIPO, no como una constante. Cada fix que lo usa expone
+//  su barrido. El radio real minimo se mide con una cinta y la pista, no se
+//  cita.
+// ===========================================================================
+
 inline constexpr bool kEnableAllPriorityFixes = false;
 
 inline constexpr bool kFixIssue57RescueWallTurnDirection = true;
@@ -401,4 +425,47 @@ inline constexpr bool kFixPivoteMemoria = false;
 // 0,681 = b_eff/(2R + b_eff) con R = 4,9 cm (la curva mas cerrada del
 // reglamento) y b_eff = 20,9 cm.
 inline constexpr double kPivoteMemoriaPiso = 0.681;
+
+// (9) EL GAP SUELTA EL PIVOTE. APAGADO POR DEFECTO.
+//     Es el unico de estos fixes con fundamento REGLAMENTARIO y no estimado.
+//
+// Benjamin, 26-ago: "la raspberry envia angle 0 debido a que cuando no hay
+// linea entra en un gap o linea cortada, ahi el robot tiene que ir recto".
+//
+// Tiene razon, y eso CORRIGE una conclusion anterior de esta sesion. El
+// `steer = 0` NO es la firma de que el robot se pierde: es el manejo NORMAL
+// del gap. Reglamento RCJ Rescue Line: los gaps son de hasta 20 cm y hay que
+// avanzar recto en ciego antes de darse por perdido -declararse perdido antes
+// de los 20 cm se autogenera LoPs-.
+//
+// MEDIDO sobre las 6 corridas del 22-ago, 63 episodios de steer=0 fresco:
+//     avance p50 1,5 cm    p90 3,6 cm    max 11,4 cm
+//     episodios que pasan los 20 cm del reglamento:  0 de 63
+// O sea que el cruce de gap FUNCIONA BIEN. Salvo por esto:
+//
+//     19 de los 63 (30 %) ocurren con rot = 1, el pivote enganchado.
+//     Ahi el robot GIRA EN EL LUGAR en vez de cruzar el gap.
+//
+// `s_en_pivote` es pegajoso y no mira el `steer = 0`: se come la senal de gap.
+// El fix agrega una condicion de salida mas a la maquina de estados.
+//
+// POR QUE NO HACE FALTA DISTINGUIR "gap" DE "centrado": `steer == 0` exacto
+// solo puede venir del byte 90 de la Pi, y significa o bien "linea
+// perfectamente centrada" o bien "no veo linea". EN LOS DOS CASOS lo correcto
+// es ir recto. La ambiguedad del protocolo, que estaba anotada como problema,
+// aca no molesta.
+//
+// Y OJO: el fix (8) NO arregla esto. En esa region pondria rot = 0,681, que
+// traza una curva de 4,9 cm. Tampoco va recto. Son fixes distintos y este
+// ataca un caso que ninguno de los otros toca.
+//
+// FALSADOR DE BANCO:
+//   1. contar cruces de gap tomados bien, con y sin el flag. Si baja, se apaga.
+//   2. la fraccion de episodios de steer=0 con rot=1 tiene que dar 0 %
+//      (hoy es 30 %). Si no da 0, el flag no esta actuando.
+//   3. si el robot empieza a irse derecho en curvas cerradas -o sea si la
+//      vision manda steer=0 en medio de una curva por un frame malo y el
+//      pivote se suelta cuando no debia-, se apaga. Este es el riesgo real.
+//      Se mide: contar sueltas de pivote por steer=0 que NO son gap.
+inline constexpr bool kFixGapSueltaPivote = false;
 } // namespace priority_fix_flags

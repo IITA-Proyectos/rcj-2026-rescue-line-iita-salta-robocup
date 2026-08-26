@@ -3800,7 +3800,31 @@ if (green_state == 2)
 
                         bool sostenido = (s_alineado_t0 != 0 &&
                                           millis() - s_alineado_t0 >= LINE_PIVOTE_CONFIRMA_MS);
-                        if (sostenido || millis() - s_pivote_t0 > LINE_PIVOTE_MAX_MS)
+                        // EL GAP SUELTA EL PIVOTE. Apagado por defecto; fix (9)
+                        // de priority_fix_flags.h.
+                        //
+                        // `steer == 0` exacto solo puede venir del byte 90 que
+                        // manda la Pi, y significa una de dos cosas: "linea
+                        // perfectamente centrada" o "no veo linea, esto es un
+                        // GAP". NO HACE FALTA DISTINGUIRLAS: en los dos casos
+                        // lo correcto es IR RECTO.
+                        //
+                        // El reglamento da gaps de hasta 20 cm y exige avanzar
+                        // recto en ciego antes de darse por perdido. Medido
+                        // sobre las 6 corridas: 63 episodios de steer=0, el
+                        // robot avanza 1,5 cm de mediana y 11,4 de maximo, y
+                        // NINGUNO pasa los 20 cm. O sea que el manejo del gap
+                        // esta bien... salvo cuando el pivote esta enganchado:
+                        // 19 de esos 63 (30 %) ocurren con rot = 1, y ahi el
+                        // robot GIRA EN EL LUGAR en vez de cruzar el gap.
+                        //
+                        // Sin esta condicion el pivote pegajoso se come la
+                        // senal de gap y el robot pierde la linea del otro lado.
+                        bool gapSueltaPivote =
+                            priority_fix_flags::kFixGapSueltaPivote &&
+                            steer == 0.0;
+                        if (sostenido || gapSueltaPivote ||
+                            millis() - s_pivote_t0 > LINE_PIVOTE_MAX_MS)
                         {
                             s_en_pivote = false;
                             s_alineado_t0 = 0;

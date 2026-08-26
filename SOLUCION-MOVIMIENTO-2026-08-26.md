@@ -43,9 +43,9 @@ estadística**.
 | **b_eff = 20,9 cm** | ancho de vía efectivo (geometría + slip) | `dv_encoder/gz_giro` sobre los 10 CSV. Pista: 21,35 / 21,38 / 21,28. Banco (otra superficie, otro binario): 22,41 / 22,31. Un agente independiente lo re-midió y dio 20,8–23,6 |
 | **el pivote engancha en 0,60** | `LINE_PIVOTE_ENTRA`, no en el 0,92 de `LINE_PIVOT_STEER` | `main.cpp:100,3775` |
 | **y es pegajoso hasta 0,15** | `LINE_PIVOTE_SALE`. En el medio, "la memoria" | `main.cpp:104` |
-| **57,9 % del tiempo se pide R < 4,9 cm** | más cerrado que la curva más cerrada que existe en el reglamento | 50.962 muestras frescas, 6 corridas |
+| **57,9 % del tiempo se pide R < 4,9 cm** | el 4,9 **no** sale del reglamento (ver 4bis); vale como escala de comparación, no como límite | 50.962 muestras frescas, 6 corridas |
 | **19 % del tiempo con rot = 1 por nivel** | y el total con `rot=1` es 17–61 % según corrida: la diferencia es la memoria | íd. |
-| **dentro del `steer=0`: derecho a fondo** | `\|ls − rs\| = 0,0 rpm` en p50 **y** en p90; `rxspeed = 40`; avanza 3,4 cm (p50) | 35 episodios |
+| **dentro del `steer=0`: recto** | `\|ls − rs\| = 0,0 rpm` en p50 **y** en p90. Y eso es **correcto**: es el cruce de gap (ver 4) | 63 episodios |
 | **el pivote picotea** | 24 a 77 episodios de `rot=1` por corrida, de 155–250 ms | íd. |
 | **y gira 6°** | ya estaba en el firmware: `main.cpp:3664` | 295 episodios |
 
@@ -73,10 +73,19 @@ del workflow **no tienen verificación independiente**.
 
 ## 3. La solución, en orden de prueba
 
-**Regla: un flag por vez.** Los cuatro están en `false`. Cada uno tiene su
+**Regla: un flag por vez.** Los **cinco** están en `false`. Cada uno tiene su
 falsador escrito en `priority_fix_flags.h`.
 
-### Paso 1 — `kFixPivoteMemoria`, fix (8). **Empezar por acá.**
+### Paso 1 — `kFixGapSueltaPivote`, fix (9). **Empezar por acá.**
+
+Es el unico con fundamento REGLAMENTARIO y no estimado, y el mas chico: una
+condicion de salida mas en la maquina de estados del pivote. Arregla el 30 %
+de los gaps que hoy se cruzan girando en el lugar. Ver seccion 4.
+
+> **Falsador: si bajan los cruces de gap tomados bien, se apaga. Y si el
+> pivote se suelta por un `steer=0` espurio en medio de una curva, se apaga.**
+
+### Paso 2 — `kFixPivoteMemoria`, fix (8).
 
 Es el más quirúrgico de todos. `s_en_pivote` es pegajoso: entra con
 `absSteer ≥ 0,60` y no suelta hasta bajar de `0,15`. En el medio, el comando
@@ -94,7 +103,7 @@ Control positivo: con el piso en `1,000` es la **identidad exacta**.
 
 > **Falsador: si el robot corta una curva que hoy toma, se apaga.**
 
-### Paso 2 — `kFixWatchdogTramaFresca`, fix (6).
+### Paso 3 — `kFixWatchdogTramaFresca`, fix (6).
 
 Ortogonal al movimiento. Al volver de una maniobra bloqueante, la primera trama
 del buffer sella `g_last_rx_ms` con la hora actual y el watchdog ve "fresco"
@@ -104,7 +113,7 @@ algo de segundos atrás. Umbral 250 ms, elegido con el período del lazo medido
 > **Falsador: `g_serial_drenados` tiene que ser > 0. Si es 0, el fix no actuó
 > y cualquier diferencia es otra cosa.**
 
-### Paso 3 — `kFixMapeoRot`, fix (7). **Sólo si el paso 1 mostró que la
+### Paso 4 — `kFixMapeoRot`, fix (7). **Sólo si el paso 2 mostró que la
 dirección es correcta.**
 
 Rehace la curva entera: `rot = 0,681·√|steer|`. Avance 0,320 → 0,595 (+86 %).
@@ -119,24 +128,70 @@ escala**. Queda sólo para poder comparar los dos en banco.
 
 ---
 
-## 4. Lo que hay que medir el sábado, y no es un flag
+## 4. El `steer = 0` NO es la falla — corregido el 26-ago
 
-**El `steer = 0` es ambiguo, y ahí se pierde la corrida.**
+**Esto corrige lo que decía la primera versión de este documento.**
 
-Dentro de esos episodios el robot va derecho a fondo (`ls == rs`, `rxspeed=40`)
-y avanza 3,4 cm de mediana. Pero:
+Benjamín: *«la raspberry envía angle 0 debido a que cuando no hay línea entra en
+un gap o línea cortada, ahí el robot tiene que ir recto»*. Tiene razón, y los
+datos lo confirman.
 
-- El protocolo **sí** tiene código de línea perdida: `green_state = 4`
-  (`main.cpp:219`), y la Pi tiene su rutina propia —`angle = ±65`,
-  `speed = 12` (`Main.py:987`).
-- **Esa rutina no corrió el 22-ago.** `rxspeed` vale sólo 0 o 40 en las 61.615
-  muestras: **nunca 12**.
+El reglamento da **gaps de hasta 20 cm** y exige avanzar recto en ciego antes de
+darse por perdido; declararse perdido antes **autogenera LoPs**. Medido sobre
+las 6 corridas, 63 episodios de `steer = 0` fresco:
 
-O sea que la protección **ya está escrita y no se activó**. Averiguar por qué es
-probablemente el fix de mayor impacto de todos, y **no está en ningún flag**.
-Es trabajo del lado de la Pi.
+```
+avance p50 1,5 cm    p90 3,6 cm    máx 11,4 cm
+episodios que pasan los 20 cm del reglamento:  0 de 63
+```
+
+**El cruce de gap funciona bien.** Ir recto ahí es lo correcto, no un síntoma.
+Y esto explica por qué el falsador de «los ángulos previos al `steer=0`» no daba
+lift: **no había nada patológico que encontrar**.
+
+### Pero sí hay un problema, y es el fix (9)
+
+```
+19 de los 63 episodios (30 %) ocurren con rot = 1 — el pivote enganchado.
+Ahí el robot GIRA EN EL LUGAR en vez de cruzar el gap.
+```
+
+`s_en_pivote` es pegajoso y **no mira el `steer = 0`**: se come la señal de gap.
+`kFixGapSueltaPivote` agrega esa condición de salida a la máquina de estados.
+
+**No hace falta distinguir «gap» de «centrado»**: `steer == 0` exacto sólo viene
+del byte 90, y en los dos casos lo correcto es ir recto. La ambigüedad del
+protocolo, que estaba anotada como problema, acá no molesta.
+
+**Y el fix (8) no arregla esto**: en esa región pondría `rot = 0,681`, que traza
+una curva. Tampoco va recto.
+
+### Lo que sigue valiendo del apartado anterior
+
+La rutina de línea perdida de la Pi (`angle = ±65`, `speed = 12`, `Main.py:987`)
+**no corrió el 22-ago**: `rxspeed` vale sólo 0 o 40 en 61.615 muestras, nunca 12.
+Eso sigue siendo cierto y sigue sin explicación. Pero ya **no** es "la
+protección que falló": los gaps se estaban cruzando bien sin ella.
 
 ---
+
+## 4bis. El 4,9 cm no está verificado
+
+Todas las constantes `0,681` de los fixes salen de `R = 4,9 cm`, citado como
+«RCJ 2.2.2, radio interno ≥ 40 mm». Ese número viene de
+`.claude/skills/seguimiento-de-trayectoria/SKILL.md:82` y se propagó desde ahí a
+`factibilidad.py`, `cuanto_es_el_retardo.py`, `para_que_d_eje.py` y los
+traspasos.
+
+**Benjamín: «el reglamento no aclara cuánto es el radio de las líneas
+cerradas».** Y la skill del reglamento lista baldosa, ancho de línea, gap, speed
+bump, obstáculo, marca verde, rampa y seesaw — **ningún radio de curva**.
+
+Es una **cita heredada sin verificar**. Lo que sí está acotado por geometría: una
+curva de 90° dentro de una baldosa de 30 cm tiene radio de hasta ~15 cm.
+
+**Tratar el 0,681 como parámetro a medir en la pista del equipo, no como
+constante del reglamento.** Cada fix expone su barrido.
 
 ## 5. Lo que sigue abierto
 
