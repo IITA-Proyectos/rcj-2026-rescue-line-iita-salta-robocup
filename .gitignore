@@ -73,3 +73,10 @@ software/raspberry/final_rpi/_tlm_test.csv
 software/raspberry/final_rpi/leyes_*.avi
 software/raspberry/final_rpi/_*.pkl
 software/raspberry/final_rpi/_*.png
+
+# Videos generados por los renderizadores. NO van al repo: el registro
+# completo pesa 271 MB y en este repo ya se arrastraron 60 MB de .avi a la
+# historia una vez (commit 7642693), y sacarlos de ahi es caro.
+# Se regeneran con: python software/raspberry/final_rpi/registro_cadena.py
+*.mkv
+*.mov
