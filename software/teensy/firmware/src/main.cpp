@@ -146,6 +146,47 @@
 #define LINE_PIVOTE_DWELL_MS 0UL
 #endif
 
+// DWELL DEL SIGNO EN TODO EL CASE 7, no solo dentro del pivote.
+//
+// POR QUE. `signoCmd` se aplica SIEMPRE -la ultima linea del case 7 es
+// robot.steer(vel, FORWARD, signoCmd > 0 ? rot : -rot)- pero el dwell solo lo
+// protegia con `s_en_pivote`. Medido el 26-ago en pista: en el tramo del codo
+// el robot esta en pivote el 15-20 % del tiempo, asi que el otro 80 % el signo
+// se reescribia cada trama sin freno. Por eso LINE_PIVOTE_DWELL_MS=250 no
+// movio nada: ratio giro_abs/giro_neto 5,6x contra 2,8-5,8x de la base.
+//
+// EL NUMERO QUE LO MOTIVA: 88 episodios de curva en 6 corridas, con TRES leyes
+// de vision distintas (atan2, CTRL=lineal, cadena CAMINO/MONO).
+//     giro neto por episodio: p50=15  p90=30  p95=40  MAXIMO=55 grados
+//     episodios que llegan a >= 60 grados: 0 de 88.
+// El robot NUNCA giro mas de 55 grados seguidos. Un codo de 90 no lo puede
+// tomar ninguna ley SIN MEMORIA: a mitad del codo la linea vuelve al centro
+// del cuadro, la ley dice "ya estas bien", y suelta.
+//
+// NO ES UN DETECTOR DE CODO. No hay que saber que es un codo: alcanza con no
+// invertir el signo antes de que la inversion se gane su ventana. Por eso no
+// necesita el dataset etiquetado que freno los dos intentos anteriores, y por
+// eso no toca la cadena ni el esqueleto.
+//
+// Sigue INHIBIDO EN RAMPA por la misma razon de siempre: con pitch alto las
+// traseras se pisan a marcha recta DESPUES del steer, y sostener el signo
+// mientras las traseras lo contrarrestan es peor que no sostenerlo.
+//
+// FALSADOR, preregistrado y en numeros:
+//   1. tiene que aparecer AL MENOS UN episodio de >= 80 grados netos. Hoy son
+//      0 de 88. Si siguen siendo 0, el fix no hace lo que dice.
+//   2. el ratio giro_abs/giro_neto de los ultimos 3 s tiene que BAJAR de 2,0.
+//      Hoy vale 2,8 / 4,4 / 5,8.
+//   3. SE APAGA si corta una curva que hoy toma, o si aparece giro sostenido
+//      sin avanzar (eso es Lack of Progress delante del arbitro).
+//   4. control positivo: la cabecera del CSV tiene que decir dwell_glob=1.
+//      Sin eso la corrida no vale.
+//
+// 0 = comportamiento historico byte por byte.
+#ifndef LINE_DWELL_GLOBAL
+#define LINE_DWELL_GLOBAL 0
+#endif
+
 // ============================================================================
 //  MODO_BANCO - barrido automatico de actuacion. SIN pista y SIN vision.
 //
@@ -998,6 +1039,7 @@ void diagProcedencia()
     DIAG_OUT.print(" piv_max_ms="); DIAG_OUT.print(LINE_PIVOTE_MAX_MS);
     DIAG_OUT.print(" piv_confirma_ms="); DIAG_OUT.print(LINE_PIVOTE_CONFIRMA_MS);
     DIAG_OUT.print(" piv_dwell_ms="); DIAG_OUT.print(LINE_PIVOTE_DWELL_MS);
+    DIAG_OUT.print(" dwell_glob="); DIAG_OUT.print(LINE_DWELL_GLOBAL);
     DIAG_OUT.print(" commit=");
 #ifdef TLM_COMMIT
     DIAG_OUT.println(TLM_COMMIT);
@@ -4019,7 +4061,11 @@ if (green_state == 2)
                     //  evitar. Contando desde el ultimo cambio aceptado, cada
                     //  inversion tiene que ganarse su ventana.
                     int signoCmd = (steerCmd > 0) ? 1 : -1;
+#if LINE_DWELL_GLOBAL
+                    if (pitch <= PITCH_RAMPA)
+#else
                     if (s_en_pivote && pitch <= PITCH_RAMPA)
+#endif
                     {
                         if (s_pivote_signo == 0)
                         {
