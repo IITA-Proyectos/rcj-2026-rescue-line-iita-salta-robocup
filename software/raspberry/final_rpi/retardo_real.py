@@ -67,8 +67,27 @@ import sys
 import numpy as np
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
-CORRIDAS = os.path.abspath(os.path.join(
-    AQUI, "..", "..", "teensy", "firmware", "corridas"))
+# DONDE ESTAN LOS CSV. Se busca, no se asume, porque este archivo vive en DOS
+# repos con estructuras distintas:
+#   repo roboliga : analisis/corridas/            (al lado del script)
+#   repo RCJ      : software/teensy/firmware/corridas/
+# La variable de entorno CORRIDAS_DIR gana sobre las dos.
+def _buscar_corridas():
+    env = os.environ.get("CORRIDAS_DIR")
+    if env and os.path.isdir(env):
+        return os.path.abspath(env)
+    for c in (os.path.join(AQUI, "corridas"),
+              os.path.join(AQUI, "..", "..", "teensy", "firmware", "corridas")):
+        c = os.path.abspath(c)
+        if os.path.isdir(c):
+            return c
+    # ninguna existe: se devuelve la del repo RCJ para que el mensaje de error
+    # diga algo util en vez de fallar con una ruta vacia
+    return os.path.abspath(os.path.join(
+        AQUI, "..", "..", "teensy", "firmware", "corridas"))
+
+
+CORRIDAS = _buscar_corridas()
 
 COLS = ("us,dt,drop,rxsteer,rxspeed,rxage,rxf,rot,ls,rs,ddir,ram,"
         "fl_dir,fl_set,fl_rpm,fl_pwm,fl_enc,fl_tog,fl_raw,"
