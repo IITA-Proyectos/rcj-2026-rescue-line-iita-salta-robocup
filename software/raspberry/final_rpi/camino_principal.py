@@ -172,7 +172,16 @@ def instalar(v2, cfg):
         # --- CAMINO PRINCIPAL: la cadena start -> nodo mas lejano ----------
         if cfg["camino"] and len(fin):
             F = int(fin[int(np.argmax(dist[fin]))])
-            cadena = set(o_r(prev, si, F) or [])
+            _lista = o_r(prev, si, F) or []
+            cadena = set(_lista)
+            # INSTRUMENTACION, no cambia nada: se expone la cadena elegida para
+            # que el renderizador la pueda dibujar SEPARADA del esqueleto
+            # completo. Benjamin, 26-ago: el video mostraba el esqueleto entero
+            # con sus bifurcaciones, y eso se lee como si el algoritmo se fuera
+            # por una costilla -cuando en realidad CAMINO ya lo restringe-.
+            # Es una escritura en un dict de captura; el flujo no la lee.
+            CAP["cadena"] = list(_lista)
+            CAP["cadena_pts"] = [tuple(pts[i]) for i in _lista]
             sub = [i for i in cands if i in cadena]
             if sub:
                 cands = sub
