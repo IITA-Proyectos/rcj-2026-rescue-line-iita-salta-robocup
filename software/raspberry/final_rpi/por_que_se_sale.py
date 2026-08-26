@@ -18,8 +18,12 @@ fig, ax = plt.subplots(1, 4, figsize=(19, 6.6))
 PASOS = [
     (0.0,  0,  "1. LLEGA AL CODO",
      "ve linea abajo y a la izquierda\nel atan2 pide girar. BIEN.", "#2ca02c"),
-    (2.2, 12,  "2. GIRA POCO Y AVANZA",
-     "rot no llega a 1: el robot AVANZA\nmientras gira. Se come la esquina.", "#ff7f0e"),
+    # CORREGIDO 26-ago (auditoria de ChatGPT): decia "rot no llega a 1", y es
+    # impreciso: el firmware SI llega a rot=1, el 19 % del tiempo. Lo que pasa
+    # es que NO SOSTIENE el pivote: entra, gira ~6 grados, la condicion de
+    # salida vuelve a preguntarle a la IMAGEN, suelta, y avanza otra vez.
+    (2.2, 12,  "2. NO SOSTIENE EL PIVOTE",
+     "entra en rot=1, gira ~6 grados,\nsuelta y vuelve a AVANZAR.\nSe come la esquina de a pedazos.", "#ff7f0e"),
     (4.4, 22,  "3. LE QUEDA POCA LINEA",
      "ya paso el codo. En el ROI queda\nun pedacito, y cada vez menos.", "#d62728"),
     (6.6, 30,  "4. EL atan2 SE QUEDA SIN QUE MEDIR",
@@ -48,8 +52,8 @@ for a, (dy, rot_deg, tit, sub, col) in zip(ax, PASOS):
     a.set_xlim(-11, 20); a.set_ylim(-14, 16)
     a.set_aspect("equal"); a.axis("off")
 
-fig.suptitle("Por qué se sale:  NO gira en el lugar — avanza mientras gira, se pasa "
-             "el codo, y se queda sin línea que medir",
+fig.suptitle("Por qué se sale:  entra en pivote pero NO lo SOSTIENE — vuelve a avanzar, "
+             "se come el codo, y se queda sin línea que medir",
              fontsize=13.5, fontweight="bold")
 fig.subplots_adjust(left=0.02, right=0.98, top=0.86, bottom=0.16, wspace=0.05)
 out = os.path.join(os.path.dirname(os.path.abspath(__file__)), "POR_QUE_SE_SALE.png")
