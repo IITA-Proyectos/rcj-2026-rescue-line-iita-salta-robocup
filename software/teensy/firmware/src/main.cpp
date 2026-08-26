@@ -276,6 +276,122 @@
 #define LINE_RECTA_FACTOR 1.0
 #endif
 
+// ===========================================================================
+//  MANIOBRA DE CODO. Apagada por defecto.
+//
+//  POR QUE EXISTE. El video del 26-ago muestra que el codo donde el robot se
+//  sale es una L de 90 grados con ESQUINA VIVA -sin radio de acuerdo-. Para
+//  una esquina viva NO EXISTE el radio correcto: un robot que traza un arco
+//  se sale por afuera o corta por adentro. Toda la tarde del 26 se estuvo
+//  moviendo el radio -rot, freno delantero, factor, velocidad- y ninguna de
+//  esas palancas puede resolverlo, porque el problema no es que numero: es
+//  que la MANIOBRA es otra.
+//
+//  Y lo confirma la medicion: 88 episodios de curva, 6 corridas, TRES leyes de
+//  vision distintas, y NINGUNO pasa de 55 grados netos. El robot nunca
+//  completo un codo porque nunca intento la maniobra que un codo necesita.
+//
+//  QUE HACE. Una maquina de estados con TRES cosas que el pivote de hoy no
+//  tiene:
+//
+//   1. EL SIGNO SE CONGELA al disparar. Ese es el fix de fondo: hoy el signo
+//      se rescribe cada trama y el giro se cancela solo -giro absoluto 64-144
+//      grados para un neto de 14-30-. Aca el signo del disparo manda hasta el
+//      final de la maniobra.
+//   2. SALE POR CENTRADO SOSTENIDO, no instantaneo. El pivote de hoy suelta
+//      apenas la imagen dice "centrado" un frame. Medido sobre las corridas
+//      del 26-ago: las rachas de centrado duran 45 ms de MEDIANA, asi que un
+//      frame no significa nada. Con 120 ms se filtra el 80 % y el 19 % de las
+//      rachas sigue pasando. (Con 300 ms no pasa casi ninguna: ya esta medido
+//      que el pivote saldria siempre por tiempo, y eso es LoP.)
+//   3. TOPE POR IMU. Grados reales del BNO, no tiempo. Si el codo se completo
+//      antes, sale por centrado; si la vision no opina, sale por grados; y si
+//      todo falla, por tiempo. Nunca se queda girando.
+//
+//  Y UN MINIMO DE GRADOS antes de poder salir por centrado, para que un
+//  centrado espurio de los primeros frames no aborte la maniobra.
+//
+//  INHIBIDA EN RAMPA, por lo mismo que el dwell: con pitch alto las traseras
+//  se pisan a marcha recta DESPUES del steer.
+//
+//  FALSADOR, preregistrado:
+//    1. tiene que aparecer AL MENOS UN episodio de >= 80 grados netos. Al
+//       26-ago son 0 de 88. Es una base durisima de batir por casualidad.
+//    2. el ratio giro_abs/giro_neto de los ultimos 3 s baja de 2,0 (hoy 2,8-5,8).
+//    3. SE APAGA si dispara en una curva normal y la corta: mirar que no
+//       aparezcan giros de 90 donde la pista solo dobla un poco.
+//    4. SE APAGA si el robot queda girando en el lugar de forma repetida:
+//       eso es Lack of Progress delante del arbitro.
+//    5. control positivo: la cabecera del CSV dice codo=1, y la rama 8 tiene
+//       que aparecer en la columna `ram` durante los codos.
+// ===========================================================================
+#ifndef LINE_CODO
+#define LINE_CODO 0
+#endif
+// EL DISPARO, y por que NO hace falta que sea preciso.
+//
+// Simulado sobre las 7 corridas de pista del 26-ago (65,5 s de robot andando),
+// barriendo la banda entera:
+//
+//   ENTRA_MS |  0.45      0.55      0.65      0.75      (disparos/min, y entre
+//      150   | 30.2 (7)  25.6 (6)  21.1 (6)  15.6 (6)    parentesis en cuantas
+//      250   | 17.4 (7)  13.7 (6)   7.3 (4)   3.7 (3)    de las 7 corridas
+//      300   | 12.8 (7)   9.2 (5)   5.5 (3)   1.8 (2)    dispara al menos una)
+//      400   |  7.3 (3)   4.6 (3)   0.9 (1)   0.9 (1)
+//
+// 0,45 con 300 ms es el UNICO punto que dispara en las 7 corridas con una tasa
+// manejable. Arriba de 300 ms la cobertura se cae a 5, 3 y 1.
+//
+// 12,8/min TIENE FALSOS POSITIVOS y no se puede saber cuantos: sin un dataset
+// de codos etiquetados esto mide TASA DE DISPARO, no precision. Ese es el muro
+// que freno los dos intentos anteriores de detector.
+//
+// LA DIFERENCIA ES QUE ACA NO IMPORTA. La maniobra SALE SOLA cuando la vision
+// dice que la linea esta centrada y eso SE SOSTIENE:
+//    falso positivo (curva suave) -> gira 25-30 grados, la linea se centra,
+//                                    sale. Costo: casi nada.
+//    codo real                    -> la linea NO se centra hasta los 90, asi
+//                                    que sigue hasta completarlo.
+// Por eso LINE_CODO_MIN_GRADOS es BAJO (25) y no alto: es lo que acota el
+// dano de un disparo de mas. Un minimo alto convertiria cada falso positivo
+// en un giro de 45 grados en medio de una recta.
+//
+// El armado tambien se resetea si el signo cambia: en un codo el steer apunta
+// para un solo lado, en una oscilacion alterna. Eso solo no alcanza -baja de
+// 26,6 a 25,6/min-, pero no cuesta nada y saca los casos peores.
+#ifndef LINE_CODO_ENTRA
+#define LINE_CODO_ENTRA 0.45
+#endif
+// Cuanto tiene que SOSTENERSE ese absSteer para disparar. Sin esto un pico de
+// un frame arrancaria un giro de 90 grados en medio de una recta.
+#ifndef LINE_CODO_ENTRA_MS
+#define LINE_CODO_ENTRA_MS 300UL
+#endif
+// Centrado SOSTENIDO para dar el codo por terminado. 120 ms: ver arriba.
+#ifndef LINE_CODO_SALE_MS
+#define LINE_CODO_SALE_MS 120UL
+#endif
+// Grados minimos antes de poder salir por centrado.
+#ifndef LINE_CODO_MIN_GRADOS
+#define LINE_CODO_MIN_GRADOS 25.0
+#endif
+// Tope por IMU. 110 para un codo de 90 deja margen sin pasarse de largo.
+#ifndef LINE_CODO_MAX_GRADOS
+#define LINE_CODO_MAX_GRADOS 110.0
+#endif
+// Tope duro de tiempo. A ~130 d/s son 195 grados: nunca deberia llegar aca.
+// Si llega, es que el robot NO esta girando y hay que mirarlo.
+#ifndef LINE_CODO_MAX_MS
+#define LINE_CODO_MAX_MS 1500UL
+#endif
+#ifndef LINE_CODO_VEL
+#define LINE_CODO_VEL 55
+#endif
+// Bloqueo de re-entrada, para no encadenar dos codos seguidos.
+#ifndef LINE_CODO_COOLDOWN_MS
+#define LINE_CODO_COOLDOWN_MS 600UL
+#endif
+
 // ============================================================================
 //  MODO_BANCO - barrido automatico de actuacion. SIN pista y SIN vision.
 //
@@ -1134,6 +1250,10 @@ void diagProcedencia()
     DIAG_OUT.print(" freno_st="); DIAG_OUT.print(LINE_FRENO_STEER, 2);
     DIAG_OUT.print(" freno_vel="); DIAG_OUT.print(LINE_FRENO_VEL);
     DIAG_OUT.print(" recta_f="); DIAG_OUT.print(LINE_RECTA_FACTOR, 2);
+    DIAG_OUT.print(" codo="); DIAG_OUT.print(LINE_CODO);
+    DIAG_OUT.print(" codo_ent="); DIAG_OUT.print(LINE_CODO_ENTRA, 2);
+    DIAG_OUT.print(" codo_min="); DIAG_OUT.print(LINE_CODO_MIN_GRADOS, 0);
+    DIAG_OUT.print(" codo_max="); DIAG_OUT.print(LINE_CODO_MAX_GRADOS, 0);
     DIAG_OUT.print(" commit=");
 #ifdef TLM_COMMIT
     DIAG_OUT.println(TLM_COMMIT);
@@ -4186,6 +4306,87 @@ if (green_state == 2)
                         // curvas podria aplicarse al enganchar la proxima.
                         s_pivote_signo = 0;
                     }
+                    bool codoMando = false;
+#if LINE_CODO
+                    // ---- MANIOBRA DE CODO -------------------------------
+                    // El razonamiento completo esta arriba, con los defines.
+                    static int  s_codo_estado = 0;      // 0 inactivo, 1 girando
+                    static int  s_codo_signo  = 0;
+                    static unsigned long s_codo_t0 = 0, s_codo_arm = 0,
+                                         s_codo_cen = 0, s_codo_fin = 0;
+                    static int s_codo_arm_signo = 0;
+                    static float s_codo_yaw0 = 0.0f;
+
+                    if (s_codo_estado == 0)
+                    {
+                        if (absSteer >= LINE_CODO_ENTRA && pitch <= PITCH_RAMPA)
+                        {
+                            // El armado se resetea si el signo cambia: en un
+                            // codo el steer apunta para UN lado; en una
+                            // oscilacion alterna.
+                            if (s_codo_arm != 0 && signoCmd != s_codo_arm_signo)
+                                s_codo_arm = 0;
+                            if (s_codo_arm == 0)
+                            {
+                                s_codo_arm = millis();
+                                s_codo_arm_signo = signoCmd;
+                            }
+                            if (millis() - s_codo_arm >= LINE_CODO_ENTRA_MS &&
+                                (s_codo_fin == 0 ||
+                                 millis() - s_codo_fin >= LINE_CODO_COOLDOWN_MS))
+                            {
+                                s_codo_estado = 1;
+                                s_codo_signo  = signoCmd;   // CONGELADO
+                                s_codo_t0     = millis();
+                                s_codo_yaw0   = leer_yaw();
+                                s_codo_cen    = 0;
+                            }
+                        }
+                        else
+                            s_codo_arm = 0;
+                    }
+
+                    if (s_codo_estado == 1)
+                    {
+                        float girado = fabs(calcularDiferenciaAngulo(
+                                                s_codo_yaw0, leer_yaw()));
+                        bool terminar = false;
+                        if (girado >= LINE_CODO_MAX_GRADOS)
+                            terminar = true;
+                        else if (millis() - s_codo_t0 >= LINE_CODO_MAX_MS)
+                            terminar = true;
+                        else if (girado >= LINE_CODO_MIN_GRADOS)
+                        {
+                            // Solo despues del minimo se le hace caso a la
+                            // vision, y solo si el centrado SE SOSTIENE.
+                            if (absSteer <= LINE_PIVOTE_SALE)
+                            {
+                                if (s_codo_cen == 0) s_codo_cen = millis();
+                                if (millis() - s_codo_cen >= LINE_CODO_SALE_MS)
+                                    terminar = true;
+                            }
+                            else
+                                s_codo_cen = 0;
+                        }
+
+                        if (terminar)
+                        {
+                            s_codo_estado = 0;
+                            s_codo_arm    = 0;
+                            s_codo_fin    = millis();
+                        }
+                        else
+                        {
+                            g_line_branch = 8;   // rama 8 = maniobra de codo
+                            robot.steer(LINE_CODO_VEL, FORWARD,
+                                        s_codo_signo > 0 ? 1.0 : -1.0);
+                            codoMando = true;
+                        }
+                    }
+                    // -----------------------------------------------------
+#endif
+                    if (!codoMando)
+                    {
 #if LINE_FRENO_DELANTERO
                     // CURVA CERRADA: se frena la delantera interna y se sube la
                     // velocidad. Fuera del umbral, todo sigue como hoy.
@@ -4203,6 +4404,7 @@ if (green_state == 2)
                     robot.steer(vel * LINE_RECTA_FACTOR, FORWARD,
                                 signoCmd > 0 ? rot : -rot);
 #endif
+                    }
 
 #else   // ---------------- arbol de ramas historico ----------------------
 
