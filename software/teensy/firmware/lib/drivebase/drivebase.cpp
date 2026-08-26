@@ -341,7 +341,10 @@ void DriveBase::steerFrenoDelantero(double speed, int direction,
 {
     _speed = constrain(speed, 0, 159);
     _rotation = constrain(rotation, -1, 1);
-    frenoInterna = constrain(frenoInterna, -1, 1);
+    // NO se acota a [-1,1] a secas: kFrenoComoSteer (9.0) es el centinela
+    // del control negativo. Se acota solo el rango util.
+    if (frenoInterna < kFrenoComoSteer)
+        frenoInterna = constrain(frenoInterna, -1, 1);
     _direction = direction;
 
     // Identico a steer() hasta aca: quien es la interna y a que velocidad va.
@@ -370,16 +373,48 @@ void DriveBase::steerFrenoDelantero(double speed, int direction,
         }
     }
 
-    // Y aca el unico cambio: la DELANTERA del lado interno lleva el factor.
-    // Si `frenoInterna` es negativo la rueda va al reves de lo que le tocaba:
-    // se invierte su direccion y se usa la magnitud.
-    double vFrontInt = (rotation >= 0 ? _leftspeed : _rightspeed) * frenoInterna;
-    int dirFrontInt = (rotation >= 0 ? _leftdir : _rightdir);
-    if (vFrontInt < 0)
+    // LA DELANTERA INTERNA. `frenoInterna` es su velocidad como fraccion de
+    // `speed`, CON SIGNO RESPECTO DE LA MARCHA -no respecto de la velocidad
+    // que le tocaria-:
+    //     +1.0  adelante a velocidad completa
+    //      0.0  quieta
+    //     -1.0  REVERSA a velocidad completa
+    //
+    // OJO, Y ES EL ERROR QUE TENIA LA PRIMERA VERSION: multiplicar por
+    // `_leftspeed` no sirve, porque cuando rot > 0,5 esa variable YA es la
+    // magnitud de una reversa (drivebase le dio vuelta el `_dir`). Un factor
+    // -1 sobre eso devolvia la rueda a MARCHA ADELANTE en vez de meterle mas
+    // reversa, o sea lo contrario de lo que dice el nombre. Y con rot = 0,5
+    // exacto `_leftspeed` vale 0, asi que NINGUN factor tenia efecto.
+    //
+    // POR QUE IMPORTA EL SIGNO Y NO LA MAGNITUD (con vel 40, rot 0,5):
+    //     las 4 iguales por lado ....... R = 10,45 cm
+    //     traseras al 50 % ............. R = 10,45 cm   (el factor se cancela)
+    //     delantera interna QUIETA ..... R = 10,45 cm   (tampoco la mueve)
+    //     delantera interna EN REVERSA . R =  3,48 cm   <- lo unico que cierra
+    // Cerrar el radio necesita AUMENTAR la diferencia entre lados, y para eso
+    // hace falta signo opuesto, no velocidad cero.
+    //
+    // CONTROL NEGATIVO: pasar frenoInterna = kFrenoComoSteer reproduce steer()
+    // exactamente, sea cual sea `rotation`.
+    double vFrontInt, dirBase;
+    int dirFrontInt;
+    if (frenoInterna >= kFrenoComoSteer)
     {
-        dirFrontInt = !dirFrontInt;
-        vFrontInt *= -1;
+        vFrontInt = (rotation >= 0 ? _leftspeed : _rightspeed);
+        dirFrontInt = (rotation >= 0 ? _leftdir : _rightdir);
     }
+    else
+    {
+        vFrontInt = _speed * frenoInterna;
+        dirFrontInt = _direction;
+        if (vFrontInt < 0)
+        {
+            dirFrontInt = !dirFrontInt;
+            vFrontInt *= -1;
+        }
+    }
+    (void)dirBase;
 
     // Mismo orden de llamadas que steer(): fl, bl, fr, br. Y el lado derecho
     // va negado, igual que alli, porque el montaje esta espejado.

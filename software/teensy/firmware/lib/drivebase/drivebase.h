@@ -279,6 +279,9 @@ public:
     void steerFrenoDelantero(double speed, int direction, double rotation,
                              double frenoInterna);
 
+    // Centinela: reproduce steer() exactamente. Control negativo del barrido.
+    static constexpr double kFrenoComoSteer = 9.0;
+
     void steerAxleBias(double speed, int direction, double rotation,
                        double frontScale, double rearScale);
     void reset();

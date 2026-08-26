@@ -205,10 +205,24 @@
 // reves. Medido el 26-ago en pista: 88 episodios de curva sobre 6 corridas y
 // TRES leyes de vision distintas, y NINGUNO pasa de 55 grados netos.
 //
-// EL BARRIDO, en este orden:
-//     LINE_FRENO_FACTOR =  1.0   control negativo: tiene que dar IGUAL que hoy
-//                          0.0   la delantera interna quieta   <- lo que pidio
-//                         -1.0   reversa activa, maximo momento y maximo scrub
+// EL BARRIDO. `LINE_FRENO_FACTOR` es la velocidad de la delantera interna
+// como fraccion de LINE_FRENO_VEL, CON SIGNO respecto de la marcha:
+//
+//     DriveBase::kFrenoComoSteer  control negativo: identico a steer()  [default]
+//                           0.0   quieta
+//                          -0.5   reversa a media velocidad
+//                          -1.0   reversa a velocidad completa
+//
+// Y ACA ESTA EL PUNTO, con vel 40 y rot 0,5 (calculado, no estimado):
+//     las 4 iguales por lado ....... R = 10,45 cm
+//     traseras al 50 % ............. R = 10,45 cm   el factor SE CANCELA
+//     delantera interna QUIETA ..... R = 10,45 cm   tampoco lo mueve
+//     delantera interna EN REVERSA . R =  3,48 cm   <- lo unico que cierra
+//
+// Cerrar el radio necesita AUMENTAR la diferencia entre lados, y eso pide
+// signo opuesto, no velocidad cero. Por eso 0.0 no cambio nada en pista el
+// 26-ago, y por eso bajarle a las dos traseras tampoco lo haria: R = v_c/omega
+// y escalar los dos lados por k multiplica los dos por k.
 //
 // FALSADOR, el mismo que el resto de los intentos del codo:
 //   1. tiene que aparecer AL MENOS UN episodio de >= 80 grados netos.
@@ -235,7 +249,7 @@
 #endif
 // Consigna de la delantera interna, como fraccion de la que le tocaria.
 #ifndef LINE_FRENO_FACTOR
-#define LINE_FRENO_FACTOR 0.0
+#define LINE_FRENO_FACTOR DriveBase::kFrenoComoSteer
 #endif
 
 // ============================================================================
