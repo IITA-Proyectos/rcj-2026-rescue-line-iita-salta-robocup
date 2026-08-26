@@ -39,19 +39,39 @@ Entonces, cuando entre a la curva:
 
 ## Orden de hoy — de mayor a menor valor por minuto
 
-### 1. Medir la curva con una cinta · **5 minutos, sin robot** ⭐
+### 1. Medir el CODO · **5 minutos, sin robot** ⭐
 
-**Es lo que más desbloquea de todo lo que hay pendiente.**
+**Corrección al plan anterior:** te había dicho "medí el radio de la curva". Con
+el dibujo que mandaste queda claro que **no son curvas, son CODOS**, y un codo
+vivo **no tiene radio** — son dos rectas que se cruzan. Ver `COMO_MEDIR_CODO.png`.
 
-Medir el radio de las curvas más cerradas de la pista. Con una cinta métrica y el
-centro de la curva: el radio de la **línea negra**, no del borde.
+En un codo se miden **dos cosas**:
 
-Anotar: **el más cerrado**, y cuántas curvas de ese tipo hay.
+| qué | cómo | para qué |
+|---|---|---|
+| **el ángulo α** | con transportador o foto desde arriba | dice cuánto tiene que girar el robot |
+| **el radio de acuerdo r** | el redondeo de la esquina, si lo tiene | **es el radio más chico que el robot tiene que poder trazar** |
 
-**Por qué vale más que cualquier corrida**: las tres constantes `0,710` del
-firmware salen de suponer 4,9 cm. Si la curva real es de 8 cm, **el robot ya la
-puede tomar y el problema es otro**. Si es de 4, hay que frenar. **Cambia el
-diagnóstico entero y cuesta cinco minutos.**
+Si la esquina es viva (r ≈ 0), **ningún radio alcanza: hay que frenar y rotar.**
+Si tiene acuerdo, **r es el número que reemplaza a la cita de 4,9 cm.**
+
+**Anotá los 3 o 4 codos donde más se sale**, con α y r de cada uno.
+
+### 1bis. Y el dato NUEVO que sale de tu observación · **10 min, con robot**
+
+Dijiste: *"no gira en el lugar sino que avanza, y llega un punto donde le queda
+casi nada de línea"*. Eso es medible y **puede dar vuelta el diagnóstico**:
+
+> **¿Cuánto AVANZA el robot desde que empieza a girar hasta que completa el codo?**
+
+Con cinta en el piso: marcá dónde está el robot cuando **empieza** a girar y dónde
+está cuando **terminó** de girar. La distancia entre las dos marcas es el número.
+
+- si avanza **poco** (≈ el largo del robot): está girando bien, el problema es otro
+- si avanza **mucho** (más de 15-20 cm): **se pasa el codo**, y ahí está la falla
+
+**Por qué importa tanto**: si se pasa, el arreglo va en dirección **contraria** a
+tres de los cinco fixes. Ver la advertencia abajo.
 
 ### 2. Línea base · ~20 min
 
@@ -138,3 +158,26 @@ Segundo: **las 3 pasadas de línea base con el segundo de salida anotado.**
 
 Los flags pueden esperar al sábado. Los datos no: **sin línea base y sin el radio
 real, el sábado se va en discutir en vez de medir.**
+
+
+---
+
+## ⚠️ Una tensión que abrió tu observación, y hay que resolverla ANTES de encender fixes
+
+Lo que describiste —*el robot avanza mientras gira y se pasa el codo*— apunta en
+**dirección opuesta** a tres de los cinco fixes.
+
+Los fixes **(5)**, **(7)** y **(8)** le dan **MÁS avance** al robot mientras gira
+(el (7) lo sube de 0,320 a 0,595). Eso está bien si el problema es que *gira sin
+avanzar*. **Pero si el problema en el codo es que avanza DE MÁS, esos tres lo
+empeoran justo ahí.**
+
+Los dos diagnósticos pueden convivir —el robot puede pasar 19 % del tiempo sin
+avanzar *en otros momentos* y aun así pasarse en el codo— pero **no se puede
+decidir sin el número de 1bis**.
+
+**Por eso hoy no conviene encender (7) ni (8).** El (9) sí: en un gap ir recto es
+lo correcto, y no toca el codo.
+
+Y si el número de 1bis dice que se pasa, **resucita una salida que había quedado
+descartada: frenar antes del codo**. Que es lo contrario de darle más avance.
