@@ -3084,7 +3084,21 @@ void bancoBarrido()
     // una asimetria izquierda/derecha es en si misma un hallazgo (rueda en el
     // aire, un motor distinto, la trocha mal repartida).
     static const double ROTS[] = { 0.40, 0.50, 0.60, 0.70, 0.85, 1.00 };
-    static const int    VELS[] = { 25, 35, 45, 55, 70 };
+    // 26-ago: se extendio de {25,35,45,55,70} a llegar hasta 110.
+    //
+    // POR QUE. La fase 2 pregunta si el giro SATURA al subir la velocidad. Con
+    // el tope en 70 la respuesta medida fue "no satura": la constante da 1,69 a
+    // 1,86 grados/s por rpm en TODO el rango, y el PWM medio en el punto mas
+    // exigido llego a 157 de 255 -o sea que al motor le sobraba el 38 %-.
+    //
+    // Asi que la pregunta quedo abierta ARRIBA de 70, que es justo donde
+    // importa: a 70 rpm el robot gira a 123-128 grados/s, y hace falta saber si
+    // eso sigue escalando o si ahi aparece el scrub de las 4 fijas de silicona.
+    //
+    // SEGURIDAD: esto es MODO_BANCO, no toca el firmware de competencia. El
+    // switch corta en cualquier punto. Si el robot chilla, huele raro o la
+    // bateria se hunde, apagar y anotar hasta donde llego: ESE es el dato.
+    static const int    VELS[] = { 25, 35, 45, 55, 70, 90, 110 };
     const int VEL_BASE = 45;
     const unsigned long SOSTEN = 1500, PAUSA = 1000;
 
