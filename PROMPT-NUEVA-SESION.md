@@ -1,10 +1,11 @@
-```
 TRASPASO NUEVA SESIÓN — NUEVO CODE RCJ / ROBOLIGA
-Fecha del traspaso: 25-ago-2026, noche
+Fecha del traspaso: 26-ago-2026
 
 Repositorio:  IITA-Proyectos/rcj-2026-rescue-line-iita-salta-robocup
 Rama:         collab/nuevo-code
 Canal:        issue #138 (Claude ↔ ChatGPT)
+Segundo repo: IITA-Proyectos/roboliga-2026-rescate-iita-salta, rama main
+              (ahí vive el reparto de tareas del equipo, docs/tareas/)
 
 ==========================================================
 0. ARRANQUE OBLIGATORIO
@@ -12,163 +13,152 @@ Canal:        issue #138 (Claude ↔ ChatGPT)
 NO confíes en memoria de sesiones anteriores.
 
 1. git fetch && checkout collab/nuevo-code && git status
-2. LEÉ COMPLETO: TRASPASO-2026-08-25-NOCHE.md en la raíz.
-   Es la fuente de verdad del DIAGNÓSTICO.
-   TRASPASO-2026-08-25.md (el de la mañana) sigue valiendo
-   sólo como inventario y por sus trece hipótesis muertas.
-   Si se contradicen, GANA EL DE LA NOCHE — pero decilo en
-   voz alta en vez de asumirlo.
-3. Verificá que HEAD sea f337846 o posterior. Si es
-   posterior, leé todo lo nuevo antes de tocar nada.
-4. git log --oneline aef4c42..HEAD  → 39 commits de un solo
-   día, y los mensajes son la fuente de verdad de los números.
+2. LEÉ COMPLETO: TRASPASO-2026-08-26.md en la raíz.
+   Es la fuente de verdad del DIAGNÓSTICO y reemplaza al de la
+   noche del 25. Si se contradicen, GANA EL DEL 26 — pero decilo
+   en voz alta en vez de asumirlo.
+3. Verificá que HEAD sea 11376ed o posterior. Si es posterior,
+   leé todo lo nuevo antes de tocar nada.
+4. git log --oneline c422342..HEAD  → 27 commits, y los mensajes
+   son la fuente de verdad de los números.
 
 ==========================================================
-1. EL OBJETIVO, Y CAMBIÓ
+1. LO PRIMERO QUE TENÉS QUE PREGUNTARLE A BENJAMÍN
 ==========================================================
-El robot se sale en las curvas CERRADAS. Y el 25-ago se
-midió, con los CSV del propio robot, POR QUÉ:
+El 26-ago a la tarde tuvo el robot. ANTES DE ANALIZAR NADA,
+pedile los resultados de HOY-EN-EL-INSTITUTO.md:
 
-    LA CURVA MÁS CERRADA DEL REGLAMENTO NO ES FÍSICAMENTE
-    POSIBLE A LA VELOCIDAD A LA QUE EL ROBOT VA.
+  * el ÁNGULO α y el RADIO DE ACUERDO r de los codos donde se sale
+  * cuánto AVANZA el robot entre que empieza y termina el codo
+    (las dos marcas de cinta en el piso)
+  * el HFOV medido contra una pared
+  * los CSV de la línea base, y EN QUÉ SEGUNDO se salió cada pasada
+  * si corrió el barrido de banco hasta 110 rpm
 
-    v_max = ω_max · R
-    el robot va a          8,5 cm/s   (encoder)
-    v_max admisible        4,7 cm/s   (R = 4,9 cm, RCJ 2.2.2)
-                        -> 82 % POR ENCIMA
-    la curva EXIGE        99 °/s      y el robot da 55
+SIN ESOS DATOS, la sesión se va en repetir análisis que ya están
+hechos. CON ellos, varias cosas se deciden en minutos.
 
-    Y la curva SUAVE (R = 15) sí da: 59 % del límite.
-
-Robusto al diámetro de rueda entre 44 y 85 mm.
-
-NO es un problema de percepción. NO es un problema de la ley
-de steer. NO es el retardo (65-70 ms = 0,53 cm de avance).
-
-EL HARDWARE NO SE TOCA. Cámara baja y casi horizontal,
-160x120, 4 ruedas fijas de silicona. Se resuelve en software.
-
-Competencia: Roboliga, noviembre 2026. Pocas sesiones de robot.
+Y OJO CON UNA TENSIÓN QUE SIGUE ABIERTA: si el robot AVANZA MUCHO
+en el codo (más de 20 cm), entonces los fixes (7) y (8) —que le
+dan MÁS avance— van en dirección CONTRARIA y hay que repensarlos.
+Ese número decide.
 
 ==========================================================
 2. LO QUE NO HAY QUE VOLVER A HACER
 ==========================================================
-TRECE hipótesis muertas en la sección 6 del traspaso de la
-MAÑANA: H5, H6, H6b, H8, H9, H9-GATE, H10, SUELO, salida
-lateral de los campeones, ROI adaptativo, poda previa del
-grafo, SLEW, V1+suavizar-Y, dwell, bird-eye.
+NUEVE hipótesis muertas en la sección 5 del traspaso, cada una con
+el número que la mató. Las tres nuevas de esta sesión:
 
-Y CINCO más que murieron el 25-ago (sección 4 de la noche):
+  * la caída de píxeles como aviso de pérdida: lift 0,03-0,37, o
+    sea PEOR QUE EL AZAR. La tasa base de pérdida en 20-40 frames
+    ya es 78-95 %.
+  * la concentración de curvatura como detector de codo: 16-17
+    eventos/min contra un límite de 6, en DOS implementaciones
+    independientes.
+  * subir LINE_PIVOT_SPEED para abrir la curva: es álgebra, R no
+    contiene vel.
 
-  * la ANTICIPACIÓN DE CURVA como evidencia. El test buscaba
-    "al menos un kappa > U en 40 frames" SIN break. Rehecho
-    con precisión/tasa base/placebo: lift 1,47x. MUERE.
-    OJO: el MECANISMO revivió por física — frenar antes de
-    la curva es la salida 1 de la desigualdad. Lo que murió
-    es el test, no la idea.
-  * "el atan2 no ve el rumbo": SÍ lo ve, crece monótonamente
-  * "mezclar posición y rumbo causa la falla": RR 0,45-0,84x
-  * "lo que cambia es CUÁNDO": lag óptimo 0 frames
-  * "el retardo explica la falla": en la falla el robot DEJÓ
-    de obedecer (corr 0,92 -> 0,52), no obedeció tarde
-
-NO las repropongas. Si creés que una merece revisión, leé
-primero su commit.
+Más las trece del traspaso del 25 y las cinco de la noche.
+NO las repropongas. Si creés que una merece revisión, leé primero
+su commit.
 
 ==========================================================
 3. LO QUE SÍ QUEDÓ EN PIE
 ==========================================================
-CAMINO+MONO: integrado y verificado. VISION_LINEA=camino
+CINCO FLAGS de firmware, TODOS en false y NINGUNO probado en robot.
+Orden de prueba: 9 → 8 → 6 → 7, UNO POR VEZ. El (5) NO se usa.
+Cada uno con su falsador escrito en priority_fix_flags.h.
 
-Stanley: EXPERIMENTAL, apagado por defecto, cinco falsadores
-vivos y gate 15/15. LEY_STEER=stanley. Cuesta 19 µs.
-NO es el Stanley de Thrun: es un controlador inspirado en su
-estructura. La demostración de convergencia NO aplica.
+LOS CINCO NÚMEROS MEDIDOS:
+  diámetro efectivo de rodadura   6,88 cm
+  ancho de vía efectivo b_eff    20,9 cm
+  factor de apertura              1,15
+  lag comando -> giro           60-70 ms
+  ancho de la cinta, fila 115   71 px de 160
 
-Telemetría: 48 columnas. Las CINCO etapas del target,
-ctrl_source, y ang_viejo -lo que la ley vieja habría mandado
-en ese mismo frame-, que hace que el A/B de leyes salga de
-UNA sola corrida real.
+Y LA CINEMÁTICA, que es de donde sale todo:
+  v_centro = vel*(1-rot)      -> en rot = 1 el robot NO AVANZA
+  R = b_eff*(1-rot)/(2*rot)   -> el radio NO depende de la velocidad
 
-Firmware, cuatro flags nuevos SIN BANCO:
-kFixPingFrontalCorto, kFixPingFrontalPeriodico,
-kFixTofPresupuesto (los tres en true) y kFixI2cRapido
-(en FALSE a propósito: puede colgar el bus).
-
-Los CSV del 22-ago en software/teensy/firmware/corridas/ son
-el BASELINE. Diez corridas con el giroscopio del BNO.
+HOY CORRE EL atan2, NO EL PLANNER. Sin la variable VISION_LINEA el
+módulo nuevo no se activa (Main.py:41-44).
 
 ==========================================================
-4. TU PRIMERA TAREA
+4. TU PRIMERA TAREA, según lo que traiga Benjamín
 ==========================================================
-Sin bloqueo de hardware, en este orden:
+A. SI TRAJO LOS DATOS DEL ROBOT: cerrá con ellos las tres cosas
+   que hoy están abiertas por falta de medición —el radio real de
+   los codos, si el robot se pasa, y el HFOV— y recalculá las
+   constantes de los flags con los números reales.
 
-A. CERRAR LA CUENTA DE FACTIBILIDAD. Pedile a Benjamín el
-   diámetro de rueda (lo tiene en Fusion) y el valor actual
-   de LINE_PIVOT_SPEED. Con esos dos:
-     - cuánto exactamente hay que frenar en curva, o
-     - cuánto tiene que subir el giro para no frenar nada
-   Corré factibilidad.py --diametro con el número real.
+B. SI NO LOS TRAJO: la tarea que más desbloquea sin robot es
+   EL DATASET DE CODOS ETIQUETADOS. Ya frenó DOS intentos y no lo
+   arregla otro workflow: hace falta generar contact sheets de
+   frames candidatos y que un humano marque cuáles son codos.
+   Sin eso, cualquier detector mide TASA DE DISPARO y nunca
+   PRECISIÓN.
 
-B. BARRIDO DE LOOKAHEAD. LOOKAHEAD=70 px es un parámetro
-   suelto que nadie barrió. Banda 70/90/110/130 con el gate
-   y las cinco métricas. Falsador preregistrado ANTES.
-   OJO: más lookahead es MÁS amortiguación, o sea MENOS
-   reacción en curva cerrada. Puede empeorar lo que se busca.
-
-C. EL WATCHDOG, tercer problema. Al volver de una maniobra
-   bloqueante se drenan bytes viejos y g_last_rx_ms se
-   refresca con un comando anterior a la maniobra. Necesita
-   timestamp en el protocolo o exigir trama nueva
-   post-maniobra. ChatGPT lo señaló y sigue sin arreglar.
-
-D. t_mono_ns en la telemetría de la Pi, para cruzar con el
-   Teensy sin ambigüedad.
-
-NO esperes autorización. Hacé, medí, commiteá y comentá en #138.
+C. Y LA IDEA MÁS PROMETEDORA SIN PROBAR, para cuando haya dataset:
+   medir el rumbo sobre los BORDES de la cinta en vez del eje
+   medial. El eje medial de una mancha de 71 px se desvía ±35 px
+   sin que la cinta doble nada; los bordes son dos curvas casi
+   paralelas y son mucho menos ruidosos.
 
 ==========================================================
 5. LO QUE TENÉS QUE TENER EN CUENTA
 ==========================================================
+* ANTES DE MEDIR, PREGUNTÁ QUÉ ES EL ARCHIVO QUE ESTÁS LEYENDO.
+  hist.avi parecía el frame de la cámara y es un panel DOBLE de
+  debug de 640x240 (izquierda cámara, derecha máscara). Medir
+  sobre los dos juntos invalidó un análisis entero.
+
+* NO EDITES EL ÁRBOL MIENTRAS HAY AGENTES TRABAJANDO EN ÉL. Un
+  agente pisó un fix haciéndole checkout a main.cpp. Commitear
+  enseguida lo protege.
+
+* NO PONGAS "ANTE LA DUDA REFUTÁ, DEFAULT A NO SIRVE" en un
+  refutador. Salió 9 de 9 NO SIRVE y no informó nada. Pedí "qué
+  está bien, qué está mal y qué falta".
+
 * EL REPLAY ES LAZO ABIERTO. Mide percepción, no trayectoria.
-  Los CSV del Teensy SÍ son del robot: usalos.
+  Los CSV del Teensy SÍ son del robot.
 
-* LA PERCEPCIÓN ACIERTA. El target cae sobre la cinta
-  correcta 50/50 en la verdad de terreno, es estable el
-  99,8 % y apunta bien el 97,3 %. Dejá de buscar ahí.
+* vision_linea NO hace `import camino_principal`: lo carga con
+  spec_from_file_location. La instancia buena está en
+  vision_linea._CP. Leyendo la otra, USO da todo 0 y parece que
+  CAMINO no corre.
 
-* EL ESTIMADOR DE YAW POR CORRELACIÓN DE FASE ES DÉBIL: da
-  1.075 frames sobre 80 °/s en un robot cuyo techo es 39.
-  Si hay giroscopio disponible, usalo.
+* EL HFOV NO ESTÁ CALIBRADO. Afecta a Stanley y a todo lo que
+  proyecte al suelo. NO afecta al atan2 ni a la ley de CAMINO,
+  que trabajan en píxeles. Hay calibrador: calibrar_camara.py.
 
-* ANTES DE INSTRUMENTAR, PREGUNTÁ QUÉ MIDE REALMENTE EL
-  CAMPO. `dt` del registrador parecía el período del lazo y
-  era el suyo propio: un IntervalTimer de hardware a 200 Hz.
+* LA SECCIÓN 6 DEL TRASPASO LISTA OCHO ERRORES MÍOS. Leelos: son
+  el catálogo de cómo se autoengaña uno midiendo.
 
-* LA SECCIÓN 5 DE LA NOCHE LISTA DIEZ ERRORES MÍOS. Leelos:
-  son el catálogo de cómo se autoengaña uno midiendo.
-
-* NUNCA uses `git add -A`. En esta sesión arrastró 60 MB de
-  .avi y cambios de otro al commit 7642693.
+* NUNCA uses `git add -A`.
 
 ==========================================================
 6. REGLAS QUE NO SE NEGOCIAN
 ==========================================================
 1. Falsador escrito ANTES de medir, en números.
-2. Umbrales preregistrados en BANDA. Sólo hay conclusión si
-   hay plateau.
-3. Controles: hist_exito 100/100 y lineal_positivo 73/73
-   conservando el máximo de +89. NUNCA propongas limitar la
-   magnitud del steer.
-4. Instrumentar sin cambiar lo que se mide: verificá que el
-   espía reproduzca la salida exacta antes de creerle al A/B.
-5. Diagnóstico confirmado ≠ política adoptada.
+2. Umbrales preregistrados en BANDA. Sólo hay conclusión si hay
+   plateau.
+3. Eventos ÚNICOS, no muestras.
+4. Tasa base y placebo desplazado. Un lift sin tasa base no vale.
+5. NUNCA inventes un resultado ni una cita.
 6. Sanidad física antes de publicar un número.
-7. NUNCA inventes resultados físicos. Si no está medido, decilo.
-8. Un cambio por fase. VISION_LINEA, LEY_STEER y
-   VEL_ANTICIPADA van por separado a propósito.
-9. Español.
+7. Diagnóstico confirmado ≠ política adoptada.
+8. NUNCA propongas limitar la magnitud del steer de la visión.
+9. Lo que hoy funciona no puede dejar de funcionar.
+10. Español.
+
+Y una del equipo, con dos capturas detrás:
+  EL DETECTOR NO PUEDE VOLVER A LAS BIFURCACIONES DEL ESQUELETO.
+  Trabajá sobre la cadena que CAMINO ya eligió (`cad` /
+  CAP["cadena_pts"]), NUNCA sobre el esqueleto crudo. El 55,9 %
+  de los frames tienen bifurcaciones.
+  Ver NO-ROMPER-LA-CADENA-UNICA.md.
 
 Usá las skills del repo: seguimiento-de-trayectoria,
-geometria-camara-suelo, experimento-falsable, arduino-embebido.
-```
+geometria-camara-suelo, experimento-falsable, arduino-embebido,
+opencv-robotica, robocup-junior.
