@@ -80,3 +80,6 @@ software/raspberry/final_rpi/_*.png
 # Se regeneran con: python software/raspberry/final_rpi/registro_cadena.py
 *.mkv
 *.mov
+
+# los renderizadores generan mp4 grandes (el registro completo son 271 MB)
+*.mp4
