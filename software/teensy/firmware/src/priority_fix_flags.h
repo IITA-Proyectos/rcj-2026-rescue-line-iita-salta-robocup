@@ -24,6 +24,32 @@ namespace priority_fix_flags
 //  EN LA PISTA DEL EQUIPO, no como una constante. Cada fix que lo usa expone
 //  su barrido. El radio real minimo se mide con una cinta y la pista, no se
 //  cita.
+//
+//  EL FACTOR DE APERTURA, ESTE SI MEDIDO: 1,15
+//
+//  El robot NO traza el radio que pide: se abre. Medido sobre el barrido de
+//  banco del 22-ago (`banco_barrido`, 4 ruedas al piso, los DOS binarios),
+//  comparando R_pedido = b_eff*(1-rot)/(2*rot) contra R_real = v_enc/gz:
+//
+//      rot    R pedido   R real   apertura
+//      0,40    15,67     17,26      1,10
+//      0,50    10,45     12,14      1,16
+//      0,60     6,97      8,05      1,16
+//      0,70     4,48      5,09      1,14
+//      0,85     1,84      2,12      1,15
+//
+//  CONSTANTE en todo el rango y en los dos binarios. (Una medicion suelta
+//  sobre un tramo de pista habia dado 1,7; con la distribucion completa por
+//  frame eso cae en el percentil 72 y la mediana es 1,16. El 1,7 era ruido de
+//  medir frame a frame en pista, no una propiedad del robot.)
+//
+//  POR ESO las constantes de rot valen 0,710 y no 0,681:
+//      para TRAZAR 4,9 cm hay que PEDIR 4,9/1,15 = 4,26 cm
+//      rot = b_eff/(2*4,26 + b_eff) = 0,710
+//  El 0,681 de la primera version pedia 4,9 y habria trazado 5,6.
+//
+//  SE REVALIDA en banco: correr `banco_barrido` con las 4 ruedas al piso y
+//  rehacer esta tabla. Si el factor cambia, cambian las tres constantes.
 // ===========================================================================
 
 inline constexpr bool kEnableAllPriorityFixes = false;
@@ -295,7 +321,7 @@ inline constexpr uint32_t kTofBudgetUs = 20000;
 // SI HAY QUE ELEGIR UNO, ES EL (8). Este queda para poder comparar.
 inline constexpr bool kFixPivoteAvanza = false;
 // 0,681 traza R = 4,9 cm con b_eff = 20,9 cm. Subirlo a 1,0 es el de hoy.
-inline constexpr double kPivoteRotMax = 0.681;
+inline constexpr double kPivoteRotMax = 0.710;
 
 // (6) EL WATCHDOG SELLA TRAMAS VIEJAS COMO FRESCAS. APAGADO POR DEFECTO.
 //
@@ -378,7 +404,7 @@ inline constexpr unsigned long kSerialCiegoMs = 250;
 //      camino (son otros case), pero verificar igual que no cambiaron.
 inline constexpr bool kFixMapeoRot = false;
 // 0,681 = b_eff/(2R + b_eff) con R = 4,9 cm y b_eff = 20,9 cm.
-inline constexpr double kMapeoRotMax = 0.681;
+inline constexpr double kMapeoRotMax = 0.710;
 
 // (8) EL PIVOTE POR MEMORIA. APAGADO POR DEFECTO. Es la version QUIRURGICA
 //     del fix (5), y si hay que elegir uno, es este.
@@ -424,7 +450,7 @@ inline constexpr double kMapeoRotMax = 0.681;
 inline constexpr bool kFixPivoteMemoria = false;
 // 0,681 = b_eff/(2R + b_eff) con R = 4,9 cm (la curva mas cerrada del
 // reglamento) y b_eff = 20,9 cm.
-inline constexpr double kPivoteMemoriaPiso = 0.681;
+inline constexpr double kPivoteMemoriaPiso = 0.710;
 
 // (9) EL GAP SUELTA EL PIVOTE. APAGADO POR DEFECTO.
 //     Es el unico de estos fixes con fundamento REGLAMENTARIO y no estimado.
