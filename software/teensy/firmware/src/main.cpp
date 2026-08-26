@@ -187,6 +187,57 @@
 #define LINE_DWELL_GLOBAL 0
 #endif
 
+// FRENAR LA RUEDA DELANTERA INTERNA EN LAS CURVAS. Apagado por defecto.
+//
+// Idea de Benjamin, 26-ago: "al girar que una de las ruedas frontales se frene
+// y que gire con las otras 3", de la epoca de 2 fijas + 2 omni atras, donde
+// giraban con rotation ~0,7 y speed 55 en curva y 40 en el resto.
+//
+// LA FISICA ESTA EN drivebase.h, Y HAY QUE LEERLA: con 4 fijas la posicion
+// LONGITUDINAL del centro de giro NO se puede imponer por consigna, porque FL
+// y BL comparten posicion lateral y por lo tanto velocidad de rodadura. Con
+// las omni atras si se podia. Lo que queda con 4 fijas es correrlo por
+// DINAMICA, y eso se BARRE, no se calcula.
+//
+// POR QUE PUEDE IMPORTAR: si el centro de giro queda debajo de la camara, la
+// camara ROTA SIN TRASLADARSE. Hoy el robot gira, la camara se corre de
+// costado, la linea salta en la imagen por traslacion y el control corrige al
+// reves. Medido el 26-ago en pista: 88 episodios de curva sobre 6 corridas y
+// TRES leyes de vision distintas, y NINGUNO pasa de 55 grados netos.
+//
+// EL BARRIDO, en este orden:
+//     LINE_FRENO_FACTOR =  1.0   control negativo: tiene que dar IGUAL que hoy
+//                          0.0   la delantera interna quieta   <- lo que pidio
+//                         -1.0   reversa activa, maximo momento y maximo scrub
+//
+// FALSADOR, el mismo que el resto de los intentos del codo:
+//   1. tiene que aparecer AL MENOS UN episodio de >= 80 grados netos.
+//      Hoy son 0 de 88. Es una base dura de batir por casualidad.
+//   2. el ratio giro_abs/giro_neto de los ultimos 3 s baja de 2,0 (hoy 2,8-5,8).
+//   3. SE APAGA si corta una curva que hoy toma, o si gira sin avanzar (LoP).
+//   4. control positivo: la cabecera del CSV tiene que decir freno_del=1.
+//
+// CUIDADO CON LA SILICONA: -1.0 es scrub maximo con las 4 fijas. Benjamin
+// verifico el 26-ago que no se sale, pero mirar las ruedas entre pasadas.
+#ifndef LINE_FRENO_DELANTERO
+#define LINE_FRENO_DELANTERO 0
+#endif
+// Desde que |steer| se frena la delantera interna. 0,50 es lo que pidio
+// Benjamin, y coincide con el punto donde steer() deja la interna en CERO:
+// v_int = vel*(1 - 2*rot) se hace 0 justo en rot = 0,5.
+#ifndef LINE_FRENO_STEER
+#define LINE_FRENO_STEER 0.50
+#endif
+// Velocidad en la curva cerrada. 55 es la que usaban con la traccion anterior.
+// El resto del tiempo se sigue usando la que manda la Pi.
+#ifndef LINE_FRENO_VEL
+#define LINE_FRENO_VEL 55
+#endif
+// Consigna de la delantera interna, como fraccion de la que le tocaria.
+#ifndef LINE_FRENO_FACTOR
+#define LINE_FRENO_FACTOR 0.0
+#endif
+
 // ============================================================================
 //  MODO_BANCO - barrido automatico de actuacion. SIN pista y SIN vision.
 //
@@ -1040,6 +1091,10 @@ void diagProcedencia()
     DIAG_OUT.print(" piv_confirma_ms="); DIAG_OUT.print(LINE_PIVOTE_CONFIRMA_MS);
     DIAG_OUT.print(" piv_dwell_ms="); DIAG_OUT.print(LINE_PIVOTE_DWELL_MS);
     DIAG_OUT.print(" dwell_glob="); DIAG_OUT.print(LINE_DWELL_GLOBAL);
+    DIAG_OUT.print(" freno_del="); DIAG_OUT.print(LINE_FRENO_DELANTERO);
+    DIAG_OUT.print(" freno_f="); DIAG_OUT.print(LINE_FRENO_FACTOR, 2);
+    DIAG_OUT.print(" freno_st="); DIAG_OUT.print(LINE_FRENO_STEER, 2);
+    DIAG_OUT.print(" freno_vel="); DIAG_OUT.print(LINE_FRENO_VEL);
     DIAG_OUT.print(" commit=");
 #ifdef TLM_COMMIT
     DIAG_OUT.println(TLM_COMMIT);
@@ -4092,7 +4147,21 @@ if (green_state == 2)
                         // curvas podria aplicarse al enganchar la proxima.
                         s_pivote_signo = 0;
                     }
+#if LINE_FRENO_DELANTERO
+                    // CURVA CERRADA: se frena la delantera interna y se sube la
+                    // velocidad. Fuera del umbral, todo sigue como hoy.
+                    if (absSteer >= LINE_FRENO_STEER)
+                    {
+                        g_line_branch = 7;
+                        robot.steerFrenoDelantero(LINE_FRENO_VEL, FORWARD,
+                                                  signoCmd > 0 ? rot : -rot,
+                                                  LINE_FRENO_FACTOR);
+                    }
+                    else
+                        robot.steer(vel, FORWARD, signoCmd > 0 ? rot : -rot);
+#else
                     robot.steer(vel, FORWARD, signoCmd > 0 ? rot : -rot);
+#endif
 
 #else   // ---------------- arbol de ramas historico ----------------------
 

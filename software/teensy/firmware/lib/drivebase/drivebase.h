@@ -239,6 +239,46 @@ public:
     // (build del 2026-08-15 21:04, el que esta flasheado): la implementacion
     // se perdio al revertir drivebase.cpp el 16-ago y nunca estuvo commiteada,
     // dejando main.cpp llamando a una funcion inexistente -> no compilaba.
+    // ------------------------------------------------------------------
+    //  steerFrenoDelantero - frena la rueda DELANTERA INTERNA y gira con las
+    //  otras tres. Idea de Benjamin, 26-ago, de la epoca de 2 fijas + 2 omni.
+    //
+    //  LA FISICA, y hay que tenerla clara antes de barrer:
+    //
+    //  Con 4 RUEDAS FIJAS la velocidad de rodadura de cada rueda vale
+    //      v_i = omega * (x_i - px)
+    //  donde x_i es su posicion LATERAL y px la del centro instantaneo de
+    //  rotacion. FL y BL tienen el MISMO x. O sea que la posicion
+    //  LONGITUDINAL del centro de giro NO SE PUEDE IMPONER por consigna: para
+    //  rotar alrededor de FL, BL tendria que estar quieta tambien.
+    //
+    //  Con 2 OMNI ATRAS si se podia -las omni deslizan de costado-, y por eso
+    //  el truco funcionaba con la traccion anterior. Al pasar a 4 fijas se
+    //  perdio esa capacidad. Esto NO es una opinion: es la restriccion de
+    //  rodadura.
+    //
+    //  LO QUE SI PASA: frenar la delantera interna corre el centro de giro
+    //  hacia adelante por DINAMICA -cambia donde estan las fuerzas de
+    //  friccion-, no por cinematica. El efecto es real pero NO es calculable
+    //  sin conocer peso, reparto y agarre. Por eso `frenoInterna` es un
+    //  parametro que se BARRE, igual que se hacia variando la velocidad.
+    //
+    //  PARA QUE SIRVE, si sirve: si el centro de giro queda debajo de la
+    //  camara, la camara ROTA SIN TRASLADARSE. Hoy el robot gira, la camara
+    //  se corre de costado, la linea salta en la imagen por traslacion y el
+    //  control corrige al reves. Medido el 26-ago: 88 episodios de curva y
+    //  NINGUNO pasa de 55 grados netos.
+    //
+    //  frenoInterna: consigna de la DELANTERA INTERNA como fraccion de la
+    //  velocidad interna que le tocaria en steer():
+    //       1.0 = identico a steer(), sin efecto  (control negativo)
+    //       0.0 = quieta
+    //      -1.0 = reversa a la misma magnitud (freno activo)
+    //  Las otras tres quedan EXACTAMENTE como en steer().
+    // ------------------------------------------------------------------
+    void steerFrenoDelantero(double speed, int direction, double rotation,
+                             double frenoInterna);
+
     void steerAxleBias(double speed, int direction, double rotation,
                        double frontScale, double rearScale);
     void reset();

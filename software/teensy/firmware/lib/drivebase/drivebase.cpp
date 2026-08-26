@@ -308,6 +308,98 @@ void DriveBase::steerAxleBias(double speed, int direction, double rotation,
 }
 
 // ============================================================================
+//  steerFrenoDelantero - frena la DELANTERA INTERNA y gira con las otras tres.
+//
+//  Es steer() con UN solo cambio: la consigna de la rueda delantera del lado
+//  interno se multiplica por `frenoInterna`. Las otras tres quedan igual, byte
+//  por byte. Con frenoInterna = 1.0 esta funcion ES steer(), y eso sirve de
+//  CONTROL NEGATIVO: si con 1.0 el robot se comporta distinto, el bug esta
+//  aca adentro y no en la idea.
+//
+//  El razonamiento fisico completo esta en drivebase.h. Resumen: con 4 fijas
+//  la posicion LONGITUDINAL del centro de giro no se puede imponer por
+//  consigna -FL y BL comparten x, asi que comparten velocidad de rodadura-;
+//  se corre por DINAMICA, al cambiar donde estan las fuerzas de friccion. Por
+//  eso `frenoInterna` se BARRE en vez de calcularse.
+//
+//  QUE ESPERAR DE CADA VALOR. NADA DE ESTO ESTA MEDIDO TODAVIA:
+//     1.0  identico a steer()                        (control negativo)
+//     0.5  la delantera interna arrastra menos
+//     0.0  quieta: aporta friccion pura adelante
+//    -1.0  reversa activa: maximo momento adelante, y maximo scrub
+//
+//  DOS COSAS AL LEER EL CSV, para no confundirlas con hallazgos:
+//   * con consigna baja se dispara el `if (_pwmVal < 10) _dir = !_dir` de
+//     setSpeed, y analizar_diagnostico.py lo reporta como [C] SENTIDO
+//     INDEFINIDO. En la delantera interna eso es ESPERADO aca, no un bug.
+//   * el `enc` de esa rueda deja de ser confiable: el signo se infiere del
+//     comando y el comando esta oscilando. Para el avance del centro, usar
+//     las otras tres ruedas.
+// ============================================================================
+void DriveBase::steerFrenoDelantero(double speed, int direction,
+                                    double rotation, double frenoInterna)
+{
+    _speed = constrain(speed, 0, 159);
+    _rotation = constrain(rotation, -1, 1);
+    frenoInterna = constrain(frenoInterna, -1, 1);
+    _direction = direction;
+
+    // Identico a steer() hasta aca: quien es la interna y a que velocidad va.
+    if (rotation >= 0)  // gira a la izquierda: la INTERNA es la izquierda
+    {
+        _rightspeed = _speed;
+        _rightdir = _direction;
+        _leftdir = _direction;
+        _leftspeed = _speed - (2 * rotation * _speed);
+        if (_leftspeed < 0)
+        {
+            _leftdir = !_leftdir;
+            _leftspeed *= -1;
+        }
+    }
+    else                // gira a la derecha: la INTERNA es la derecha
+    {
+        _leftspeed = _speed;
+        _leftdir = _direction;
+        _rightdir = _direction;
+        _rightspeed = _speed + (2 * rotation * _speed);
+        if (_rightspeed < 0)
+        {
+            _rightdir = !_rightdir;
+            _rightspeed *= -1;
+        }
+    }
+
+    // Y aca el unico cambio: la DELANTERA del lado interno lleva el factor.
+    // Si `frenoInterna` es negativo la rueda va al reves de lo que le tocaba:
+    // se invierte su direccion y se usa la magnitud.
+    double vFrontInt = (rotation >= 0 ? _leftspeed : _rightspeed) * frenoInterna;
+    int dirFrontInt = (rotation >= 0 ? _leftdir : _rightdir);
+    if (vFrontInt < 0)
+    {
+        dirFrontInt = !dirFrontInt;
+        vFrontInt *= -1;
+    }
+
+    // Mismo orden de llamadas que steer(): fl, bl, fr, br. Y el lado derecho
+    // va negado, igual que alli, porque el montaje esta espejado.
+    if (rotation >= 0)                     // interna = izquierda -> se frena FL
+    {
+        _fl->setSpeed(dirFrontInt, vFrontInt);
+        _bl->setSpeed(_leftdir, _leftspeed);
+        _fr->setSpeed(!_rightdir, _rightspeed);
+        _br->setSpeed(!_rightdir, _rightspeed);
+    }
+    else                                   // interna = derecha  -> se frena FR
+    {
+        _fl->setSpeed(_leftdir, _leftspeed);
+        _bl->setSpeed(_leftdir, _leftspeed);
+        _fr->setSpeed(!dirFrontInt, vFrontInt);
+        _br->setSpeed(!_rightdir, _rightspeed);
+    }
+}
+
+// ============================================================================
 //  steerRadius - pedir un RADIO, no una rotacion adimensional.
 //
 //  No reimplementa nada: convierte el radio a `rotation` y delega en steer(),
