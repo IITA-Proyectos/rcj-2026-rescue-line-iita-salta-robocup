@@ -73,6 +73,40 @@ está cuando **terminó** de girar. La distancia entre las dos marcas es el núm
 **Por qué importa tanto**: si se pasa, el arreglo va en dirección **contraria** a
 tres de los cinco fixes. Ver la advertencia abajo.
 
+### 1ter. MEDIR EL HFOV DE LA CÁMARA · **5 minutos, sin robot** ⭐⭐
+
+**Se sumó al plan y puede ser lo más importante de la lista.**
+
+El planner calcula `ψ` proyectando píxeles al suelo con
+`f_px = (W/2)/tan(HFOV/2)`, y **el código asume HFOV = 60° puesto a mano**. El
+TDP dice que la cámara es de **140°**. Si es así, `ψ` está subestimado **3×**
+(ese mismo target daría 59° en vez de 19,3°).
+
+Y el propio `FALSADOR-STANLEY.md` lo dice: *"el HFOV no está calibrado"*. La
+banda que se barrió es 45/60/75 — **si el real es 140, los tres están fuera**.
+
+**Cómo se mide** (cinta métrica y una pared, sin robot):
+
+1. cámara mirando a una **pared plana**, perpendicular
+2. medí la **distancia `D`** de la lente a la pared
+3. mirando la imagen en vivo, marcá en la pared **los dos bordes** de lo que ve
+4. medí el **ancho `L`** entre las marcas
+
+```
+HFOV = 2 · atan( L / (2·D) )
+```
+
+A `D = 50 cm`: si abarca **55 cm → 58°**; si abarca **275 cm → 140°**. Son
+inconfundibles, no hace falta precisión.
+
+**Por qué importa hoy**: el `atan2` que corre en el robot **no usa el HFOV**, así
+que esto no afecta lo que anda hoy. Pero **encender `LEY_STEER=stanley` sin
+medirlo es encender una ley cuyo término principal está escalado por un factor
+desconocido entre 0,72 y 4,76.**
+
+Detalle completo en
+[`software/raspberry/final_rpi/EL-HFOV-NO-ESTA-CALIBRADO.md`](software/raspberry/final_rpi/EL-HFOV-NO-ESTA-CALIBRADO.md).
+
 ### 2. Línea base · ~20 min
 
 Flashear `diagnostico_fix` **con todo como está** (los cinco flags en `false`).
