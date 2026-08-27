@@ -392,6 +392,13 @@
 #define LINE_CODO_COOLDOWN_MS 600UL
 #endif
 
+// Elige QUE barrido corre en MODO_BANCO. 0 = el de siempre (rotation y
+// velocidad). 1 = el del FRENO DELANTERO. Va aca arriba y no dentro del
+// #if MODO_BANCO porque la cabecera del CSV lo emite siempre.
+#ifndef BANCO_FRENO
+#define BANCO_FRENO 0
+#endif
+
 // ============================================================================
 //  MODO_BANCO - barrido automatico de actuacion. SIN pista y SIN vision.
 //
@@ -1251,6 +1258,7 @@ void diagProcedencia()
     DIAG_OUT.print(" freno_vel="); DIAG_OUT.print(LINE_FRENO_VEL);
     DIAG_OUT.print(" recta_f="); DIAG_OUT.print(LINE_RECTA_FACTOR, 2);
     DIAG_OUT.print(" codo="); DIAG_OUT.print(LINE_CODO);
+    DIAG_OUT.print(" banco_freno="); DIAG_OUT.print(BANCO_FRENO);
     DIAG_OUT.print(" codo_ent="); DIAG_OUT.print(LINE_CODO_ENTRA, 2);
     DIAG_OUT.print(" codo_min="); DIAG_OUT.print(LINE_CODO_MIN_GRADOS, 0);
     DIAG_OUT.print(" codo_max="); DIAG_OUT.print(LINE_CODO_MAX_GRADOS, 0);
@@ -3306,6 +3314,7 @@ void setup()
 // tramo es cual. 0 = pausa entre segmentos.
 #define BANCO_ROT   50   // barrido de rotation a velocidad fija
 #define BANCO_VEL   60   // barrido de velocidad a rotation = 1
+#define BANCO_FRENO_MARCA 70   // barrido del freno delantero
 
 static bool bancoTerminado = false;
 
@@ -3332,6 +3341,74 @@ bool bancoSostener(int vel, double rot, int marca, unsigned long ms)
 bool bancoPausa(unsigned long ms)
 {
     return bancoSostener(0, 0.0, 0, ms);
+}
+
+// Banco del FRENO DELANTERO. Lo pidio Benjamin el 26-ago: "necesito probar si
+// se puede girar una rueda delantera y mover las otras 3".
+//
+// QUE CONTESTA, y por que hace falta un banco y no una pasada de pista:
+// con 4 ruedas fijas la posicion LONGITUDINAL del centro de giro NO se puede
+// imponer por consigna -FL y BL comparten posicion lateral, asi que comparten
+// velocidad de rodadura-. Solo se puede correr por DINAMICA, cambiando donde
+// estan las fuerzas de friccion. Eso NO es calculable sin conocer peso, reparto
+// y agarre: hay que MEDIRLO. Y en pista no se puede, porque la vision mete
+// ruido y el robot no repite dos veces la misma entrada.
+//
+// EL BARRIDO. Con `rotation` FIJO y velocidad FIJA, se barre solo la consigna
+// de la rueda DELANTERA INTERNA:
+//     kFrenoComoSteer  = steer() exacto              <- CONTROL NEGATIVO
+//     +1.0  adelante a velocidad completa
+//      0.0  quieta                                   <- lo que pidio Benjamin
+//     -0.5  reversa a media velocidad
+//     -1.0  reversa a velocidad completa
+// Los dos signos de giro, dos pasadas, para ver si es simetrico.
+//
+// QUE SE MIDE DESPUES, con los CSV:
+//   * grados/s reales (gz del BNO) para cada factor -> cuanto gira
+//   * avance del centro por los encoders            -> cuanto avanza
+//   * radio = avance/giro                           -> el radio que traza
+//   * y comparando avance de FL contra BL: si el centro de giro se corrio
+//     adelante, la delantera interna recorre MENOS que la trasera interna.
+//     ESE es el numero que dice si la idea funciona.
+//
+// SEGURIDAD: las 4 ruedas en el piso y espacio libre. Con factor -1.0 la
+// delantera interna va en reversa contra el piso: es el mayor scrub de todo
+// lo que se probo. Mirar la silicona entre segmentos. El switch corta.
+void bancoFrenoDelantero()
+{
+    static const double FACT[] = { DriveBase::kFrenoComoSteer, 1.0, 0.0, -0.5, -1.0 };
+    const double ROT = 0.60;          // rotation fijo, curva cerrada tipica
+    const int    VEL = 55;            // la velocidad de curva que se usa hoy
+    const unsigned long SOSTEN = 1500, PAUSA = 1000;
+
+    for (int rep = 0; rep < 2; rep++)
+    {
+        for (unsigned i = 0; i < sizeof(FACT) / sizeof(FACT[0]); i++)
+        {
+            for (int sg = 0; sg < 2; sg++)
+            {
+                double rot = (sg == 0) ? ROT : -ROT;
+                if (!bancoPausa(PAUSA)) return;
+                g_line_branch = BANCO_FRENO_MARCA;
+                unsigned long t0 = millis();
+                while (millis() - t0 < SOSTEN)
+                {
+                    if (digitalRead(SWITCH) == 1)
+                    {
+                        robot.steer(0, FORWARD, 0);
+                        g_line_branch = 0;
+                        return;
+                    }
+                    robot.steerFrenoDelantero(VEL, FORWARD, rot, FACT[i]);
+                    DIAG_TICK();
+                }
+                g_line_branch = 0;
+            }
+        }
+    }
+    robot.steer(0, FORWARD, 0);
+    g_line_branch = 0;
+    bancoTerminado = true;
 }
 
 void bancoBarrido()
@@ -3392,7 +3469,11 @@ void loop()
     DIAG_TICK();
     if (digitalRead(SWITCH) == 0 && !bancoTerminado)
     {
+#if BANCO_FRENO
+        bancoFrenoDelantero();
+#else
         bancoBarrido();
+#endif
     }
     else
     {
