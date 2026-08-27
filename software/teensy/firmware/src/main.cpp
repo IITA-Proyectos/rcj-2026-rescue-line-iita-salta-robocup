@@ -393,6 +393,68 @@
 #ifndef LINE_CODO_SALE_MS
 #define LINE_CODO_SALE_MS 120UL
 #endif
+
+// GUARD DE FRAME CIEGO. Apagado por defecto.
+//
+// EL BUG, reconstruido al milisegundo sobre 2026-08-26_codo_1.csv:
+//
+//   t=62,500  arranca el disparo 1 (yaw 75,7)
+//   t=62,780  la vision cambia de signo; el signo congelado la ignora: bien
+//   t=63,050  rxsteer pasa a 0 EXACTO con girado = 44,4 grados, y se queda
+//             en 0 exacto 19 frames seguidos = 430 ms
+//   t=63,170  exactamente 120 ms despues -LINE_CODO_SALE_MS, la constante
+//             apareciendo sola en el log- la maniobra SALE con 57,0 grados,
+//             rot cae a 0 y el robot sigue derecho. El contragiro posterior
+//             le devuelve +42,9 y el neto queda en -14,1.
+//
+// El disparo 2 tambien tuvo frames en cero, pero cayeron con girado = 24,9,
+// un pelo por debajo de LINE_CODO_MIN_GRADOS = 25,0, asi que no contaron.
+// Corrio hasta el tope: 108,5 grados netos, ratio 1,00.
+//
+// LA DIFERENCIA ENTRE 57 Y 108,5 FUE SI APARECIO O NO UNA RACHA CIEGA DESPUES
+// DEL GRADO 25.
+//
+// POR QUE `steer == 0` NO ES "ESTOY CENTRADO". En EN_EL_ROBOT/main.py, que es
+// el que corre de verdad, con la mascara vacia el angulo sale del atan2 de
+// (0,0) y se manda el byte 90, que llega como steer = 0,000 EXACTO. No es la
+// cola de una distribucion alrededor del centrado: en codo_1 hay 136 frames
+// en 0 exacto contra 3 en +-11 y 2 en +-22. Es un pico de asignacion dura.
+// Y de las 6 ventanas de salida de >=120 ms de ese archivo, LAS 6 son 100 %
+// ceros: ninguna tiene un solo frame informativo.
+//
+// QUE HACE EL GUARD: un frame ciego NO TERMINA la maniobra y TAMPOCO REINICIA
+// el contador de centrado. No dice nada, ni a favor ni en contra.
+//
+// La version ingenua -mandar el cero al `else`- reinicia el contador, y eso,
+// medido sobre las 9 corridas, mata 11 de 29 salidas tempranas (38 %). La
+// salida temprana es la valvula de seguridad: es lo que hace que un falso
+// positivo cueste 25-30 grados en vez de 110. Esta version mata las 9
+// ventanas 100 % ciegas y no toca ninguna de las otras 20.
+//
+// Se usa `g_rx_steer` y NO `steer`: `steer` es una global que otras partes del
+// firmware pisan; `g_rx_steer` es la copia que el propio codigo documenta como
+// "nadie mas la toca".
+//
+// FALSADOR:
+//   CONTROL (asercion): ningun disparo puede terminar con una racha de
+//     rxsteer == 0 de >=120 ms inmediatamente antes.
+//   PRIMARIO: >=1 episodio de >=80 grados netos en >=2 de 4 pasadas, y la
+//     mediana de grados netos por disparo sube respecto de CIEGO=0.
+//   DEL COSTO, y este decide si va a la pista: si CERO disparos terminan por
+//     vision, la maniobra dejo de ser realimentada y es un giro a lazo abierto
+//     de 110 grados. Eso NO es este fix: es otra politica. Se apaga.
+//   Control positivo: la cabecera dice codo_ciego=1.
+//
+// HONESTIDAD: la tasa base de este modo de falla es 1 de 2 disparos, n=2. Los
+// episodios ciegos de >=120 ms fuera de codo_1 son 3 en 154,6 s = 1,2/min.
+// Puede ser que el pivote ciego a 90-100 grados/s sea lo que se saca la linea
+// del ROI -y entonces el peligro vuelve cada vez que LINE_CODO=1- o puede ser
+// que codo_1 fuera una corrida con peor luz. n=1 no lo puede decidir.
+//
+// Con LINE_CODO_CIEGO = 0 el binario queda IDENTICO al de hoy.
+#ifndef LINE_CODO_CIEGO
+#define LINE_CODO_CIEGO 0
+#endif
 // Grados minimos antes de poder salir por centrado.
 #ifndef LINE_CODO_MIN_GRADOS
 #define LINE_CODO_MIN_GRADOS 25.0
@@ -1347,6 +1409,12 @@ void diagProcedencia()
     DIAG_OUT.print(" codo_ent="); DIAG_OUT.print(LINE_CODO_ENTRA, 2);
     DIAG_OUT.print(" codo_min="); DIAG_OUT.print(LINE_CODO_MIN_GRADOS, 0);
     DIAG_OUT.print(" codo_max="); DIAG_OUT.print(LINE_CODO_MAX_GRADOS, 0);
+    // Sin estos cuatro, dos corridas con parametros distintos son
+    // INDISTINGUIBLES en el archivo. Paso el 26-ago con ENTRA_MS.
+    DIAG_OUT.print(" codo_ent_ms="); DIAG_OUT.print(LINE_CODO_ENTRA_MS);
+    DIAG_OUT.print(" codo_sale_ms="); DIAG_OUT.print(LINE_CODO_SALE_MS);
+    DIAG_OUT.print(" codo_vel="); DIAG_OUT.print(LINE_CODO_VEL);
+    DIAG_OUT.print(" codo_ciego="); DIAG_OUT.print(LINE_CODO_CIEGO);
     DIAG_OUT.print(" commit=");
 #ifdef TLM_COMMIT
     DIAG_OUT.println(TLM_COMMIT);
@@ -1359,7 +1427,10 @@ void diagCabeceraPeriodica()
 {
     static unsigned long ult = 0;
     if (millis() - ult < 2000) return;
-    if (DIAG_OUT.availableForWrite() < 420) return;   // cabecera + procedencia
+    // 520 y no 420: la procedencia ya son ~378 B y los campos del codo suman
+    // ~58 mas. Con 420 la cabecera periodica dejaria de emitirse EN SILENCIO
+    // y se perderia la procedencia a mitad de corrida.
+    if (DIAG_OUT.availableForWrite() < 520) return;   // cabecera + procedencia
     ult = millis();
     diagProcedencia();
     DIAG_OUT.println(DIAG_CABECERA);
@@ -4525,14 +4596,21 @@ if (green_state == 2)
                         {
                             // Solo despues del minimo se le hace caso a la
                             // vision, y solo si el centrado SE SOSTIENE.
-                            if (absSteer <= LINE_PIVOTE_SALE)
+#if LINE_CODO_CIEGO
+                            // Un frame ciego no termina la maniobra NI reinicia
+                            // el contador. Ver el bloque de defines.
+                            if (g_rx_steer != 0.0)
+#endif
                             {
-                                if (s_codo_cen == 0) s_codo_cen = millis();
-                                if (millis() - s_codo_cen >= LINE_CODO_SALE_MS)
-                                    terminar = true;
+                                if (absSteer <= LINE_PIVOTE_SALE)
+                                {
+                                    if (s_codo_cen == 0) s_codo_cen = millis();
+                                    if (millis() - s_codo_cen >= LINE_CODO_SALE_MS)
+                                        terminar = true;
+                                }
+                                else
+                                    s_codo_cen = 0;
                             }
-                            else
-                                s_codo_cen = 0;
                         }
 
                         if (terminar)
