@@ -31,6 +31,10 @@ QUE SE VE
 NO toca main.py, NO abre el puerto serie, NO mueve un motor. El robot puede
 estar apagado: se lo pasea a mano.
 
+ROTA EL FRAME 180 GRADOS antes de procesarlo, igual que main.py:989: la camara
+esta montada invertida. Sin eso el pipeline ve el suelo arriba y el analisis
+entero queda mal. Con --sin-rotar se puede desactivar si cambian el montaje.
+
     python3 codo_vivo.py
     python3 codo_vivo.py --umbral 35
 
@@ -136,6 +140,8 @@ def main():
     ap.add_argument("--umbral", type=float, default=45.0)
     ap.add_argument("--res", type=float, default=2.0)
     ap.add_argument("--cam", type=int, default=0)
+    ap.add_argument("--sin-rotar", action="store_true",
+                    help="NO rotar 180. Solo si cambiaron el montaje de la camara")
     ap.add_argument("--dir", default="codos_vivo")
     ap.add_argument("--cooldown", type=float, default=1.2,
                     help="s minimos entre dos disparos, para contar EVENTOS y no frames")
@@ -172,6 +178,12 @@ def main():
             ok, fr = cap.read()
             if not ok:
                 continue
+            # ROTAR 180 ANTES DEL RESIZE, igual que main.py:989. La camara
+            # esta montada invertida en el robot: sin esto el pipeline ve el
+            # suelo arriba y el horizonte abajo, y TODO el analisis de la
+            # cadena queda mal. Lo aviso Benjamin.
+            if not a.sin_rotar:
+                fr = cv2.rotate(fr, cv2.ROTATE_180)
             f = cv2.resize(fr, (160, 120), interpolation=cv2.INTER_NEAREST)
             try:
                 VL.angulo(f)
