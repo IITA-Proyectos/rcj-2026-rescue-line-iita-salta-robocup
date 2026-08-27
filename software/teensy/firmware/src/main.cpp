@@ -252,6 +252,28 @@
 #define LINE_FRENO_FACTOR DriveBase::kFrenoComoSteer
 #endif
 
+// MULTIPLICADOR DE rot DENTRO DE LA RAMA DEL FRENO. 1.0 = sin cambio.
+//
+// POR QUE. El banco del 26-ago (banco_freno) midio que con la delantera
+// interna QUIETA el centro de giro se corre adelante -esa rueda recorre 0,1 cm
+// contra 5,0 de la trasera interna- pero el radio se ABRE: 9,56 cm contra 6,50
+// del control. Se gana el centro de giro y se pierde cierre.
+//
+// Con la delantera quieta el radio vale
+//     R = b_eff * (3 - 2*rot) / (2 * (1 + 2*rot))
+// asi que subiendo `rot` SOLO en esta rama se cierra la curva sin sacar la
+// rueda de su lugar. Con b_eff = 20,9 y la delantera quieta:
+//     rot 0,74  ->  R = 6,4 cm      (lo que da hoy con ROT_EXP 0,85 y steer 0,70)
+//     rot 0,86  ->  R = 4,9 cm
+//     rot 0,96  ->  R = 3,8 cm
+//     rot 1,00  ->  R = 3,5 cm
+//
+// Va aparte de LINE_ROT_EXP a proposito: el exponente toca TODO el rango,
+// incluida la recta, y bajarlo trajo cabeceo. Esto toca solo la curva cerrada.
+#ifndef LINE_FRENO_ROT_MULT
+#define LINE_FRENO_ROT_MULT 1.0
+#endif
+
 // VELOCIDAD EN RECTA, como fraccion de la que manda la Pi. 1.0 = sin cambio.
 //
 // Benjamin, 26-ago: "tiene que ir mas lento normalmente como un 50 % y de ahi
@@ -397,6 +419,66 @@
 // #if MODO_BANCO porque la cabecera del CSV lo emite siempre.
 #ifndef BANCO_FRENO
 #define BANCO_FRENO 0
+#endif
+
+// ===========================================================================
+//  LEY DE REPARTO POR SUMA/RESTA. Apagada por defecto.
+//
+//  Es la ley que usa Airborne 2025, un equipo que corre LA MISMA TRACCION que
+//  este robot: 4 motores, 4 ruedas de silicona caseras. Su codigo es publico.
+//
+//      Airborne                     Este robot (steer)
+//      m1 = base + u                v_ext = vel
+//      m2 = base - u                v_int = vel * (1 - 2*rot)
+//
+//      v_centro = base              v_centro = vel * (1 - rot)
+//        CONSTANTE                    CAE A CERO en rot = 1
+//
+//  AIRBORNE NUNCA PIVOTA. Suma a un lado y resta al otro, asi que la velocidad
+//  hacia adelante se mantiene sin importar cuanto gire. Este robot hace lo
+//  contrario: cuanto mas gira, menos avanza, y en rot = 1 se planta.
+//
+//  Eso atraviesa toda la sesion del 26-ago: "gira sin avanzar", "avanza muy de
+//  a poco", el pivote que no progresa, y el 79,7 % del tiempo con avance CERO
+//  en la corrida de pivote sostenido. NO es un bug: es la formula.
+//
+//  EL RADIO:  R = b_eff / (2*u)   -y tampoco depende de la velocidad-
+//      u 0,50 -> 20,9 cm    u 1,00 -> 10,5 cm (un lado QUIETO)
+//      u 1,50 ->  7,0 cm    u 2,00 ->  5,2 cm (un lado en reversa)
+//
+//  `u` se calcula como absSteer * LINE_SUMA_K, y PUEDE PASAR DE 1: ahi el lado
+//  interno se invierte, que es como se cierra el radio SIN dejar de avanzar.
+//
+//  FALSADOR, preregistrado y en dos niveles:
+//
+//   NIVEL 0 - el mecanismo. Sobre el CSV, la velocidad del centro reconstruida
+//   de los encoders tiene que quedar PLANA contra el |steer| pedido. Hoy cae:
+//   la correlacion entre |steer| y v_centro es fuertemente negativa. Si con la
+//   ley nueva sigue cayendo, el flag NO esta actuando y no se interpreta nada.
+//
+//   NIVEL 1 - la pista, la misma vara que el resto del proyecto:
+//     1. tiene que aparecer AL MENOS UN episodio de >= 80 grados netos.
+//        Al 26-ago son 0 de 88.
+//     2. el ratio giro_abs/giro_neto de los ultimos 3 s baja de 2,0
+//        (hoy 2,8-5,8).
+//     3. SE APAGA si corta curvas que hoy toma.
+//     4. control positivo: la cabecera dice ley_suma=1.
+//
+//  OJO CON LA SATURACION: el lado externo pide base*(1+u) y el tope es 159.
+//  Con la velocidad de la Pi (40) y u hasta 2,0 son 120: hay margen. Si se
+//  sube LINE_SUMA_VEL, verificar que no sature, porque ahi el radio real se
+//  abre respecto del pedido.
+// ===========================================================================
+#ifndef LINE_LEY_SUMA
+#define LINE_LEY_SUMA 0
+#endif
+// Cuanto vale `u` para steer = 1. Con 1,5 el steer maximo pide R = 7,0 cm.
+#ifndef LINE_SUMA_K
+#define LINE_SUMA_K 1.5
+#endif
+// Velocidad base. 0 = usar la que manda la Pi (lo normal).
+#ifndef LINE_SUMA_VEL
+#define LINE_SUMA_VEL 0
 #endif
 
 // ============================================================================
@@ -1254,11 +1336,14 @@ void diagProcedencia()
     DIAG_OUT.print(" dwell_glob="); DIAG_OUT.print(LINE_DWELL_GLOBAL);
     DIAG_OUT.print(" freno_del="); DIAG_OUT.print(LINE_FRENO_DELANTERO);
     DIAG_OUT.print(" freno_f="); DIAG_OUT.print(LINE_FRENO_FACTOR, 2);
+    DIAG_OUT.print(" freno_rm="); DIAG_OUT.print(LINE_FRENO_ROT_MULT, 2);
     DIAG_OUT.print(" freno_st="); DIAG_OUT.print(LINE_FRENO_STEER, 2);
     DIAG_OUT.print(" freno_vel="); DIAG_OUT.print(LINE_FRENO_VEL);
     DIAG_OUT.print(" recta_f="); DIAG_OUT.print(LINE_RECTA_FACTOR, 2);
     DIAG_OUT.print(" codo="); DIAG_OUT.print(LINE_CODO);
     DIAG_OUT.print(" banco_freno="); DIAG_OUT.print(BANCO_FRENO);
+    DIAG_OUT.print(" ley_suma="); DIAG_OUT.print(LINE_LEY_SUMA);
+    DIAG_OUT.print(" suma_k="); DIAG_OUT.print(LINE_SUMA_K, 2);
     DIAG_OUT.print(" codo_ent="); DIAG_OUT.print(LINE_CODO_ENTRA, 2);
     DIAG_OUT.print(" codo_min="); DIAG_OUT.print(LINE_CODO_MIN_GRADOS, 0);
     DIAG_OUT.print(" codo_max="); DIAG_OUT.print(LINE_CODO_MAX_GRADOS, 0);
@@ -4468,14 +4553,29 @@ if (green_state == 2)
 #endif
                     if (!codoMando)
                     {
+#if LINE_LEY_SUMA
+                    // LEY DE REPARTO POR SUMA/RESTA. Ver el bloque de defines.
+                    // La velocidad del centro NO cae al girar.
+                    {
+                        double u = absSteer * LINE_SUMA_K;
+                        double vBase = (LINE_SUMA_VEL > 0)
+                                           ? (double)LINE_SUMA_VEL
+                                           : (double)vel * LINE_RECTA_FACTOR;
+                        g_line_branch = 10;   // rama 10 = ley de suma
+                        robot.steerSuma(vBase, FORWARD,
+                                        signoCmd > 0 ? u : -u);
+                    }
+#else
 #if LINE_FRENO_DELANTERO
                     // CURVA CERRADA: se frena la delantera interna y se sube la
                     // velocidad. Fuera del umbral, todo sigue como hoy.
                     if (absSteer >= LINE_FRENO_STEER)
                     {
                         g_line_branch = 7;
+                        double rotF = rot * LINE_FRENO_ROT_MULT;
+                        if (rotF > 1.0) rotF = 1.0;
                         robot.steerFrenoDelantero(LINE_FRENO_VEL, FORWARD,
-                                                  signoCmd > 0 ? rot : -rot,
+                                                  signoCmd > 0 ? rotF : -rotF,
                                                   LINE_FRENO_FACTOR);
                     }
                     else
@@ -4484,6 +4584,7 @@ if (green_state == 2)
 #else
                     robot.steer(vel * LINE_RECTA_FACTOR, FORWARD,
                                 signoCmd > 0 ? rot : -rot);
+#endif
 #endif
                     }
 

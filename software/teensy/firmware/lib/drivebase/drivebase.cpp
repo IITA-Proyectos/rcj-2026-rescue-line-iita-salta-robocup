@@ -435,6 +435,50 @@ void DriveBase::steerFrenoDelantero(double speed, int direction,
 }
 
 // ============================================================================
+//  steerSuma - reparto por SUMA/RESTA (la ley de Airborne 2025).
+//
+//  El razonamiento completo esta en drivebase.h. Resumen: la velocidad del
+//  CENTRO no cambia con el giro, a diferencia de steer(), donde v_centro =
+//  vel*(1-rot) y se hace cero en rot = 1.
+//
+//      v_izq = base * (1 + u)      v_der = base * (1 - u)
+//      v_centro = base             R = b_eff / (2*u)
+//
+//  MISMO ORDEN DE LLAMADAS que steer() -fl, bl, fr, br- y el lado derecho va
+//  negado igual que alli, porque el montaje esta espejado. Con u = 0 esto es
+//  marcha recta exacta.
+//
+//  SATURACION: el lado externo pide base*(1+u), y setSpeed no puede pasar de
+//  159. Con base 40 y u 1,5 son 100: hay margen. Con base 90 y u 1,0 son 180 y
+//  SATURA, y ahi el radio real se abre respecto del pedido. Por eso el radio
+//  hay que verificarlo con la IMU y no darlo por hecho.
+// ============================================================================
+void DriveBase::steerSuma(double base, int direction, double u)
+{
+    _speed = constrain(base, 0, 159);
+    _direction = direction;
+    _rotation = u;                       // se guarda tal cual, para telemetria
+
+    double vIzq = _speed * (1.0 + u);
+    double vDer = _speed * (1.0 - u);
+
+    _leftdir = _direction;
+    if (vIzq < 0) { _leftdir = !_leftdir; vIzq = -vIzq; }
+    _rightdir = _direction;
+    if (vDer < 0) { _rightdir = !_rightdir; vDer = -vDer; }
+
+    if (vIzq > 159) vIzq = 159;
+    if (vDer > 159) vDer = 159;
+    _leftspeed = vIzq;
+    _rightspeed = vDer;
+
+    _fl->setSpeed(_leftdir, _leftspeed);
+    _bl->setSpeed(_leftdir, _leftspeed);
+    _fr->setSpeed(!_rightdir, _rightspeed);
+    _br->setSpeed(!_rightdir, _rightspeed);
+}
+
+// ============================================================================
 //  steerRadius - pedir un RADIO, no una rotacion adimensional.
 //
 //  No reimplementa nada: convierte el radio a `rotation` y delega en steer(),

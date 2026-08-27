@@ -231,6 +231,47 @@ public:
     // comportamiento de hoy y se conserva.
     // `sign` > 0 gira a la izquierda, igual que el signo de rotation.
     void steerRadius(double speed, int direction, double radius_cm, int sign);
+
+    // ------------------------------------------------------------------
+    //  steerSuma - reparto por SUMA/RESTA. La ley que usa Airborne 2025, un
+    //  equipo que corre LA MISMA TRACCION: 4 motores, 4 ruedas de silicona.
+    //
+    //  LA DIFERENCIA, y es estructural:
+    //
+    //      steer()            steerSuma()
+    //      v_ext = vel        v_izq = base * (1 + u)
+    //      v_int = vel*(1-2r) v_der = base * (1 - u)
+    //
+    //      v_centro                v_centro
+    //        = vel * (1 - rot)       = base
+    //        CAE A CERO en rot=1     CONSTANTE, siempre avanza
+    //
+    //  Con steer(), cuanto mas gira el robot menos avanza, y en rot = 1 se
+    //  planta del todo. Eso atraviesa toda la sesion del 26-ago: "gira sin
+    //  avanzar", "avanza muy de a poco", el 79,7 % del tiempo con avance cero
+    //  en la corrida de pivote sostenido. NO es un bug: es la formula.
+    //
+    //  Airborne nunca pivota. Suma a un lado y resta al otro, asi que la
+    //  velocidad hacia adelante se mantiene sin importar cuanto gire.
+    //
+    //  EL RADIO QUE TRAZA:
+    //      v_centro = base          dv = 2 * base * u
+    //      omega    = 2*base*u / b_eff
+    //      R        = b_eff / (2*u)          <- tampoco depende de la velocidad
+    //
+    //      u = 0,25  ->  R = 41,8 cm
+    //      u = 0,50  ->  R = 20,9 cm
+    //      u = 1,00  ->  R = 10,5 cm   (un lado queda QUIETO)
+    //      u = 1,50  ->  R =  7,0 cm   (un lado en REVERSA a 0,5*base)
+    //      u = 2,00  ->  R =  5,2 cm   (un lado en reversa a 1,0*base)
+    //
+    //  `u` PUEDE PASAR DE 1 a proposito: ahi es cuando el lado interno se
+    //  invierte, que es como se cierra el radio sin dejar de avanzar. El tope
+    //  util lo pone la saturacion: base*(1+u) no puede pasar de 159.
+    //
+    //  Con u = 0 esta funcion es marcha recta exacta, igual que steer(...,0).
+    // ------------------------------------------------------------------
+    void steerSuma(double base, int direction, double u);
     // Igual que steer(), pero escala la consigna de cada EJE por separado.
     // frontScale/rearScale en 0..1 multiplican la RPM pedida a las ruedas
     // delanteras y traseras. Sirve para correr el centro de rotacion hacia
