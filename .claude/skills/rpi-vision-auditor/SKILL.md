@@ -66,32 +66,39 @@ NO auditás: videos `.mp4` (deuda separada — flag para LFS pero no es finding 
 6. **Buscar `cv2.imshow`** — debe estar tras flag.
 7. **Latencia** — buscar `time.time()` para medir FPS o latencia de inferencia. Si no hay → finding P2.
 
-## Formato de salida
+## Formato de salida — TEMA A ANALIZAR
 
-Igual que `teensy-firmware-auditor`:
+Mismo schema que `teensy-firmware-auditor` (ver `CLAUDE.md` §"Filosofía"):
 
 ```markdown
-### [P0|P1|P2] Título corto y accionable
+### [TEMA] Título neutro y descriptivo
 
 **Archivo:** `software/raspberry/final_rpi/Main.py:NN`
-**Causa:** ...
-**Fix propuesto:** snippet corto Python.
-**Test plan:** pasos concretos en la Pi.
-**Riesgo:** alto/medio/bajo + justificación.
+
+**1. Qué observamos:** ...
+**2. Por qué lo flagueamos:** ...
+**3. Riesgo de NO cambiar:** Alto/Medio/Bajo + escenario concreto en competencia.
+**4. Riesgo de cambiar:** Alto/Medio/Bajo + qué se toca + plan de rollback.
+**Fix propuesto (si se decide):** snippet corto Python.
+**5. Estimación de tiempo:** desglose realista: aplicar + correr en Pi + test cámara/serial + anotar TEST_LOG.
+**6. Pregunta para el equipo:** ¿era intencional? ¿conviene ahora o post-mundial?
 **Ya en AUDIT-ACTION-PLAN:** Sí/No.
 ```
 
-Al final, resumen:
+Resumen final:
 ```
 ## Resumen
-- Findings nuevos: N (P0: A · P1: B · P2: C)
-- Findings ya en plan: M
+- Temas nuevos: N (riesgo-no-cambiar Alto: A · Medio: B · Bajo: C)
+- Temas ya conocidos (omitidos): M
 - Archivos auditados: X
 ```
 
 ## Reglas duras
 
+- **Framing TEMA A ANALIZAR siempre.** Nunca "BUG:", nunca imperativo.
+- **6 campos obligatorios** por tema (ver schema arriba).
+- **Tiempo realista** — incluí ejecutar en la Pi + probar cámara real + ver con el robot moviéndose.
 - **No proponer cambio de framework** (e.g. "usen TensorRT"). Limitate al stack actual.
-- **No tocar modelos**. Si el modelo es malo, el finding es "evaluar reentrenamiento" no "este modelo está mal".
+- **No tocar modelos**. Si el modelo es malo, el tema es "evaluar reentrenamiento" no "este modelo está mal".
 - **Asumí que la Pi corre headless en competencia** — `imshow`, `waitKey`, displays son sospechosos.
 - **Si hay duda sobre intención del alumno, preguntá al coach** antes de abrir Issue.

@@ -38,16 +38,29 @@ Este archivo es leído automáticamente por Claude Code y otros asistentes que a
 Cuando alguien pide "revisá X" o "auditá X", el flujo es:
 
 ```
-1. TRIAGE       → leer subsistema completo, listar findings con prioridad y reproducción
-2. PROPONER     → 1 Issue por finding con plantilla audit-finding (causa, fix, test, riesgo)
-3. VERIFICAR    → cada fix se mergea sólo con entrada en testing/TEST_LOG.md
+1. TRIAGE       → leer subsistema completo, listar OBSERVACIONES con riesgos y tiempo
+2. PROPONER     → 1 Issue por observación, framing TEMA A ANALIZAR (no directiva de fix)
+3. DECIDIR      → el equipo evalúa cada tema y decide: tomar / posponer / descartar
+4. VERIFICAR    → si se toma, el fix se mergea sólo con entrada en testing/TEST_LOG.md
 ```
 
-### Prioridades
+### 📌 Filosofía: TEMAS A ANALIZAR, no directivas de fix
 
-- **P0** — Riesgo de no completar una corrida (robot se cuelga, se va de la pista, no arranca).
-- **P1** — Pérdida significativa de puntaje o comportamiento errático intermitente.
-- **P2** — Robustez / mantenibilidad / calidad. No bloquea competencia pero queda como deuda.
+El equipo lleva meses afinando el robot. Lo que parece bug puede ser **workaround intencional** o algo conocido que ya decidieron no priorizar. Toda observación va con tres campos obligatorios:
+
+1. **Riesgo de NO cambiar nada** — qué pasa en competencia si se deja así (alto/medio/bajo + escenario).
+2. **Riesgo de cambiarlo** — probabilidad de regresión, qué se toca, plan de rollback.
+3. **Estimación de tiempo realista** — incluyendo test en banco y en pista, no sólo el typing.
+
+Ver plantilla `.github/ISSUE_TEMPLATE/audit-finding.yml`.
+
+### Prioridades (orientativas, opcionales)
+
+- **P0 (`priority/high`)** — Riesgo "alto" de no cambiar: afecta cada corrida o escenario típico.
+- **P1 (`priority/medium`)** — Riesgo "medio": afecta en escenarios edge.
+- **P2 (`priority/low`)** — Riesgo "bajo": deuda técnica sin impacto inmediato.
+
+La prioridad **no obliga**. El equipo decide caso por caso con los riesgos y el tiempo en la mano.
 
 ### Skills disponibles
 

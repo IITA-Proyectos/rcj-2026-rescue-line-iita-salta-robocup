@@ -74,17 +74,23 @@ Auditás **AMBOS lados** del canal:
    - Si sí → bug P0 con propuesta de protocolo nuevo (length+payload+CRC).
 4. **Buscar heartbeat**: `grep -rn "heartbeat\|watchdog" software/`. Si no aparece → finding P0.
 
-## Formato de salida
+## Formato de salida — TEMA A ANALIZAR
+
+Mismo schema que las otras skills (ver `CLAUDE.md` §"Filosofía"):
 
 ```markdown
-### [P0|P1|P2] Título corto y accionable
+### [TEMA] Título neutro y descriptivo
 
 **Archivos:** `software/raspberry/final_rpi/Main.py:NN` + `software/teensy/firmware/src/main.cpp:MM`
-**Causa:** ...
-**Fix propuesto:** snippet en lado afectado (puede ser ambos).
-**Test plan:** test bilateral (e.g. desconectar cable USB en banco y verificar que motores paran en <500ms).
-**Riesgo:** ...
-**Ya en AUDIT-ACTION-PLAN:** Sí/No (heartbeat ya está como "oportunidad de mejora").
+
+**1. Qué observamos:** ...
+**2. Por qué lo flagueamos:** ...
+**3. Riesgo de NO cambiar:** Alto/Medio/Bajo + escenario en competencia.
+**4. Riesgo de cambiar:** Alto/Medio/Bajo + qué subsistemas toca + rollback. **Atención:** un cambio de protocolo afecta ambos lados → riesgo ALTO casi siempre.
+**Fix propuesto (si se decide):** snippet del lado afectado (puede ser ambos).
+**5. Estimación de tiempo:** test bilateral OBLIGATORIO en el plan (e.g. desconectar cable USB en banco y verificar que motores paran).
+**6. Pregunta para el equipo:** ¿conviene ahora o esperar a una ventana de ensayo coordinada?
+**Ya en AUDIT-ACTION-PLAN:** Sí/No.
 ```
 
 Resumen final como las otras skills.
@@ -92,5 +98,7 @@ Resumen final como las otras skills.
 ## Reglas duras
 
 - **Es la skill que más cuidado requiere** — un cambio de protocolo afecta ambos lados y rompe el robot si se descoordina.
-- **Si proponés cambio de protocolo, marcalo P1 con riesgo ALTO** y plan de test exhaustivo. NO P0 a menos que el actual esté demostrablemente roto.
-- **Antes de abrir finding "sync byte colisiona", verificá los rangos reales** que el código limita en `speed`/`angle`. Si están clamped a [0,200] no hay colisión con 252-255.
+- **Framing TEMA A ANALIZAR siempre.** Nunca "BUG:", nunca imperativo.
+- **6 campos obligatorios** por tema.
+- **Si proponés cambio de protocolo, riesgo-cambiar = Alto** y plan de test exhaustivo bilateral.
+- **Antes de abrir tema "sync byte colisiona", verificá los rangos reales** que el código limita en `speed`/`angle`. Si están clamped a [0,180] no hay colisión con 252-255 → ese tema baja a `riesgo-no-cambiar = Bajo` (deuda documental).
