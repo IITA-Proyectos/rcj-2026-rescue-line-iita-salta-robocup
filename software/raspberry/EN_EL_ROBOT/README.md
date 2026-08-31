@@ -2,6 +2,31 @@
 
 **Copiado el 26-ago-2026 de `iita@10.59.132.189:/home/iita/Desktop/*.py`.**
 
+> ## Actualizado el 31-ago-2026
+>
+> `main.py` ya **no** es el del 26-ago: es la version con la que el robot
+> **toma los codos y recupera la linea perdida**, congelada byte por byte del
+> bundle `INTEGRACION_GAP_COLOR_RECOVERY_FINAL/BACKUP_CONGELADO/`. Se lanza asi:
+>
+> ```bash
+> RECUP=1 RETROCEDER=1 RECUP_CAMINO=1 python3 -u main.py
+> ```
+>
+> Va **junto** con `software/teensy/firmware/src/main.cpp` del mismo commit:
+> la Pi manda `green_state = 4`, el firmware retrocede y pivotea. Uno solo de
+> los dos no reproduce el resultado.
+>
+> Se agregaron ademas los cinco archivos que `RECUP_CAMINO=1` necesita al lado
+> del `main.py`: `camino_heading.py`, `camino_principal_robot.py` y
+> `nuevo_code_v2/v3/v4.py`. Si falta alguno, `main.py` no falla: la
+> recuperacion queda sin giro dirigido.
+>
+> Config completa y mecanismo:
+> [`docs/es/2026-08-31-config-codos-recuperacion.md`](../../../docs/es/2026-08-31-config-codos-recuperacion.md).
+>
+> Lo de abajo sigue valiendo como historia de por que existe esta carpeta, pero
+> la tabla de tamanos y la lista de "palancas apagadas" son del 26-ago.
+
 ## Qué es esto y qué NO es
 
 Esto es **evidencia**, no código de trabajo. Es lo que estaba corriendo en el

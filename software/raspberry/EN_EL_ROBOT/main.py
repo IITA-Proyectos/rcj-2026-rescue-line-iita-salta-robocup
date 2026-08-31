@@ -32,9 +32,45 @@ K_LEJOS      = float(os.environ.get("K_LEJOS", "40"))
 RECUP_ANG    = float(os.environ.get("RECUP_ANG", "75"))
 SATURA_DESDE = float(os.environ.get("SATURA_DESDE", "70"))
 AREA_MIN_LINEA = float(os.environ.get("AREA_MIN", "200"))   # px; ver _solo_mi_linea
+ROI_ABAJO    = int(os.environ.get("ROI_ABAJO", "120"))   # 120 = sin recorte abajo
+ROI_ARRIBA   = int(os.environ.get("ROI_ARRIBA", "60"))    # 60 = como hoy
 
 _ult_lado = 0.0        # +1 la linea estaba a la derecha, -1 a la izquierda
 _frames_sin = 0        # cuantos frames seguidos sin verla
+
+# --- RECUPERACION ANTIFALSOS / ANTI-RETRIGGER -------------------------------
+# GS=4 NO significa "este frame no vio negro".
+# Significa: "venia siguiendo linea estable y la perdi de forma confirmada".
+# Todos los valores se pueden barrer por entorno sin editar el archivo.
+RECUP_PERDIDA_FRAMES   = int(os.environ.get("RECUP_PERDIDA_FRAMES", "3"))
+RECUP_RECAPTURA_FRAMES = int(os.environ.get("RECUP_RECAPTURA_FRAMES", "3"))
+RECUP_RECAPTURA_MIN_S  = float(os.environ.get("RECUP_RECAPTURA_MIN_S", "0.55"))
+RECUP_REARME_FRAMES    = int(os.environ.get("RECUP_REARME_FRAMES", "8"))
+RECUP_BLOQUEO_VERDE_S  = float(os.environ.get("RECUP_BLOQUEO_VERDE_S", "3.0"))
+RECUP_BLOQUEO_DOBLE_S  = float(os.environ.get("RECUP_BLOQUEO_DOBLE_S", "6.0"))
+RECUP_SOLTAR_CONTROL_S   = float(os.environ.get("RECUP_SOLTAR_CONTROL_S", "1.35"))
+RECUP_POST_NORMAL_S      = float(os.environ.get("RECUP_POST_NORMAL_S", "1.50"))
+
+_recup_armada = False
+_recup_activa = False
+_recup_malos = 0
+_recup_buenos = 0
+_recup_rearme_buenos = 0
+_recup_bloqueo_hasta = 0.0
+_recup_ultimo_angle = 0.0
+_recup_inicio_ts = 0.0
+_recup_post_hasta = 0.0
+
+# CAMINO+MONO se usa SOLO como sensor de rumbo para recovery.
+# No reemplaza angle normal ni mueve el robot mientras la linea existe.
+RECUP_CAMINO = os.environ.get("RECUP_CAMINO", "0") == "1"
+RECUP_CAMINO_MAX_AGE_S = float(os.environ.get("RECUP_CAMINO_MAX_AGE_S", "0.45"))
+RECUP_CAMINO_REANALISIS_MAX_AGE_S = float(os.environ.get("RECUP_CAMINO_REANALISIS_MAX_AGE_S", "0.12"))
+_recup_rumbo_camino_raw = None      # DER+ tal como lo calcula CAMINO
+_recup_rumbo_congelado = 0.0        # convencion protocolo: derecha negativa
+_recup_rumbo_fuente = "sin-camino"
+_camino_shadow = None
+# ---------------------------------------------------------------------------
 
 
 def _fila_horizonte(frame_bgr, minimo=25, maximo=60):
@@ -170,7 +206,19 @@ if USAR_PLANNER:
         print("[PLANNER] no se pudo cargar (%s): sigo con el metodo de siempre" % _e)
         USAR_PLANNER = False
 
-print("[PARCHE] ROI=%s CTRL=%s RECUP=%s PLANNER=%s" % (ROI_MODO, CTRL, RECUP, _MODO))
+# Shadow independiente: CAMINO+MONO solo calcula heading para una eventual
+# recuperacion. Su salida NO se asigna a `angle` durante seguimiento normal.
+if RECUP_CAMINO:
+    try:
+        from camino_heading import CaminoHeading
+        _camino_shadow = CaminoHeading()
+        print("[RECUP-CAMINO] CAMINO+MONO shadow encendido (solo heading)")
+    except Exception as _e:
+        _camino_shadow = None
+        print("[RECUP-CAMINO] no se pudo cargar (%s): recovery queda sin giro dirigido" % _e)
+
+print("[PARCHE] ROI=%s CTRL=%s RECUP=%s PLANNER=%s RECUP_CAMINO=%s" %
+      (ROI_MODO, CTRL, RECUP, _MODO, int(bool(_camino_shadow))))
 
 _video = None
 _video_n = 0
@@ -961,6 +1009,9 @@ def modo_rescate(evac_mode=False):
 
 def main():
     global estado, silver_line, _ult_lado, _frames_sin
+    global _recup_armada, _recup_activa, _recup_malos, _recup_buenos
+    global _recup_rearme_buenos, _recup_bloqueo_hasta, _recup_ultimo_angle, _recup_inicio_ts, _recup_post_hasta
+    global _recup_rumbo_camino_raw, _recup_rumbo_congelado, _recup_rumbo_fuente
 
     # -----------------------------------------------
     # LOOP PRINCIPAL
@@ -981,6 +1032,27 @@ def main():
         line_none_count = 0
         line_t0 = time.time()
         line_frames = 0
+
+        # Cada entrada al modo linea empieza DESARMADA. Esto evita que quede un
+        # episodio viejo vivo al volver de rescate, evacuacion, un reset o un verde.
+        _recup_armada = False
+        _recup_activa = False
+        _recup_malos = 0
+        _recup_buenos = 0
+        _recup_rearme_buenos = 0
+        _recup_bloqueo_hasta = 0.0
+        _recup_ultimo_angle = 0.0
+        _recup_inicio_ts = 0.0
+        _recup_post_hasta = 0.0
+        _recup_rumbo_camino_raw = None
+        _recup_rumbo_congelado = 0.0
+        _recup_rumbo_fuente = "sin-camino"
+        if _camino_shadow is not None:
+            try:
+                _camino_shadow.reset()
+            except Exception as _e:
+                print("[RECUP-CAMINO] reset fallo: %s" % _e)
+
         while estado == 'linea':
             frame, line_none_count = read_frame_with_recovery(line_none_count, "linea")
             if frame is None:
@@ -1038,6 +1110,40 @@ def main():
             _quien = "centroide"
             _r = None
 
+            # 1.b RECORTE DEL ROI. Medido sobre video_4.avi -591 frames
+            #     validos, f524-574 fuera por MANUAL_LIFT-, en los 349 frames
+            #     donde hoy el firmware pivotea:
+            #
+            #         ROI_ABAJO=95   ->  |ang| BAJA 13,1 gr  (336 de 349)
+            #         ROI_ARRIBA=80  ->  |ang| SUBE  7,9 gr
+            #         ROI_ARRIBA=90  ->  |ang| SUBE 12,4 gr
+            #         ROI_ARRIBA=40  ->  |ang| BAJA  9,3 gr   <- esto hace ROI=auto
+            #
+            #     angle = atan2(mean(y_com), mean(x_com*(1-y_com))) - 90, y las
+            #     filas lejanas tienen y_com ALTO. Sumar vision lejana empuja el
+            #     atan2 hacia 90 y el angulo hacia 0: MAS VISTA ADELANTE = MENOS
+            #     GIRO PEDIDO. Por eso recortar abajo -que era la idea- va para
+            #     el lado contrario, y la palanca que sube el giro es bajar el
+            #     corte de arriba.
+            #
+            #     Sobre una COPIA: black_mask lo usa el verde para cx_black.
+            if ROI_ARRIBA != 60 or ROI_ABAJO < 120:
+                _m_ang = cv2.inRange(frame_resized, lower_black, upper_black)
+                _m_ang[:ROI_ARRIBA, :] = 0
+                if ROI_ABAJO < 120:
+                    _m_ang[ROI_ABAJO:, :] = 0
+                if np.count_nonzero(_m_ang):
+                    _xb = cv2.bitwise_and(x_com, x_com, mask=_m_ang)
+                    _xb = _xb * (1 - y_com)
+                    _yb = cv2.bitwise_and(y_com, y_com, mask=_m_ang)
+                    angle = (math.atan2(float(np.mean(_yb)),
+                                        float(np.mean(_xb))) / math.pi * 180) - 90
+                    _quien = "recorte"
+                else:
+                    # banda vacia: atan2(0,0) daria -90, un volantazo salido de
+                    # la nada. Se deja el angulo de siempre.
+                    _quien = "sin_banda"
+
             # 2. CONTROL: dos terminos de ganancia constante.
             if CTRL == "lineal":
                 _al = _angulo_lineal(black_mask, _corte)
@@ -1045,31 +1151,34 @@ def main():
                     angle = _al
                     _quien = "lineal"
 
-            # 3. LINEA PERDIDA. Lo que hace main.py hoy es angle = 0, o sea
-            #    SEGUIR DERECHO, y es el peor valor posible: la linea no
-            #    desaparece por casualidad, desaparece porque se fue por un
-            #    costado. Justo ahi el robot endereza y se va de la pista.
+            # 3. MEDICION DE LINEA PARA RECUPERACION.
+            #
+            # IMPORTANTE: aca NO se manda GS=4. Un solo frame vacio puede aparecer
+            # al arrancar, durante un giro verde o por ruido. La decision se toma
+            # al FINAL del frame, despues de verde/rojo/plateado, con antirrebote.
+            _linea_recup_ok = True
             if RECUP:
                 _mm = _solo_mi_linea(black_mask)
                 _e = _error_lateral(_mm, 100, 120)
                 if _e is None:
                     _e = _error_lateral(_mm, _corte, 120)
+
+                # Esta es la condicion que dispara recovery: hay (o no hay) una
+                # componente de linea realmente conectada con la zona del robot.
+                # NO usamos planner.ok para disparar: un "trazo corto" del planner
+                # no significa necesariamente que la linea haya desaparecido.
+                _linea_recup_ok = (_e is not None)
+
                 if _e is not None:
                     _frames_sin = 0
                     if abs(_e) > 0.15:
                         _ult_lado = 1.0 if _e > 0 else -1.0
                 else:
                     _frames_sin += 1
-                    if RETROCEDER:
-                        # avisarle al firmware que retroceda un paso corto.
-                        # El angulo se manda en 0: durante el retroceso no
-                        # tiene sentido pedir giro, y ademas el case 4 del
-                        # firmware no lo usa.
-                        green_state = GS_LINEA_PERDIDA
-                        angle = 0
-                        _quien = "retrocede"
-                    elif _ult_lado != 0.0:
-                        # girar hacia donde estaba, cada vez mas fuerte
+
+                    # Mantener el comportamiento viejo si se usa RECUP=1 pero
+                    # RETROCEDER=0. El nuevo arbitro GS4 solo corre con RETROCEDER=1.
+                    if (not RETROCEDER) and _ult_lado != 0.0:
                         _k = min(1.0, 0.4 + 0.1 * _frames_sin)
                         angle = -_ult_lado * RECUP_ANG * _k
                         _quien = "buscando"
@@ -1088,6 +1197,20 @@ def main():
                     print("[PLANNER] error, sigo con el centroide: %s" % _e2)
                     _r = None
             # ==============================================
+
+            # 5. CAMINO+MONO SHADOW PARA RECUPERACION.
+            # Corre en paralelo y SOLO alimenta memoria de rumbo. No toca `angle`.
+            # El heading de CAMINO es DER+; la conversion al signo historico del
+            # protocolo se hace unicamente al disparar GS=4.
+            if _camino_shadow is not None:
+                try:
+                    _camino_shadow.paso(frame_resized)
+                except Exception as _e3:
+                    # Si falla una vez, no debe tirar la corrida. Se desactiva
+                    # para esta ejecucion; recovery seguira pudiendo retroceder
+                    # pero sin giro dirigido.
+                    print("[RECUP-CAMINO] error: %s; shadow apagado" % _e3)
+                    globals()["_camino_shadow"] = None
 
 
             if np.sum(green_mask) > min_square_size * 255:
@@ -1170,6 +1293,174 @@ def main():
             elif red_line:
                 green_state = 10
 
+            # ================================================================
+            # ARBITRO FINAL DE RECUPERACION (ANTI FALSOS POSITIVOS)
+            #
+            # GS=4 solo puede nacer de:
+            #   linea estable -> 3 frames consecutivos realmente sin linea.
+            #
+            # Nunca nace:
+            #   - al iniciar;
+            #   - durante/despues inmediato de un verde;
+            #   - por rojo/plateado;
+            #   - por un solo frame malo;
+            #   - otra vez mientras el mismo episodio sigue activo.
+            # ================================================================
+            if RECUP and RETROCEDER:
+                _now_rec = time.monotonic()
+
+                # Guardar el ultimo comando NORMAL mientras la linea existe.
+                # Esto evita que los 1-2 frames de confirmacion de perdida manden
+                # el atan2(0,0)=-90 antes de que se active GS4.
+                if _linea_recup_ok:
+                    try:
+                        _recup_ultimo_angle = float(angle)
+                    except (TypeError, ValueError):
+                        pass
+
+                # Una marca conocida tiene prioridad sobre "linea perdida".
+                # Ademas deja recovery desarmada durante la maniobra, porque es
+                # NORMAL que la camara deje de ver la linea mientras Teensy gira.
+                _marca_prioritaria = (
+                    green_state in (1, 2, 3, 10, 11) or bool(silver_line)
+                )
+
+                if _marca_prioritaria:
+                    _recup_activa = False
+                    _recup_armada = False
+                    _recup_malos = 0
+                    _recup_buenos = 0
+                    _recup_rearme_buenos = 0
+                    _recup_rumbo_camino_raw = None
+                    _recup_rumbo_congelado = 0.0
+                    _recup_rumbo_fuente = "bloqueada-marca"
+
+                    if green_state == 3:
+                        _recup_bloqueo_hasta = max(
+                            _recup_bloqueo_hasta,
+                            _now_rec + RECUP_BLOQUEO_DOBLE_S,
+                        )
+                    elif green_state in (1, 2):
+                        _recup_bloqueo_hasta = max(
+                            _recup_bloqueo_hasta,
+                            _now_rec + RECUP_BLOQUEO_VERDE_S,
+                        )
+                    else:
+                        # Rojo/plateado: desarmar y exigir linea estable antes
+                        # de permitir una nueva recovery.
+                        _recup_bloqueo_hasta = max(
+                            _recup_bloqueo_hasta, _now_rec + 1.0
+                        )
+
+                elif _recup_activa:
+                    # UN episodio hace UNA sola maniobra en Teensy. Despues de dar
+                    # tiempo suficiente para retroceso + reanalisis + pivote fijo,
+                    # Raspberry SUELTA GS4 aunque todavia no tenga la linea debajo.
+                    # Eso devuelve el control al case 7 y evita quedarse quieto.
+                    _recup_edad = _now_rec - _recup_inicio_ts if _recup_inicio_ts else 0.0
+
+                    if _recup_edad >= RECUP_SOLTAR_CONTROL_S:
+                        _recup_activa = False
+                        _recup_armada = False
+                        _recup_malos = 0
+                        _recup_buenos = 0
+                        _recup_rearme_buenos = 0
+                        _recup_rumbo_camino_raw = None
+                        _recup_rumbo_congelado = 0.0
+                        _recup_rumbo_fuente = "post-maniobra"
+                        _recup_inicio_ts = 0.0
+                        _recup_post_hasta = _now_rec + RECUP_POST_NORMAL_S
+                        _recup_bloqueo_hasta = max(_recup_bloqueo_hasta, _recup_post_hasta)
+                        green_state = 0
+                        # Si ya ve linea, dejar exactamente el steer normal calculado
+                        # arriba. Si aun no ve nada, avanzar recto: no inventar un
+                        # -90 por mascara vacia y no repetir recovery durante cooldown.
+                        if not _linea_recup_ok:
+                            angle = 0.0
+                            _quien = "recup-post-recto"
+                        else:
+                            _quien = "recup-post-steer-normal"
+                    else:
+                        # Mientras Teensy ejecuta la unica maniobra, GS4 queda vivo.
+                        # CAMINO solo aporta el lado desde la pose posterior al retroceso.
+                        green_state = GS_LINEA_PERDIDA
+                        angle = 0.0
+                        _recup_rumbo_camino_raw = None
+                        _recup_rumbo_congelado = 0.0
+                        _recup_rumbo_fuente = "esperando-camino-fresco"
+                        if _camino_shadow is not None:
+                            try:
+                                _ch = _camino_shadow.ultimo(RECUP_CAMINO_REANALISIS_MAX_AGE_S)
+                                if _ch.get("vigente") and _ch.get("heading") is not None:
+                                    _recup_rumbo_camino_raw = float(_ch["heading"])
+                                    _recup_rumbo_congelado = max(
+                                        -90.0, min(90.0, -_recup_rumbo_camino_raw)
+                                    )
+                                    angle = _recup_rumbo_congelado
+                                    _recup_rumbo_fuente = "camino-fresco-%s" % _ch.get("estado", "?")
+                                    _quien = "recup-reanaliza:%s" % _recup_rumbo_fuente
+                                else:
+                                    _quien = "recup-espera-camino-fresco"
+                            except Exception as _e4:
+                                _quien = "recup-camino-error"
+                        else:
+                            _quien = "recup-sin-camino"
+
+                else:
+                    # Todavia no hay recovery. Si estamos en bloqueo post-maniobra,
+                    # no se puede armar aunque la camara vea/no vea negro.
+                    if _now_rec < _recup_bloqueo_hasta:
+                        _recup_armada = False
+                        _recup_malos = 0
+                        _recup_rearme_buenos = 0
+                        # Post-recovery: conducir normal, pero no volver a disparar GS4.
+                        # Si la linea aun no entro en cuadro, ir recto hasta verla.
+                        if _now_rec < _recup_post_hasta and not _linea_recup_ok:
+                            angle = 0.0
+                            _quien = "recup-cooldown-recto"
+
+                    elif _linea_recup_ok:
+                        # ARRANQUE / POST-VERDE / POST-RECOVERY:
+                        # primero demostrar que volvimos a seguir linea estable.
+                        _recup_malos = 0
+                        _recup_rearme_buenos += 1
+                        if _recup_rearme_buenos >= RECUP_REARME_FRAMES:
+                            _recup_armada = True
+
+                    else:
+                        _recup_rearme_buenos = 0
+
+                        if _recup_armada:
+                            _recup_malos += 1
+
+                            # Mientras confirmamos la perdida (frames 1 y 2),
+                            # mantener el ultimo angulo confiable y NO generar
+                            # un volantazo por mascara vacia.
+                            angle = _recup_ultimo_angle
+                            _quien = "recup-confirma"
+
+                            if _recup_malos >= RECUP_PERDIDA_FRAMES:
+                                _recup_activa = True
+                                _recup_armada = False
+                                _recup_malos = 0
+                                _recup_buenos = 0
+                                _recup_inicio_ts = _now_rec
+
+                                # IMPORTANTE: al detectar la perdida NO decidimos lado.
+                                # Teensy retrocede primero. Durante GS4 CAMINO sigue
+                                # corriendo en paralelo y despues del retroceso se toma
+                                # una lectura NUEVA con mejor margen visual.
+                                _recup_rumbo_camino_raw = None
+                                _recup_rumbo_congelado = 0.0
+                                _recup_rumbo_fuente = "esperando-retroceso"
+                                green_state = GS_LINEA_PERDIDA
+                                angle = 0.0
+                                _quien = "recup-disparo-sin-decision"
+                        else:
+                            # Si nunca hubo una historia de linea estable, no es
+                            # una "perdida": puede ser arranque o fin de maniobra.
+                            _recup_malos = 0
+
             output = send_frame(speed, round(angle), green_state, silver_line)
             _grabar(frame_resized, _ang_viejo, angle, _r, _quien, _corte)
             line_frames += 1
@@ -1220,3 +1511,4 @@ if __name__ == "__main__":
             stop_teensy_safely("excepcion global")
             estado = 'esperando'
             time.sleep(1.0)
+

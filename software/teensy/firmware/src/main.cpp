@@ -630,9 +630,61 @@
 // sea SEGUIR DERECHO, que es la peor opcion posible.
 #define LINEA_PERDIDA_GS    4       // el codigo que manda la Raspberry
 #define RECUP_VEL          25       // rpm, despacio: se esta yendo a ciegas
-#define RECUP_MS          200       // por paso; ~2 cm
-#define RECUP_MAX_PASOS    20       // tope: 20 pasos = 4 s = ~40 cm hacia atras
-static int g_recup_pasos = 0;       // cuantos lleva seguidos
+#define RECUP_MS          400       // retroceso mas largo: gana campo visual antes de decidir el lado
+#define RECUP_MAX_PASOS    20       // tope absoluto de retrocesos seguidos
+
+// RECUPERACION DIRIGIDA CON CAMINO+MONO 2026-08-30
+// La Pi corre CAMINO+MONO en SHADOW mientras el control normal sigue intacto.
+// Cuando confirma perdida, CONGELA el ultimo `heading` confiable de la cadena y
+// lo manda en el byte `angle` de la MISMA trama cuyo green_state vale 4.
+//
+// CAMINO internamente usa DER+; la Pi lo convierte antes de transmitir para que
+// el byte angle conserve la convencion historica del protocolo (derecha negativa).
+// Teensy NO reutiliza el steer normal de case 7 para decidir recovery: toma solo
+// el angle asociado a GS=4, congela SU SIGNO y no lo cambia durante el episodio.
+// Si no hay heading fresco/casi recto, solo retrocede; no inventa un lado.
+#define RECUP_STEER_MIN          0.10    // 9 grados de CAMINO: debajo no elegimos lado
+#define RECUP_MEMORIA_MAX_MS     500UL   // la direccion debe venir de una trama reciente
+#define RECUP_GIRO_VEL           35      // se conserva: solo cambia la geometria del giro
+#define RECUP_PIVOTE_ROT         1.00    // giro sobre el eje: no consume zona avanzando mientras se orienta
+#define RECUP_GIRO_BASE_GRADOS   28.0f   // base estable: el test de 45 deg funciono bien
+#define RECUP_GIRO_CAMINO_K       0.26f   // CAMINO modula intensidad, no manda yaw 1:1
+#define RECUP_GIRO_MIN_GRADOS    35.0f   // nunca corregir menos que esto
+#define RECUP_GIRO_MAX_GRADOS    58.0f   // evita los pivotes exagerados de 70-90 deg
+#define RECUP_GIRO_MAX_MS        1600UL  // failsafe del pivote dirigido
+#define RECUP_REANALISIS_MS       120UL  // quieto despues de retroceder: deja a CAMINO mirar desde la nueva posicion
+#define RECUP_REANALISIS_EDAD_MS  180UL  // solo aceptar rumbo recibido despues del retroceso y muy reciente
+#define RECUP_MAX_GIROS          3       // maximo de intentos dentro del mismo episodio GS4
+#ifndef RECUP_GIRO_DIRIGIDO
+#define RECUP_GIRO_DIRIGIDO       1       // 0 = comportamiento viejo: solo retrocede
+#endif
+
+static int g_recup_pasos = 0;             // retrocesos del episodio actual
+static int g_recup_giros = 0;             // giros de busqueda del episodio actual
+static int g_recup_signo = 0;             // -1/+1, CONGELADO al perder la linea
+static double g_recup_ultimo_steer = 0.0; // diagnostico: ultima orden NORMAL de case 7
+static unsigned long g_recup_ultimo_steer_ms = 0;
+// Cuando llega una trama GS=4, el byte angle YA NO es control normal: la Pi
+// coloca ahi el heading congelado de CAMINO+MONO convertido a la convencion
+// historica del protocolo (derecha negativa). Esta copia es la UNICA fuente
+// para elegir el lado del giro de recuperacion.
+static double g_recup_rumbo_camino_rx = 0.0;
+static unsigned long g_recup_rumbo_camino_rx_ms = 0;
+
+// ANTIFALSOS / ANTI-RETRIGGER. GS4 no es un nivel que pueda disparar maniobras
+// infinitas: es un EPISODIO. Se acepta una primera vez, se mantiene mientras la
+// Pi siga mandando 4 y, cuando vuelve a 0, exige una ventana estable antes de
+// permitir otro episodio. La Pi hace el filtro fuerte de linea; esto es la
+// segunda barrera en Teensy contra frames viejos o rebotes del serial.
+#define RECUP_REARME_TEENSY_MS 300UL
+#define RECUP_WAIT_ACTION      21
+static bool g_recup_episodio_activo = false;
+static bool g_recup_habilitada = false;
+static unsigned long g_recup_gs0_desde = 0;
+// Fases fisicas del MISMO episodio. Evitan repetir el retroceso/giro
+// mientras la Raspberry siga mandando GS4.
+static bool g_recup_retroceso_hecho = false;
+static bool g_recup_giro_hecho = false;
 #define ESQUIVE_POR_PARIDAD false   // D2.2: par=izq, impar=der (false=random normal)
 #define CONTAR_VERDES       false   // D2.1: habilita el contador de verdes
 #define INVERTIR_DEPOSITO   false   // D2.3: impar invierte zonas (necesita CONTAR_VERDES)
@@ -2264,6 +2316,20 @@ void serialEvent5()
             if (serialPayloadOutOfRange("green_state", data, SERIAL_MAX_GREEN_STATE))
                 continue;
             green_state = data;
+            // El protocolo llega en orden speed -> angle -> green_state -> silver.
+            // Por eso al leer GS=4, g_rx_steer ya contiene el angle DE ESA MISMA
+            // trama. En recovery ese angle es el rumbo CAMINO congelado por la Pi.
+            if (data == LINEA_PERDIDA_GS)
+            {
+                // Durante recovery la RPi manda angle=0 cuando CAMINO aun no
+                // tiene una lectura fresca. No dejar que ese "no se" pise un
+                // heading valido obtenido despues del retroceso.
+                if (fabs(g_rx_steer) >= RECUP_STEER_MIN)
+                {
+                    g_recup_rumbo_camino_rx = g_rx_steer;
+                    g_recup_rumbo_camino_rx_ms = millis();
+                }
+            }
             telemGreenRx(data);   // TELEMETRIA: cuenta verdes que llegan de la RPi
     // DBG_PRINT("[RX] green_state recibido: ");
     // DBG_PRINTLN(green_state);
@@ -3676,6 +3742,16 @@ void loop()
         silver_latch = false;
         action = 7;
         startUp = false;
+        g_recup_pasos = 0;
+        g_recup_giros = 0;
+        g_recup_signo = 0;
+        g_recup_ultimo_steer = 0.0;
+        g_recup_ultimo_steer_ms = 0;
+        g_recup_rumbo_camino_rx = 0.0;
+        g_recup_rumbo_camino_rx_ms = 0;
+        g_recup_episodio_activo = false;
+        g_recup_habilitada = false;
+        g_recup_gs0_desde = 0;
         verde_stop=false;
         last_right_distance = 0;
         right_jump_counter = 0;
@@ -3913,26 +3989,94 @@ void loop()
 
                 // //DBG_PRINTLN("Incoming Task: ");
                 // //DBG_PRINTLN(green_state);
+                // ------------------------------------------------------------
+                // ARBITRO DE GS4: evita falsos positivos y re-disparos.
+                // La Pi solo debe mandar 4 despues de una perdida CONFIRMADA.
+                // Aun asi, Teensy exige que antes haya habido al menos 300 ms
+                // continuos de comando normal (GS=0).
+                // ------------------------------------------------------------
                 if (green_state == 0)
                 {
                     action = 7;
+
+                    if (g_recup_episodio_activo)
+                    {
+                        // La Pi confirmo que la linea volvio. Cerrar el episodio,
+                        // pero NO permitir otro inmediatamente por un frame que
+                        // vuelva a quedar ciego.
+                        g_recup_episodio_activo = false;
+                        g_recup_habilitada = false;
+                        g_recup_gs0_desde = millis();
+                        g_recup_pasos = 0;
+                        g_recup_giros = 0;
+                        g_recup_signo = 0;
+                        g_recup_retroceso_hecho = false;
+                        g_recup_giro_hecho = false;
+                        g_recup_rumbo_camino_rx = 0.0;
+                        g_recup_rumbo_camino_rx_ms = 0;
+                    }
+                    else
+                    {
+                        if (g_recup_gs0_desde == 0)
+                            g_recup_gs0_desde = millis();
+                        if (!g_recup_habilitada &&
+                            (millis() - g_recup_gs0_desde) >= RECUP_REARME_TEENSY_MS)
+                            g_recup_habilitada = true;
+                    }
                 }
-if (green_state == 1)
-{
-    action = (verdes_total < 4) ? 6 : 20;   // <3 verdes: giro (case 6) | >=3: "otra cosa"
-}
-if (green_state == 2)
-{
-    action = (verdes_total < 4) ? 5 : 20;   // <3 verdes: giro (case 5) | >=3: "otra cos
-}
+
+                if (green_state == 1)
+                {
+                    // Maniobra verde conocida: GS4 queda desarmado.
+                    g_recup_habilitada = false;
+                    g_recup_episodio_activo = false;
+                    g_recup_gs0_desde = 0;
+                    g_recup_rumbo_camino_rx = 0.0;
+                    g_recup_rumbo_camino_rx_ms = 0;
+                    action = (verdes_total < 4) ? 6 : 20;
+                }
+                if (green_state == 2)
+                {
+                    g_recup_habilitada = false;
+                    g_recup_episodio_activo = false;
+                    g_recup_gs0_desde = 0;
+                    g_recup_rumbo_camino_rx = 0.0;
+                    g_recup_rumbo_camino_rx_ms = 0;
+                    action = (verdes_total < 4) ? 5 : 20;
+                }
 
                 if (green_state == LINEA_PERDIDA_GS)
                 {
-                    action = 4;   // retroceder un paso y volver a mirar
+                    g_recup_gs0_desde = 0;
+
+                    if (g_recup_episodio_activo)
+                    {
+                        // MISMA perdida: continuar la recuperacion, no re-disparar.
+                        action = 4;
+                    }
+                    else if (g_recup_habilitada)
+                    {
+                        // Flanco valido: empieza UN episodio.
+                        g_recup_episodio_activo = true;
+                        g_recup_habilitada = false;
+                        g_recup_retroceso_hecho = false;
+                        g_recup_giro_hecho = false;
+                        action = 4;
+                    }
+                    else
+                    {
+                        // GS4 al arrancar, despues de un verde o por rebote: no mover.
+                        action = RECUP_WAIT_ACTION;
+                    }
                 }
                 if (green_state == 3)
                 {
-                    action = 14;   // === CHALLENGE D1.2: 1=ignorar/recto ===
+                    g_recup_habilitada = false;
+                    g_recup_episodio_activo = false;
+                    g_recup_gs0_desde = 0;
+                    g_recup_rumbo_camino_rx = 0.0;
+                    g_recup_rumbo_camino_rx_ms = 0;
+                    action = 14;
                 }
                 if (front_distance != 0 && front_distance < 12)
                 {
@@ -4089,20 +4233,132 @@ if (green_state == 2)
                     runTime(0,FORWARD,0,3000);
                     tiemporescate=millis();
                     break;
-                case 4:   // LINEA PERDIDA: retroceder un paso corto y volver a mirar
-                    if (g_recup_pasos < RECUP_MAX_PASOS)
+                case 4:   // LINEA PERDIDA: UN SOLO RETROCESO -> REANALIZA -> PIVOTE
+                {
+                    // IMPORTANTE: GS4 puede durar muchos loops. Las fases quedan
+                    // enclavadas para que el MISMO episodio NO vuelva a retroceder.
+                    //   1) retroceso recto UNA SOLA VEZ;
+                    //   2) CAMINO decide lado desde atras;
+                    //   3) pivote UNA SOLA VEZ;
+                    //   4) si GS4 sigue activo despues, quedarse quieto.
+
+                    if (!g_recup_retroceso_hecho)
                     {
+                        g_recup_rumbo_camino_rx = 0.0;
+                        g_recup_rumbo_camino_rx_ms = 0;
+                        g_recup_signo = 0;
                         g_recup_pasos++;
+                        g_line_branch = 14;
                         runTime(RECUP_VEL, BACKWARD, 0, RECUP_MS);
+                        serialEvent5();
+                        g_recup_retroceso_hecho = true;
+
+                        // Todo heading visto mientras se movia hacia atras se descarta:
+                        // queremos decidir con la pose NUEVA y ya quieta.
+                        g_recup_rumbo_camino_rx = 0.0;
+                        g_recup_rumbo_camino_rx_ms = 0;
                     }
-                    else
+
+                    // Si ya completo el pivote en este episodio, NO repetir ni giro
+                    // ni retroceso aunque la Pi siga mandando GS4.
+                    if (g_recup_giro_hecho)
                     {
-                        // Ya retrocedio ~40 cm sin encontrarla. Seguir marcha
-                        // atras a ciegas es peor que parar: puede irse contra
-                        // algo o alejarse mas del punto donde la tenia.
                         robot.steer(0, FORWARD, 0);
+                        break;
+                    }
+
+                    // Reanalizar quieto. Si CAMINO aun no tiene heading fresco,
+                    // se queda quieto y en el siguiente loop vuelve a MIRAR, no a retroceder.
+                    const unsigned long tAnalisis = millis();
+                    robot.steer(0, FORWARD, 0);
+                    while (digitalRead(32) == 0 &&
+                           (millis() - tAnalisis) < RECUP_REANALISIS_MS)
+                    {
+                        serviceMotionBackgroundTasks();
+                        if (Serial5.available() > 0)
+                            serialEvent5();
                     }
                     serialEvent5();
+
+                    const unsigned long edadCamino = g_recup_rumbo_camino_rx_ms
+                        ? (millis() - g_recup_rumbo_camino_rx_ms)
+                        : 0xFFFFFFFFUL;
+
+                    if (g_recup_rumbo_camino_rx_ms == 0 ||
+                        edadCamino > RECUP_REANALISIS_EDAD_MS ||
+                        fabs(g_recup_rumbo_camino_rx) < RECUP_STEER_MIN)
+                    {
+                        g_recup_signo = 0;
+                        robot.steer(0, FORWARD, 0);
+                        break;
+                    }
+
+                    g_recup_signo = (g_recup_rumbo_camino_rx > 0.0) ? 1 : -1;
+
+#if RECUP_GIRO_DIRIGIDO
+                                        // ANGULO ESCALADO: CAMINO conserva lado + intensidad, pero NO
+                    // se interpreta 1:1 como grados fisicos de yaw.
+                    // Ej.: 20->35, 30->37.4, 45->41.6, 60->45.8, 90->54.2 grados.
+                    const float headingCaminoDeg =
+                        (float)(fabs(g_recup_rumbo_camino_rx) * 90.0);
+                    float objetivoGiro = RECUP_GIRO_BASE_GRADOS
+                                         + RECUP_GIRO_CAMINO_K * headingCaminoDeg;
+                    objetivoGiro = constrain(objetivoGiro,
+                                             RECUP_GIRO_MIN_GRADOS,
+                                             RECUP_GIRO_MAX_GRADOS);
+
+                    const float yaw0 = leer_yaw();
+                    const unsigned long tg0 = millis();
+                    g_recup_giros++;
+
+                    while (digitalRead(32) == 0)
+                    {
+                        serviceMotionBackgroundTasks();
+                        if (Serial5.available() > 0)
+                            serialEvent5();
+
+                        // Una vez tomada la decision, COMPLETAR el objetivo fisico.
+                        // Un GS0 temprano puede significar que reaparecio la linea vieja
+                        // durante el pivote; no debe truncar la orientacion.
+                        const float girado = fabs(calcularDiferenciaAngulo(
+                                                    yaw0, leer_yaw()));
+                        if (girado >= objetivoGiro)
+                            break;
+                        if ((millis() - tg0) >= RECUP_GIRO_MAX_MS)
+                            break;
+
+                        g_line_branch = 13;
+                        robot.steer(RECUP_GIRO_VEL, FORWARD,
+                                    g_recup_signo > 0 ? RECUP_PIVOTE_ROT
+                                                     : -RECUP_PIVOTE_ROT);
+                    }
+
+                    robot.steer(0, FORWARD, 0);
+                    g_recup_giro_hecho = true;
+                    serialEvent5();
+
+                    if (green_state != LINEA_PERDIDA_GS)
+                    {
+                        g_recup_pasos = 0;
+                        g_recup_giros = 0;
+                        g_recup_signo = 0;
+                        g_recup_rumbo_camino_rx = 0.0;
+                        g_recup_rumbo_camino_rx_ms = 0;
+                        g_recup_episodio_activo = false;
+                        g_recup_habilitada = false;
+                        g_recup_gs0_desde = millis();
+                        g_recup_retroceso_hecho = false;
+                        g_recup_giro_hecho = false;
+                    }
+#endif
+                    break;
+                }
+                case RECUP_WAIT_ACTION:
+                    // GS4 no habilitado: NO retrocede, NO gira y NO reutiliza
+                    // la accion anterior. Solo espera una trama valida nueva.
+                    robot.steer(0, FORWARD, 0);
+                    if (Serial5.available() > 0)
+                        serialEvent5();
                     break;
                 case 6:
                     runTime(20, FORWARD, 0, 800);
@@ -4123,7 +4379,14 @@ if (green_state == 2)
                     }
                     break;
                 case 7: // linetrack
-                    g_recup_pasos = 0;   // hay linea: el contador de retroceso vuelve a cero
+                    // Guardamos el steer normal solo para diagnostico. La direccion
+                    // de recovery YA NO sale de aca: sale del angle recibido junto
+                    // con GS=4, que la Raspberry llena con CAMINO+MONO.
+                    g_recup_ultimo_steer = g_rx_steer;
+                    g_recup_ultimo_steer_ms = millis();
+                    g_recup_pasos = 0;
+                    g_recup_giros = 0;
+                    g_recup_signo = 0;
                
                     {int velocidadAjustada = ajustarVelocidadPorPendiente(velocidadBaseDeLinea());
 
