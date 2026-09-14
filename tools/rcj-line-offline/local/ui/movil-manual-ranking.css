@@ -1,0 +1,179 @@
+/*
+ * rcj-line-offline — área manual-ranking. Ajustes para usar manual.html (carga manual, pasos input y check) y
+ * ranking.html en un celular (Chrome Android 412x915, táctil).
+ * Solo CSS: no cambia la lógica de javascripts/manual/line_2026.js ni de javascripts/ranking/line_2026.js.
+ * Salvo la regla del contenedor de la tabla del ranking (que solo actúa si la tabla no entra), todo va dentro de
+ * @media (max-width: 767.98px): en tablet (1024x768) y notebook la página se ve igual que en el CMS.
+ * Detalle y motivo de cada regla en cambios/manual-ranking.md §4.
+ */
+
+/* ---------------------------------------------------------------- ranking.html, todos los anchos */
+/* La tabla del ranking crece con los grupos/rondas y el nombre del equipo; su contenedor .container-fluid tiene
+   overflow:hidden inline (ranking/line_2026.pug:19), así que lo que no entraba quedaba cortado sin forma de verlo.
+   Con esto la tabla se desplaza dentro de su columna; si entra, no cambia nada. */
+body[ng-controller="LineScoreController"] #rank > .col-lg-12 {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 767.98px) {
+
+  /* ============================================================== manual.html (input y check) */
+
+  /* La navbar fija de 60 px no entra en una fila (equipo + STEP + ronda + cancha [+ puntaje]): pasaba a 2-3 filas
+     por encima del contenido. En celular deja de ser fija y queda pegada arriba (sticky) con su alto real. */
+  body[ng-controller="ddController"] {
+    padding-top: 0 !important;
+    padding-bottom: 96px !important;
+  }
+  body[ng-controller="ddController"] > nav.fixed-top {
+    position: sticky !important;
+    top: 0;
+    height: auto !important;
+    min-height: 56px;
+    padding: 6px 10px !important;
+  }
+  body[ng-controller="ddController"] > nav.fixed-top > .container-fluid {
+    flex-wrap: wrap;
+    row-gap: 6px;
+    padding: 0;
+  }
+  body[ng-controller="ddController"] > nav.fixed-top .navbar-brand {
+    font-size: 1.1rem;
+    margin-right: 0;
+    white-space: normal;
+  }
+  body[ng-controller="ddController"] > nav.fixed-top .badge {
+    padding: 6px 10px !important;
+    font-size: 0.8rem !important;
+  }
+  body[ng-controller="ddController"] > .container-fluid.mt-4 {
+    margin-top: 12px !important;
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+  body[ng-controller="ddController"] .card-entry {
+    margin-bottom: 14px;
+  }
+  body[ng-controller="ddController"] .card-entry .p-4 {
+    padding: 12px !important;
+  }
+
+  /* Checkpoints: en el CMS son columnas de 190 px dentro de una caja de 560 px de alto con scroll horizontal propio.
+     En celular pasa a una sola columna del ancho de la tarjeta (sin scroll anidado) y cada ítem es más alto. */
+  body[ng-controller="ddController"] .scroll-area {
+    overflow: visible;
+    padding: 8px;
+  }
+  body[ng-controller="ddController"] .checkpoint-column-wrap {
+    height: auto;
+    flex-wrap: nowrap;
+  }
+  body[ng-controller="ddController"] .entry-item-compact {
+    width: 100%;
+    height: 60px !important;
+  }
+  body[ng-controller="ddController"] .entry-item-compact.has-lop {
+    height: 122px !important;
+    grid-template-rows: 48px 1fr;
+  }
+  body[ng-controller="ddController"] .entry-item-compact:hover {
+    transform: none;
+  }
+
+  /* Steppers de LoP: el CMS les pone 26-32 px por ng-style inline (el de la meta es el más chico). */
+  body[ng-controller="ddController"] .premium-stepper {
+    width: 100% !important;
+    height: 52px !important;
+    padding: 4px !important;
+  }
+  body[ng-controller="ddController"] .premium-btn {
+    width: 44px !important;
+    height: 44px !important;
+    flex-shrink: 0;
+  }
+  body[ng-controller="ddController"] input.premium-count {
+    width: 64px !important;
+    height: 44px;
+    font-size: 1.1rem !important;
+  }
+
+  /* Víctimas: botón de papelera y botones de zona con alto cómodo */
+  body[ng-controller="ddController"] .evac-btn,
+  body[ng-controller="ddController"] .evac-btn-trash {
+    min-height: 48px;
+    min-width: 48px;
+  }
+
+  /* Bono de salida: imagen + "Exit Bonus Achieved" en 1,4 rem no entran en una fila de 360 px */
+  body[ng-controller="ddController"] .bonus-visual {
+    flex-wrap: wrap;
+    gap: 10px !important;
+    padding: 14px !important;
+  }
+  body[ng-controller="ddController"] .bonus-visual > .fw-bold {
+    font-size: 1.15rem !important;
+  }
+
+  /* Paso 2: cálculo final (puntos x multiplicador = total) en varias filas si no entra */
+  body[ng-controller="ddController"] .calc-row {
+    flex-wrap: wrap;
+    justify-content: center;
+    row-gap: 8px;
+  }
+
+  /* Barra inferior fija: el botón "Complete Data Entry & Submit Score" (y Reject/Approve) se salía de los 412 px */
+  body[ng-controller="ddController"] .footer-action {
+    padding: 10px 10px;
+    gap: 8px;
+  }
+  body[ng-controller="ddController"] .footer-action .btn-premium {
+    padding: 12px 14px;
+    min-height: 52px;
+    font-size: 0.95rem;
+    white-space: normal;
+    justify-content: center;
+    text-align: center;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  /* ============================================================== ranking.html */
+  body[ng-controller="LineScoreController"] .container-fluid .col-md-10,
+  body[ng-controller="LineScoreController"] .container-fluid .col-md-1 {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+  body[ng-controller="LineScoreController"] .premium-breadcrumb .breadcrumb-item[ng-click] {
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
+    min-width: 40px;
+  }
+  body[ng-controller="LineScoreController"] .btn {
+    min-height: 44px;
+  }
+  body[ng-controller="LineScoreController"] .nav-user-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+  }
+  /* Selector de desempate (D9): los dos botones ocupan el ancho y el texto largo baja de renglón */
+  body[ng-controller="LineScoreController"] .rcj-desempate .btn-group {
+    display: flex;
+    width: 100%;
+  }
+  body[ng-controller="LineScoreController"] .rcj-desempate .btn-group > .btn {
+    flex: 1 1 50%;
+    white-space: normal;
+  }
+  body[ng-controller="LineScoreController"] .ranking-header {
+    flex-wrap: wrap;
+  }
+  /* Celdas de corrida (abren el detalle al tocarlas) un poco más altas */
+  body[ng-controller="LineScoreController"] table.custom td {
+    padding: 10px 6px;
+  }
+}

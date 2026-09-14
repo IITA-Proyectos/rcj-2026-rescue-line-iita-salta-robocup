@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Backend — io-shim entre contextos</title>
+<script src="backend-comun.js"></script>
+<script src="../local/config.js"></script>
+<script src="../local/nucleo/store.js"></script>
+<script src="../local/nucleo/pathfinder-servidor.js"></script>
+<script src="../local/nucleo/init-run.js"></script>
+<script src="../local/nucleo/score-2026.js"></script>
+<script src="../local/nucleo/copy-properties.js"></script>
+<script src="../local/nucleo/api.js"></script>
+<script src="../local/nucleo/ranking.js"></script>
+<script src="../local/io-shim.js"></script>
+</head>
+<body>
+<h1>io() sobre BroadcastChannel: dos iframes reciben las emisiones de un PUT</h1>
+<pre id="resultado">PENDIENTE</pre>
+<script>
+T.correr(async function () {
+  await T.resetear();
+  await RCJLocal.semillas({ tilesets: await T.fixture('tilesets.json') });
+  var cid = (await T.api('GET', '/api/competitions/')).data[0]._id;
+  var ronda = (await T.api('GET', '/api/competitions/' + cid + '/rounds')).data[0];
+  var cancha = (await T.api('GET', '/api/competitions/' + cid + '/fields')).data[0];
+  var equipo = (await T.api('GET', '/api/competitions/' + cid + '/Line/teams')).data[0];
+  var mapId = await RCJLocal.ingestMap(await T.fixture('ejemplo-01.json'), { competition: cid });
+  var runId = (await T.api('POST', '/api/runs/line', { round: ronda._id, team: equipo._id, field: cancha._id, competition: cid, map: mapId })).data.id;
+  await T.api('GET', '/api/runs/line/' + runId);
+
+  // socket en la misma ventana que hace el PUT
+  var propios = [];
+  var sp = io(location.origin, { transports: ['websocket'] });
+  sp.emit('subscribe', 'runs/' + runId);
+  sp.on('data', function (d) { propios.push(d); });
+  var sinSuscribir = 0;
+  var sx = io();
+  sx.on('data', function () { sinSuscribir++; });
+
+  var listos = 0;
+  var esperaListos = new Promise(function (res) {
+    window.addEventListener('message', function (e) {
+      if (e.data && e.data.tipo === 'hijo-listo') { listos++; if (listos === 2) res(); }
+    });
+  });
+  ['A', 'B'].forEach(function (n) {
+    var f = document.createElement('iframe');
+    f.id = 'hijo' + n;
+    f.src = 'backend-io-hijo.html?run=' + runId + '&cid=' + cid;
+    document.body.appendChild(f);
+  });
+  await esperaListos;
+  var A = document.getElementById('hijoA').contentWindow;
+  var Bw = document.getElementById('hijoB').contentWindow;
+  T.check('los hijos cargaron io-shim sin backend', A.io.local === true && Bw.io.local === true && typeof A.RCJLocal.api === 'undefined');
+
+  var p = await T.api('PUT', '/api/runs/line/' + runId, { showedUp: true, time: { minutes: 0, seconds: 3 } });
+  T.check('PUT 200', p.status === 200 && p.data.score === 5);
+  await T.esperar(300);
+  var rA = A.recibidos, rB = Bw.recibidos;
+  T.check('iframe A recibió "data" con la corrida poblada', rA.data.length === 1 && rA.data[0]._id === runId && rA.data[0].score === 5 && rA.data[0].map._id === mapId && rA.data[0].team.name === 'IITA Salta', rA);
+  T.check('iframe B recibió "data"', rB.data.length === 1 && rB.data[0]._id === runId && rB.data[0].showedUp === true, rB);
+  T.check('ambos recibieron "changed" (sala runs/line/<cid>)', rA.changed === 1 && rB.changed === 1, [rA.changed, rB.changed]);
+  T.check('la ventana emisora recibe una sola vez (sin duplicado por el BroadcastChannel)', propios.length === 1, propios.length);
+  T.check('un socket sin suscripción no recibe nada', sinSuscribir === 0);
+  T.check('cada contexto recibe su propia copia', rA.data[0] !== rB.data[0] && propios[0] !== rA.data[0]);
+
+  Bw.desuscribir();
+  await T.api('PUT', '/api/runs/line/' + runId, { status: 2, time: { minutes: 0, seconds: 4 } });
+  await T.esperar(300);
+  T.check('tras unsubscribe, B no recibe más "data"; A sí', A.recibidos.data.length === 2 && Bw.recibidos.data.length === 1 && propios.length === 2, [A.recibidos.data.length, Bw.recibidos.data.length, propios.length]);
+  T.check('LChanged al cambiar status; "StatusChanged" nunca llega (fiel al CMS)', A.recibidos.lchanged === 1 && Bw.recibidos.lchanged === 1 && A.recibidos.statusChanged === 0, A.recibidos);
+  T.check('evento connect disparado en el hijo', A.recibidos.conectado === true);
+  return { A: { data: A.recibidos.data.length, changed: A.recibidos.changed, lchanged: A.recibidos.lchanged }, B: { data: Bw.recibidos.data.length } };
+});
+</script>
+</body>
+</html>

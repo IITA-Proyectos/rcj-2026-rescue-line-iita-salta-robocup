@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Firma — desvíos por flag: corregirBugsVisuales y soloFirmaCapitan</title>
+<script src="firma-comun.js"></script>
+<script src="../local/config.js"></script>
+<script src="../local/io-shim.js"></script>
+<script src="../local/nucleo/store.js"></script>
+<script src="../local/nucleo/pathfinder-servidor.js"></script>
+<script src="../local/nucleo/init-run.js"></script>
+<script src="../local/nucleo/score-2026.js"></script>
+<script src="../local/nucleo/copy-properties.js"></script>
+<script src="../local/nucleo/api.js"></script>
+<script src="../local/nucleo/ranking.js"></script>
+</head>
+<body style="margin:0">
+<pre id="resultado">PENDIENTE</pre>
+<script>
+function flags(obj) {
+  if (obj) localStorage.setItem('rcjLocalFlags', JSON.stringify(obj)); else localStorage.removeItem('rcjLocalFlags');
+}
+
+async function revisarDesglose(pagina, corregir, s, o) {
+  var nombre = pagina + (corregir ? ' (corregirBugsVisuales)' : ' (original)');
+  var f = await T.cargarIframe('../' + pagina + '?run=' + s.runId, { nombre: nombre });
+  await T.esperarCarga(f, nombre);
+  var sc = T.scope(f), d = f.contentDocument, w = f.contentWindow;
+  T.check(nombre + ': flag leído', sc.rcjCorregirBugsVisuales === corregir);
+  var item = sc.raw_score - sc.checkTotal() - sc.exitBonusPoints();
+  var prod = 1;
+  for (var i = 0; i < sc.victim_list.length; i++) prod *= sc.calc_victim_multipliers(i);
+  var ths2 = Array.prototype.map.call(d.querySelectorAll('table[border]')[1].querySelectorAll('tr:first-child th'), function (x) { return x.textContent.trim(); });
+  var xs = Array.prototype.map.call(d.querySelectorAll('table[border] span[ng-if]'), function (x) { return x.textContent.trim(); });
+  if (!corregir) {
+    // divergencias conocidas del CMS (04 §3.2 y §4.2.1), reproducidas tal cual
+    T.check(nombre + ': inicio 5·showedUp = 0 aunque el servidor sumó +5', sc.checkPointDistance[0].point === 0);
+    T.check(nombre + ': Item points queda inflado en 5', item === o.elementos + 5, [item, o.elementos]);
+    T.check(nombre + ': el cliente cuenta la LIVE en RED y da un x de más (≠ servidor)', Math.abs(prod - run_mult(s)) > 1e-6 && Math.abs(prod - o.multiplicador * sc.calc_victim_type_lop_multiplier()) < 1e-9, [prod, run_mult(s)]);
+    T.igual(nombre + ': 2do bloque numerado j*4 (5,6,7)', ths2, ['Zone', '5', '6', '7']);
+  } else {
+    T.check(nombre + ': inicio = 5 (showedUp || puntos), como el servidor', sc.checkPointDistance[0].point === 5);
+    T.check(nombre + ': Item points = puntos por elementos', item === o.elementos, [item, o.elementos]);
+    T.check(nombre + ': producto de x = multiplicador del servidor', Math.abs(prod - run_mult(s)) < 1e-9, [prod, run_mult(s)]);
+    T.igual(nombre + ': 2do bloque numerado j*3 (4,5,6)', ths2, ['Zone', '4', '5', '6']);
+  }
+  T.check(nombre + ': cierre elementos+checkpoints+bonus del servidor intacto (raw/score/mult del backend)', sc.raw_score === s.run.raw_score && sc.score === s.run.score && sc.multiplier === s.run.multiplier);
+  T.extra[nombre] = { item: item, inicio: sc.checkPointDistance[0].point, producto: prod, xs: xs, ths2: ths2 };
+
+  // modal "Direction scored" sobre la baldosa de inicio: ícono FA4 (invisible) o FA5 con el flag
+  sc.$apply(function () { sc.open(s.mapa.startTile.x, s.mapa.startTile.y, s.mapa.startTile.z); });
+  await T.esperarQue(function () { return d.querySelector('.modal-dialog .modal-title'); }, 8000, 'modal ' + nombre);
+  await T.esperar(600);
+  var icono = d.querySelectorAll('.modal-body i[ng-show="isStart(nineTile[4])"]')[0];
+  var antes = icono ? w.getComputedStyle(icono, '::before').content : null;
+  T.check(nombre + ': modal cargó templates/line_view_modal.html traducido', T.texto(f, '.modal-title') === 'Dirección puntuada');
+  if (!corregir) T.check(nombre + ': ícono de inicio FA4 fa-play-circle-o sin glifo', icono && icono.classList.contains('fa-play-circle-o') && (antes === 'none' || antes === 'normal' || antes === ''), antes);
+  else T.check(nombre + ': ícono de inicio far fa-play-circle con glifo', icono && icono.classList.contains('far') && icono.classList.contains('fa-play-circle') && antes && antes !== 'none' && antes !== 'normal', antes);
+  T.clic(f, '.modal-footer button', 'ok()');
+  await T.esperarQue(function () { return T.modalCerrado(f); }, 5000, 'cierre modal');
+  f.parentNode.removeChild(f);
+}
+var _mult = null;
+function run_mult(s) { return s.run.multiplier; }
+
+async function firmarSolo(f, i, id) {
+  var sc = T.scope(f);
+  T.clic(f, 'button.btn-info', 'toggleSign(' + i + ')');
+  await T.dibujarFirma(f, id);
+  T.clic(f, 'button.btn-success', 'toggleSign(' + i + ')');
+  await T.esperarQue(function () { return sc.signData[i] && !sc.enableSign[i]; }, 5000, 'firma ' + id);
+}
+
+T.correr(async function () {
+  flags(null);
+  // showedUp=false con puntos (+5 implícito) y orden LIVE/RED, LIVE/GREEN, DEAD/RED, LIVE/GREEN (4 víctimas -> 2do bloque)
+  var s = await T.sembrarCorrida(function (run) {
+    return {
+      showedUp: false, tiles: T.tilesPuntuadas(run, {}), LoPs: run.LoPs.map(function () { return 0; }), exitBonus: true,
+      rescueOrder: [{ victimType: 'LIVE', zoneType: 'RED' }, { victimType: 'LIVE', zoneType: 'GREEN' }, { victimType: 'DEAD', zoneType: 'RED' }, { victimType: 'LIVE', zoneType: 'GREEN' }],
+      time: { minutes: 5, seconds: 2 }, status: 3
+    };
+  });
+  var o = T.desglose(s.run, s.mapa);
+  T.check('backend: +5 implícito y multiplicador con 2 víctimas efectivas', o.inicio === 5 && s.run.raw_score === o.raw && Math.abs(s.run.multiplier - 1.4 * 1.4) < 1e-12, [s.run.raw_score, s.run.multiplier]);
+
+  await revisarDesglose('firma.html', false, s, o);
+  await revisarDesglose('vista.html', false, s, o);
+  flags({ corregirBugsVisuales: true });
+  await revisarDesglose('firma.html', true, s, o);
+  await revisarDesglose('vista.html', true, s, o);
+
+  // ---------------------------------------------------------------- soloFirmaCapitan
+  flags(null);
+  var f = await T.cargarIframe('../firma.html?run=' + s.runId, { nombre: 'firma 3 firmas' });
+  await T.esperarCarga(f, 'firma 3 firmas');
+  var puts = [];
+  var w = f.contentWindow, original = w.RCJLocal.api.request;
+  w.RCJLocal.api.request = function (m, u, c) { if (m === 'PUT') puts.push(c); return original.apply(this, arguments); };
+  await firmarSolo(f, 0, 'cap_sig');
+  T.clic(f, 'button', 'send_sign()');
+  var oops = await T.esperarSwal(f, 'Oops!');
+  T.check('default (3 firmas): solo capitán -> Oops! pide árbitro y árbitro asistente', oops && oops.texto.indexOf('[Firma del árbitro] [Firma del árbitro asistente]') === 0 && oops.texto.indexOf('capitán') < 0, oops);
+  T.check('default: sin PUT', puts.length === 0);
+  f.contentDocument.querySelector('.swal2-confirm').click();
+  f.parentNode.removeChild(f);
+
+  flags({ soloFirmaCapitan: true });
+  var g = await T.cargarIframe('../firma.html?run=' + s.runId + '&return=' + encodeURIComponent('/line/' + s.cid + '/Line'), { nombre: 'firma solo capitán' });
+  await T.esperarCarga(g, 'firma solo capitán');
+  var puts2 = [];
+  var w2 = g.contentWindow, original2 = w2.RCJLocal.api.request;
+  w2.RCJLocal.api.request = function (m, u, c) { if (m === 'PUT') puts2.push(c); return original2.apply(this, arguments); };
+  await firmarSolo(g, 0, 'cap_sig');
+  T.clic(g, 'button', 'send_sign()');
+  var conf = await T.esperarSwal(g, 'Finish Run?');
+  T.check('soloFirmaCapitan: con la del capitán pasa a la confirmación', !!conf);
+  g.contentDocument.querySelector('.swal2-confirm').click();
+  await T.esperarQue(function () { return puts2.length === 1; }, 8000, 'PUT solo capitán');
+  var cuerpo = puts2[0] ? JSON.parse(puts2[0]) : {};
+  T.check('soloFirmaCapitan: PUT {comment, sign:{captain}, status:4}', cuerpo.status === 4 && JSON.stringify(Object.keys(cuerpo.sign || {})) === '["captain"]', cuerpo.sign && Object.keys(cuerpo.sign));
+  var rec = await T.esperarSwal(g, 'Recorded!');
+  T.check('soloFirmaCapitan: Recorded!', !!rec);
+  var guardada = await RCJLocal.store.get('lineRuns', s.runId);
+  T.check('soloFirmaCapitan: backend guarda capitán, árbitros vacíos, status 4', guardada.status === 4 && guardada.sign.captain.indexOf('data:image/svg+xml;base64,') === 0 && guardada.sign.referee === '' && guardada.sign.referee_as === '');
+  g.contentDocument.querySelector('.swal2-confirm').click();
+  var destino = null;
+  await T.esperarQue(function () {
+    try { var l = g.contentWindow.location; if (/corridas\.html$/.test(l.pathname)) { destino = l.pathname + l.search; return true; } } catch (e) {}
+    return false;
+  }, 8000, 'navegación a ?return=');
+  T.igual('Recorded! con ?return=/line/<cid>/Line navega a corridas.html', destino, '/corridas.html?competition=' + s.cid + '&league=Line');
+  flags(null);
+});
+</script>
+</body>
+</html>

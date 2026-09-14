@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Juez — flags D4/D5: bugs visuales, 202, audio, fotos y modal</title>
+<script src="juez-comun.js"></script>
+<script src="../local/config.js"></script>
+<script src="../local/nucleo/store.js"></script>
+<script src="../local/nucleo/pathfinder-servidor.js"></script>
+<script src="../local/nucleo/init-run.js"></script>
+<script src="../local/nucleo/score-2026.js"></script>
+<script src="../local/nucleo/copy-properties.js"></script>
+<script src="../local/nucleo/api.js"></script>
+<script src="../local/nucleo/ranking.js"></script>
+<script src="../local/io-shim.js"></script>
+</head>
+<body>
+<pre id="resultado">PENDIENTE</pre>
+<script>
+/*
+ * Fase A: flags por defecto (corregirBugsVisuales=false, fotosOpcionales/audioResume/persistirTimer=true).
+ *   Todo tiene que comportarse como el CMS: etiqueta x1.4 del cliente contando toda LIVE previa, 202 tomado como
+ *   éxito (score undefined), fila Rule vacía, ícono FA4 invisible; audioResume llama context.resume().
+ * Fase B: corregirBugsVisuales=true, fotosOpcionales=false, audioResume=false (recarga del juez).
+ *   Etiquetas con la regla del servidor, reintento ante 202 en upload_run / saveEverything / confirm, Rule "2026",
+ *   glifo FA5 para fa-play-circle-o, pre-chequeo que exige tocar las fotos, sin resume(). Modal "Direction scored".
+ * Víctimas usadas: LIVE en GREEN, LIVE en RED (zona equivocada), DEAD en RED. El servidor solo cuenta vivas
+ * efectivas (1 de 2), así que la muerta no multiplica: multiplicador 1.4.
+ */
+T.correr(async function () {
+  var J = T.juez;
+  var s = await T.sembrar(await T.fixture('fixture-mapa-oficial.json'));
+  var runId = s.runId;
+  T.extra.runId = runId;
+  J.crear(1366, 860);
+
+  var tramos = function () { return J.$$('div[ng-repeat="cp in range(LoPs.length) track by $index"]'); };
+  var botonTimer = function () { return J.$$('button[ng-click="toggleTime()"]')[0]; };
+  var etiquetas = function () { return J.$$('span[ng-if="calc_victim_multipliers(j*3+i)!=0"]').map(function (e) { return e.textContent; }).sort(); };
+  var mults = function () { var sc = J.scope(); return [0, 1, 2].map(function (i) { return sc.calc_victim_multipliers(i); }); };
+  var filaRegla = function () { return J.$$('#lops table tr')[5].querySelector('td').textContent.trim(); };
+  var fotos = function () { return J.$$('img[ng-src*="/api/document/inspection/files/"]'); };
+
+  async function accion(fn, minimo) {
+    var n0 = J.pedidos.length;
+    fn();
+    var nuevos = await J.esperarPedidos(n0, minimo || 1);
+    return { n0: n0, puts: nuevos.filter(function (p) { return p.method === 'PUT'; }) };
+  }
+  function forzar202(veces) {
+    var quedan = veces;
+    J.win().RCJLocal.api.registrarRuta('PUT', new RegExp('^/api/runs/line/' + runId + '$'), function () {
+      if (quedan > 0) { quedan--; return { status: 202, data: { msg: 'Try again later' } }; }
+      return null;
+    });
+  }
+  // Deja el AudioContext del juez suspendido (headless nace así; un navegador con autoplay permitido nace
+  // 'running') y espía resume(). Así la prueba de audioResume es determinista en ambos casos.
+  async function espiarAudio() {
+    var ctx = J.win().context;
+    var n = 0;
+    var estado = ctx ? ctx.state : 'sin contexto';
+    if (ctx) {
+      if (ctx.state === 'running') await ctx.suspend();
+      var original = ctx.resume.bind(ctx);
+      ctx.resume = function () { n++; return original(); };
+    }
+    return { estadoInicial: estado, estadoPrueba: ctx ? ctx.state : null, llamadas: function () { return n; } };
+  }
+  function glifoFA4() {
+    var d = J.doc();
+    var sonda = d.createElement('i');
+    sonda.className = 'fa fa-play-circle-o';
+    d.body.appendChild(sonda);
+    var contenido = J.win().getComputedStyle(sonda, ':before').content;
+    sonda.parentNode.removeChild(sonda);
+    return contenido;
+  }
+  async function registrarVictima(tipo, zona) {
+    J.click(tramos()[2].querySelector('[ng-click="addVictimTmp(\'' + tipo + '\')"]'));
+    await T.esperar(150);
+    var t = tramos()[2];
+    var boton = zona === 'RED' ? t.querySelector('.evac_zone_btn_red') : t.querySelector('[ng-click=\'victimRegist("GREEN")\']');
+    return (await accion(function () { J.click(boton); })).puts.pop();
+  }
+
+  // ============================================================ A. flags por defecto
+  await J.abrir('../juez.html?run=' + runId);
+  var w = J.win();
+  var sc = J.scope();
+  T.check('A: flags por defecto en el juez (D4 false; D5 true)', w.RCJLocal.flags.corregirBugsVisuales === false && w.RCJLocal.flags.fotosOpcionales === true &&
+    w.RCJLocal.flags.audioResume === true && w.RCJLocal.flags.persistirTimer === true, w.RCJLocal.flags);
+  var audio = await espiarAudio();
+  J.doc().dispatchEvent(new w.Event('pointerdown', { bubbles: true }));
+  T.extra.audioEstadoInicialA = audio.estadoInicial;
+  T.check('A: audioResume: el primer gesto llama context.resume() (contexto suspendido)', audio.estadoPrueba === 'suspended' && audio.llamadas() >= 1, { estado: audio.estadoInicial, prueba: audio.estadoPrueba, llamadas: audio.llamadas() });
+  T.check('A: sin estilo FA4 (original)', !J.doc().querySelector('style[data-rcj-line-offline="fa4"]'));
+  var glifoA = glifoFA4();
+  T.check('A: fa-play-circle-o sin glifo (FA4 no existe en FA5)', glifoA.indexOf('') < 0, glifoA);
+  T.igual('A: fila Rule vacía', filaRegla(), '');
+
+  await T.esperarQue(function () { return sc.checkMember && sc.checkMachine; }, 5000, 'fotos premarcadas (fotosOpcionales)');
+  J.click(J.$('tr[ng-click="toggleCheckTeam()"]'));
+  J.click(J.$('tr[ng-click="toggleCheckRound()"]'));
+  await T.esperar(80);
+  J.click(J.$('button[ng-click="infochecked()"]'));
+  await T.esperar(300);
+  var r = await accion(function () { J.click(botonTimer()); });
+  T.check('A: Start status 2', r.puts[0] && r.puts[0].body.status === 2 && r.puts[0].status === 200, r.puts);
+  await T.esperar(1500);
+  // Regla del CMS (08 §5.5 paso 9): started pasa a true solo con score > 0 o una baldosa puntuada. Sin esto la
+  // recarga de la fase B re-inicializaría la corrida (E10) y borraría las víctimas.
+  r = await accion(function () { J.click(J.baldosa(1, 0)); });
+  T.check('A: lomo (1,0,0) puntuado -> started true en la base', r.puts[0].status === 200 && r.puts[0].data.score > 0 && (await RCJLocal.store.get('lineRuns', runId)).started === true, r.puts[0]);
+
+  await registrarVictima('LIVE', 'GREEN');
+  await registrarVictima('LIVE', 'RED');
+  var pv = await registrarVictima('DEAD', 'RED');
+  T.igual('A: orden de víctimas', J.scope().victim_list.map(function (v) { return v.victimType + '/' + v.zoneType; }), ['LIVE/GREEN', 'LIVE/RED', 'DEAD/RED']);
+  T.igual('A: multiplicadores del cliente original (cuenta toda LIVE previa)', mults(), [1.4, 1, 1.4]);
+  T.igual('A: etiquetas en la tabla (original)', etiquetas(), ['x1', 'x1.4', 'x1.4']);
+  T.check('A: backend: solo vivas efectivas -> multiplicador 1.4', pv && pv.status === 200 && pv.data.multiplier === 1.4, pv && pv.data);
+  T.check('A: la etiqueta original no coincide con el backend (bug visual)', Math.abs(mults().reduce(function (a, b) { return a * b; }, 1) - pv.data.multiplier) > 1e-9);
+
+  forzar202(1);
+  r = await accion(function () { J.click(tramos()[0].querySelector('button.btn-success')); });
+  await T.esperar(500);
+  T.check('A: 202 original en upload_run: un solo PUT, sin reintento', r.puts.length === 1 && r.puts[0].status === 202 && J.pedidos.slice(r.n0).length === 1, J.pedidos.slice(r.n0));
+  T.check('A: 202 original: score undefined, navbar sin número, sync 0', J.scope().score === undefined && J.puntajeNavbar() === null && J.scope().sync === 0, { score: J.scope().score, navbar: J.$$('nav .col-md-3 li.navbar-brand')[0].textContent, sync: J.scope().sync });
+  r = await accion(function () { J.click(tramos()[0].querySelector('button.btn-danger')); });
+  T.check('A: el siguiente PUT normal restaura el puntaje', r.puts[0].status === 200 && J.scope().score === r.puts[0].data.score && J.puntajeNavbar() === r.puts[0].data.score, r.puts[0]);
+  r = await accion(function () { J.click(botonTimer()); });
+  T.check('A: Stop guarda (saveEverything 200)', r.puts[0].status === 200 && J.scope().startedTime === false, r.puts[0]);
+
+  // ============================================================ B. flags cambiados
+  RCJLocal.setFlag('corregirBugsVisuales', true);
+  RCJLocal.setFlag('fotosOpcionales', false);
+  RCJLocal.setFlag('audioResume', false);
+  await J.recargar();
+  w = J.win();
+  sc = J.scope();
+  T.check('B: flags leídos por el juez', w.RCJLocal.flags.corregirBugsVisuales === true && w.RCJLocal.flags.fotosOpcionales === false && w.RCJLocal.flags.audioResume === false, w.RCJLocal.flags);
+  audio = await espiarAudio();
+  J.doc().dispatchEvent(new w.Event('pointerdown', { bubbles: true }));
+  J.doc().dispatchEvent(new w.Event('click', { bubbles: true }));
+  T.extra.audioEstadoInicialB = audio.estadoInicial;
+  T.check('B: sin audioResume no se llama context.resume()', audio.estadoPrueba === 'suspended' && audio.llamadas() === 0, { prueba: audio.estadoPrueba, llamadas: audio.llamadas() });
+  T.igual('B: fila Rule muestra la regla de la liga', filaRegla(), '2026');
+  T.check('B: estilo FA4 instalado', !!J.doc().querySelector('style[data-rcj-line-offline="fa4"]'));
+  var glifoB = glifoFA4();
+  T.check('B: fa-play-circle-o dibuja el glifo FA5 U+F144', glifoB.indexOf('') >= 0, glifoB);
+
+  await T.esperarQue(function () { return fotos().length === 2 && fotos().every(function (i) { return i.getAttribute('src') === 'images/NoImage.png'; }); }, 5000, 'fotos NoImage');
+  await T.esperar(600);
+  T.check('B: fotosOpcionales=false: tarjetas de fotos en rojo (como el CMS)', sc.checkMember === false && sc.checkMachine === false);
+  J.click(J.$('tr[ng-click="toggleCheckTeam()"]'));
+  J.click(J.$('tr[ng-click="toggleCheckRound()"]'));
+  await T.esperar(80);
+  var btnConfirmar = J.$('button[ng-click="infochecked()"]');
+  T.check('B: "I confirmed!!" deshabilitado sin tocar las fotos', btnConfirmar.disabled === true);
+  J.click(J.$('[ng-click="toggleCheckMember()"]'));
+  J.click(J.$('[ng-click="toggleCheckMachine()"]'));
+  await T.esperar(80);
+  T.check('B: tocando las fotos se habilita', btnConfirmar.disabled === false);
+  J.click(btnConfirmar);
+  await T.esperar(300);
+
+  T.igual('B: multiplicadores del cliente con la regla del servidor', mults(), [1.4, 1, 1]);
+  T.igual('B: etiquetas en la tabla (corregidas)', etiquetas(), ['x1', 'x1', 'x1.4']);
+
+  forzar202(1);
+  r = await accion(function () { J.click(tramos()[0].querySelector('button.btn-success')); }, 2);
+  T.check('B: 202 en upload_run: reintenta y el segundo PUT es 200 con el mismo cuerpo', r.puts.length === 2 && r.puts[0].status === 202 && r.puts[1].status === 200 &&
+    JSON.stringify(r.puts[0].body.LoPs) === JSON.stringify(r.puts[1].body.LoPs), r.puts);
+  T.check('B: tras el reintento: score == backend == navbar, sync 0', sc.score === r.puts[1].data.score && J.puntajeNavbar() === r.puts[1].data.score && sc.sync === 0, { score: sc.score, sync: sc.sync, data: r.puts[1].data });
+  T.check('B: producto de etiquetas == multiplicador del backend', Math.abs(mults().reduce(function (a, b) { return a * b; }, 1) - r.puts[1].data.multiplier) < 1e-9, [mults(), r.puts[1].data.multiplier]);
+
+  forzar202(1);
+  r = await accion(function () { J.click(J.$('[ng-click="changeExitBonus()"]')); }, 2);
+  T.check('B: 202 en saveEverything: reintenta, 200, sin networkError, sync 0', r.puts.length === 2 && r.puts[0].status === 202 && r.puts[1].status === 200 &&
+    sc.networkError === false && sc.score === r.puts[1].data.score && sc.sync === 0, r.puts);
+
+  // Modal "Direction scored" sobre el lomo (1,0,0), vecino del inicio (ícono FA4 de inicio)
+  sc.$apply(function () { sc.open(1, 0, 0); });
+  await T.esperarQue(function () { return J.$('.modal-dialog button[ng-click="ok()"]'); }, 8000, 'modal abierto');
+  await T.esperar(300);
+  T.check('B: modal con 4 celdas de dirección y botón OK', J.$$('.modal-dialog td[ng-click^="toggle_scored"]').length === 4);
+  T.extra.cruce = { x: 1, y: 0, z: 0 };
+  r = await accion(function () { J.click(J.$('.modal-dialog button[ng-click="ok()"]')); });
+  T.check('B: cerrar el modal manda tiles[] completo (14)', r.puts[0].status === 200 && Array.isArray(r.puts[0].body.tiles) && r.puts[0].body.tiles.length === 14, r.puts[0] && Object.keys(r.puts[0].body));
+
+  r = await accion(function () { J.click(J.baldosa(0, 0)); });
+  T.check('B: inicio (showedUp) antes de Go NEXT', r.puts[0].status === 200 && sc.showedUp === true);
+  forzar202(1);
+  var n0 = J.pedidos.length;
+  J.click(J.$('button[ng-click="confirm()"]'));
+  await T.esperarQue(function () { try { return J.win().location.pathname.indexOf('firma.html') >= 0; } catch (e) { return false; } }, 10000, 'navegación a la firma');
+  var putsC = J.pedidos.slice(n0).filter(function (p) { return p.method === 'PUT'; });
+  T.check('B: 202 en Go NEXT: reintenta y navega a la firma con status 3', putsC.length === 2 && putsC[0].status === 202 && putsC[1].status === 200 && putsC[1].body.status === 3, putsC);
+  T.check('B: corrida guardada con status 3', (await RCJLocal.store.get('lineRuns', runId)).status === 3);
+});
+</script>
+</body>
+</html>

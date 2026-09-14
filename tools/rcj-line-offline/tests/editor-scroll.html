@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Editor — desplazamiento de #map-container y centerMap</title>
+<script src="editor-comun.js"></script>
+<script src="../local/config.js"></script>
+<script src="../local/nucleo/store.js"></script>
+<script src="../local/nucleo/pathfinder-servidor.js"></script>
+<script src="../local/nucleo/init-run.js"></script>
+<script src="../local/nucleo/score-2026.js"></script>
+<script src="../local/nucleo/copy-properties.js"></script>
+<script src="../local/nucleo/api.js"></script>
+<script src="../local/nucleo/ranking.js"></script>
+</head>
+<body>
+<h1>¿Se desplaza #map-container? ¿centerMap centra la tabla?</h1>
+<pre id="resultado">PENDIENTE</pre>
+<script>
+function r4(el) { var r = el.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)]; }
+T.correr(async function () {
+  await T.resetear();
+  await RCJLocal.semillas();
+  var cid = (await T.api('GET', '/api/competitions/')).data[0]._id;
+  var ed = await T.abrirEditor('competition=' + cid, 'scroll', 1024, 768);
+  var d = ed.doc, w = ed.win, s = ed.scope;
+  await T.esperar(900);
+  var mc = d.getElementById('map-container'), al = d.querySelector('.map-scroll-aligner'), tb = d.querySelector('.map-table-editor');
+  var cs = w.getComputedStyle(mc), ca = w.getComputedStyle(al);
+  var info = {
+    cantidadMapContainer: d.querySelectorAll('#map-container').length,
+    mc: { overflowX: cs.overflowX, overflowY: cs.overflowY, display: cs.display, position: cs.position, scrollBehavior: cs.scrollBehavior,
+      scrollWH: [mc.scrollWidth, mc.scrollHeight], clientWH: [mc.clientWidth, mc.clientHeight], rect: r4(mc), scroll: [mc.scrollLeft, mc.scrollTop] },
+    aligner: { display: ca.display, padding: ca.padding, rect: r4(al) },
+    tabla: r4(tb),
+    vw: [w.innerWidth, w.innerHeight]
+  };
+  mc.scrollTop = 300; mc.scrollLeft = 200;
+  info.trasAsignar = [mc.scrollLeft, mc.scrollTop];
+  mc.scrollTo({ left: 50, top: 60 });
+  info.trasScrollTo = [mc.scrollLeft, mc.scrollTop];
+  mc.scrollTop = 0; mc.scrollLeft = 0;
+  s.centerMap();
+  await T.esperar(300);
+  info.trasCenterMap = { scroll: [mc.scrollLeft, mc.scrollTop], tabla: r4(tb), mc: r4(mc) };
+  // mismo cálculo que centerMap, para ver el destino pedido
+  var cr = mc.getBoundingClientRect(), tr = tb.getBoundingClientRect();
+  info.destinoCalculado = [Math.round(mc.scrollLeft + (tr.left - cr.left) + tr.width / 2 - cr.width / 2), Math.round(mc.scrollTop + (tr.top - cr.top) + tr.height / 2 - cr.height / 2)];
+  T.check('diagnóstico de desplazamiento tomado', true);
+  T.check('#map-container se desplaza con scrollTop/scrollLeft', info.trasAsignar[0] > 0 && info.trasAsignar[1] > 0, info);
+  T.check('centerMap deja la tabla visible dentro del mapa', tr.bottom > cr.top && tr.top < cr.bottom && tr.right > cr.left && tr.left < cr.right, info.trasCenterMap);
+  return info;
+});
+</script>
+</body>
+</html>

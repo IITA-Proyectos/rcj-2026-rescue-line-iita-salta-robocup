@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Salidas — PNG del mapa (map-image-png e image/:mapid)</title>
+<script src="salidas-comun.js"></script>
+<script src="../local/config.js"></script>
+<script src="../local/io-shim.js"></script>
+<script src="../local/nucleo/store.js"></script>
+<script src="../local/nucleo/pathfinder-servidor.js"></script>
+<script src="../local/nucleo/init-run.js"></script>
+<script src="../local/nucleo/score-2026.js"></script>
+<script src="../local/nucleo/copy-properties.js"></script>
+<script src="../local/nucleo/api.js"></script>
+<script src="../local/nucleo/ranking.js"></script>
+<script src="../local/render/registrar.js"></script>
+</head>
+<body>
+<h1>PNG del mapa del fixture oficial</h1>
+<img id="vista" alt="PNG generado" style="max-width:100%;border:1px solid #ccc">
+<pre id="resultado">PENDIENTE</pre>
+<script>
+// Cálculo independiente del tamaño esperado (03 §3.8), no copia del generador
+function dimsEsperadas(map) {
+  var tiles = Array.isArray(map.tiles) ? map.tiles : Object.keys(map.tiles).map(function (k) {
+    var c = k.split(',').map(Number); return { x: c[0], y: c[1], z: c[2] };
+  });
+  var pisos = Math.max(1, map.height || 1), maxW = 0, alto = 0;
+  for (var z = 0; z < pisos; z++) {
+    var t = tiles.filter(function (a) { return a.z === z; });
+    var xs = t.map(function (a) { return a.x; }), ys = t.map(function (a) { return a.y; });
+    var w = t.length ? (Math.max.apply(null, xs) - Math.min.apply(null, xs) + 1) : (map.width || 1);
+    var h = t.length ? (Math.max.apply(null, ys) - Math.min.apply(null, ys) + 1) : (map.length || 1);
+    maxW = Math.max(maxW, w * 60);
+    alto += h * 60 * 3 + (z < pisos - 1 ? 60 : 0);
+  }
+  return { ancho: (maxW + 40) * 3, alto: alto + 120 };
+}
+async function pixeles(ab) {
+  var bmp = await createImageBitmap(new Blob([ab], { type: 'image/png' }));
+  var c = document.createElement('canvas');
+  c.width = bmp.width; c.height = bmp.height;
+  var ctx = c.getContext('2d');
+  ctx.drawImage(bmp, 0, 0);
+  var d = ctx.getImageData(0, 0, c.width, c.height).data;
+  var r = { total: d.length / 4, noBlancos: 0, naranja: 0, celeste: 0, oscuros: 0 };
+  for (var i = 0; i < d.length; i += 4) {
+    var R = d[i], G = d[i + 1], B = d[i + 2];
+    if (!(R >= 250 && G >= 250 && B >= 250)) r.noBlancos++;
+    if (R > 235 && G > 145 && G < 185 && B < 40) r.naranja++;
+    if (R < 40 && G > 165 && G < 210 && B > 200) r.celeste++;
+    if (R < 60 && G < 60 && B < 60) r.oscuros++;
+  }
+  return r;
+}
+
+T.correr(async function () {
+  await T.resetear();
+  await RCJLocal.semillas();
+  var cid = (await T.api('GET', '/api/competitions/')).data[0]._id;
+  var fx = await T.fixture('fixture-mapa-oficial.json');
+  T.check('pdfkit no se carga al abrir la página (carga bajo demanda)', typeof window.PDFDocument === 'undefined' && !(RCJLocal.salidas && RCJLocal.salidas.comun));
+
+  // A) cuerpo igual al que manda el editor (L26:861-872): tiles como objeto "x,y,z" con index de PFc
+  var cuerpo = {
+    name: fx.name, height: fx.height, width: fx.width, length: fx.length, tiles: fx.tiles,
+    startTile: fx.startTile, startTile2: fx.startTile2, competitionName: 'Práctica IITA 2026',
+    leagueName: 'Line', paperSize: 'A4', EvacuationAreaLoPIndex: 2
+  };
+  var t0 = performance.now();
+  var a = await T.api('POST', '/api/maps/line/map-image-png', cuerpo);
+  var msA = Math.round(performance.now() - t0);
+  T.check('A: 200 con ArrayBuffer', a.status === 200 && a.data instanceof ArrayBuffer, { status: a.status, data: String(a.data).slice(0, 300) });
+  T.igual('A: Content-Type (lineMaps.js:715)', T.header(a, 'Content-Type'), 'image/png');
+  T.igual('A: Content-Disposition (lineMaps.js:716)', T.header(a, 'Content-Disposition'), 'attachment; filename="IITA%20Fixture%202026.png"');
+  var infoA = T.pngInfo(a.data), esp = dimsEsperadas(fx);
+  T.check('A: firma PNG', infoA.firma, infoA);
+  T.igual('A: dimensiones = (anchoMax+40)*3 x (Σ alto*3 + 60 entre pisos + 120)', [infoA.ancho, infoA.alto], [esp.ancho, esp.alto]);
+  var pxA = await pixeles(a.data);
+  T.check('A: no está en blanco (>20% de píxeles no blancos)', pxA.noBlancos / pxA.total > 0.2, pxA);
+  T.check('A: tiene borde naranja de inicio/checkpoint', pxA.naranja > 200, pxA);
+  T.check('A: tiene etiquetas de índice #0abde3', pxA.celeste > 30, pxA);
+  T.check('A: tiene líneas negras de las baldosas', pxA.oscuros > 2000, pxA);
+  T.check('A: el PNG no carga pdfkit', typeof window.PDFDocument === 'undefined');
+  await T.guardar('mapa-editor.png', a.data);
+  document.getElementById('vista').src = URL.createObjectURL(new Blob([a.data], { type: 'image/png' }));
+
+  // B) mapa guardado (ingestMap = POST + PUT del CMS) tal como lo devuelve GET ?populate=true
+  var mapId = await RCJLocal.ingestMap(fx, { competition: cid });
+  var mp = (await T.api('GET', '/api/maps/line/' + mapId + '?populate=true')).data;
+  var b = await T.api('POST', '/api/maps/line/map-image-png', mp);
+  var infoB = T.pngInfo(b.data);
+  T.check('B: 200 PNG desde el mapa guardado (tiles array)', b.status === 200 && infoB.firma, { status: b.status });
+  T.igual('B: mismas dimensiones que A', [infoB.ancho, infoB.alto], [infoA.ancho, infoA.alto]);
+  await T.guardar('mapa-guardado.png', b.data);
+
+  // C) GET /api/maps/line/image/:mapid (lineMaps.js:789-804)
+  var c = await T.api('GET', '/api/maps/line/image/' + mapId);
+  T.check('C: image/:mapid 200 PNG', c.status === 200 && T.pngInfo(c.data).firma, { status: c.status, data: String(c.data).slice(0, 200) });
+  T.igual('C: Content-Disposition', T.header(c, 'Content-Disposition'), 'attachment; filename="IITA%20Fixture%202026.png"');
+  T.check('C: mismos bytes que B (mismo mapa, mismo dibujo)', T.igualesBytes(b.data, c.data), { b: b.data.byteLength, c: c.data.byteLength });
+
+  // D..G) respuestas de error y borde como el CMS
+  var d = await T.api('POST', '/api/maps/line/map-image-png', { name: 'sin tiles' });
+  T.igual('D: sin tiles => 400 {msg: Invalid map data} (lineMaps.js:690-694)', [d.status, d.data], [400, { msg: 'Invalid map data' }]);
+  var e = await T.api('GET', '/api/maps/line/image/noesunid');
+  T.igual('E: id inválido => 400 texto (lineMaps.js:791-793)', [e.status, e.data, T.header(e, 'Content-Type')], [400, 'Invalid map ID', 'text/html; charset=utf-8']);
+  var f = await T.api('GET', '/api/maps/line/image/000000000000000000000000');
+  T.igual('F: mapa inexistente => 404 texto (lineMaps.js:796-798)', [f.status, f.data], [404, 'Map not found']);
+  var g = await T.api('POST', '/api/maps/line/map-image-png', { name: 'vacío', height: 1, width: 3, length: 2, tiles: {} });
+  var infoG = T.pngInfo(g.data);
+  T.igual('G: mapa vacío 3x2 => 660x480 (piso vacío usa width/length)', [g.status, infoG.ancho, infoG.alto], [200, 660, 480]);
+  var h = await T.api('POST', '/api/maps/line/MAP-IMAGE-PNG/', cuerpo);
+  T.check('H: ruta sin distinguir mayúsculas y con barra final (Express)', h.status === 200 && T.pngInfo(h.data).firma, h.status);
+
+  return { msPrimerPNG: msA, dimensiones: [infoA.ancho, infoA.alto], bytes: infoA.bytes, pixeles: pxA };
+});
+</script>
+</body>
+</html>

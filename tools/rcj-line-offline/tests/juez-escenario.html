@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Juez — escenario completo de una corrida</title>
+<script src="juez-comun.js"></script>
+<script src="../local/config.js"></script>
+<script src="../local/nucleo/store.js"></script>
+<script src="../local/nucleo/pathfinder-servidor.js"></script>
+<script src="../local/nucleo/init-run.js"></script>
+<script src="../local/nucleo/score-2026.js"></script>
+<script src="../local/nucleo/copy-properties.js"></script>
+<script src="../local/nucleo/api.js"></script>
+<script src="../local/nucleo/ranking.js"></script>
+<script src="../local/io-shim.js"></script>
+</head>
+<body>
+<pre id="resultado">PENDIENTE</pre>
+<script>
+/*
+ * Escenario completo sobre analysis/fixture-mapa-oficial.json (indexCount 14, checkpoints en los índices 5 y 10,
+ * EvacuationAreaLoPIndex 2, víctimas 2 vivas / 1 muerta), con clics reales sobre el DOM del juez:
+ * pre-chequeo -> time==0 bloquea -> Start (status 2) -> inicio (showedUp) -> todas las baldosas con puntaje
+ * -> LoPs en el tramo 0 (con aviso >=3) -> víctimas LIVE x2 en GREEN + DEAD en RED -> exit bonus
+ * -> aviso del checkpoint implícito -> Go NEXT (status 3, navegación a firma.html?run=...).
+ *
+ * Cuenta a mano del puntaje final (scoreCalculatorRules/2026.js):
+ *   elementos: lomo idx1 10 + intersección idx3 10 + gap idx4 10 + obstáculo idx6 20 + rampa idx7 10 + balancín idx8 20 = 80
+ *   checkpoint idx5: 5 baldosas x (5 - 2*LoPs[0]=1) = 15 ; checkpoint idx10: 5 baldosas x (5 - 2*0) = 25      = 40
+ *   exit bonus: 60 - 5*1 = 55 ; último tramo: (14 - 10 - 1) = 3 baldosas x 5 = 15                             = 70
+ *   inicio (showedUp): 5                                                                                        =  5
+ *   raw_score = 195 ; multiplicador = 1400^3 / 1000^3 = 2.744 (LoPs[2]=0) ; score = round(195 * 2.744 = 535.08) = 535
+ */
+var CUENTA = 'raw = 80 (elementos) + 15 + 25 (checkpoints) + 55 + 15 (exit bonus y último tramo) + 5 (inicio) = 195; mult = 1.4^3 = 2.744; score = round(535.08) = 535';
+
+T.correr(async function () {
+  var J = T.juez;
+  var s = await T.sembrar(await T.fixture('fixture-mapa-oficial.json'));
+  var runId = s.runId;
+  T.extra.runId = runId;
+  T.extra.cuenta = CUENTA;
+  T.check('fixture: indexCount 14, EvacuationAreaLoPIndex 2, finished, víctimas 2/1',
+    s.mapa.indexCount === 14 && s.mapa.EvacuationAreaLoPIndex === 2 && s.mapa.finished === true && s.mapa.victims.live === 2 && s.mapa.victims.dead === 1, s.mapa);
+
+  J.crear(1366, 860);
+  await J.abrir('../juez.html?run=' + runId);
+  var w = J.win();
+  var sc = J.scope();
+  T.check('sonda del iframe instalada antes de terminar de cargar', J.sondas.length && J.sondas[0].readyState !== 'complete', J.sondas);
+  T.check('modo quirks, igual que el pug sin doctype', J.doc().compatMode === 'BackCompat', J.doc().compatMode);
+  T.check('globales del pug: runId de ?run= y movie ""', w.runId === runId && w.movie === '');
+  T.check('GET inicial: corrida y mapa (E10/E4)', J.pedidos.some(function (p) { return p.method === 'GET' && p.url === '/api/runs/line/' + runId + '?populate=true' && p.status === 200; }) &&
+    J.pedidos.some(function (p) { return p.method === 'GET' && p.url === '/api/maps/line/' + s.mapId + '?populate=true' && p.status === 200; }), J.pedidos);
+  T.igual('LoPs inicial [0,0,0]', sc.LoPs, [0, 0, 0]);
+  T.check('stiles = indexCount (14), víctimas máx 2/1, EvacuationAreaLoPIndex 2', sc.stiles.length === 14 && sc.maxLiveVictims === 2 && sc.maxDeadVictims === 1 && sc.EvacuationAreaLoPIndex === 2 && sc.duration === 480);
+  T.check('pre-chequeo visible (checked falsy) y fromSign falsy', !sc.checked && !sc.fromSign && !!J.$('button[ng-click="infochecked()"]'));
+  T.check('navbar: equipo, 0 puntos y 00:00', J.$('nav li.navbar-brand').textContent.indexOf('IITA Salta') >= 0 && J.puntajeNavbar() === 0 && J.tiempoNavbar() === '00:00', [J.$('nav').textContent]);
+  T.check('fila Rule vacía (flag corregirBugsVisuales en false, como el CMS)', J.$$('#lops table tr')[5].querySelector('td').textContent === '', J.$$('#lops table tr')[5].outerHTML);
+  T.check('tabla de información: ronda, cancha, competencia, liga', sc.round === 'Ronda 1' && sc.field === 'Cancha 1' && sc.league === 'Line' && sc.competition.name === 'Práctica IITA 2026');
+
+  // Fotos: sin foto cargada -> NoImage.png (lo que sirve el CMS) y, con fotosOpcionales (default), tarjetas ya confirmadas
+  var fotos = function () { return J.$$('img[ng-src*="/api/document/inspection/files/"]'); };
+  await T.esperarQue(function () { return fotos().length === 2 && fotos().every(function (i) { return i.getAttribute('src') === 'images/NoImage.png'; }); }, 5000, 'fotos NoImage');
+  await T.esperar(100);
+  T.check('fotos sin cargar -> images/NoImage.png, sin pedido de red a /api/document', fotos().length === 2 &&
+    !performance.getEntriesByType('resource').concat(w.performance.getEntriesByType('resource')).some(function (e) { return e.name.indexOf('/api/document') >= 0; }));
+  T.check('fotosOpcionales: tarjetas de fotos premarcadas en verde', sc.checkMember === true && sc.checkMachine === true && sc.checkTeam === false && sc.checkRound === false);
+  var btnConfirmar = J.$('button[ng-click="infochecked()"]');
+  T.check('"I confirmed!!" deshabilitado sin equipo y ronda', btnConfirmar.disabled === true);
+  J.click(J.$('tr[ng-click="toggleCheckTeam()"]'));
+  J.click(J.$('tr[ng-click="toggleCheckRound()"]'));
+  await T.esperar(100);
+  T.check('toques en equipo y ronda los ponen en verde', sc.checkTeam && sc.checkRound && J.$('tr[ng-click="toggleCheckTeam()"]').style.backgroundColor === 'rgb(225, 247, 213)');
+  T.check('"I confirmed!!" habilitado', btnConfirmar.disabled === false);
+  J.click(btnConfirmar);
+  await T.esperar(400);
+  T.check('pantalla de puntuación (checked)', sc.checked === true && !J.$('button[ng-click="infochecked()"]'));
+
+  var tramos = J.$$('div[ng-repeat="cp in range(LoPs.length) track by $index"]');
+  T.check('3 tramos de LoPs y la caja de rescate solo en el tramo 2', tramos.length === 3 && !tramos[0].querySelector('.victim_btn') && !tramos[1].querySelector('.victim_btn') && !!tramos[2].querySelector('.victim_btn'));
+
+  // time == 0: tocar baldosas no hace nada (H2)
+  var n0 = J.pedidos.length;
+  J.click(J.baldosa(1, 0));
+  J.click(J.baldosa(0, 0));
+  await T.esperar(400);
+  T.check('time==0 bloquea toques: sin PUT, sin cambios en stiles ni showedUp', J.pedidos.length === n0 && sc.stiles[1].scoredItems[0].scored === false && !sc.showedUp);
+
+  // Start
+  var put = await paso('Start', function () { J.click(J.$$('button[ng-click="toggleTime()"]')[0]); });
+  T.check('Start manda {status:2, time}', put && put.body.status === 2 && JSON.stringify(Object.keys(put.body).sort()) === '["status","time"]', put && put.body);
+  T.check('status 2 guardado', (await RCJLocal.store.get('lineRuns', runId)).status === 2);
+  await T.esperar(1600);
+  T.check('reloj corriendo (time > 0, startedTime)', sc.startedTime === true && sc.time > 0 && /^\d\d:\d\d$/.test(J.tiempoNavbar()), [sc.time, J.tiempoNavbar()]);
+
+  // Inicio = showedUp
+  put = await paso('inicio (showedUp)', function () { J.click(J.baldosa(0, 0)); }, 5);
+  T.check('showedUp manda {showedUp:true, time}', put.body.showedUp === true && sc.showedUp === true && Object.keys(put.body).length === 2, put.body);
+
+  // Baldosas con puntaje del piso 0
+  put = await paso('lomo (1,0,0) idx1', function () { J.click(J.baldosa(1, 0)); }, 15);
+  T.check('PUT disperso {tiles:{"1":{...}}}', put.body.tiles && !Array.isArray(put.body.tiles) && JSON.stringify(Object.keys(put.body.tiles)) === '["1"]' &&
+    put.body.tiles['1'].scoredItems[0].item === 'speedbump' && put.body.tiles['1'].scoredItems[0].scored === true, put.body);
+  await paso('intersección (2,1,0) idx3', function () { J.click(J.baldosa(2, 1)); }, 25);
+  await paso('gap (2,2,0) idx4', function () { J.click(J.baldosa(2, 2)); }, 35);
+  await paso('checkpoint (2,3,0) idx5', function () { J.click(J.baldosa(2, 3)); }, 60);
+  await paso('obstáculo (3,3,0) idx6', function () { J.click(J.baldosa(3, 3)); }, 80);
+  await paso('rampa (4,3,0) idx7', function () { J.click(J.baldosa(4, 3)); }, 90);
+  var visible = function (x, y, clase) { var t = J.baldosa(x, y); var i = t && t.querySelector('i.tile-font.' + clase); return J.visible(i); };
+  // Con render activo (headless) ngAnimate aplica ng-show/ng-hide en el próximo frame: se espera hasta 3 s
+  var estadosGrilla = function () {
+    return visible(1, 0, 'fa-check') && visible(2, 3, 'fa-check') && visible(0, 0, 'fa-check') &&
+      J.baldosa(2, 3).querySelector('.chnumtxt').textContent === '1' && J.baldosa(2, 0).querySelector('i.fa-times.tile-font').classList.contains('ng-hide');
+  };
+  T.check('estados en la grilla: tilde en baldosas puntuadas, número de checkpoint', await cumple(estadosGrilla, 3000), {
+    c10: visible(1, 0, 'fa-check'), c23: visible(2, 3, 'fa-check'), c00: visible(0, 0, 'fa-check'),
+    chnum: J.baldosa(2, 3).querySelector('.chnumtxt') && J.baldosa(2, 3).querySelector('.chnumtxt').textContent,
+    x20: J.baldosa(2, 0).querySelector('i.fa-times.tile-font') && J.baldosa(2, 0).querySelector('i.fa-times.tile-font').className,
+    check10: J.baldosa(1, 0).querySelector('i.tile-font.fa-check') && J.baldosa(1, 0).querySelector('i.tile-font.fa-check').className
+  });
+
+  // Piso 1
+  n0 = J.pedidos.length;
+  J.click(J.$$('button[ng-click="changeFloor(zz)"]')[1]);
+  await T.esperar(300);
+  T.check('cambio de piso a 1 sin PUT', sc.z === 1 && J.pedidos.length === n0 && J.$$('button[ng-click="changeFloor(zz)"]')[1].classList.contains('active'));
+  await paso('balancín (5,3,1) idx8', function () { J.click(J.baldosa(5, 3)); }, 110);
+  await paso('checkpoint (6,2,1) idx10', function () { J.click(J.baldosa(6, 2)); }, 135);
+  T.check('checkpoint del piso 1 numerado 2', J.baldosa(6, 2).querySelector('.chnumtxt').textContent === '2');
+  n0 = J.pedidos.length;
+  J.click(J.baldosa(6, 1)); // idx11 sin elementos
+  J.click(J.baldosa(2, 1)); // zona de evacuación: sin índice
+  await T.esperar(300);
+  T.check('baldosa sin elementos y baldosa de evacuación: sin PUT', J.pedidos.length === n0);
+
+  // LoPs en el tramo 0
+  var mas = tramos[0].querySelector('button.btn-success'), menos = tramos[0].querySelector('button.btn-danger');
+  put = await paso('LoP +1 (tramo 0)', function () { J.click(mas); }, 125);
+  T.igual('PUT {LoPs, time}', Object.keys(put.body).sort(), ['LoPs', 'time']);
+  T.igual('LoPs [1,0,0] en el PUT', put.body.LoPs, [1, 0, 0]);
+  await paso('LoP +2', function () { J.click(mas); }, 115);
+  await paso('LoP +3', function () { J.click(mas); }, 110);
+  await T.esperarQue(function () { return J.swalAbierto(); }, 3000, 'swal de LoPs');
+  var tituloLoPs = J.swalAbierto().querySelector('.swal2-title');
+  T.check('aviso swal con LoPs >= 3 en un tramo que no es el último', tituloLoPs && tituloLoPs.textContent.length > 0 && tramos[0].querySelector('span.count').textContent === '3', tituloLoPs && tituloLoPs.textContent);
+  J.click(J.swalAbierto().querySelector('.swal2-confirm'));
+  await T.esperarQue(function () { return J.swalCerrado(); }, 3000, 'cerrar swal');
+  await paso('LoP -1', function () { J.click(menos); }, 115);
+  await paso('LoP -2 (queda 1)', function () { J.click(menos); }, 125);
+  T.igual('LoPs del scope [1,0,0]', sc.LoPs, [1, 0, 0]);
+
+  // Víctimas
+  var vivas = tramos[2].querySelector('[ng-click="addVictimTmp(\'LIVE\')"]');
+  var muertas = tramos[2].querySelector('[ng-click="addVictimTmp(\'DEAD\')"]');
+  n0 = J.pedidos.length;
+  J.click(vivas); J.click(vivas); J.click(vivas);
+  await T.esperar(200);
+  T.igual('buffer temporal con tope de vivas (2) y sin PUT', sc.victim_tmp, ['LIVE', 'LIVE']);
+  T.check('sin PUT al cargar el buffer', J.pedidos.length === n0);
+  put = await paso('2 vivas en zona verde', function () { J.click(tramos[2].querySelector('[ng-click=\'victimRegist("GREEN")\']')); }, 245);
+  T.igual('rescueOrder enviado', put.body.rescueOrder, [{ zoneType: 'GREEN', victimType: 'LIVE' }, { zoneType: 'GREEN', victimType: 'LIVE' }]);
+  J.click(muertas);
+  await T.esperar(150);
+  put = await paso('muerta en zona roja', function () { J.click(tramos[2].querySelector('.evac_zone_btn_red')); }, 343);
+  T.check('multiplicador del backend 2.744', put.data.multiplier === 2.744 && put.data.raw_score === 125, put.data);
+  var etiquetas = J.$$('span[ng-if="calc_victim_multipliers(j*3+i)!=0"]').map(function (e) { return e.textContent; });
+  T.igual('etiquetas x de la tabla de víctimas', etiquetas, ['x1.4', 'x1.4', 'x1.4']);
+
+  // Exit bonus (detiene el reloj y guarda todo)
+  put = await paso('exit bonus', function () { J.click(J.$('[ng-click="changeExitBonus()"]')); }, 535);
+  T.check('exit bonus: reloj detenido y saveEverything completo', sc.startedTime === false && sc.exitBonus === true &&
+    JSON.stringify(Object.keys(put.body).sort()) === '["LoPs","exitBonus","rescueOrder","showedUp","started","tiles","time"]' && put.body.tiles.length === 14, put.body && Object.keys(put.body));
+  T.check('tilde del exit bonus visible', await cumple(function () {
+    return J.visible(J.$('[ng-click="changeExitBonus()"] i.fa-check')) && !J.visible(J.$('[ng-click="changeExitBonus()"] i.fa-times'));
+  }, 3000), { check: J.$('[ng-click="changeExitBonus()"] i.fa-check').className, times: J.$('[ng-click="changeExitBonus()"] i.fa-times').className });
+  var tiempo = sc.time;
+
+  // Aviso del checkpoint implícito
+  J.click(J.$$('button[ng-click="changeFloor(zz)"]')[0]);
+  await T.esperar(300);
+  put = await paso('inicio destildado (score sigue > 0 por el +5 implícito)', function () { J.click(J.baldosa(0, 0)); }, 535);
+  T.check('showedUp false', sc.showedUp === false && put.body.showedUp === false);
+  n0 = J.pedidos.length;
+  J.click(J.$('button[ng-click="confirm()"]'));
+  await T.esperarQue(function () { return J.swalAbierto(); }, 3000, 'swal Oops');
+  T.check('Go NEXT con score > 0 y sin showedUp: swal "Oops!" y no guarda', J.swalAbierto().querySelector('.swal2-title').textContent === 'Oops!' && J.pedidos.length === n0);
+  J.click(J.swalAbierto().querySelector('.swal2-confirm'));
+  await T.esperarQue(function () { return J.swalCerrado(); }, 3000, 'cerrar swal Oops');
+  await paso('inicio tildado de nuevo', function () { J.click(J.baldosa(0, 0)); }, 535);
+  var navbarFinal = J.puntajeNavbar();
+  var respuestaFinal;
+
+  // Go NEXT
+  n0 = J.pedidos.length;
+  var minutos = sc.minutes, segundos = sc.seconds;
+  T.check('Go NEXT habilitado (reloj detenido, sin error de red)', !J.$('button[ng-click="confirm()"]').disabled);
+  J.click(J.$('button[ng-click="confirm()"]'));
+  await T.esperarQue(function () {
+    try { return J.win().location.pathname.indexOf('firma.html') >= 0; } catch (e) { return false; }
+  }, 10000, 'navegación a la firma');
+  var pedidoFinal = J.pedidos.slice(n0).filter(function (p) { return p.method === 'PUT'; })[0];
+  respuestaFinal = pedidoFinal && pedidoFinal.data;
+  T.check('Go NEXT manda status 3 con el tiempo de los inputs', pedidoFinal && pedidoFinal.body.status === 3 && pedidoFinal.body.time.minutes === minutos && pedidoFinal.body.time.seconds === segundos && pedidoFinal.status === 200, pedidoFinal);
+  var destino = J.win().location;
+  T.check('navega a firma.html?run=<id>&return= (regla 3b vía RCJLocal.ruta)', destino.pathname === RCJLocal.base + 'firma.html' && destino.search === '?run=' + runId + '&return=', destino.href);
+
+  // Tres fuentes del puntaje + cuenta a mano
+  var guardada = await RCJLocal.store.get('lineRuns', runId);
+  var mapaDoc = await RCJLocal.store.get('lineMaps', s.mapId);
+  var calc = RCJLocal.calculateLineScore(Object.assign({}, guardada, { map: mapaDoc }));
+  T.check('corrida guardada: status 3, started, exitBonus, showedUp, LoPs [1,0,0], 3 víctimas', guardada.status === 3 && guardada.started === true && guardada.exitBonus === true &&
+    guardada.showedUp === true && JSON.stringify(guardada.LoPs) === '[1,0,0]' && guardada.rescueOrder.length === 3, guardada);
+  T.check('tiempo guardado = tiempo del reloj', guardada.time.minutes * 60000 + guardada.time.seconds * 1000 === Math.floor(tiempo / 1000) * 1000, [guardada.time, tiempo]);
+  T.igual('navbar final', navbarFinal, 535);
+  T.igual('respuesta del backend al Go NEXT', respuestaFinal && respuestaFinal.score, 535);
+  T.igual('corrida guardada {score, raw_score, multiplier}', { score: guardada.score, raw_score: guardada.raw_score, multiplier: guardada.multiplier }, { score: 535, raw_score: 195, multiplier: 2.744 });
+  T.igual('RCJLocal.calculateLineScore sobre la corrida guardada', calc, { raw_score: 195, score: 535, multiplier: 2.744 });
+  T.extra.puntaje = { navbar: navbarFinal, backend: respuestaFinal && respuestaFinal.score, guardado: guardada.score, calculateLineScore: calc, aMano: 535 };
+  T.extra.pedidos = J.pedidos.length;
+});
+
+async function cumple(cond, ms) {
+  try { await T.esperarQue(cond, ms || 3000); return true; } catch (e) { return false; }
+}
+
+// Ejecuta una acción del juez, espera su PUT y compara navbar == respuesta del backend (== esperado a mano).
+async function paso(nombre, accion, esperado) {
+  var J = T.juez;
+  var n0 = J.pedidos.length;
+  accion();
+  var nuevos = await J.esperarPedidos(n0, 1);
+  var put = nuevos.filter(function (p) { return p.method === 'PUT'; }).pop();
+  var nav = J.puntajeNavbar();
+  T.check(nombre + ': PUT 200', put && put.status === 200, put);
+  T.check(nombre + ': navbar == respuesta del backend', put && nav === put.data.score, { navbar: nav, respuesta: put && put.data });
+  if (esperado !== undefined) T.igual(nombre + ': puntaje esperado a mano', put && put.data.score, esperado);
+  return put;
+}
+</script>
+</body>
+</html>

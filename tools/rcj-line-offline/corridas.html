@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<!-- rcj-line-offline — área admin. Port de views/line_competition.pug (extends includes/modern_layout) del CMS d805502.
+     Cambios respecto del pug: ver cambios/admin.md §corridas.html -->
+<html style="height:100%; overflow-y:scroll;" ng-app="LineCompetition">
+<head>
+<meta charset="utf-8">
+<title>RoboCupJunior CMS</title>
+<!-- 1.A scripts comunes (common_component.pug:1-19) -->
+<script src="components/jquery/dist/jquery.min.js"></script>
+<script src="components/popper.js/dist/umd/popper.min.js"></script>
+<script src="components/bootstrap/dist/js/bootstrap.min.js"></script>
+<script src="components/angular/angular.min.js"></script>
+<script src="components/angular-animate/angular-animate.min.js"></script>
+<!-- OMITIDO (06: C, sin uso): <script src="components/alertifyjs/dist/js/ngAlertify.js"></script> -->
+<script src="components/sweetalert2/dist/sweetalert2.all.min.js"></script>
+<!-- OMITIDO (stub: lo reemplaza local/io-shim.js): <script src="components/socket.io-client/dist/socket.io.min.js"></script> -->
+<script src="components/angular-bootstrap/dist/ui-bootstrap-tpls.js"></script>
+<script src="components/angular-translate/angular-translate.min.js"></script>
+<script src="components/angular-translate-loader-static-files/angular-translate-loader-static-files.min.js"></script>
+<script src="components/angular-translate-storage-local/angular-translate-storage-local.min.js"></script>
+<script src="components/angular-translate-storage-cookie/angular-translate-storage-cookie.min.js"></script>
+<script src="components/angular-translate-handler-log/angular-translate-handler-log.min.js"></script>
+<script src="components/angular-cookies/angular-cookies.min.js"></script>
+<script src="components/angular-touch/angular-touch.min.js"></script>
+<script src="components/angular-sanitize/angular-sanitize.min.js"></script>
+<!-- OMITIDO (06: C, ningún módulo usa ui.select): <script src="components/angular-ui-select/dist/select.min.js"></script> -->
+<!-- 1.C scripts locales, parte 1 -->
+<script src="local/config.js"></script>
+<script src="local/io-shim.js"></script>
+<script src="local/nucleo/store.js"></script>
+<script src="local/nucleo/pathfinder-servidor.js"></script>
+<script src="local/nucleo/init-run.js"></script>
+<script src="local/nucleo/score-2026.js"></script>
+<script src="local/nucleo/copy-properties.js"></script>
+<script src="local/nucleo/api.js"></script>
+<script src="local/nucleo/ranking.js"></script>
+<script src="local/ui/comun.js"></script>
+<script>
+  // [local] globales de line_competition.pug:8-11 (pug los rendía como strings).
+  // Offline siempre se es juez: isJudge = "1". Sin ?competition= se usa la competencia activa del Inicio.
+  var competitionId = RCJLocal.param('competition') || RCJLocalUI.competenciaActiva();
+  var isJudge = "1";
+  var league = RCJLocal.param('league') || 'Line';
+</script>
+<script src="javascripts/line_competition.js"></script>
+<script src="local/http-backend.js"></script>
+<script>RCJLocal.instalarBackend('LineCompetition');</script>
+<!-- 1.B css comunes (common_component.pug:21-30) -->
+<link rel="stylesheet" href="components/bootstrap/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="stylesheets/style.css">
+<link rel="stylesheet" href="stylesheets/navbar_premium.css">
+<link href="components/font-awesome-5/css/all.min.css" rel="stylesheet">
+<link rel="stylesheet" href="components/angular-bootstrap/dist/ui-bootstrap-csp.css">
+<!-- OMITIDO (06: C, reglas solo .ui-select-*): <link rel="stylesheet" href="components/angular-ui-select/dist/select.min.css"> -->
+<!-- OMITIDO (solo ENVIRONMENT == "STG"): stylesheets/stg.css -->
+<!-- block page_css (line_competition.pug:14-62) -->
+<style>
+    .run-table-modern { width:100%; border-collapse:separate; border-spacing:0 0.5rem; }
+    .run-table-modern thead th { padding:0.75rem 1rem; font-weight:800; text-transform:uppercase; font-size:0.72rem; color:#94a3b8; letter-spacing:0.06em; border:none; background:transparent; }
+    .run-table-modern tbody tr { background:white; transition:all 0.2s ease; box-shadow:0 2px 6px rgba(0,0,0,0.03); }
+    .run-table-modern tbody tr:hover { transform:translateY(-2px); box-shadow:0 8px 20px rgba(0,0,0,0.07); }
+    .run-table-modern tbody td { padding:1rem; vertical-align:middle; border-top:1px solid #f1f5f9; border-bottom:1px solid #f1f5f9; }
+    .run-table-modern tbody td:first-child { border-left:1px solid #f1f5f9; border-top-left-radius:0.75rem; border-bottom-left-radius:0.75rem; }
+    .run-table-modern tbody td:last-child { border-right:1px solid #f1f5f9; border-top-right-radius:0.75rem; border-bottom-right-radius:0.75rem; }
+    .run-table-modern tbody td.end { color:#94a3b8; }
+    .run-table-modern tbody td.delay { color:#ef4444; font-weight:700; }
+    .filter-badge { display:inline-block; padding:0.25rem 0.85rem; border-radius:2rem; background:#f1f5f9; font-size:0.8rem; margin:0.25rem; cursor:pointer; transition:all 0.2s ease; border:1px solid transparent; }
+    .filter-badge.active { background:var(--accent-color); color:white; }
+    .btn-table-group { display:inline-flex; align-items:center; background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; box-shadow:0 1px 2px rgba(0,0,0,0.05); }
+    .btn-table-action { background:transparent; border:none; border-left:1px solid #f1f5f9; color:#64748b; font-weight:700; font-size:0.85rem; padding:0; width:52px; height:42px; transition:all 0.2s ease; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; position:relative; }
+    .btn-table-action:first-child { border-left:none; }
+    .btn-table-action:hover { background:#f8fafc; color:#334155; }
+    .btn-table-action i { font-size:1rem; opacity:0.8; margin:0 !important; }
+    .btn-table-action.active-blue { background:rgba(59,130,246,0.08) !important; color:#2563eb !important; }
+    .btn-table-action.active-green { background:rgba(16,185,129,0.08) !important; color:#059669 !important; }
+    .btn-run-action { display:inline-flex; align-items:center; gap:0.4rem; padding:0.4rem 0.8rem; border-radius:10px; font-size:0.82rem; font-weight:700; border:none; cursor:pointer; transition:all 0.2s ease; }
+    .btn-run-view { background:#eff6ff; color:#3b82f6; }
+    .btn-run-view:hover { background:#dbeafe; }
+    .btn-run-judge { background:#fef2f2; color:#ef4444; }
+    .btn-run-judge:hover { background:#fee2e2; }
+    .btn-run-input { background:#fffbeb; color:#d97706; }
+    .btn-run-input:hover { background:#fef3c7; }
+    .action-cards-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+    .action-card { background: white; border-radius: 1rem; padding: 1.25rem 1.5rem; display: flex; align-items: center; gap: 1rem; cursor: pointer; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.02); transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); }
+    .action-card:hover { transform: translateY(-3px); box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05), 0 8px 10px -6px rgba(0,0,0,0.01); border-color: #cbd5e1; }
+    .action-card .icon-wrapper { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; flex-shrink: 0; transition: all 0.2s ease; }
+    .action-card:hover .icon-wrapper { transform: scale(1.05); }
+    .action-card.ranking-card .icon-wrapper { background: #fffbeb; color: #f59e0b; }
+    .action-card.tech-card .icon-wrapper { background: #f0fdf4; color: #10b981; }
+    .action-card .text-wrapper { display: flex; flex-direction: column; }
+    .action-card .text-wrapper h5 { margin: 0 0 0.15rem 0; font-weight: 700; color: #1e293b; font-size: 1rem; }
+    .action-card .text-wrapper p { margin: 0; color: #64748b; font-size: 0.8rem; line-height: 1.4; }
+    .message-box-modern { background:linear-gradient(135deg,#f0fdf4,#dcfce7); border:1px solid #bbf7d0; border-radius:1rem; padding:1.25rem 1.5rem; margin-bottom:1.5rem; }
+    .message-box-modern h4 { font-weight:800; color:#065f46; margin-bottom:0.5rem; }
+    .ended-toggle { display:flex; align-items:center; gap:0.5rem; font-size:0.88rem; color:#64748b; font-weight:600; }
+    .ended-toggle input { cursor:pointer; }
+    .loader-modern { display:flex; flex-direction:column; align-items:center; padding:3rem; color:#94a3b8; }
+    @media (max-width:768px) {
+      .run-table-modern thead { display:none !important; }
+      .run-table-modern,.run-table-modern tbody,.run-table-modern tr,.run-table-modern td { display:block !important; width:100% !important; }
+      .run-table-modern tr { margin-bottom:1rem !important; border-radius:1rem !important; box-shadow:0 4px 12px rgba(0,0,0,0.05) !important; padding:1rem !important; border:1px solid #f1f5f9 !important; }
+      .run-table-modern td { border:none !important; padding:0.5rem 0 !important; border-bottom:1px solid #f8fafc !important; display:flex !important; justify-content:space-between !important; align-items:center !important; }
+      .run-table-modern td::before { content:attr(data-content); font-weight:800; text-transform:uppercase; font-size:0.7rem; color:#94a3b8; }
+    }
+</style>
+<!-- 1.D modern layout (modern_layout.pug:4-9) -->
+<link href="stylesheets/common/modern_layout.css" rel="stylesheet">
+<link href="stylesheets/common/modern_components.css" rel="stylesheet">
+<link href="stylesheets/common/modern_list.css" rel="stylesheet">
+<link href="stylesheets/common/modern_modal.css" rel="stylesheet">
+<link href="local/ui/estilos.css" rel="stylesheet"> <!-- [admin] navbar local (engranaje de configuración) -->
+<link href="local/ui/movil-admin.css" rel="stylesheet"> <!-- [admin] ajustes para celular (412 px) -->
+<!-- 1.E cola de head.pug:6-44 -->
+<script src="javascripts/translate_config.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0,minimum-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#043C78">
+<meta name="charset" content="UTF-8">
+<link rel="icon" type="image/vnd.microsoft.icon" sizes="16x16" href="images/favicon-16.ico">
+<link rel="icon" type="image/vnd.microsoft.icon" sizes="32x32" href="images/favicon-32.ico">
+<link rel="icon" type="image/vnd.microsoft.icon" sizes="96x96" href="images/favicon-96.ico">
+<link rel="apple-touch-icon" sizes="144x144" href="images/apple-touch-icon-144.png">
+<link rel="apple-touch-icon" sizes="152x152" href="images/apple-touch-icon-152.png">
+<link rel="apple-touch-icon" sizes="180x180" href="images/apple-touch-icon-180.png">
+<link rel="icon" type="image/png" sizes="196x196" href="images/favicon-196.png">
+<link rel="icon" type="image/png" sizes="32x32" href="images/favicon-32.png">
+<link rel="icon" type="image/png" sizes="128x128" href="images/favicon-128.png">
+<!-- PENDIENTE (docs): <link rel="manifest" href="manifest.webmanifest"> ; el CMS usaba /manifest.json -->
+<!-- OMITIDO (ESPEC §1, fuentes rotas en el origen): <link href="stylesheets/fonts.css" rel="stylesheet"> -->
+<script>
+  currentWidth = -1;
+  $(window).on('load resize', function(){
+  if (currentWidth == window.innerWidth) {
+  return;
+  }
+  currentWidth = window.innerWidth;
+  var height = $('.navbar').height();
+  $('body').css('padding-top',height+13);
+  });
+
+  let lastTouch = 0;
+  document.addEventListener('touchend', event => {
+  const now = window.performance.now();
+  if (now - lastTouch <= 500) {
+  event.preventDefault();
+  }
+  lastTouch = now;
+  }, true);
+</script>
+</head>
+<body ng-controller="LineCompetitionController" style="display: flex; flex-direction: column; min-height: 100vh;">
+  <!-- navbar.pug -->
+  <nav class="navbar navbar-expand premium-navbar">
+    <a class="navbar-brand" href="index.html"><img class="d-inline-block align-top" src="images/logo.png" alt="Logo"><span class="brand-text">&nbsp;RCJ CMS</span></a>
+    <div class="ml-auto d-flex align-items-center">
+      <a class="nav-user-link mr-2" href="#" data-toggle="modal" data-target="#languageModal" title="{{'select_lang' | translate}}"><i class="fas fa-globe-americas"></i></a>
+      <!-- [rcj-line-offline] OMITIDO (navbar.pug:13-37): menú de usuario y login; offline no hay usuarios. En su lugar, acceso a Configuración. -->
+      <a class="nav-user-link" href="configuracion.html" title="Configuración"><i class="fas fa-cog"></i></a>
+    </div>
+  </nav>
+  <div class="container-fluid" style="overflow: hidden; flex-grow: 1;">
+    <!-- block bread: vacío en modern_layout -->
+    <div class="maps-hero">
+      <div class="maps-container">
+        <nav class="breadcrumb premium-breadcrumb hero-breadcrumb">
+          <a class="breadcrumb-item" ng-click="go('/home')"><i class="fas fa-home mr-1"></i>Home</a>
+          <a class="breadcrumb-item" ng-click="go('/home/'+competitionId)">{{competition.name}}</a>
+          <span class="breadcrumb-item active">{{league.name}}</span>
+        </nav>
+        <div class="hero-content-wrapper">
+          <div class="hero-text">
+            <h1 class="hero-title">{{competition.name}}</h1>
+            <div class="hero-subtitle">{{league.name}}</div>
+          </div>
+          <div class="hero-actions"></div>
+        </div>
+      </div>
+    </div>
+    <div class="maps-container">
+      <div class="message-box-modern" ng-if="competition.message">
+        <h4><i class="fas fa-bullhorn mr-2"></i>{{'common.message' | translate}}</h4>
+        <p ng-bind-html="competition.message" style="margin:0;"></p>
+      </div>
+
+      <div class="action-cards-container">
+        <div class="action-card ranking-card" ng-show="rankingOpen[league.id]" ng-click="go('/line/' + competition._id + '/' + league.id + '/ranking')">
+          <div class="icon-wrapper"><i class="fas fa-trophy"></i></div>
+          <div class="text-wrapper">
+            <h5>[{{league.name}}] {{'common.rank' | translate}}</h5>
+          </div>
+        </div>
+        <div class="action-card tech-card" ng-if="isJudge == 1 &amp;&amp; rankingMode[league.id] =='GAMES_DOCUMENT_CHALLENGE'" ng-click="go('/line/' + competition._id + '/' + league.id + '/technicalChallenge')">
+          <div class="icon-wrapper"><i class="fas fa-file-signature"></i></div>
+          <div class="text-wrapper">
+            <h5>{{'technicalChallenge.technicalChallenge' | translate}}</h5>
+          </div>
+        </div>
+      </div>
+
+      <div class="modern-card">
+        <div class="modern-card-header">
+          <div class="d-flex justify-content-between align-items-center w-100">
+            <div><i class="fas fa-list"></i>{{'interview.runs' | translate}}</div>
+            <div class="btn-table-group">
+              <div class="btn-table-action" ng-click="show_ended = !show_ended; update_list()" ng-class="show_ended ? 'active-green' : ''" uib-tooltip="{{'line.competition.endedrun' | translate}}" tooltip-placement="top" tooltip-append-to-body="true"><i class="fas fa-flag-checkered"></i></div>
+              <div class="btn-table-action primary" ng-click="showFilter = !showFilter" ng-class="showFilter ? 'active-blue' : ''" uib-tooltip="{{'line.competition.refine.filter' | translate}}" tooltip-placement="top" tooltip-append-to-body="true"><i class="fas fa-filter"></i></div>
+            </div>
+          </div>
+        </div>
+        <div class="filter-collapse" ng-show="showFilter" style="background: #f8fafc; border-bottom: 1px solid #f1f5f9; padding: 1.5rem;">
+          <div class="row">
+            <div class="col-md-4">
+              <h6 class="font-weight-bold text-muted small text-uppercase mb-2">{{'line.competition.refine.round' | translate}}</h6>
+              <div><span class="filter-badge" ng-repeat="(key, value) in rounds track by key" ng-class="{'active': rounds[key]}" ng-click="rounds[key] = !rounds[key]">{{key}}</span></div>
+            </div>
+            <div class="col-md-4">
+              <h6 class="font-weight-bold text-muted small text-uppercase mb-2">{{'line.competition.refine.field' | translate}}</h6>
+              <div><span class="filter-badge" ng-repeat="(key, value) in fields track by key" ng-class="{'active': fields[key]}" ng-click="fields[key] = !fields[key]">{{key}}</span></div>
+            </div>
+            <div class="col-md-4">
+              <h6 class="font-weight-bold text-muted small text-uppercase mb-2">{{'line.competition.refine.team' | translate}}</h6>
+              <div class="input-group">
+                <div class="input-group-prepend"><span class="input-group-text"><i class="fas fa-users" aria-hidden="true"></i></span></div>
+                <input class="form-control" type="text" placeholder="{{'line.competition.refine.team' | translate}}" ng-model="teamName">
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modern-card-body">
+          <div class="loader-modern" ng-show="runs==null">
+            <img src="images/loader2.gif">
+            <p>{{'common.loading' | translate}}</p>
+          </div>
+          <div id="compe" ng-show="runs!=null">
+            <div class="table-responsive">
+              <table class="run-table-modern">
+                <thead>
+                  <tr>
+                    <th>{{'common.team' | translate}}</th>
+                    <th>{{'common.starttime' | translate}}</th>
+                    <th>{{'common.round' | translate}}</th>
+                    <th>{{'common.field' | translate}}</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr ng-repeat='run in runs | filter:list_filter | orderBy:"[startTime,round.name,field.name,team.name]"'>
+                    <td ng-bind="run.team.name" ng-class="{'end' : run.status>=3,'delay' : run.startTime<curTime}" data-content="{{'common.team' | translate}}"></td>
+                    <td ng-bind='run.startTime | date:"dd EEE HH:mm"' data-content="{{'common.starttime' | translate}}"></td>
+                    <td ng-bind="run.round.name" data-content="{{'common.round' | translate}}"></td>
+                    <td ng-bind="run.field.name" data-content="{{'common.field' | translate}}"></td>
+                    <td data-content="Actions">
+                      <div class="btn-table-group">
+                        <button class="btn-run-action btn-run-view" ng-if="run.field != null" ng-click="go('/line/view/' + run._id)"><i class="fas fa-eye"></i>{{'common.view' | translate}}</button>
+                        <button class="btn-run-action btn-run-view" ng-if="run.field == null" ng-click="go('/home/access_denied')"><i class="fas fa-eye"></i>{{'common.view' | translate}}</button>
+                        <button class="btn-run-action btn-run-judge" ng-click="go_judge('/line/judge/' + run._id , run.team.name)" ng-if="run.status<2 &amp;&amp; isJudge == 1"><i class="fas fa-gavel"></i>{{'common.judge' | translate}}</button>
+                        <button class="btn-run-action btn-run-input" ng-click="go_judge('/line/input/' + run._id + '?return=/line/' + competition._id + '/' + league.id, run.team.name)" ng-if="run.status<2 &amp;&amp; isJudge == 1"><i class="fas fa-keyboard"></i>Manual Input</button>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- 1.G footer.pug -->
+  <footer class="footer" style="background-color: #000000; width: 100%;">
+    <div class="d-flex justify-content-between align-items-center w-100 px-3 pt-1 pb-2 m-0">
+      <div class="footer-text text-truncate" style="text-align:left; font-size:max(12px, min(1vw, 25px)); white-space: nowrap; color: #aaaaaa;">
+        <i class="far fa-copyright" aria-hidden="true"></i>&nbsp;2016-2026 RoboCupJunior Rescue CMS Development SubCommittee&nbsp;-&nbsp;<i class="fas fa-code-branch" aria-hidden="true"></i>&nbsp; v26.0.2
+      </div>
+    </div>
+  </footer>
+  <!-- OMITIDO (login_modal.pug): offline no hay login -->
+  <!-- 1.F language_modal.pug con ES (regla 3c) -->
+  <div class="modal fade" id="languageModal" tabindex="-1" role="dialog" aria-labelledby="languageModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+      <div class="modal-content premium-modal-content">
+        <div class="modal-header border-0">
+          <button class="close" type="button" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+        </div>
+        <div class="modal-body px-5 pb-5">
+          <div class="text-center mb-5">
+            <i class="fas fa-language fa-4x mb-3" style="color: var(--primary-color);"></i>
+            <h2 class="modal-title font-weight-bold">{{"select_lang" | translate}}</h2>
+          </div>
+          <div class="row no-gutters gap-3">
+            <div class="col-6 pr-2">
+              <div class="language-card" onclick="changeLanguage('en')">
+                <div class="lang-circle bg-primary">EN</div>
+                <h4>English</h4>
+              </div>
+            </div>
+            <div class="col-6 pl-2">
+              <div class="language-card" onclick="changeLanguage('ja')">
+                <div class="lang-circle bg-danger">JA</div>
+                <h4>日本語</h4>
+              </div>
+            </div>
+          </div>
+          <!-- [rcj-line-offline] regla 3c: español agregado al selector -->
+          <div class="row no-gutters gap-3 mt-3">
+            <div class="col-6 pr-2">
+              <div class="language-card" onclick="changeLanguage('es')">
+                <div class="lang-circle bg-success">ES</div>
+                <h4>Español</h4>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+      function changeLanguage(langKey) {
+          try {
+              const injector = angular.element(document.body).injector();
+              const $translate = injector.get('$translate');
+              $translate.use(langKey).then(function() {
+                  window.location.reload();
+              });
+          } catch (e) {
+              // Fallback for non-angular pages or if injection fails
+              console.error("Language switch failed, reloading anyway...", e);
+              window.location.reload();
+          }
+      }
+  </script>
+</body>
+</html>

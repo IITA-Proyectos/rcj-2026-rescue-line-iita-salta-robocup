@@ -1,0 +1,99 @@
+/*
+ * rcj-line-offline — área admin. Ajustes para celular (Chrome Android, 412×915, táctil) de index,
+ * corridas, admin-corridas, mapas y configuracion. Solo actúan en pantallas angostas (≤ 576 px): en
+ * tablet y notebook las páginas se ven igual que el CMS. No cambia el markup.
+ * Criterio: nada recortado ni fuera de la pantalla (medido por tests/admin-captura.html) y controles de
+ * al menos ~40 px para el dedo.
+ */
+@media (max-width: 576px) {
+  /* ---------- navbar y breadcrumb (todas) ---------- */
+  .premium-navbar .nav-user-link {
+    min-width: 44px;
+    min-height: 44px;
+    justify-content: center;
+    padding: 0.5rem 0.75rem;
+  }
+  .premium-breadcrumb .breadcrumb-item {
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
+  }
+  .hero-actions .btn-hero-local { min-height: 44px; }
+
+  /* ---------- mapas.html: tarjetas de la lista ---------- */
+  /* La fila del CMS (selección + nombre + 7 botones) no entra en 412 px: el nombre se partía letra por
+     letra y el botón de borrar quedaba recortado. Se pasa a dos filas: nombre arriba, acciones abajo. */
+  .modern-list .modern-item-card {
+    flex-wrap: wrap;
+    row-gap: 0.5rem;
+    padding: 0.75rem 0.75rem 0.75rem 0.5rem;
+  }
+  .modern-list .modern-item-card.is-child { padding-left: 1.5rem; }
+  .modern-list .modern-item-selection {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+  }
+  .modern-list .modern-item-info {
+    flex: 1 1 0;
+    min-width: 0;
+    gap: 0.75rem;
+  }
+  .modern-list .modern-item-icon { flex-shrink: 0; }
+  .modern-list .modern-item-name {
+    font-size: 1.05rem;
+    word-break: normal;
+    overflow-wrap: anywhere;
+  }
+  .modern-list .modern-item-actions {
+    flex: 1 1 100%;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .modern-item-actions .acciones-mapa-local {
+    margin-right: 0;
+    gap: 0.5rem;
+    justify-content: flex-end;
+  }
+  .btn-accion-mapa {
+    width: 44px;
+    height: 44px;
+  }
+  .modern-list .btn-delete-item {
+    width: 44px;
+    height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* ---------- corridas.html: acciones de cada corrida ---------- */
+  /* .btn-table-group tiene overflow:hidden y en la tarjeta móvil de line_competition.pug el botón
+     «Manual Input» quedaba recortado: se deja envolver en varias filas. */
+  .run-table-modern td .btn-table-group {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.4rem;
+    overflow: visible;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+  }
+  .run-table-modern .btn-run-action { min-height: 44px; }
+  .filter-badge { padding: 0.5rem 1rem; }
+
+  /* ---------- admin-corridas.html: tabla en tarjetas ---------- */
+  .table-modern .custom-checkbox {
+    width: 36px;
+    height: 36px;
+  }
+  .table-modern .dropdown-toggle.btn-sm { min-height: 44px; padding-left: 1rem; padding-right: 1rem; }
+  .table-modern .dropdown-item { padding-top: 0.75rem !important; padding-bottom: 0.75rem !important; }
+  .catalogo-lista li { flex-wrap: wrap; }
+  .catalogo-lista .btn-accion-mapa { flex-shrink: 0; }
+
+  /* ---------- index.html ---------- */
+  .modern-card-header a.small { display: inline-flex; align-items: center; min-height: 40px; }
+  .fila-pendiente .btn-tactil { min-width: 46px; }
+}

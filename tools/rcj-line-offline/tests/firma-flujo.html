@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Firma — flujo completo: desglose, jSignature, Submit, Recorded!, To correct</title>
+<script src="firma-comun.js"></script>
+<script src="../local/config.js"></script>
+<script src="../local/io-shim.js"></script>
+<script src="../local/nucleo/store.js"></script>
+<script src="../local/nucleo/pathfinder-servidor.js"></script>
+<script src="../local/nucleo/init-run.js"></script>
+<script src="../local/nucleo/score-2026.js"></script>
+<script src="../local/nucleo/copy-properties.js"></script>
+<script src="../local/nucleo/api.js"></script>
+<script src="../local/nucleo/ranking.js"></script>
+</head>
+<body style="margin:0">
+<pre id="resultado">PENDIENTE</pre>
+<script>
+T.correr(async function () {
+  try { localStorage.removeItem('rcjLocalFlags'); sessionStorage.removeItem('rcjVolviDeFirma'); } catch (e) {}
+
+  // ---------------------------------------------------------------- corrida puntuada (status 3) sobre el fixture oficial
+  var s = await T.sembrarCorrida(function (run, mapa) {
+    var lops = run.LoPs.map(function (_, k) { return [0, 1, 2, 0, 3][k % 5]; });
+    // falla el primer índice con un elemento que no sea checkpoint (queda "halfdone"/"undone")
+    var fallidos = {};
+    for (var i = 0; i < run.tiles.length; i++) {
+      if (run.tiles[i].scoredItems.some(function (x) { return x.item !== 'checkpoint'; })) { fallidos[i] = true; break; }
+    }
+    return {
+      showedUp: true, tiles: T.tilesPuntuadas(run, fallidos), LoPs: lops, exitBonus: true,
+      rescueOrder: [{ victimType: 'LIVE', zoneType: 'GREEN' }, { victimType: 'LIVE', zoneType: 'GREEN' }, { victimType: 'DEAD', zoneType: 'RED' }],
+      time: { minutes: 3, seconds: 27 }, status: 3
+    };
+  });
+  var run = s.run, mapa = s.mapa, runId = s.runId;
+  var o = T.desglose(run, mapa);
+  T.extra.corrida = { score: run.score, raw_score: run.raw_score, multiplier: run.multiplier, LoPs: run.LoPs, indexCount: mapa.indexCount, EvacuationAreaLoPIndex: mapa.EvacuationAreaLoPIndex, oraculo: o };
+  T.check('semilla: corrida en status 3 con puntaje', run.status === 3 && run.score > 0 && run.started === true, run.status);
+  T.check('oráculo independiente = puntaje del backend (raw_score, score, multiplier)',
+    o.raw === run.raw_score && Math.round(o.raw * o.multiplicador) === run.score && Math.abs(o.multiplicador - run.multiplier) < 1e-12,
+    { oraculo: o, backend: [run.raw_score, run.score, run.multiplier] });
+
+  // ---------------------------------------------------------------- carga de firma.html
+  var f = await T.cargarIframe('../firma.html?run=' + runId, { nombre: 'firma' });
+  await T.esperarCarga(f, 'firma');
+  await T.esperar(3500); // tile_size a 0/500/1500/3000 ms
+  var w = f.contentWindow, d = f.contentDocument, sc = T.scope(f);
+
+  T.check('sin doctype (modo quirks, igual que el pug)', d.compatMode === 'BackCompat', d.compatMode);
+  T.check('título', d.title === 'Rescue Line Sign', d.title);
+  T.check('globales de pug: runId/timeIncrement/iframe', w.runId === runId && w.timeIncrement === false && w.iframe === '');
+  T.check('io() es el io-shim', w.io && w.io.local === true && w.socket && w.socket.rooms.has('runs/' + runId));
+  T.check('idioma es', w.angular.element(d.body).injector().get('$translate').use() === 'es');
+
+  // navbar
+  var nav = Array.prototype.map.call(d.querySelectorAll('nav li.navbar-brand'), function (x) { return x.textContent.replace(/\s+/g, ' ').trim(); });
+  T.igual('navbar: equipo, puntaje del backend y tiempo m:ss', nav, ['IITA Salta', run.score + ' puntos', '3:27']);
+  T.check('navbar naranja fija', getComputedStyle(d.querySelector('nav')).backgroundColor === 'rgb(230, 126, 34)' && getComputedStyle(d.querySelector('nav')).position === 'fixed');
+  T.check('botón To correct traducido', T.texto(f, 'nav button') === 'Corregir', T.texto(f, 'nav button'));
+
+  // desglose
+  T.check('scope: score/raw_score/multiplier = backend', sc.score === run.score && sc.raw_score === run.raw_score && sc.multiplier === run.multiplier);
+  T.check('checkTotal() = inicio(5) + checkpoints + tramo final', sc.checkTotal() === o.inicioCliente + o.checkpoints + o.tramoFinal, [sc.checkTotal(), o]);
+  T.check('exitBonusPoints() = max(0, 60 - 5·ΣLoPs)', sc.exitBonusPoints() === o.bonus, [sc.exitBonusPoints(), o.bonus]);
+  var itemPoints = sc.raw_score - sc.checkTotal() - sc.exitBonusPoints();
+  T.check('Item points (por diferencia) = puntos por elementos del oráculo', itemPoints === o.elementos, [itemPoints, o.elementos]);
+  T.check('cierre: elementos + checkpoints + bonus = raw_score', o.elementos + sc.checkTotal() + sc.exitBonusPoints() === run.raw_score);
+  var prod = 1;
+  for (var v = 0; v < sc.victim_list.length; v++) prod *= sc.calc_victim_multipliers(v);
+  T.check('producto de los x por víctima = multiplicador del backend', Math.abs(prod - run.multiplier) < 1e-9, [prod, run.multiplier]);
+  T.check('raw_score × multiplier redondeado = score', Math.round(sc.raw_score * sc.multiplier) === sc.score);
+
+  T.igual('texto Subtotal sobre el plano', T.texto(f, '.tilearea .alert-primary h3'), 'Subtotal : ' + o.elementos + ' puntos');
+  var h1s = Array.prototype.map.call(d.querySelectorAll('.alert-dark h1'), function (x) { return x.textContent.trim(); });
+  T.igual('fila Subtotal: elementos + checkpoints + bonus = raw', h1s, [o.elementos + ' puntos', '+', sc.checkTotal() + ' puntos', '+', o.bonus + ' puntos', '=', run.raw_score + ' puntos']);
+  var calc = Array.prototype.map.call(d.querySelectorAll('.alert-warning h1'), function (x) { return x.textContent.trim(); });
+  T.igual('fila cálculo: raw × mult = score', calc, [run.raw_score + ' puntos', '×', String(run.multiplier), '=', run.score + ' puntos']);
+  var cards = d.querySelectorAll('[ng-repeat="cp in checkPointDistance track by $index"]');
+  T.check('tarjetas de checkpoint = checkpoints + inicio + meta', cards.length === o.checkpointsServidorCantidad + 2, cards.length);
+  var puntosCards = Array.prototype.map.call(cards, function (c) { return c.querySelector('h1').textContent.trim(); });
+  T.check('puntos por tarjeta = checkPointDistance', puntosCards.join('|') === sc.checkPointDistance.map(function (c) { return c.point + ' puntos'; }).join('|'), puntosCards);
+  T.check('tarjeta de meta dice "Meta" y la de inicio "Inicio"', cards[0].querySelector('h6').textContent.trim() === 'Inicio' &&
+    cards[cards.length - 1].querySelectorAll('h6')[2].textContent.trim() === 'Meta');
+  var filasLoP = d.querySelectorAll('[ng-repeat="cp in range(LoPs.length) track by $index"]');
+  T.check('columna LoPs: una fila por tramo', filasLoP.length === run.LoPs.length, filasLoP.length);
+  T.check('tramo de evacuación resaltado (#ffcccc) con ambulancia', getComputedStyle(filasLoP[mapa.EvacuationAreaLoPIndex].querySelector('.card-text')).backgroundColor === 'rgb(255, 204, 204)' &&
+    !!filasLoP[mapa.EvacuationAreaLoPIndex].querySelector('.fa-ambulance'));
+  var contadores = Array.prototype.map.call(d.querySelectorAll('span.count'), function (x) { return Number(x.textContent); });
+  T.igual('contadores de LoPs', contadores, run.LoPs);
+  var ths = Array.prototype.map.call(d.querySelectorAll('table[border] tr:first-child th'), function (x) { return x.textContent.trim(); });
+  T.igual('encabezado de la tabla de rescate', ths, ['Zone', '1', '2', '3']);
+  T.check('víctimas dibujadas en la tabla', d.querySelectorAll('table[border] img[width="30px"]').length === 3);
+  T.check('bonus de salida: ✓ visible', d.querySelector('.fa-check.fa-5x').offsetParent !== null);
+
+  var tiles = d.querySelectorAll('#wrapTile tile');
+  T.check('grilla: width × length baldosas del piso 0', tiles.length === mapa.width * mapa.length, tiles.length);
+  var baldosasZ0 = mapa.tiles.filter(function (t) { return t.z === 0; }).length;
+  var imgs = Array.prototype.filter.call(d.querySelectorAll('#wrapTile tile img'), function (im) { return /images\/tiles\//.test(im.getAttribute('src') || '') && im.complete && im.naturalWidth > 0; });
+  T.check('imágenes de baldosas cargadas', imgs.length >= baldosasZ0, [imgs.length, baldosasZ0]);
+  T.check('tile_size aplicó tamaño a las baldosas', parseFloat(getComputedStyle(tiles[0]).width) > 20, getComputedStyle(tiles[0]).width);
+  T.extra.tamBaldosa = getComputedStyle(tiles[0]).width;
+  T.check('estado ✓ en alguna baldosa puntuada y ✗/▶ en la fallida', d.querySelectorAll('tile .fa-check:not(.ng-hide)').length > 0 &&
+    d.querySelectorAll('tile .fa-times:not(.ng-hide), tile .fa-play:not(.ng-hide)').length > 0);
+
+  // ---------------------------------------------------------------- Submit sin firmas -> Oops!
+  var puts = [];
+  var original = w.RCJLocal.api.request;
+  w.RCJLocal.api.request = function (metodo, url, cuerpo) {
+    if (metodo === 'PUT') puts.push({ url: url, cuerpo: cuerpo });
+    return original.apply(this, arguments);
+  };
+  T.clic(f, 'button', 'send_sign()');
+  var oops = await T.esperarSwal(f, 'Oops!');
+  T.check('sin firmas: swal Oops! con las 3 firmas faltantes', oops && oops.texto.indexOf('[Firma del capitán] [Firma del árbitro] [Firma del árbitro asistente]') === 0, oops);
+  d.querySelector('.swal2-confirm').click();
+  await T.esperarQue(function () { return T.swalCerrado(f); }, 5000, 'cierre de Oops');
+  T.check('sin firmas: no hubo PUT', puts.length === 0);
+
+  // ---------------------------------------------------------------- firmas con trazos sintéticos
+  var ids = ['cap_sig', 'ref_sig', 'refas_sig'];
+  for (var i = 0; i < 3; i++) {
+    T.clic(f, 'button.btn-info', 'toggleSign(' + i + ')');
+    var trazos = await T.dibujarFirma(f, ids[i]);
+    T.check('firma ' + i + ': jSignature registró los trazos', trazos === 2, trazos);
+    T.clic(f, 'button.btn-success', 'toggleSign(' + i + ')');
+    await T.esperarQue(function () { return sc.signData[i] && !sc.enableSign[i]; }, 5000, 'Complete ' + i);
+    var dato = sc.signData[i] || '';
+    var svg = '';
+    try { svg = atob(dato.split(',')[1]); } catch (e) { svg = 'ERROR ' + e; }
+    T.check('firma ' + i + ': signData = data:image/svg+xml;base64 con trazos', dato.indexOf('data:image/svg+xml;base64,') === 0 && /<svg/.test(svg) && /<path|<polyline/.test(svg), dato.slice(0, 60));
+    var img = null;
+    await T.esperarQue(function () {
+      img = Array.prototype.filter.call(d.querySelectorAll('#sign img'), function (x) { return x.getAttribute('src') === dato; })[0] || null;
+      return img && img.complete && img.naturalWidth > 0;
+    }, 5000, 'img firma ' + i);
+    T.check('firma ' + i + ': se muestra la imagen y se oculta el lienzo', img && img.offsetParent !== null && d.getElementById(ids[i]).offsetParent === null,
+      Array.prototype.map.call(d.querySelectorAll('#sign img'), function (x) { return [x.getAttribute('ng-src'), (x.getAttribute('src') || '').slice(0, 30), x.offsetParent !== null]; }));
+  }
+  // Clear sobre la del capitán: vuelve a edición con el lienzo vacío; se firma de nuevo con otro trazo
+  var previa = sc.signData[0];
+  T.clic(f, 'button', 'clearSign(0)');
+  await T.esperarQue(function () { return sc.enableSign[0] === true; }, 3000, 'Clear');
+  T.check('Clear: vuelve a edición con el lienzo vacío', w.jQuery('#cap_sig').jSignature('getData', 'native').length === 0);
+  await T.dibujarFirma(f, 'cap_sig', [[[0.1, 0.2], [0.5, 0.8], [0.9, 0.2]]]);
+  T.clic(f, 'button.btn-success', 'toggleSign(0)');
+  await T.esperarQue(function () { return !sc.enableSign[0]; }, 3000, 'Complete tras Clear');
+  T.check('Clear + nueva firma: signData cambia', sc.signData[0] && sc.signData[0] !== previa);
+
+  // comentario
+  var ta = d.querySelector('textarea[ng-model="comment"]');
+  ta.value = 'Prueba offline: firma de las tres personas';
+  ta.dispatchEvent(new w.Event('input', { bubbles: true }));
+  T.check('ng-model del comentario', sc.comment === 'Prueba offline: firma de las tres personas');
+
+  // ---------------------------------------------------------------- Submit -> Finish Run? -> PUT -> Recorded!
+  T.clic(f, 'button', 'send_sign()');
+  var conf = await T.esperarSwal(f, 'Finish Run?');
+  T.check('confirmación "Finish Run?" con el texto traducido', conf && conf.texto === 'Si confirmás, se registran los datos de la ronda.  Después ya no vas a poder modificarla.', conf);
+  T.check('botón "Yes, finish it!"', d.querySelector('.swal2-confirm').textContent === 'Yes, finish it!');
+  d.querySelector('.swal2-confirm').click();
+  await T.esperarQue(function () { return puts.length === 1; }, 10000, 'PUT de firma');
+  var cuerpo = puts[0] ? JSON.parse(puts[0].cuerpo) : {};
+  T.igual('PUT a /api/runs/line/<id>', puts[0] && puts[0].url, '/api/runs/line/' + runId);
+  T.igual('cuerpo del PUT: claves {comment, sign, status}', Object.keys(cuerpo), ['comment', 'sign', 'status']);
+  T.check('cuerpo del PUT: status 4, comentario y las 3 firmas', cuerpo.status === 4 && cuerpo.comment === sc.comment &&
+    JSON.stringify(Object.keys(cuerpo.sign)) === JSON.stringify(['captain', 'referee', 'referee_as']) &&
+    cuerpo.sign.captain === sc.signData[0] && cuerpo.sign.referee === sc.signData[1] && cuerpo.sign.referee_as === sc.signData[2]);
+  var grabado = await T.esperarSwal(f, 'Recorded!');
+  T.check('swal "Recorded!" con "Registro guardado correctamente"', grabado && grabado.texto === 'Registro guardado correctamente', grabado);
+  var guardada = await RCJLocal.store.get('lineRuns', runId);
+  T.check('backend: status 4, firmas y comentario guardados, puntaje intacto', guardada.status === 4 && guardada.sign.captain === sc.signData[0] &&
+    guardada.sign.referee === sc.signData[1] && guardada.sign.referee_as === sc.signData[2] && guardada.comment === sc.comment && guardada.score === run.score,
+    { status: guardada.status, score: guardada.score });
+  T.check('la propia firma recibió el "data" del socket (status 4)', sc.status === 4);
+  T.extra.handlersData = w.socket._handlers.data.length;
+
+  d.querySelector('.swal2-confirm').click();
+  var destino = null;
+  await T.esperarQue(function () {
+    try { var l = f.contentWindow.location; if (/corridas\.html$/.test(l.pathname)) { destino = l.pathname + l.search; return true; } } catch (e) {}
+    return false;
+  }, 10000, 'navegación tras Recorded!');
+  T.igual('OK de Recorded! sin ?return= navega a /line/<cid>/<league> = corridas.html', destino, '/corridas.html?competition=' + s.cid + '&league=Line');
+
+  // ---------------------------------------------------------------- To correct -> juez, con la marca de sesión
+  f.parentNode.removeChild(f);
+  var g = await T.cargarIframe('../firma.html?run=' + runId + '&return=' + encodeURIComponent('/line/' + s.cid + '/Line'), { nombre: 'firma2' });
+  await T.esperarCarga(g, 'firma2');
+  sessionStorage.removeItem('rcjVolviDeFirma');
+  T.clic(g, 'nav button', "go('/line/judge/' + runId + '?return=' + getParam('return'))");
+  var marcaAlClic = sessionStorage.getItem('rcjVolviDeFirma'); // go() la escribe antes de asignar window.location
+  var aJuez = null;
+  await T.esperarQue(function () {
+    try { var l = g.contentWindow.location; if (/juez\.html$/.test(l.pathname)) { aJuez = l.pathname + l.search; return true; } } catch (e) {}
+    return false;
+  }, 10000, 'navegación a juez');
+  T.igual('To correct navega a juez.html conservando ?return=', aJuez, '/juez.html?run=' + runId + '&return=/line/' + s.cid + '/Line');
+  T.igual("sessionStorage['rcjVolviDeFirma'] = runId (al hacer clic)", marcaAlClic, runId);
+  // integración con el área juez (juez.html consume la marca y saltea el pre-chequeo)
+  var jz = null;
+  await T.esperarQue(function () {
+    var jw = g.contentWindow;
+    jz = jw.angular && jw.angular.element(jw.document.body).scope();
+    return jz && jz.checked === true;
+  }, 20000);
+  T.extra.juezTrasCorregir = { checked: jz && jz.checked, fromSign: jz && jz.fromSign, marcaRestante: sessionStorage.getItem('rcjVolviDeFirma'),
+    historyState: (function () { try { return g.contentWindow.history.state; } catch (e) { return 'err'; } })() };
+  T.check('juez.html: saltea el pre-chequeo al volver de la firma (checked=true, fromSign=true)', jz && jz.checked === true && jz.fromSign === true, T.extra.juezTrasCorregir);
+  sessionStorage.removeItem('rcjVolviDeFirma');
+});
+</script>
+</body>
+</html>

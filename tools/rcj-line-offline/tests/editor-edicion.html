@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Editor — edición: paleta, arrastrar y soltar, rotación, undo/redo, modal, copiar/pegar, salidas</title>
+<script src="editor-comun.js"></script>
+<script src="../local/config.js"></script>
+<script src="../local/nucleo/store.js"></script>
+<script src="../local/nucleo/pathfinder-servidor.js"></script>
+<script src="../local/nucleo/init-run.js"></script>
+<script src="../local/nucleo/score-2026.js"></script>
+<script src="../local/nucleo/copy-properties.js"></script>
+<script src="../local/nucleo/api.js"></script>
+<script src="../local/nucleo/ranking.js"></script>
+</head>
+<body>
+<h1>Edición en editor.html con eventos DOM sintéticos (mismos handlers del CMS)</h1>
+<pre id="resultado">PENDIENTE</pre>
+<script>
+var T0 = '570c27c3f5a9dabe23f3af90';
+function tecla(ed, opciones) {
+  var w = ed.win;
+  var ev = new w.KeyboardEvent('keydown', Object.assign({ bubbles: true, cancelable: true }, opciones));
+  if (opciones.keyCode) Object.defineProperty(ev, 'keyCode', { get: function () { return opciones.keyCode; } });
+  ed.doc.body.dispatchEvent(ev);
+}
+function menu(ed, el) {
+  el.dispatchEvent(new ed.win.MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, view: ed.win }));
+}
+async function esperarSinModal(ed) {
+  await T.esperarQue('modal cerrado', function () { return !ed.doc.querySelector('[uib-modal-window]'); }, 8000);
+}
+
+T.correr(async function () {
+  await T.resetear();
+  await RCJLocal.semillas();
+  var cid = (await T.api('GET', '/api/competitions/')).data[0]._id;
+  var ed = await T.abrirEditor('competition=' + cid, 'edicion');
+  var s = ed.scope, d = ed.doc, w = ed.win;
+
+  // ---------------------------------------------------------------- dimensiones con los spinners
+  for (var i = 0; i < 3; i++) T.clic(ed, d.querySelector('[ng-click="width = width + 1"]'));
+  for (i = 0; i < 2; i++) T.clic(ed, d.querySelector('[ng-click="length = length + 1"]'));
+  T.clic(ed, d.querySelector('[ng-click="height = height + 1; sliderOptions.ceil = height - 1"]'));
+  await T.esperarQue('grilla 4x3', function () { return d.querySelectorAll('td.slot').length === 12 && T.celda(ed, 3, 2); });
+  T.igual('spinners: width 4, length 3, height 2', [s.width, s.length, s.height], [4, 3, 2]);
+  T.igual('botones de piso F0/F1', Array.prototype.map.call(d.querySelectorAll('[ng-click="changeFloor(zz)"]'), function (b) { return b.textContent.trim(); }).sort(), ['F0', 'F1']);
+
+  // ---------------------------------------------------------------- paleta: rotar y arrastrar a la grilla
+  var paleta = d.querySelector('img.toolbox-tile[tile-id="' + T0 + '"]');
+  T.clic(ed, paleta);
+  T.igual('paleta: clic rota la baldosa a colocar (rot=90)', [paleta.getAttribute('rot'), paleta.classList.contains('rot90')], ['90', true]);
+  T.arrastrar(ed, paleta, T.celda(ed, 0, 0));
+  T.igual('drop paleta -> (0,0): crea la baldosa con la rotación de la paleta',
+    s.tiles['0,0,0'] && [s.tiles['0,0,0'].rot, s.tiles['0,0,0'].tileType._id, s.tiles['0,0,0'].items], [90, T0, { obstacles: 0, speedbumps: 0, rampPoints: false }]);
+  T.check('drop: tileType es la referencia del tileset (no copia)', s.tiles['0,0,0'] && s.tiles['0,0,0'].tileType === s.tileSet.tiles.find(function (t) { return t.tileType._id === T0; }).tileType);
+  var img00 = T.celda(ed, 0, 0).querySelector('img.tile-image');
+  await T.checkEsperando('drop: la celda dibuja tile-0.png rotada', function () {
+    return img00 && /images\/tiles\/tile-0\.png$/.test(img00.getAttribute('src')) && img00.classList.contains('rot90') && !img00.classList.contains('ng-animate');
+  }, 4000, function () { return img00 && img00.outerHTML; });
+  T.check('drop: sin clases lvl-target colgadas', d.querySelectorAll('.lvl-target').length === 0);
+  T.check('undo habilitado', s.canUndo() && !d.querySelector('[ng-click="undo()"]').disabled);
+  for (i = 0; i < 3; i++) T.clic(ed, paleta);
+  T.arrastrar(ed, paleta, T.celda(ed, 1, 0));
+  T.arrastrar(ed, paleta, T.celda(ed, 2, 0));
+  T.igual('tres baldosas colocadas', Object.keys(s.tiles).sort(), ['0,0,0', '1,0,0', '2,0,0']);
+  T.igual('usedCount de tile-0', s.usedCount[T0], 3);
+
+  // ---------------------------------------------------------------- rotación, undo/redo (botones y teclado)
+  T.clic(ed, T.celda(ed, 1, 0));
+  T.igual('clic en baldosa: rota 90', s.tiles['1,0,0'].rot, 90);
+  T.clic(ed, d.querySelector('[ng-click="undo()"]'));
+  T.igual('botón Undo: vuelve a 0', s.tiles['1,0,0'].rot, 0);
+  T.clic(ed, d.querySelector('[ng-click="redo()"]'));
+  T.igual('botón Redo: vuelve a 90', s.tiles['1,0,0'].rot, 90);
+  tecla(ed, { key: 'z', ctrlKey: true });
+  T.igual('Ctrl+Z: 0', s.tiles['1,0,0'].rot, 0);
+  tecla(ed, { key: 'y', ctrlKey: true });
+  T.igual('Ctrl+Y: 90', s.tiles['1,0,0'].rot, 90);
+
+  // ---------------------------------------------------------------- mover y borrar arrastrando
+  T.arrastrar(ed, T.celda(ed, 2, 0), T.celda(ed, 3, 2));
+  T.igual('drop celda -> celda: mueve', [!!s.tiles['3,2,0'], !!s.tiles['2,0,0']], [true, false]);
+  T.arrastrar(ed, T.celda(ed, 3, 2), paleta);
+  T.igual('drop celda -> paleta: borra', Object.keys(s.tiles).sort(), ['0,0,0', '1,0,0']);
+  T.clic(ed, d.querySelector('[ng-click="undo()"]'));
+  T.check('undo del borrado: vuelve la baldosa', !!s.tiles['3,2,0']);
+  T.clic(ed, d.querySelector('[ng-click="redo()"]'));
+  T.check('redo del borrado', !s.tiles['3,2,0']);
+
+  // ---------------------------------------------------------------- modal de propiedades
+  await T.esperar(100);
+  menu(ed, T.celda(ed, 1, 0));
+  await T.esperarQue('modal de propiedades', function () { return d.querySelector('.modal #isCheckpoint') && d.querySelector('.modal .sim-tile-new'); }, 8000);
+  await T.esperar(300);
+  T.check('modal: título Tile Properties traducido', /\S/.test(d.querySelector('.modal .modal-title').textContent));
+  d.querySelector('.modal #isCheckpoint').click();
+  T.clic(ed, d.querySelector('.modal [ng-click="cycleTileLevel(\'top\')"]'));
+  d.querySelector('.modal #isStartCheck').click();
+  await T.checkEsperando('modal: celda top marcada is-up (F1)', function () {
+    var c = d.querySelector('.modal [ng-click="cycleTileLevel(\'top\')"]');
+    return c.classList.contains('is-up') && /F1/.test(c.textContent);
+  });
+  await T.checkEsperando('modal: con checkpoint se ocultan los spinners (cantset)', function () {
+    return d.querySelectorAll('.modal .alert-soft-warning:not(.ng-hide)').length === 2 && d.querySelectorAll('.modal .dimension-spinner.ng-hide').length === 2;
+  });
+  T.clic(ed, d.querySelector('.modal .modal-footer .btn-print-action'));
+  await esperarSinModal(ed);
+  T.igual('modal Save: checkPoint, levelUp y startTile aplicados', [s.tiles['1,0,0'].checkPoint, s.tiles['1,0,0'].levelUp, s.startTile], [true, 'top', { x: 1, y: 0, z: 0 }]);
+  await T.checkEsperando('celda de inicio con borde drop-tile y flecha de nivel', function () {
+    return T.celda(ed, 1, 0).querySelector('img.tile-image.drop-tile') && !T.celda(ed, 1, 0).querySelector('.fa-angle-double-down').classList.contains('ng-hide');
+  });
+  T.clic(ed, d.querySelector('[ng-click="undo()"]'));
+  T.igual('undo del modal', [s.tiles['1,0,0'].checkPoint, s.tiles['1,0,0'].levelUp, s.startTile], [undefined, undefined, { x: -1, y: -1, z: -1 }]);
+  T.clic(ed, d.querySelector('[ng-click="redo()"]'));
+  T.igual('redo del modal', [s.tiles['1,0,0'].checkPoint, s.tiles['1,0,0'].levelUp, s.startTile], [true, 'top', { x: 1, y: 0, z: 0 }]);
+
+  menu(ed, T.celda(ed, 0, 0));
+  await T.esperarQue('modal (cancelar)', function () { return d.querySelector('.modal .btn-cancel-action'); }, 8000);
+  await T.esperar(300);
+  d.querySelector('.modal #isRampPoints').click();
+  T.clic(ed, d.querySelector('.modal .btn-cancel-action'));
+  await esperarSinModal(ed);
+  T.check('modal Cancel: no aplica cambios', s.tiles['0,0,0'].items.rampPoints === false);
+
+  menu(ed, T.celda(ed, 3, 0));
+  await T.esperarQue('Oops en celda vacía', function () { return /Oops!/.test(T.swalTexto(ed)); }, 5000);
+  T.check('clic derecho en celda vacía: swal "Oops!"', /Need to place a tile here/.test(T.swalTexto(ed)));
+  w.Swal.close();
+  await T.esperar(300);
+
+  // ---------------------------------------------------------------- selección, copiar y pegar (sello), rotar y borrar en grupo
+  T.clic(ed, T.celda(ed, 0, 0), { ctrlKey: true });
+  T.clic(ed, T.celda(ed, 1, 0), { ctrlKey: true });
+  T.igual('Ctrl+clic: 2 seleccionadas (scope)', s.selectedCount(), 2);
+  await T.checkEsperando('Ctrl+clic: celdas con tile-selected', function () { return d.querySelectorAll('td.tile-selected').length === 2; }, 4000,
+    function () { return d.querySelectorAll('td.tile-selected').length; });
+  await T.checkEsperando('panel de grupo visible', function () { return !d.querySelector('.btn-modern-action.info').closest('.p-2').classList.contains('ng-hide'); });
+  T.clic(ed, d.querySelector('.btn-modern-action.info'));
+  T.igual('Copy Group: modo sello, selección vacía', [s.isPasting, s.selectedCount(), Object.keys(s.clipboard.tiles).length], [true, 0, 2]);
+  w.Swal.close();
+  T.aplicar(ed, function (s) { s.updateMousePos(0, 2); });
+  await T.checkEsperando('fantasma en 2 celdas', function () { return d.querySelectorAll('td.tile-ghost-target').length === 2; }, 4000,
+    function () { return d.querySelectorAll('td.tile-ghost-target').length; });
+  T.clic(ed, T.celda(ed, 0, 2));
+  T.igual('confirmPaste: pega en (0,2) y (1,2) y las deja seleccionadas',
+    [!!s.tiles['0,2,0'], !!s.tiles['1,2,0'], s.tiles['1,2,0'] && s.tiles['1,2,0'].checkPoint, s.isPasting, s.selectedCount()], [true, true, true, false, 2]);
+  var rotAntes = [s.tiles['0,2,0'].rot, s.tiles['1,2,0'].rot];
+  T.clic(ed, d.querySelector('.btn-modern-action.primary'));
+  T.igual('Rotate Group: +90', [s.tiles['0,2,0'].rot, s.tiles['1,2,0'].rot], rotAntes.map(function (r) { return (r + 90) % 360; }));
+  T.clic(ed, d.querySelector('.btn-modern-action.danger'));
+  T.igual('Delete Group: borra y limpia la selección', [!!s.tiles['0,2,0'], !!s.tiles['1,2,0'], s.selectedCount()], [false, false, 0]);
+
+  // Ctrl+X (cortar) y pegar
+  T.clic(ed, T.celda(ed, 0, 0), { ctrlKey: true });
+  tecla(ed, { key: 'x', ctrlKey: true, keyCode: 88 });
+  T.igual('Ctrl+X: modo corte (scope)', [s.isCutting, s.isPasting], [true, true]);
+  await T.checkEsperando('Ctrl+X: celda origen con tile-cut', function () { return d.querySelectorAll('td.tile-cut').length === 1; }, 4000,
+    function () { return d.querySelectorAll('td.tile-cut').length; });
+  w.Swal.close();
+  T.aplicar(ed, function (s) { s.updateMousePos(3, 1); });
+  T.clic(ed, T.celda(ed, 3, 1));
+  T.igual('pegar el corte: mueve (0,0) -> (3,1)', [!!s.tiles['3,1,0'], !!s.tiles['0,0,0']], [true, false]);
+
+  // botón sello + Esc
+  T.clic(ed, d.querySelector('[ng-click="togglePasteMode()"]'));
+  T.check('botón sello: activa isPasting', s.isPasting === true);
+  w.Swal.close();
+  tecla(ed, { key: 'Escape', keyCode: 27 });
+  T.check('Esc: sale del modo sello', s.isPasting === false);
+
+  // pisos y vista
+  T.clic(ed, Array.prototype.find.call(d.querySelectorAll('[ng-click="changeFloor(zz)"]'), function (b) { return b.textContent.trim() === 'F1'; }));
+  await T.esperar(100);
+  T.check('F1: cambia de piso', s.z === 1 && !!T.celda(ed, 0, 0, 1));
+  T.clic(ed, d.querySelector('[ng-click="centerMap()"]'));
+
+  // ---------------------------------------------------------------- salidas (E8, área salidas) desde el editor
+  T.aplicar(ed, function (s) { s.z = 0; });
+  var salidas = {};
+  T.clic(ed, Array.prototype.find.call(d.querySelectorAll('.premium-btn-group .btn'), function (b) { return b.textContent.trim() === 'PNG'; }));
+  w.__descargas.length = 0;
+  T.clic(ed, d.querySelector('.btn-print-action.w-100'));
+  try {
+    await T.esperarQue('PNG', function () { return w.__descargas.length || /Error/.test(T.swalTexto(ed)); }, 30000);
+  } catch (e) { /* se informa abajo */ }
+  salidas.png = w.__descargas[0] || T.swalTexto(ed);
+  T.check('Generate PNG: descarga <nombre>.png con blob:', w.__descargas[0] && /^blob:/.test(w.__descargas[0].href) && w.__descargas[0].download === s.name + '.png', salidas.png);
+  w.Swal.close();
+  T.clic(ed, Array.prototype.find.call(d.querySelectorAll('.premium-btn-group .btn'), function (b) { return b.textContent.trim() === 'PDF'; }));
+  w.__ventanas.length = 0;
+  T.clic(ed, d.querySelector('.btn-print-action.w-100'));
+  try {
+    await T.esperarQue('PDF', function () { return w.__ventanas.length || /Error/.test(T.swalTexto(ed)); }, 60000);
+  } catch (e) { /* se informa abajo */ }
+  salidas.pdf = w.__ventanas[0] || T.swalTexto(ed);
+  T.check('Generate PDF (mapa): window.open(blob:)', w.__ventanas[0] && /^blob:/.test(w.__ventanas[0].url), salidas.pdf);
+  w.Swal.close();
+  T.clic(ed, d.querySelectorAll('.option-tile')[1]);
+  w.__ventanas.length = 0;
+  T.clic(ed, d.querySelector('.btn-print-action.w-100'));
+  try {
+    await T.esperarQue('planilla', function () { return w.__ventanas.length || /Error/.test(T.swalTexto(ed)); }, 60000);
+  } catch (e) { /* se informa abajo */ }
+  salidas.planilla = w.__ventanas[0] || T.swalTexto(ed);
+  T.check('Generate PDF (planilla): window.open(blob:)', w.__ventanas[0] && /^blob:/.test(w.__ventanas[0].url), salidas.planilla);
+
+  return { salidas: salidas };
+});
+</script>
+</body>
+</html>

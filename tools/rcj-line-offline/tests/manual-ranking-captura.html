@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>manual-ranking — marco para capturas</title>
+<style>
+  html, body { margin: 0; padding: 0; overflow: hidden; background: #fff; }
+  #marco { position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; border: 0; }
+  #resultado { display: none; }
+</style>
+<script src="manual-ranking-comun.js"></script>
+<script src="../local/config.js"></script>
+<script src="../local/io-shim.js"></script>
+<script src="../local/nucleo/store.js"></script>
+<script src="../local/nucleo/pathfinder-servidor.js"></script>
+<script src="../local/nucleo/init-run.js"></script>
+<script src="../local/nucleo/score-2026.js"></script>
+<script src="../local/nucleo/copy-properties.js"></script>
+<script src="../local/nucleo/api.js"></script>
+<script src="../local/nucleo/ranking.js"></script>
+</head>
+<body>
+<pre id="resultado">PENDIENTE</pre>
+<script>
+// Abre ?url=<página de la app> a pantalla completa y mantiene el latido hasta que aparece ?listo=<selector CSS>
+// (y ?ms= milisegundos más), así la captura --screenshot de Edge headless sale con los datos de IndexedDB.
+// ?api=[[metodo, url, cuerpo], ...] (opcional) prepara datos con RCJLocal.api antes de abrir la página.
+T.correr(async function () {
+  var q = new URLSearchParams(location.search);
+  if (q.get('api')) {
+    var pasos = JSON.parse(q.get('api'));
+    for (var i = 0; i < pasos.length; i++) {
+      var r = await T.api(pasos[i][0], pasos[i][1], pasos[i][2]);
+      T.check('preparación ' + pasos[i][0] + ' ' + pasos[i][1], r.status >= 200 && r.status < 300, r.data);
+    }
+  }
+  var f = document.createElement('iframe');
+  f.id = 'marco';
+  document.body.appendChild(f);
+  await new Promise(function (res) { f.onload = res; f.src = q.get('url'); });
+  await T.esperarQue('selector ' + q.get('listo'), function () {
+    var el = f.contentDocument.querySelector(q.get('listo'));
+    return el && el.getBoundingClientRect().height > 0;
+  }, 30000);
+  // ?scroll=<selector> (opcional): desplaza la página hasta ese elemento (para mostrar la parte baja en celular)
+  if (q.get('scroll')) {
+    var destino = f.contentDocument.querySelector(q.get('scroll'));
+    if (destino) destino.scrollIntoView({ block: 'center' });
+  }
+  await T.esperar(parseInt(q.get('ms') || '1500', 10));
+  T.check('captura lista', true);
+});
+</script>
+</body>
+</html>

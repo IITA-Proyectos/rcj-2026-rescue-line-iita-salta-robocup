@@ -1,0 +1,58 @@
+name: Publicar RCJ Line offline en GitHub Pages
+
+# Publica tools/rcj-line-offline (editor + juez + registro de corridas de Rescue Line 2026) como app
+# instalable en https://iita-proyectos.github.io/rcj-2026-rescue-line-iita-salta-robocup/
+# Requisito único (admin del repo): Settings -> Pages -> Source: "GitHub Actions".
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/rcj-line-offline/**'
+      - '.github/workflows/pages-rcj-line-offline.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages-rcj-line-offline
+  cancel-in-progress: false
+
+jobs:
+  armar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Regenerar sw.js (lista de archivos para usar sin internet)
+        run: python3 tools/rcj-line-offline/herramientas/generar_sw.py
+
+      - name: Armar el sitio con solo lo que usa la app
+        run: |
+          set -euo pipefail
+          APP=tools/rcj-line-offline
+          mkdir -p _site
+          for carpeta in components javascripts stylesheets templates images sounds scoresheet_generation lang data local icons; do
+            cp -r "$APP/$carpeta" _site/
+          done
+          cp "$APP"/*.html "$APP/manifest.webmanifest" "$APP/sw.js" "$APP/LICENSE-rcj-rescue-cms.txt" _site/
+          find _site -name '*.md' -delete
+          touch _site/.nojekyll
+          du -sh _site
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  publicar:
+    needs: armar
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4

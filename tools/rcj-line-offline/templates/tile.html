@@ -1,0 +1,34 @@
+<p class="text-right chnumtxt" style="font-size: 10px; color: #f39c12; z-index:2;position: relative; padding: 2 2 0 0;" >{{checkpointNumber(tile)}}</p>
+
+<!--<p class="text-right chnumtxt" style="font-size: 10px; color: #2c3e50; z-index:2;position: relative; padding: 2 2 0 0;" ng-show="tileN">{{tileNumber(tile)}}</p>-->
+
+<img ng-src="images/tiles/{{tile.tileType.image}}"  class="rot{{tilerotate(tile.rot)}} tile-image" ng-class="{'drop-tile': isCheckPointTile(tile) || isStart(tile)}" ng-show="tile.tileType.image">
+<img ng-src="images/tiles/ev-entrance.png"  class="rot{{evacTapeRot(tile)}} tile-image" ng-if="tile.evacEntrance>=0">
+<img ng-src="images/tiles/ev-exit.png"  class="rot{{evacTapeRot(tile)}} tile-image" ng-if="tile.evacExit>=0">
+
+
+<i class="fas fa-minus fa-fw tile-image tile-font-1-25" ng-show="tile.items.speedbumps>0" style="text-align:left; padding:0px 2px; color:#abb2b9; opacity:0.7;"></i>
+<i class="fas fa-minus fa-fw tile-image tile-font-1-25" ng-show="tile.items.speedbumps>1" style="text-align:left; padding:10px 2px; color:#abb2b9; opacity:0.7;"></i>
+<i class="fas fa-minus fa-fw tile-image tile-font-1-25" ng-show="tile.items.speedbumps>2" style="text-align:left; padding:20px 2px; color:#abb2b9; opacity:0.7;"></i>
+<i class="fas fa-minus fa-fw tile-image tile-font-1-25" ng-show="tile.items.speedbumps>3" style="text-align:left; padding:30px 2px; color:#abb2b9; opacity:0.7;"></i>
+<i class="fas fa-minus fa-fw tile-image tile-font-1-25" ng-show="tile.items.speedbumps>4" style="text-align:left; padding:40px 2px; color:#abb2b9; opacity:0.7;"></i>
+
+
+<i class="fas fa-cube fa-fw tile-image tile-font-1-25" ng-show="tile.items.obstacles>0" style="text-align:right; padding:1px 2px; color:#6e2c00; opacity:0.9;"></i>
+
+<i class="fas fa-mountain fa-fw tile-image tile-font-1-25" ng-show="tile.items.rampPoints" style="text-align:center; color:#d97706; opacity:0.9;"></i>
+<i class="fas fa-exclamation fa-fw tile-image tile-font-1-25" ng-show="tile.items.noCheckPoint" style="text-align:center; color:#2ecc71; opacity:1;"></i>
+<i class="fas fa-angle-double-down fa-fw tile-image tile-font fa-3x" ng-class="rotateRamp(tile.levelUp)" ng-show="tile.levelUp" style="padding-top:4px; color:#10b981; opacity:0.7;"></i>
+<i class="fas fa-angle-double-down fa-fw tile-image tile-font fa-3x" ng-class="rotateRamp(tile.levelDown)" ng-show="tile.levelDown" style="padding-top:4px; color:#ef4444; opacity:0.7;"></i>
+
+
+
+<i class="far fa-play-circle fa-fw tile-image tile-font-1-25" ng-show="isStart(tile)" style="text-align:left; padding:1px 2px; color:#73e673; opacity:0.9;"></i>
+<i class="far fa-play-circle fa-fw tile-image tile-font-1-25" ng-show="isStart2(tile)" style="text-align:left; padding:1px 2px; color:#e64a3d; opacity:0.9;"></i>
+
+
+<i class="fas fa-check fa-fw tile-image tile-font" ng-show="tileStatus(tile) == 'done'" style="padding-top:4px; color:#27ae60; opacity:0.9;"></i>
+<i class="fas fa-play fa-fw fa-rotate-270 tile-image tile-font" ng-show="tileStatus(tile) == 'halfdone'" style="padding-top:4px; color:#f4d03f; opacity:0.9;"></i>
+<i class="fas fa-times fa-fw tile-image tile-font" ng-show="tileStatus(tile) == 'undone'" style="padding-top:6px; color:#e74c3c; opacity:0.9;"></i>
+
+<p class="tile-point" ng-if="tileStatus(tile) && !isStart(tile) && tilePoint(tile) != -1" style="color:#444; opacity:1;z-index:6;position: relative;text-align:center;">{{tilePoint(tile)}}</p>

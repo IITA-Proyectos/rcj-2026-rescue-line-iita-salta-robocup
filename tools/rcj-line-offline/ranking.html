@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html style="height:100%; overflow-y:scroll;" ng-app="LineScore" ng-init="">
+<head>
+<meta charset="utf-8">
+<!-- [rcj-line-offline] Render a mano de views/ranking/line_2026.pug (extends includes/layout) +
+     views/ranking/include/line_2026.pug. Ruta CMS: /line/:competitionid/:leagueId/ranking (routes/line.js:35-49).
+     Cambios en cambios/manual-ranking.md. -->
+<title>RoboCupJunior CMS</title>
+<!-- 1.A scripts comunes (common_component.pug:1-19) -->
+<script src="components/jquery/dist/jquery.min.js"></script>
+<script src="components/popper.js/dist/umd/popper.min.js"></script>
+<script src="components/bootstrap/dist/js/bootstrap.min.js"></script>
+<script src="components/angular/angular.min.js"></script>
+<script src="components/angular-animate/angular-animate.min.js"></script>
+<!-- OMITIDO (06: C, sin uso): <script src="components/alertifyjs/dist/js/ngAlertify.js"></script> -->
+<script src="components/sweetalert2/dist/sweetalert2.all.min.js"></script>
+<!-- OMITIDO (stub: lo reemplaza local/io-shim.js): <script src="components/socket.io-client/dist/socket.io.min.js"></script> -->
+<script src="components/angular-bootstrap/dist/ui-bootstrap-tpls.js"></script>
+<script src="components/angular-translate/angular-translate.min.js"></script>
+<script src="components/angular-translate-loader-static-files/angular-translate-loader-static-files.min.js"></script>
+<script src="components/angular-translate-storage-local/angular-translate-storage-local.min.js"></script>
+<script src="components/angular-translate-storage-cookie/angular-translate-storage-cookie.min.js"></script>
+<script src="components/angular-translate-handler-log/angular-translate-handler-log.min.js"></script>
+<script src="components/angular-cookies/angular-cookies.min.js"></script>
+<script src="components/angular-touch/angular-touch.min.js"></script>
+<script src="components/angular-sanitize/angular-sanitize.min.js"></script>
+<!-- OMITIDO (06: C, ningún módulo usa ui.select): <script src="components/angular-ui-select/dist/select.min.js"></script> -->
+<!-- 1.C scripts locales, parte 1 -->
+<script src="local/config.js"></script>
+<script src="local/io-shim.js"></script>
+<script src="local/nucleo/store.js"></script>
+<script src="local/nucleo/pathfinder-servidor.js"></script>
+<script src="local/nucleo/init-run.js"></script>
+<script src="local/nucleo/score-2026.js"></script>
+<script src="local/nucleo/copy-properties.js"></script>
+<script src="local/nucleo/api.js"></script>
+<script src="local/nucleo/ranking.js"></script>
+<script>
+  // [local] globales de ranking/line_2026.pug:8-10 (routes/line.js:48 pasa { competitionId, leagueId })
+  var competitionId = RCJLocal.param('competition');
+  var leagueId = RCJLocal.param('league') || 'Line';
+</script>
+<script src="javascripts/ranking/line_2026.js"></script>
+<script src="components/datatables/media/js/jquery.dataTables.min.js"></script>  <!-- 06: DI, el módulo exige 'datatables' -->
+<script src="components/angular-datatables/demo/src/archives/dist/angular-datatables.min.js"></script>
+<script>
+  // [rcj-line-offline] D9: con ?desempate=6.1.8 el pedido GET /api/ranking/... lleva la extensión del backend local
+  // (desempate reglamentario 6.1.8). Sin el parámetro el pedido es el del CMS. No toca javascripts/ranking/line_2026.js.
+  angular.module('LineScore').config(['$httpProvider', function ($httpProvider) {
+    $httpProvider.interceptors.push(function () {
+      return {
+        request: function (config) {
+          if (RCJLocal.param('desempate') === '6.1.8' && typeof config.url === 'string' && config.url.indexOf('/api/ranking/') === 0) {
+            config.url += (config.url.indexOf('?') >= 0 ? '&' : '?') + 'desempate=6.1.8';
+          }
+          return config;
+        }
+      };
+    });
+  }]);
+</script>
+<script src="local/http-backend.js"></script>
+<script>RCJLocal.instalarBackend('LineScore');</script>
+<!-- 1.B css comunes (common_component.pug:21-30; no hay page_css ni modern_layout) -->
+<link rel="stylesheet" href="components/bootstrap/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="stylesheets/style.css">
+<link rel="stylesheet" href="stylesheets/navbar_premium.css">
+<link href="components/font-awesome-5/css/all.min.css" rel="stylesheet">
+<link rel="stylesheet" href="components/angular-bootstrap/dist/ui-bootstrap-csp.css">
+<!-- OMITIDO (06: C, reglas solo .ui-select-*): <link rel="stylesheet" href="components/angular-ui-select/dist/select.min.css"> -->
+<!-- OMITIDO (solo ENVIRONMENT == "STG"): stylesheets/stg.css -->
+<!-- 1.E cola de head.pug:6-44 -->
+<script src="javascripts/translate_config.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0,minimum-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#043C78">
+<meta name="charset" content="UTF-8">
+<link rel="icon" type="image/vnd.microsoft.icon" sizes="16x16" href="images/favicon-16.ico">
+<link rel="icon" type="image/vnd.microsoft.icon" sizes="32x32" href="images/favicon-32.ico">
+<link rel="icon" type="image/vnd.microsoft.icon" sizes="96x96" href="images/favicon-96.ico">
+<link rel="apple-touch-icon" sizes="144x144" href="images/apple-touch-icon-144.png">
+<link rel="apple-touch-icon" sizes="152x152" href="images/apple-touch-icon-152.png">
+<link rel="apple-touch-icon" sizes="180x180" href="images/apple-touch-icon-180.png">
+<link rel="icon" type="image/png" sizes="196x196" href="images/favicon-196.png">
+<link rel="icon" type="image/png" sizes="32x32" href="images/favicon-32.png">
+<link rel="icon" type="image/png" sizes="128x128" href="images/favicon-128.png">
+<!-- PENDIENTE (docs): <link rel="manifest" href="manifest.webmanifest"> ; el CMS usaba /manifest.json -->
+<!-- OMITIDO (ESPEC §1, fuentes rotas en el origen): <link href="stylesheets/fonts.css" rel="stylesheet"> -->
+<script>
+  currentWidth = -1;
+  $(window).on('load resize', function(){
+  if (currentWidth == window.innerWidth) {
+  return;
+  }
+  currentWidth = window.innerWidth;
+  var height = $('.navbar').height();
+  $('body').css('padding-top',height+13);
+  });
+
+  let lastTouch = 0;
+  document.addEventListener('touchend', event => {
+  const now = window.performance.now();
+  if (now - lastTouch <= 500) {
+  event.preventDefault();
+  }
+  lastTouch = now;
+  }, true);
+</script>
+<style>
+  /* [rcj-line-offline] D9: selector de desempate (página nueva de la app, no existe en el CMS) */
+  .rcj-desempate { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 10px 0; }
+  .rcj-desempate .rcj-desempate-titulo { font-weight: bold; }
+  .rcj-desempate .rcj-desempate-nota { color: #6c757d; font-size: 0.85rem; }
+</style>
+<!-- [rcj-line-offline] ajustes para celular (solo CSS) y tabla desplazable dentro de su columna -->
+<link rel="stylesheet" href="local/ui/movil-manual-ranking.css">
+</head>
+<body ng-controller="LineScoreController" style="display: flex; flex-direction: column; min-height: 100vh;">
+<!-- includes/navbar.pug (usuario sin sesión; OMITIDO el botón de login: no hay login offline) -->
+<nav class="navbar navbar-expand premium-navbar"><a class="navbar-brand" href="index.html"><img class="d-inline-block align-top" src="images/logo.png" alt="Logo"><span class="brand-text">&nbsp;RCJ CMS</span></a><div class="ml-auto d-flex align-items-center"><a class="nav-user-link mr-2" href="#" data-toggle="modal" data-target="#languageModal" title="{{'select_lang' | translate}}"><i class="fas fa-globe-americas"></i></a><!-- OMITIDO (sin login offline): a.nav-user-link.login-btn (data-target #loginModal) --></div></nav>
+<div class="container-fluid" style="overflow: hidden; flex-grow: 1;"><div class="row"><div class="col-md-1"></div><div class="col-md-10"><nav class="breadcrumb premium-breadcrumb"><a class="breadcrumb-item" ng-click="go('/home')">Home</a><a class="breadcrumb-item" ng-click='go("/home/"+ competitionId)'>{{competition.name}}</a><a class="breadcrumb-item" ng-click="go('/line/'+ competitionId + '/' + league.league)">{{league.name}}</a><span class="breadcrumb-item active">Ranking</span></nav></div></div><br>
+<!-- block content (ranking/line_2026.pug:23-32) -->
+<div class="row"></div><div class="col-md12"><button class="btn btn-secondary" style="margin:0 10px 10px 0;" type="button" ng-click="go('/line/' + competitionId + '/' + league.league)"><i class="fas fa-undo" aria-hidden="true">{{'common.back' | translate }}</i></button></div><br><div class="alert alert-success" role="alert" ng-if="competition.message"><h4 class="alert-heading">{{'common.message' | translate}}</h4><p ng-bind-html="competition.message"></p></div><br>
+<!-- [rcj-line-offline] D9: selector de desempate. El backend local expone ?desempate=6.1.8 (local/nucleo/ranking.js). -->
+<div class="rcj-desempate" id="rcj-desempate" ng-non-bindable>
+  <span class="rcj-desempate-titulo">Desempate:</span>
+  <div class="btn-group btn-group-sm" role="group" aria-label="Criterio de desempate">
+    <button type="button" class="btn btn-outline-primary" id="rcj-desempate-cms" data-desempate="">CMS (tiempo total)</button>
+    <button type="button" class="btn btn-outline-primary" id="rcj-desempate-6118" data-desempate="6.1.8">Reglamento 6.1.8 (media de puntajes normalizados)</button>
+  </div>
+  <span class="rcj-desempate-nota" id="rcj-desempate-nota"></span>
+</div>
+<script>
+  (function () {
+    var activo = RCJLocal.param('desempate') === '6.1.8' ? '6.1.8' : '';
+    var nota = document.getElementById('rcj-desempate-nota');
+    nota.textContent = activo
+      ? 'Ante igual puntaje final, primero la media de puntajes normalizados de las rondas usadas (6.1.8) y después el tiempo total.'
+      : 'Ante igual puntaje final, el CMS ordena por el tiempo total de las rondas usadas.';
+    ['rcj-desempate-cms', 'rcj-desempate-6118'].forEach(function (id) {
+      var b = document.getElementById(id);
+      var valor = b.getAttribute('data-desempate');
+      if (valor === activo) { b.classList.add('active'); b.setAttribute('aria-pressed', 'true'); }
+      b.addEventListener('click', function () {
+        if (valor === activo) return;
+        var q = new URLSearchParams(location.search);
+        if (valor) q.set('desempate', valor); else q.delete('desempate');
+        location.search = q.toString();
+      });
+    });
+  })();
+</script>
+<!-- include include/line_2026 (views/ranking/include/line_2026.pug) -->
+<center><div class="loader" ng-if="ranking==null"><img src="images/loader2.gif"><p>{{'common.loading' | translate}}</p></div></center><div ng-if="ranking!=null"><div class="row" id="rank"><div class="col-lg-12"><div class="ranking-header"><div class="ranking-title"><h3>{{competition.name}}</h3><h2>[{{'line.score.rank' | translate}}] {{league.name}}</h2></div><img class="competition-logo" ng-if="competition.logo" ng-src="{{competition.logo}}" alt="Competition Logo"></div><table class="custom" style="overflow: scroll;"><thead><tr><th class="text-center" rowspan="3">{{'common.rank' | translate}}</th><th class="text-center" rowspan="3" ng-if="showMode.teamCode &amp;&amp; showCode">Team Code</th><th class="text-center team-name" rowspan="3" ng-if="showTeam" ng-style="{'min-width': teamWidth + 'px'}">{{'common.team' | translate}}</th><th class="text-center" rowspan="3">{{'line.score.finalScore' | translate}}</th><th class="text-center" colspan="{{gameRowSpan}}">{{'line.score.game' | translate}}</th><th class="text-center" colspan="{{documentBlock.length + 1}}" ng-show="showMode.document">{{'line.score.document' | translate}}</th><th class="text-center" colspan="1" ng-show="showMode.technicalChallenge">{{'technicalChallenge.technicalChallenge' | translate}}</th></tr><tr><th class="text-center" rowspan="2" ng-show="showTime">{{'common.time' | translate}}</th><th class="text-center" rowspan="2" ng-show="showVictims">{{'common.rescued' | translate}}</th><th class="text-center" rowspan="2" ng-show="showLops">{{'common.lops' | translate}}</th><th class="text-center" ng-show="showMode.nonNormalized" colspan="{{maxGameNum}}">{{'common.gamesScore' | translate}}</th><th class="text-center" rowspan="2" ng-show="showMode.nonNormalized">{{'common.sum' | translate}}</th><th class="text-center" ng-show="showMode.normalized" colspan="{{maxGameNum}}">{{'common.normalizedScore' | translate}}</th><th class="text-center" rowspan="2" ng-show="showMode.normalized">{{'common.mean' | translate}}</th><th class="text-center" rowspan="2" ng-show="showMode.document" ng-repeat="block in documentBlock">{{langContent(block.i18n, 'title')}}</th><th class="text-center" rowspan="2" ng-show="showMode.document">{{'common.weightedSum' | translate}}</th><th class="text-center" ng-show="showMode.technicalChallenge" rowspan="2" colspan="1">{{'common.normalizedScore' | translate}}</th></tr><tr><th class="text-center" ng-repeat="grp in runGroups">{{grp}}</th></tr></thead><tbody><tr ng-repeat="team in ranking track by $index"><td class="text-center" ng-bind="$index + 1"></td><td class="text-center" ng-if="showCode" ng-bind="team.team.teamCode"></td><td class="text-center team-name" ng-if="showTeam" ng-bind="team.team.name" ng-style="{'min-width': teamWidth + 'px'}"></td><td class="text-center final-score-cell">{{formatNumber(team.finalScore, finalScoreDecimals)}}</td><td class="text-center" ng-show="showTime">{{("00"+team.gameSum.time.minutes).slice(-2)}}:{{("00"+team.gameSum.time.seconds).slice(-2)}}</td><td class="text-center" ng-show="showVictims"><div class="img-thumbnail" style="padding:0;display: inline-block;margin-right:5px;" ng-repeat="victim in team.gameSum.victims" ng-style="{backgroundColor: evacZoneColor(victim)}"><img ng-src="images/{{victimImgPath(victim)}}" style="height:20px;"><span style="font-size:15px;">×{{victim.count}}</span></div></td><td class="text-center" ng-bind="team.gameSum.lops" ng-show="showLops"></td><td class="text-center" ng-show="showMode.nonNormalized" ng-repeat="grp in runGroups" ng-bind="team.games[grp].score" ng-click="openRunDetails(team.games[grp]._id)" ng-style="{backgroundColor: team.games[grp].used ? '':'#ccc'}"></td><td class="text-center" ng-show="showMode.nonNormalized" ng-bind="team.gameSum.score"></td><td class="text-center" ng-show="showMode.normalized" ng-repeat="grp in runGroups" ng-click="openRunDetails(team.games[grp]._id)" ng-style="{backgroundColor: team.games[grp].used ? '':'#ccc'}">{{formatNumber(team.games[grp].normalizedScore, normalScoreDecimals)}}</td><td class="text-center" ng-show="showMode.normalized">{{formatNumber(team.gameSum.normalizedScoreMean, normalScoreDecimals)}}</td><td class="text-center" ng-show="showMode.document" ng-repeat="block in team.document.details">{{formatNumber(block.normalizedScore, normalScoreDecimals)}}</td><td class="text-center" ng-show="showMode.document">{{formatNumber(team.document.score, normalScoreDecimals)}}</td><td class="text-center" ng-show="showMode.technicalChallenge">{{formatNumber(team.technicalChallenge, normalScoreDecimals)}}</td></tr></tbody></table></div></div></div><!-- OMITIDO: el texto literal "</file>" del final de include/line_2026.pug:62 (el navegador lo descarta) -->
+</div>
+<!-- includes/footer.pug (fragmentos-head 1.G) -->
+<footer class="footer" style="background-color: #000000; width: 100%;">
+  <div class="d-flex justify-content-between align-items-center w-100 px-3 pt-1 pb-2 m-0">
+    <div class="footer-text text-truncate" style="text-align:left; font-size:max(12px, min(1vw, 25px)); white-space: nowrap; color: #aaaaaa;">
+      <i class="far fa-copyright" aria-hidden="true"></i>&nbsp;2016-2026 RoboCupJunior Rescue CMS Development SubCommittee&nbsp;-&nbsp;<i class="fas fa-code-branch" aria-hidden="true"></i>&nbsp; v26.0.2
+    </div>
+  </div>
+</footer>
+<!-- OMITIDO (sin login offline): includes/login_modal.pug (POST /api/auth/login) -->
+<!-- includes/language_modal.pug con ES (fragmentos-head 1.F, regla 3c) -->
+<div class="modal fade" id="languageModal" tabindex="-1" role="dialog" aria-labelledby="languageModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content premium-modal-content">
+      <div class="modal-header border-0">
+        <button class="close" type="button" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+      </div>
+      <div class="modal-body px-5 pb-5">
+        <div class="text-center mb-5">
+          <i class="fas fa-language fa-4x mb-3" style="color: var(--primary-color);"></i>
+          <h2 class="modal-title font-weight-bold">{{"select_lang" | translate}}</h2>
+        </div>
+        <div class="row no-gutters gap-3">
+          <div class="col-6 pr-2">
+            <div class="language-card" onclick="changeLanguage('en')">
+              <div class="lang-circle bg-primary">EN</div>
+              <h4>English</h4>
+            </div>
+          </div>
+          <div class="col-6 pl-2">
+            <div class="language-card" onclick="changeLanguage('ja')">
+              <div class="lang-circle bg-danger">JA</div>
+              <h4>日本語</h4>
+            </div>
+          </div>
+        </div>
+        <!-- [rcj-line-offline] regla 3c: español agregado al selector -->
+        <div class="row no-gutters gap-3 mt-3">
+          <div class="col-6 pr-2">
+            <div class="language-card" onclick="changeLanguage('es')">
+              <div class="lang-circle bg-success">ES</div>
+              <h4>Español</h4>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+    function changeLanguage(langKey) {
+        try {
+            const injector = angular.element(document.body).injector();
+            const $translate = injector.get('$translate');
+            $translate.use(langKey).then(function() {
+                window.location.reload();
+            });
+        } catch (e) {
+            // Fallback for non-angular pages or if injection fails
+            console.error("Language switch failed, reloading anyway...", e);
+            window.location.reload();
+        }
+    }
+</script>
+</body>
+</html>

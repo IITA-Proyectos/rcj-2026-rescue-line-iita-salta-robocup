@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<!-- rcj-line-offline — área estadísticas. Página NUEVA (no existe en el CMS): estadísticas de entrenamiento por
+     mapa, baldosa, tramo y equipo, con la estructura de includes/modern_layout del CMS (navbar premium, hero y
+     tarjetas modernas). Solo lee la base local. Lógica: local/estadisticas/{calculo,csv,graficos,pagina}.js -->
+<html lang="es" style="height:100%; overflow-y:scroll;" ng-app="RCJEstadisticasApp">
+<head>
+<meta charset="utf-8">
+<title>Estadísticas · RCJ Rescue Line offline</title>
+<!-- 1.A scripts comunes (common_component.pug:1-19) -->
+<script src="components/jquery/dist/jquery.min.js"></script>
+<script src="components/popper.js/dist/umd/popper.min.js"></script>
+<script src="components/bootstrap/dist/js/bootstrap.min.js"></script>
+<script src="components/angular/angular.min.js"></script>
+<script src="components/angular-animate/angular-animate.min.js"></script>
+<!-- OMITIDO (06: C, sin uso): <script src="components/alertifyjs/dist/js/ngAlertify.js"></script> -->
+<script src="components/sweetalert2/dist/sweetalert2.all.min.js"></script>
+<!-- OMITIDO (stub: lo reemplaza local/io-shim.js): <script src="components/socket.io-client/dist/socket.io.min.js"></script> -->
+<script src="components/angular-bootstrap/dist/ui-bootstrap-tpls.js"></script>
+<script src="components/angular-translate/angular-translate.min.js"></script>
+<script src="components/angular-translate-loader-static-files/angular-translate-loader-static-files.min.js"></script>
+<script src="components/angular-translate-storage-local/angular-translate-storage-local.min.js"></script>
+<script src="components/angular-translate-storage-cookie/angular-translate-storage-cookie.min.js"></script>
+<script src="components/angular-translate-handler-log/angular-translate-handler-log.min.js"></script>
+<script src="components/angular-cookies/angular-cookies.min.js"></script>
+<script src="components/angular-touch/angular-touch.min.js"></script>
+<script src="components/angular-sanitize/angular-sanitize.min.js"></script>
+<!-- OMITIDO (06: C, ningún módulo usa ui.select): <script src="components/angular-ui-select/dist/select.min.js"></script> -->
+<!-- 1.C scripts locales, parte 1 -->
+<script src="local/config.js"></script>
+<script src="local/io-shim.js"></script>
+<script src="local/nucleo/store.js"></script>
+<script src="local/nucleo/pathfinder-servidor.js"></script>
+<script src="local/nucleo/init-run.js"></script>
+<script src="local/nucleo/score-2026.js"></script>
+<script src="local/nucleo/copy-properties.js"></script>
+<script src="local/nucleo/api.js"></script>
+<script src="local/nucleo/ranking.js"></script>
+<!-- [estadisticas] cálculo, CSV, gráficos SVG y controlador (crea `app`, módulo RCJEstadisticasApp) -->
+<script src="local/estadisticas/calculo.js"></script>
+<script src="local/estadisticas/csv.js"></script>
+<script src="local/estadisticas/graficos.js"></script>
+<script src="local/estadisticas/pagina.js"></script>
+<script src="local/http-backend.js"></script>
+<script>RCJLocal.instalarBackend('RCJEstadisticasApp');</script>
+<!-- 1.B css comunes -->
+<link rel="stylesheet" href="components/bootstrap/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="stylesheets/style.css">
+<link rel="stylesheet" href="stylesheets/navbar_premium.css">
+<link href="components/font-awesome-5/css/all.min.css" rel="stylesheet">
+<link rel="stylesheet" href="components/angular-bootstrap/dist/ui-bootstrap-csp.css">
+<!-- page_css: rotaciones y tamaños de baldosa del CMS (templates/tile.html) -->
+<link href="stylesheets/fredrik.css" rel="stylesheet">
+<!-- 1.D modern layout -->
+<link href="stylesheets/common/modern_layout.css" rel="stylesheet">
+<link href="stylesheets/common/modern_components.css" rel="stylesheet">
+<link href="stylesheets/common/modern_list.css" rel="stylesheet">
+<link href="stylesheets/common/modern_modal.css" rel="stylesheet">
+<link href="local/ui/estilos.css" rel="stylesheet">
+<link href="local/estadisticas/estadisticas.css" rel="stylesheet">
+<link href="local/ui/movil-estadisticas.css" rel="stylesheet">
+<!-- 1.E cola de head.pug -->
+<script src="javascripts/translate_config.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0,minimum-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#043C78">
+<link rel="icon" type="image/vnd.microsoft.icon" sizes="16x16" href="images/favicon-16.ico">
+<link rel="icon" type="image/vnd.microsoft.icon" sizes="32x32" href="images/favicon-32.ico">
+<link rel="icon" type="image/vnd.microsoft.icon" sizes="96x96" href="images/favicon-96.ico">
+<link rel="apple-touch-icon" sizes="144x144" href="images/apple-touch-icon-144.png">
+<link rel="apple-touch-icon" sizes="152x152" href="images/apple-touch-icon-152.png">
+<link rel="apple-touch-icon" sizes="180x180" href="images/apple-touch-icon-180.png">
+<link rel="icon" type="image/png" sizes="196x196" href="images/favicon-196.png">
+<link rel="icon" type="image/png" sizes="32x32" href="images/favicon-32.png">
+<link rel="icon" type="image/png" sizes="128x128" href="images/favicon-128.png">
+<!-- PENDIENTE (docs): <link rel="manifest" href="manifest.webmanifest"> -->
+<!-- OMITIDO (ESPEC §1, fuentes rotas en el origen): <link href="stylesheets/fonts.css" rel="stylesheet"> -->
+<script>
+  currentWidth = -1;
+  $(window).on('load resize', function(){
+  if (currentWidth == window.innerWidth) {
+  return;
+  }
+  currentWidth = window.innerWidth;
+  var height = $('.navbar').height();
+  $('body').css('padding-top',height+13);
+  });
+
+  let lastTouch = 0;
+  document.addEventListener('touchend', event => {
+  const now = window.performance.now();
+  if (now - lastTouch <= 500) {
+  event.preventDefault();
+  }
+  lastTouch = now;
+  }, true);
+</script>
+</head>
+<body ng-controller="EstadisticasController" class="pagina-estadisticas" style="display: flex; flex-direction: column; min-height: 100vh;">
+  <nav class="navbar navbar-expand premium-navbar">
+    <a class="navbar-brand" href="index.html"><img class="d-inline-block align-top" src="images/logo.png" alt="Logo"><span class="brand-text">&nbsp;RCJ CMS</span><span class="env-badge">offline</span></a>
+    <div class="ml-auto d-flex align-items-center">
+      <a class="nav-user-link mr-2" href="#" data-toggle="modal" data-target="#languageModal" title="{{'select_lang' | translate}}"><i class="fas fa-globe-americas"></i></a>
+      <a class="nav-user-link" href="configuracion.html" title="Configuración"><i class="fas fa-cog"></i></a>
+    </div>
+  </nav>
+  <div class="container-fluid" style="overflow: hidden; flex-grow: 1;">
+    <div class="maps-hero">
+      <div class="maps-container">
+        <nav class="breadcrumb premium-breadcrumb hero-breadcrumb">
+          <a class="breadcrumb-item" href="index.html"><i class="fas fa-home mr-1"></i>Inicio</a>
+          <span class="breadcrumb-item active">Estadísticas</span>
+        </nav>
+        <div class="hero-content-wrapper">
+          <div class="hero-text">
+            <h1 class="hero-title">Estadísticas</h1>
+            <div class="hero-subtitle" ng-cloak>¿En qué falla el robot? Éxito por baldosa, LoPs por tramo, víctimas y evolución · Line 2026</div>
+            <div class="hero-resumen" ng-if="res" ng-cloak>
+              <span class="pastilla"><i class="fas fa-flag-checkered"></i>{{res.n}} {{res.n === 1 ? 'corrida' : 'corridas'}}</span>
+              <span class="pastilla" ng-if="res.mapa"><i class="fas fa-map"></i>{{res.mapa.name}}</span>
+              <span class="pastilla" ng-if="res.inconsistentes.length"><i class="fas fa-exclamation-triangle"></i>{{res.inconsistentes.length}} con puntaje distinto al recalculado</span>
+            </div>
+          </div>
+          <div class="hero-actions">
+            <button type="button" class="btn-hero-local" id="botonRecargar" ng-click="cargar()"><i class="fas fa-sync-alt"></i>Recargar datos</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="maps-container">
+      <div class="alert alert-danger" ng-if="estado.error" ng-cloak><i class="fas fa-exclamation-triangle mr-2"></i>No se pudieron leer los datos locales: {{estado.error}}</div>
+      <div class="text-center text-muted p-5" ng-if="estado.cargando">
+        <img src="images/loader2.gif" alt="">
+        <p class="mt-2">Leyendo las corridas guardadas en este dispositivo…</p>
+      </div>
+
+      <!-- ================================================================ filtros -->
+      <div class="modern-card mb-4" id="tarjetaFiltros" ng-if="!estado.cargando && !estado.error" ng-cloak>
+        <div class="modern-card-header"><div><i class="fas fa-filter"></i>Filtros</div></div>
+        <div class="modern-card-body formulario-local">
+          <div class="est-filtros">
+            <div class="form-group">
+              <label for="filtroCompetencia">Competencia</label>
+              <select class="form-control" id="filtroCompetencia" ng-model="f.competition" ng-change="cambioCompetencia()" ng-options="c._id as c.name for c in opciones.competencias"><option value="">Todas</option></select>
+            </div>
+            <div class="form-group">
+              <label for="filtroMapa">Mapa</label>
+              <select class="form-control" id="filtroMapa" ng-model="f.map" ng-change="recalcular()" ng-options="m._id as m.etiqueta for m in opciones.mapas"><option value="">Todos (sin mapa de calor)</option></select>
+            </div>
+            <div class="form-group">
+              <label for="filtroEquipo">Equipo</label>
+              <select class="form-control" id="filtroEquipo" ng-model="f.team" ng-change="recalcular()" ng-options="e._id as e.name for e in opciones.equipos"><option value="">Todos</option></select>
+            </div>
+            <div class="form-group">
+              <label for="filtroRonda">Ronda</label>
+              <select class="form-control" id="filtroRonda" ng-model="f.round" ng-change="recalcular()" ng-options="r._id as r.name for r in opciones.rondas"><option value="">Todas</option></select>
+            </div>
+            <div class="form-group">
+              <label for="filtroDesde">Desde</label>
+              <input class="form-control" type="date" id="filtroDesde" ng-model="fechas.desde" ng-change="cambioFechas()">
+            </div>
+            <div class="form-group">
+              <label for="filtroHasta">Hasta</label>
+              <input class="form-control" type="date" id="filtroHasta" ng-model="fechas.hasta" ng-change="cambioFechas()">
+            </div>
+            <div class="form-group">
+              <label for="filtroEstado">Estado mínimo</label>
+              <select class="form-control" id="filtroEstado" ng-model="f.estadoMinimo" ng-change="recalcular()" ng-options="e.valor as e.nombre for e in estados"></select>
+            </div>
+            <div class="form-group est-filtros-accion">
+              <button type="button" class="btn-tactil suave w-100" id="botonLimpiarFiltros" ng-click="limpiarFiltros()" ng-disabled="!hayFiltrosExtra()"><i class="fas fa-eraser"></i>Limpiar filtros</button>
+            </div>
+          </div>
+          <p class="small text-muted mb-0">Por defecto cuentan las corridas desde «3. Revisión del registro» en adelante (las que ya tienen el registro completo). La fecha es la hora de inicio de la corrida.</p>
+        </div>
+      </div>
+
+      <div ng-if="res && !estado.cargando" ng-cloak>
+        <div class="aviso-vacio mb-4" id="avisoSinCorridas" ng-if="res.n === 0">No hay corridas que cumplan los filtros. Probá bajar el estado mínimo o ampliar las fechas.</div>
+
+        <!-- ================================================================ resumen -->
+        <div class="est-kpis mb-4" id="resumenKpis" ng-if="res.n > 0">
+          <div class="est-kpi">
+            <div class="est-kpi-etiqueta">Corridas</div>
+            <div class="est-kpi-valor" id="kpiCorridas">{{res.n}}</div>
+            <div class="est-kpi-sub">{{res.nValidas}} con estructura válida</div>
+          </div>
+          <div class="est-kpi">
+            <div class="est-kpi-etiqueta">Score promedio</div>
+            <div class="est-kpi-valor" id="kpiScore">{{res.score.promedio | num:1}}</div>
+            <div class="est-kpi-sub">mejor {{res.score.mejor | num}} · peor {{res.score.peor | num}}</div>
+          </div>
+          <div class="est-kpi">
+            <div class="est-kpi-etiqueta">Raw score promedio</div>
+            <div class="est-kpi-valor" id="kpiRaw">{{res.raw.promedio | num:1}}</div>
+            <div class="est-kpi-sub">mejor {{res.raw.mejor | num}} · peor {{res.raw.peor | num}}<span ng-if="res.mapa && res.mapa.maxRaw"> · máx. {{res.mapa.maxRaw}}</span></div>
+          </div>
+          <div class="est-kpi">
+            <div class="est-kpi-etiqueta">Exit bonus</div>
+            <div class="est-kpi-valor" id="kpiExit">{{res.exitBonus.pct | pct:0}}</div>
+            <div class="est-kpi-sub">{{res.exitBonus.n}} de {{res.n}} · {{res.exitBonus.puntosPromedio | num:1}} pts por corrida</div>
+          </div>
+          <div class="est-kpi">
+            <div class="est-kpi-etiqueta">Tiempo usado</div>
+            <div class="est-kpi-valor" id="kpiTiempo">{{res.tiempo.promedio | mmss}}</div>
+            <div class="est-kpi-sub">mín. {{res.tiempo.peor | mmss}} · máx. {{res.tiempo.mejor | mmss}}</div>
+          </div>
+          <div class="est-kpi">
+            <div class="est-kpi-etiqueta">LoPs por corrida</div>
+            <div class="est-kpi-valor" id="kpiLops">{{res.lops.promedio | num:2}}</div>
+            <div class="est-kpi-sub">máx. {{res.lops.mejor | num}} en una corrida</div>
+          </div>
+        </div>
+
+        <!-- ================================================================ mapa de calor -->
+        <div class="modern-card mb-4" id="tarjetaCalor" ng-if="res.n > 0">
+          <div class="modern-card-header"><div><i class="fas fa-th"></i>Mapa de calor: éxito por baldosa</div></div>
+          <div class="modern-card-body">
+            <div class="aviso-vacio" ng-if="!res.heat">Elegí un mapa en los filtros para ver el mapa de calor, el recorrido por índice y los LoPs por tramo.</div>
+            <div ng-if="res.heat">
+              <div class="est-controles-calor">
+                <div class="btn-group est-grupo" role="group" aria-label="Qué se colorea">
+                  <button type="button" class="btn btn-outline-dark" id="modoFisica" ng-class="{active: vista.modo == 'fisica'}" ng-click="cambiarModo('fisica')">Baldosa física</button>
+                  <button type="button" class="btn btn-outline-dark" id="modoPasada" ng-class="{active: vista.modo == 'pasada'}" ng-click="cambiarModo('pasada')">Por pasada</button>
+                </div>
+                <select class="form-control est-select-pasada" id="selectorPasada" aria-label="Pasada" ng-if="vista.modo == 'pasada'" ng-model="vista.pasada" ng-change="armarGrilla()" ng-options="p as ('Pasada ' + (p + 1)) for p in grilla.pasadas"></select>
+                <div class="btn-group est-grupo" role="group" aria-label="Piso" ng-if="grilla.pisos.length > 1">
+                  <button type="button" class="btn btn-outline-dark est-piso" ng-repeat="zz in grilla.pisos" ng-class="{active: zz == vista.piso}" ng-click="cambiarPiso(zz)"><i class="fas fa-layer-group mr-1" ng-if="$first"></i>Piso {{zz}}</button>
+                </div>
+                <div class="est-leyenda" ng-bind-html="svg.leyenda"></div>
+              </div>
+              <p class="small text-muted">
+                {{res.heat.corridas}} {{res.heat.corridas === 1 ? 'corrida' : 'corridas'}} de este mapa. Cada elemento puntuable cuenta un intento por corrida: logrado si el juez lo marcó
+                (en checkpoints, si llegó al checkpoint; en la meta, si tuvo exit bonus).
+                <span ng-if="grilla.maxPasadas > 1">Hay baldosas con {{grilla.maxPasadas}} pasadas: «Baldosa física» junta todas, «Por pasada» muestra una.</span>
+                Tocá una baldosa para ver el detalle.
+              </p>
+              <div class="est-calor-cuerpo">
+                <div class="est-mapa-scroll">
+                  <div class="est-mapa" id="mapaCalor">
+                    <div class="est-fila" ng-repeat="fila in grilla.filas track by $index">
+                      <div class="est-slot" ng-repeat="c in fila track by c.key" data-key="{{c.key}}" title="{{c.titulo}}"
+                           ng-class="{'con-tile': c.tile, 'sin-indice': c.tile && !c.indices.length, 'seleccionada': vista.seleccion.key == c.key, 'fuera-pasada': c.fueraDePasada}"
+                           ng-click="seleccionar(c)">
+                        <img ng-if="c.tile && c.img" ng-src="images/tiles/{{c.img}}" class="rot{{c.rot}} tile-image" ng-class="{'drop-tile': c.esCheckpoint || c.esInicio}" alt="">
+                        <img ng-if="c.evac" ng-src="images/tiles/{{c.evac}}" class="rot{{c.evacRot}} tile-image" alt="">
+                        <i class="fas fa-minus fa-fw est-icono est-lomo" ng-repeat="l in c.lomos" ng-style="{top: (2 + l * 9) + 'px'}"></i>
+                        <i class="fas fa-cube fa-fw est-icono est-obstaculo" ng-if="c.obstaculo"></i>
+                        <i class="fas fa-mountain fa-fw est-icono est-rampa" ng-if="c.rampa"></i>
+                        <i class="far fa-play-circle fa-fw est-icono est-inicio" ng-if="c.esInicio"></i>
+                        <i class="far fa-play-circle fa-fw est-icono est-inicio2" ng-if="c.esInicio2 && !c.esInicio"></i>
+                        <span class="est-cp" ng-if="c.cp">{{c.cp}}</span>
+                        <div class="est-capa" ng-if="c.pct != null" ng-style="{'background-color': c.fondo}"></div>
+                        <span class="est-pct" ng-if="c.pct != null" ng-style="{'background-color': c.chip, color: c.tinta}">{{c.texto}}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="est-detalle" id="detalleBaldosa" ng-if="vista.seleccion">
+                  <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                      <div class="est-detalle-titulo">Baldosa ({{vista.seleccion.key}})</div>
+                      <div class="small text-muted">{{vista.seleccion.indices.length > 1 ? 'Índices' : 'Índice'}} {{vista.seleccion.indices.join(', ') || '–'}} · {{vista.seleccion.corridas}} corridas</div>
+                    </div>
+                    <button type="button" class="btn-tactil suave est-cerrar" aria-label="Cerrar detalle" ng-click="vista.seleccion = null; vista.indiceSel = null"><i class="fas fa-times"></i></button>
+                  </div>
+                  <div class="small text-muted mt-2" ng-if="!vista.seleccion.indices.length">Esta baldosa está fuera del recorrido puntuable (por ejemplo, dentro de la zona de evacuación).</div>
+                  <div ng-if="vista.seleccion.indices.length">
+                    <div class="est-detalle-total" ng-if="vista.seleccion.total.intentos">
+                      <span class="est-pct-grande" ng-style="{'background-color': E.colorExito(vista.seleccion.total.pct), color: E.tintaSobre(vista.seleccion.total.pct)}">{{vista.seleccion.total.pct | pct:0}}</span>
+                      <span>{{vista.seleccion.total.logrados}} de {{vista.seleccion.total.intentos}} intentos · pierde {{vista.seleccion.total.perdidos | num}} pts</span>
+                    </div>
+                    <div class="small text-muted mt-2" ng-if="!vista.seleccion.total.intentos">Sin elementos puntuables en esta baldosa.</div>
+                    <div class="est-pasada" ng-repeat="p in vista.seleccion.pasadas">
+                      <div class="est-pasada-titulo">
+                        <span ng-if="vista.seleccion.pasadas.length > 1">Pasada {{p.numero}} · </span>índice {{p.indice}} · {{p.tramo.nombre}}
+                        <span class="est-zona" ng-if="p.tramo.esZona">zona de evacuación</span>
+                        <span class="est-cp-texto" ng-if="p.numeroCheckpoint">CP{{p.numeroCheckpoint}}</span>
+                      </div>
+                      <table class="tabla-simple est-tabla-detalle" ng-if="p.lista.length">
+                        <tbody>
+                          <tr ng-repeat="c in p.lista" data-tipo="{{c.tipo}}">
+                            <td>{{c.nombre}}</td>
+                            <td class="num">{{c.logrados}}/{{c.intentos}}</td>
+                            <td class="num">{{c.pct | pct:0}}</td>
+                            <td class="num">−{{c.perdidos | num}} pts</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                      <div class="small text-muted" ng-if="!p.lista.length">Sin elementos puntuables en esta pasada.</div>
+                    </div>
+                    <div class="est-fallas" ng-if="vista.seleccion.fallas.length">
+                      <div class="est-pasada-titulo">Corridas con falla o puntos perdidos ({{vista.seleccion.fallas.length}})</div>
+                      <ul class="catalogo-lista">
+                        <li class="est-falla" ng-repeat="x in vista.seleccion.fallas | limitTo: 30">
+                          <span class="cl-nombre">{{x.equipo}}<span class="cl-extra"> · {{x.ronda}} · {{x.fecha | fecha:true}}</span></span>
+                          <span class="cl-extra">{{x.nombre}}: {{x.logrado ? 'parcial' : 'no logrado'}} (−{{x.perdidos | num}})</span>
+                          <a class="btn-tactil ver" ng-href="{{x.url}}" title="Ver la corrida" aria-label="Ver la corrida"><i class="fas fa-eye"></i></a>
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+                <div class="est-detalle est-detalle-vacio" ng-if="!vista.seleccion">
+                  <i class="fas fa-hand-pointer"></i>
+                  <div>Tocá una baldosa del mapa o una celda del recorrido para ver cada elemento, cada pasada y las corridas en que falló.</div>
+                </div>
+              </div>
+
+              <h6 class="est-subtitulo">Recorrido por índice <small class="text-muted">(el número es el % de éxito; la barra ámbar marca el salto a la zona de evacuación)</small></h6>
+              <div class="est-tira-scroll" id="tiraRecorrido" ng-click="clicTira($event)" ng-bind-html="svg.tira"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row">
+          <!-- ================================================================ por tipo de elemento -->
+          <div class="col-xl-6 mb-4" ng-if="res.n > 0">
+            <div class="modern-card h-100" id="tarjetaTipos">
+              <div class="modern-card-header"><div><i class="fas fa-list-ol"></i>Por tipo de elemento</div></div>
+              <div class="modern-card-body">
+                <div class="table-responsive">
+                  <table class="table table-sm est-tabla" id="tablaTipos">
+                    <thead>
+                      <tr><th>Elemento</th><th class="num">Intentos</th><th class="num">Logrados</th><th class="num">% éxito</th><th class="num">Posibles</th><th class="num">Perdidos</th></tr>
+                    </thead>
+                    <tbody>
+                      <tr ng-repeat="t in res.tablaTipos" data-tipo="{{t.tipo}}">
+                        <td>{{t.nombre}}</td>
+                        <td class="num">{{t.intentos}}</td>
+                        <td class="num">{{t.logrados}}</td>
+                        <td class="num"><span class="est-barra" aria-hidden="true"><span ng-style="{width: t.pct + '%'}"></span></span>{{t.pct | pct}}</td>
+                        <td class="num">{{t.posibles | num}}</td>
+                        <td class="num est-perdidos">{{t.perdidos | num}}</td>
+                      </tr>
+                    </tbody>
+                    <tfoot>
+                      <tr><th>Total (raw, sin multiplicador)</th><th></th><th></th><th></th><th class="num">{{res.totalLinea.posibles | num}}</th><th class="num">{{res.totalLinea.perdidos | num}}</th></tr>
+                    </tfoot>
+                  </table>
+                </div>
+                <p class="small text-muted mb-0">Checkpoint: cada tramo cuenta 5 pts por baldosa menos 2 por LoP (regla del servidor); «perdidos» incluye lo que quitan los LoPs. La meta y el exit bonus solo suman con exit bonus. Las corridas con estructura distinta a la del mapa no entran en esta tabla.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- ================================================================ LoPs por tramo -->
+          <div class="col-xl-6 mb-4" ng-if="res.n > 0">
+            <div class="modern-card h-100" id="tarjetaLops">
+              <div class="modern-card-header"><div><i class="fas fa-hand-paper"></i>LoPs por tramo</div></div>
+              <div class="modern-card-body">
+                <div class="aviso-vacio" ng-if="!res.tramos">Elegí un mapa para ver los LoPs de cada tramo.</div>
+                <div ng-if="res.tramos">
+                  <div class="est-leyenda-lops" aria-hidden="true">
+                    <span><i style="background:#86b6ef"></i>0 LoPs</span><span><i style="background:#3987e5"></i>1</span><span><i style="background:#1c5cab"></i>2</span><span><i style="background:#0d366b"></i>3 o más</span>
+                  </div>
+                  <div class="est-grafico" id="graficoLops" ng-bind-html="svg.lops"></div>
+                  <div class="table-responsive mt-2">
+                    <table class="table table-sm est-tabla" id="tablaTramos">
+                      <thead><tr><th>Tramo</th><th class="num">Promedio</th><th class="num">Máx.</th><th class="num">0 / 1 / 2 / 3+</th><th class="num">Pts perdidos por LoPs</th></tr></thead>
+                      <tbody>
+                        <tr ng-repeat="t in res.tramos" ng-class="{'est-fila-zona': t.esZona}" data-tramo="{{t.k}}">
+                          <td>{{t.nombre}} <span class="est-zona" ng-if="t.esZona">zona de evacuación</span></td>
+                          <td class="num">{{t.promedio | num:2}}</td>
+                          <td class="num">{{t.maximo | num}}</td>
+                          <td class="num">{{t.distribucion['0']}} / {{t.distribucion['1']}} / {{t.distribucion['2']}} / {{t.distribucion['3+']}}</td>
+                          <td class="num">{{t.perdidosPorLops | num}}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ================================================================ víctimas -->
+          <div class="col-xl-6 mb-4" ng-if="res.n > 0">
+            <div class="modern-card h-100" id="tarjetaVictimas">
+              <div class="modern-card-header"><div><i class="fas fa-ambulance"></i>Víctimas y multiplicador</div></div>
+              <div class="modern-card-body">
+                <div class="aviso-vacio" ng-if="!res.victimas.corridas">Ninguna corrida filtrada es de un mapa con víctimas.</div>
+                <div ng-if="res.victimas.corridas">
+                  <div class="est-kpis est-kpis-chicos">
+                    <div class="est-kpi">
+                      <div class="est-kpi-etiqueta">Rescates efectivos</div>
+                      <div class="est-kpi-valor" id="kpiRescates">{{res.victimas.pctEfectivas | pct:0}}</div>
+                      <div class="est-kpi-sub">{{res.victimas.efectivas}} de {{res.victimas.registradas}} registradas</div>
+                    </div>
+                    <div class="est-kpi">
+                      <div class="est-kpi-etiqueta">Multiplicador promedio</div>
+                      <div class="est-kpi-valor" id="kpiMultiplicador">×{{res.victimas.multiplicadorPromedio | num:3}}</div>
+                      <div class="est-kpi-sub">×{{res.victimas.multiplicadorPromedioConRescate | num:3}} en corridas con rescate</div>
+                    </div>
+                  </div>
+                  <table class="tabla-simple w-100 mt-3" id="tablaVictimas">
+                    <tbody>
+                      <tr><td>Corridas de mapas con víctimas</td><td class="num">{{res.victimas.corridas}}</td></tr>
+                      <tr><td>Víctimas posibles (vivas + muertas del mapa)</td><td class="num">{{res.victimas.maximoPosible}}</td></tr>
+                      <tr><td>Efectivas sobre las posibles</td><td class="num">{{res.victimas.pctSobreMaximo | pct:0}}</td></tr>
+                      <tr><td>Kits de rescate efectivos</td><td class="num">{{res.victimas.kit}}</td></tr>
+                      <tr><td>Errores de zona</td><td class="num est-perdidos">{{res.victimas.zonaErronea}} <small class="text-muted">(viva en roja {{res.victimas.vivaEnRoja}} · muerta en verde {{res.victimas.muertaEnVerde}})</small></td></tr>
+                      <tr><td>Muerta antes que todas las vivas</td><td class="num est-perdidos">{{res.victimas.muertaAntes}}</td></tr>
+                      <tr><td>Multiplicador teórico sin LoPs en la zona</td><td class="num">×{{res.victimas.multiplicadorPromedioSinLopsZona | num:3}}</td></tr>
+                    </tbody>
+                  </table>
+                  <p class="small text-muted mb-0 mt-2">Regla del servidor: una víctima cuenta si no es viva en zona roja ni muerta en zona verde, y una muerta solo cuenta después de todas las vivas del mapa. Cada una multiplica por máx(1,4 − 0,05 × LoPs del tramo de la zona; 1,25).</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ================================================================ evolución -->
+          <div class="col-xl-6 mb-4" ng-if="res.n > 0">
+            <div class="modern-card h-100" id="tarjetaEvolucion">
+              <div class="modern-card-header"><div><i class="fas fa-chart-line"></i>Evolución por fecha</div></div>
+              <div class="modern-card-body">
+                <div class="est-leyenda-lops" aria-hidden="true">
+                  <span><i style="background:#2a78d6"></i>Score</span><span><i style="background:#eb6834"></i>Raw score</span>
+                </div>
+                <div class="est-grafico" id="graficoEvolucion">
+                  <div ng-bind-html="svg.evolucion"></div>
+                  <div class="est-tip" id="tipEvolucion" hidden></div>
+                </div>
+                <table class="tabla-simple w-100 mt-2" id="tablaMejorPeor">
+                  <tbody>
+                    <tr><th></th><th class="num">Score</th><th class="num">Raw</th></tr>
+                    <tr><td>Mejor</td><td class="num">{{res.score.mejor | num}}</td><td class="num">{{res.raw.mejor | num}}</td></tr>
+                    <tr><td>Promedio</td><td class="num">{{res.score.promedio | num:1}}</td><td class="num">{{res.raw.promedio | num:1}}</td></tr>
+                    <tr><td>Peor</td><td class="num">{{res.score.peor | num}}</td><td class="num">{{res.raw.peor | num}}</td></tr>
+                  </tbody>
+                </table>
+                <p class="small text-muted mb-0 mt-2" ng-if="res.score.mejorCorrida">Mejor: {{res.score.mejorCorrida.equipo}} · {{res.score.mejorCorrida.ronda}} ({{res.score.mejorCorrida.fecha | fecha}}). Peor: {{res.score.peorCorrida.equipo}} · {{res.score.peorCorrida.ronda}} ({{res.score.peorCorrida.fecha | fecha}}).</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================================================================ consistencia -->
+        <div class="modern-card mb-4" id="tarjetaConsistencia" ng-if="res.n > 0">
+          <div class="modern-card-header"><div><i class="fas fa-balance-scale"></i>Consistencia del puntaje</div></div>
+          <div class="modern-card-body">
+            <div class="est-ok" ng-if="!res.inconsistentes.length && !res.sinEstructura.length"><i class="fas fa-check-circle"></i>Las {{res.n}} corridas dan el mismo score, raw score y multiplicador al recalcularlas con el cálculo del servidor.</div>
+            <div ng-if="res.inconsistentes.length">
+              <p class="mb-2"><b>{{res.inconsistentes.length}}</b> {{res.inconsistentes.length === 1 ? 'corrida tiene' : 'corridas tienen'}} un puntaje guardado distinto del recalculado:</p>
+              <ul class="catalogo-lista" id="listaInconsistentes">
+                <li ng-repeat="a in res.inconsistentes" data-run="{{a._id}}">
+                  <span class="cl-nombre">{{a.equipo}}<span class="cl-extra"> · {{a.ronda}} · {{a.fecha | fecha:true}}</span></span>
+                  <span class="cl-extra">guardado {{a.guardado.score}} (raw {{a.guardado.raw_score}}, ×{{a.guardado.multiplier | num:3}}) · recalculado {{a.recalculado ? a.recalculado.score : '–'}} (raw {{a.recalculado.raw_score}}, ×{{a.recalculado.multiplier | num:3}})</span>
+                  <a class="btn-tactil ver" ng-href="{{urlVista(a._id)}}" title="Ver la corrida" aria-label="Ver la corrida"><i class="fas fa-eye"></i></a>
+                </li>
+              </ul>
+            </div>
+            <div ng-if="res.sinEstructura.length" class="mt-2">
+              <p class="mb-2"><b>{{res.sinEstructura.length}}</b> {{res.sinEstructura.length === 1 ? 'corrida no coincide' : 'corridas no coinciden'}} con la estructura de su mapa y quedan fuera del desglose por elemento:</p>
+              <ul class="catalogo-lista">
+                <li ng-repeat="a in res.sinEstructura"><span class="cl-nombre">{{a.equipo}} · {{a.ronda}}</span><span class="cl-extra">{{a.avisos.join(' / ')}}</span></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================================================================ corridas -->
+        <div class="modern-card mb-4" id="tarjetaCorridas" ng-if="res.n > 0">
+          <div class="modern-card-header"><div><i class="fas fa-table"></i>Corridas</div></div>
+          <div class="modern-card-body">
+            <div class="est-exportar">
+              <div class="btn-group est-grupo" role="group" aria-label="Formato del CSV">
+                <button type="button" class="btn btn-outline-dark" id="formatoExcel" ng-class="{active: vista.formato == 'excel'}" ng-click="vista.formato = 'excel'">Excel en español (; y coma)</button>
+                <button type="button" class="btn btn-outline-dark" id="formatoEstandar" ng-class="{active: vista.formato == 'estandar'}" ng-click="vista.formato = 'estandar'">CSV estándar</button>
+              </div>
+              <button type="button" class="btn-tactil oscuro" id="exportarCorridas" ng-click="exportar('corridas', vista.formato)"><i class="fas fa-file-csv"></i>Exportar corridas</button>
+              <button type="button" class="btn-tactil oscuro" id="exportarPasadas" ng-click="exportar('pasadas', vista.formato)" ng-disabled="!res.heat" title="Necesita un mapa elegido"><i class="fas fa-file-csv"></i>Exportar elementos por pasada</button>
+            </div>
+            <div class="small text-muted mb-2" ng-if="ultimaExportacion">Exportado {{ultimaExportacion.nombre}} ({{ultimaExportacion.filas}} filas).</div>
+            <div class="table-responsive">
+              <table class="table table-sm est-tabla" id="tablaCorridas">
+                <thead>
+                  <tr>
+                    <th>Fecha</th><th>Equipo</th><th>Ronda</th><th ng-if="!f.map">Mapa</th><th>Estado</th><th class="num">LoPs</th><th class="num">Víctimas</th>
+                    <th class="num">Exit</th><th class="num">Tiempo</th><th class="num">Raw</th><th class="num">Mult.</th><th class="num">Score</th><th class="num">Recalc.</th><th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr ng-repeat="a in corridasTabla track by a._id" data-run="{{a._id}}" ng-class="{'fila-inconsistente': a.consistente === false}">
+                    <td class="est-nowrap">{{a.fecha | fecha:true}}</td>
+                    <td>{{a.equipo}}</td>
+                    <td>{{a.ronda}}</td>
+                    <td ng-if="!f.map">{{a.mapa}}</td>
+                    <td><span class="estado-pastilla e{{a.status}}">{{nombreEstado(a.status)}}</span></td>
+                    <td class="num" title="Por tramo: {{a.LoPs.join(' | ')}}">{{a.desglose ? a.desglose.lopsTotal : '–'}}</td>
+                    <td class="num">{{a.victimas ? a.victimas.efectivas + '/' + a.victimas.registradas : '–'}}</td>
+                    <td class="num">{{a.exitBonus ? 'sí' : 'no'}}</td>
+                    <td class="num">{{a.tiempo | mmss}}</td>
+                    <td class="num">{{a.guardado.raw_score | num}}</td>
+                    <td class="num">×{{a.guardado.multiplier | num:3}}</td>
+                    <td class="num"><b>{{a.guardado.score | num}}</b></td>
+                    <td class="num">
+                      <span class="est-consistente" ng-if="a.consistente === true" title="Coincide con el recálculo"><i class="fas fa-check"></i></span>
+                      <span class="est-inconsistente" ng-if="a.consistente === false" title="El recálculo da {{a.recalculado ? a.recalculado.score : 'error'}}"><i class="fas fa-exclamation-triangle"></i> {{a.recalculado ? a.recalculado.score : 'error'}}</span>
+                      <span class="text-muted" ng-if="a.consistente == null" title="{{a.avisos.join(' / ')}}">–</span>
+                    </td>
+                    <td class="est-acciones">
+                      <a class="btn-tactil ver" ng-href="{{urlVista(a._id)}}" title="Ver la corrida" aria-label="Ver la corrida"><i class="fas fa-eye"></i></a>
+                      <a class="btn-tactil juez" ng-href="{{urlJuez(a._id)}}" title="Abrir en el juez" aria-label="Abrir en el juez"><i class="fas fa-gavel"></i></a>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- 1.G footer.pug -->
+  <footer class="footer" style="background-color: #000000; width: 100%;">
+    <div class="d-flex justify-content-between align-items-center w-100 px-3 pt-1 pb-2 m-0">
+      <div class="footer-text text-truncate" style="text-align:left; font-size:max(12px, min(1vw, 25px)); white-space: nowrap; color: #aaaaaa;">
+        <i class="far fa-copyright" aria-hidden="true"></i>&nbsp;2016-2026 RoboCupJunior Rescue CMS Development SubCommittee&nbsp;-&nbsp;<i class="fas fa-code-branch" aria-hidden="true"></i>&nbsp; v26.0.2
+      </div>
+    </div>
+  </footer>
+  <!-- 1.F language_modal.pug con ES (regla 3c) -->
+  <div class="modal fade" id="languageModal" tabindex="-1" role="dialog" aria-labelledby="languageModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+      <div class="modal-content premium-modal-content">
+        <div class="modal-header border-0">
+          <button class="close" type="button" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+        </div>
+        <div class="modal-body px-5 pb-5">
+          <div class="text-center mb-5">
+            <i class="fas fa-language fa-4x mb-3" style="color: var(--primary-color);"></i>
+            <h2 class="modal-title font-weight-bold">{{"select_lang" | translate}}</h2>
+          </div>
+          <div class="row no-gutters gap-3">
+            <div class="col-6 pr-2">
+              <div class="language-card" onclick="changeLanguage('en')">
+                <div class="lang-circle bg-primary">EN</div>
+                <h4>English</h4>
+              </div>
+            </div>
+            <div class="col-6 pl-2">
+              <div class="language-card" onclick="changeLanguage('ja')">
+                <div class="lang-circle bg-danger">JA</div>
+                <h4>日本語</h4>
+              </div>
+            </div>
+          </div>
+          <div class="row no-gutters gap-3 mt-3">
+            <div class="col-6 pr-2">
+              <div class="language-card" onclick="changeLanguage('es')">
+                <div class="lang-circle bg-success">ES</div>
+                <h4>Español</h4>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+      function changeLanguage(langKey) {
+          try {
+              const injector = angular.element(document.body).injector();
+              const $translate = injector.get('$translate');
+              $translate.use(langKey).then(function() {
+                  window.location.reload();
+              });
+          } catch (e) {
+              console.error("Language switch failed, reloading anyway...", e);
+              window.location.reload();
+          }
+      }
+  </script>
+</body>
+</html>

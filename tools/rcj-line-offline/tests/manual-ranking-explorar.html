@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>manual-ranking — exploración del mapa de prueba (auxiliar)</title>
+<script src="manual-ranking-comun.js"></script>
+<script src="../local/config.js"></script>
+<script src="../local/io-shim.js"></script>
+<script src="../local/nucleo/store.js"></script>
+<script src="../local/nucleo/pathfinder-servidor.js"></script>
+<script src="../local/nucleo/init-run.js"></script>
+<script src="../local/nucleo/score-2026.js"></script>
+<script src="../local/nucleo/copy-properties.js"></script>
+<script src="../local/nucleo/api.js"></script>
+<script src="../local/nucleo/ranking.js"></script>
+</head>
+<body>
+<pre id="resultado">PENDIENTE</pre>
+<script>
+// Página auxiliar: vuelca la estructura de la corrida inicializada sobre los mapas de prueba para
+// diseñar los escenarios de tests/manual-ranking-manual.html y -ranking.html.
+T.correr(async function () {
+  await T.resetear();
+  await RCJLocal.semillas({ tilesets: await T.fixture('tilesets.json') });
+  var cid = (await T.api('GET', '/api/competitions/')).data[0]._id;
+  var ronda = (await T.api('GET', '/api/competitions/' + cid + '/rounds')).data[0];
+  var cancha = (await T.api('GET', '/api/competitions/' + cid + '/fields')).data[0];
+  var equipo = (await T.api('GET', '/api/competitions/' + cid + '/Line/teams')).data[0];
+  var salida = {};
+  var fx = await T.fixture('fixture-mapa-oficial.json');
+  fx.finished = true;
+  var nombres = { 'fixture-mapa-oficial.json': fx, 'ejemplo-01.json': await T.fixture('ejemplo-01.json') };
+  var n = 0;
+  for (var k in nombres) {
+    var mapId = await RCJLocal.ingestMap(nombres[k], { competition: cid, nombre: 'M' + (n++) });
+    var mapa = (await T.api('GET', '/api/maps/line/' + mapId + '?populate=true')).data;
+    var runId = (await T.api('POST', '/api/runs/line', { round: ronda._id, team: equipo._id, field: cancha._id, competition: cid, map: mapId })).data;
+    if (!runId.id) { salida[k] = { errorPost: runId, finished: mapa.finished }; await T.api('DELETE', '/api/rounds/x'); continue; }
+    var run = (await T.api('GET', '/api/runs/line/' + runId.id)).data;
+    salida[k] = {
+      indexCount: mapa.indexCount, EvacuationAreaLoPIndex: mapa.EvacuationAreaLoPIndex, victims: mapa.victims, finished: mapa.finished,
+      tilesMapa: mapa.tiles.map(function (t) { return [t.x, t.y, t.z, t.tileType.image, t.index, t.items, t.checkPoint]; }),
+      LoPs: run.LoPs,
+      tiles: run.tiles.map(function (t, i) { return i + ':' + t.scoredItems.map(function (s) { return s.item + 'x' + s.count; }).join(','); })
+    };
+    await T.api('DELETE', '/api/runs/line/' + runId.id);
+  }
+  T.check('exploración', true);
+  return salida;
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,251 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<!-- Las páginas reales viven en la raíz: con base ../ esta prueba resuelve las rutas igual que ellas. -->
+<base href="../">
+<title>Prueba assets: vendor, idioma y recursos</title>
+<script>
+  // Captura de errores ANTES de cargar cualquier librería.
+  window.__errores = [];
+  window.onerror = function (msg, src, linea) { __errores.push('onerror: ' + msg + ' @ ' + src + ':' + linea); };
+  window.addEventListener('error', function (ev) {
+    var t = ev.target;
+    if (t && t !== window && (t.src || t.href)) { __errores.push('recurso que no cargó: ' + (t.src || t.href)); }
+  }, true);
+  (function () {
+    var ce = console.error;
+    console.error = function () {
+      __errores.push('console.error: ' + Array.prototype.map.call(arguments, function (a) { return String(a && a.stack || a); }).join(' '));
+      ce.apply(console, arguments);
+    };
+  })();
+</script>
+<!-- common_component.pug (orden original), incluidas las librerías que las páginas omiten, para probar que todas cargan -->
+<script src="components/jquery/dist/jquery.min.js"></script>
+<script src="components/popper.js/dist/umd/popper.min.js"></script>
+<script src="components/bootstrap/dist/js/bootstrap.min.js"></script>
+<script src="components/angular/angular.min.js"></script>
+<script src="components/angular-animate/angular-animate.min.js"></script>
+<script src="components/alertifyjs/dist/js/ngAlertify.js"></script>
+<script src="components/sweetalert2/dist/sweetalert2.all.min.js"></script>
+<script src="components/socket.io-client/dist/socket.io.min.js"></script>
+<script src="components/angular-bootstrap/dist/ui-bootstrap-tpls.js"></script>
+<script src="components/angular-translate/angular-translate.min.js"></script>
+<script src="components/angular-translate-loader-static-files/angular-translate-loader-static-files.min.js"></script>
+<script src="components/angular-translate-storage-local/angular-translate-storage-local.min.js"></script>
+<script src="components/angular-translate-storage-cookie/angular-translate-storage-cookie.min.js"></script>
+<script src="components/angular-translate-handler-log/angular-translate-handler-log.min.js"></script>
+<script src="components/angular-cookies/angular-cookies.min.js"></script>
+<script src="components/angular-touch/angular-touch.min.js"></script>
+<script src="components/angular-sanitize/angular-sanitize.min.js"></script>
+<script src="components/angular-ui-select/dist/select.min.js"></script>
+<!-- extras de páginas -->
+<script src="components/bootstrap-fileinput/js/fileinput.min.js"></script>
+<script src="components/bootstrap-fileinput/js/locales/ja.js"></script>
+<script src="components/html2canvas/index.js"></script>
+<script src="components/jquery-qrcode/jquery.qrcode.min.js"></script>
+<script src="components/lightbox2/dist/js/lightbox.min.js"></script>
+<script src="components/jSignature/libs/jSignature.min.js"></script>
+<script src="components/datatables/media/js/jquery.dataTables.min.js"></script>
+<script src="components/angular-datatables/demo/src/archives/dist/angular-datatables.min.js"></script>
+<script src="components/angular-bootstrap-datetimepicker/src/js/datetimepicker.js"></script>
+<script src="components/angular-bootstrap-datetimepicker/src/js/datetimepicker.templates.js"></script>
+<script src="components/ng-file-upload/ng-file-upload-all.min.js"></script>
+<script src="components/exceljs/index.js"></script>
+<!-- nuevas -->
+<script src="components/pdfkit/js/pdfkit.standalone.js"></script>
+<script src="components/qrcode-generator/qrcode.js"></script>
+<script src="components/mobile-drag-drop/index.min.js"></script>
+<script src="components/mobile-drag-drop/scroll-behaviour.min.js"></script>
+<script>
+  var app = angular.module('pruebaAssets', ['ngTouch', 'ngAnimate', 'ui.bootstrap', 'pascalprecht.translate', 'ngCookies',
+    'ngSanitize', 'datatables', 'ui.bootstrap.datetimepicker', 'ngFileUpload']);
+</script>
+<script src="javascripts/translate_config.js"></script>
+<link rel="stylesheet" href="components/bootstrap/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="stylesheets/style.css">
+<link rel="stylesheet" href="stylesheets/navbar_premium.css">
+<link rel="stylesheet" href="components/font-awesome-5/css/all.min.css">
+<link rel="stylesheet" href="components/angular-bootstrap/dist/ui-bootstrap-csp.css">
+<link rel="stylesheet" href="components/angular-ui-select/dist/select.min.css">
+<link rel="stylesheet" href="stylesheets/fredrik.css">
+<link rel="stylesheet" href="components/bootstrap-fileinput/css/fileinput.min.css">
+<link rel="stylesheet" href="stylesheets/admin/mapEditor/maze_modern.css">
+<link rel="stylesheet" href="stylesheets/admin/mapEditor/line_modern.css">
+<link rel="stylesheet" href="stylesheets/common/modern_layout.css">
+<link rel="stylesheet" href="stylesheets/common/modern_components.css">
+<link rel="stylesheet" href="stylesheets/common/modern_list.css">
+<link rel="stylesheet" href="stylesheets/common/modern_modal.css">
+<link rel="stylesheet" href="stylesheets/admin/live_ranking.css">
+<link rel="stylesheet" href="components/lightbox2/dist/css/lightbox.min.css">
+<link rel="stylesheet" href="components/css-toggle-switch/dist/toggle-switch.css">
+<link rel="stylesheet" href="components/angular-bootstrap-datetimepicker/src/css/datetimepicker.css">
+<link rel="stylesheet" href="components/mobile-drag-drop/default.css">
+</head>
+<body>
+<div id="app" ng-controller="PruebaController">
+  <button class="btn btn-primary" id="boton">{{'common.back' | translate}}</button>
+  <i class="fas fa-home" id="icono"></i>
+  <div id="firma" style="width:400px;height:150px"></div>
+</div>
+<pre id="resultado">PENDIENTE</pre>
+<script>
+(function () {
+  var r = { chequeos: {}, fallas: [] };
+  function chk(nombre, fn) {
+    try {
+      var v = fn();
+      r.chequeos[nombre] = v;
+      if (v === false || v === undefined || v === null) { r.fallas.push(nombre); }
+    } catch (e) { r.chequeos[nombre] = 'EXCEPCIÓN: ' + e; r.fallas.push(nombre); }
+  }
+  function modulo(n) { try { angular.module(n); return true; } catch (e) { return false; } }
+  function escribir() {
+    r.errores = window.__errores;
+    r.ok = r.fallas.length === 0 && window.__errores.length === 0;
+    document.getElementById('resultado').textContent = JSON.stringify(r, null, 2);
+  }
+  var guardia = setTimeout(function () { r.fallas.push('timeout: no terminaron las pruebas asíncronas'); escribir(); }, 18000);
+
+  // ---- versiones y globales
+  chk('jquery_3.7.1', function () { return jQuery.fn.jquery === '3.7.1'; });
+  chk('popper', function () { return typeof Popper === 'function'; });
+  chk('bootstrap_js_4.4.1', function () { return jQuery.fn.tooltip.Constructor.VERSION === '4.4.1'; });
+  chk('angular_1.8.2', function () { return angular.version.full === '1.8.2'; });
+  chk('sweetalert2_swal_y_Swal.fire', function () { return typeof swal === 'function' && typeof Swal.fire === 'function' && typeof Swal.mixin === 'function'; });
+  chk('sweetalert2_version', function () { return (Swal.version || swal.version) === '7.33.1'; });
+  chk('socket.io_global', function () { return typeof io === 'function'; });
+  chk('fileinput', function () { return typeof jQuery.fn.fileinput === 'function' && !!jQuery.fn.fileinputLocales.ja; });
+  chk('html2canvas', function () { return typeof html2canvas === 'function'; });
+  chk('jquery_qrcode', function () { return typeof jQuery.fn.qrcode === 'function'; });
+  chk('lightbox2', function () { return typeof lightbox === 'object' || typeof lightbox === 'function'; });
+  chk('jSignature', function () { return typeof jQuery.fn.jSignature === 'function'; });
+  chk('datatables_1.10.21', function () { return jQuery.fn.dataTable.version === '1.10.21'; });
+  chk('exceljs', function () { return typeof ExcelJS === 'object' && typeof ExcelJS.Workbook === 'function'; });
+  chk('pdfkit_global', function () { return typeof PDFDocument === 'function'; });
+  chk('qrcode_generator', function () {
+    var q = qrcode(0, 'M'); q.addData('rcj-line-offline'); q.make();
+    return q.createDataURL(4).indexOf('data:image/gif;base64,') === 0;
+  });
+  chk('mobile_drag_drop', function () { return typeof MobileDragDrop === 'object' && typeof MobileDragDrop.polyfill === 'function' && typeof MobileDragDrop.scrollBehaviourDragImageTranslateOverride === 'function'; });
+  ['ngAnimate', 'ngAlertify', 'ui.bootstrap', 'pascalprecht.translate', 'ngCookies', 'ngTouch', 'ngSanitize', 'ui.select',
+   'datatables', 'ui.bootstrap.datetimepicker', 'ngFileUpload'].forEach(function (m) { chk('modulo_' + m, function () { return modulo(m); }); });
+
+  // ---- CSS: todas las hojas cargaron y tienen reglas
+  chk('hojas_de_estilo', function () {
+    var malas = [];
+    Array.prototype.forEach.call(document.querySelectorAll('link[rel=stylesheet]'), function (l) {
+      try { if (!l.sheet || l.sheet.cssRules.length === 0) { malas.push(l.getAttribute('href')); } } catch (e) { malas.push(l.getAttribute('href') + ' (' + e + ')'); }
+    });
+    return malas.length === 0 ? true : malas;
+  });
+  chk('bootstrap_css_aplicado', function () { return getComputedStyle(document.getElementById('boton')).display === 'inline-block'; });
+
+  // ---- jSignature real
+  chk('jSignature_svgbase64', function () {
+    jQuery('#firma').jSignature();
+    var d = jQuery('#firma').jSignature('getData', 'svgbase64');
+    return Array.isArray(d) && d[0] === 'image/svg+xml;base64';
+  });
+
+  var promesas = [];
+  // ---- Angular: bootstrap con todos los módulos + traducción
+  promesas.push(new Promise(function (resolver) {
+    app.controller('PruebaController', ['$scope', '$translate', '$uibModal', 'Upload', '$cookies', function ($scope, $translate, $uibModal, Upload, $cookies) {
+      $translate.onReady().then(function () {
+        r.chequeos.translate_use = $translate.use();
+        r.chequeos.translate_common_back = $translate.instant('common.back');
+        r.chequeos.translate_mapName = $translate.instant('admin.lineMapEditor.mapName');
+        if ($translate.use() !== 'es' || $translate.instant('common.back') !== 'Volver') { r.fallas.push('traduccion_es'); }
+        setTimeout(function () {
+          r.chequeos.boton_traducido_en_dom = document.getElementById('boton').textContent;
+          if (document.getElementById('boton').textContent !== 'Volver') { r.fallas.push('boton_traducido_en_dom'); }
+          resolver();
+        }, 300);
+      });
+    }]);
+    try { angular.bootstrap(document.getElementById('app'), ['pruebaAssets']); r.chequeos.angular_bootstrap = true; }
+    catch (e) { r.chequeos.angular_bootstrap = 'EXCEPCIÓN: ' + e; r.fallas.push('angular_bootstrap'); resolver(); }
+  }));
+
+  // ---- Font Awesome woff2
+  promesas.push(Promise.all([
+    document.fonts.load('900 16px "Font Awesome 5 Free"'),
+    document.fonts.load('400 16px "Font Awesome 5 Free"'),
+    document.fonts.load('400 16px "Font Awesome 5 Brands"')
+  ]).then(function (res) {
+    r.chequeos.fontawesome_caras_cargadas = res.map(function (x) { return x.length; });
+    if (res.some(function (x) { return x.length === 0; })) { r.fallas.push('fontawesome_woff2'); }
+  }));
+
+  // ---- PDFKit: documento con texto e imagen (ArrayBuffer) -> bytes %PDF
+  promesas.push(fetch('images/logo.png').then(function (resp) { return resp.arrayBuffer(); }).then(function (buf) {
+    return new Promise(function (resolver) {
+      var doc = new PDFDocument({ size: 'A4' });
+      var trozos = [];
+      doc.on('data', function (c) { trozos.push(c); });
+      doc.on('end', function () {
+        var total = trozos.reduce(function (a, c) { return a + c.length; }, 0);
+        var cabeza = String.fromCharCode.apply(null, Array.prototype.slice.call(trozos[0], 0, 5));
+        r.chequeos.pdfkit_bytes = total;
+        r.chequeos.pdfkit_cabecera = cabeza;
+        if (cabeza !== '%PDF-' || total < 1000) { r.fallas.push('pdfkit_documento'); }
+        resolver();
+      });
+      doc.font('Helvetica').fontSize(20).text('Competition - prueba rcj-line-offline', 50, 50);
+      doc.image(buf, 50, 100, { width: 100 });
+      doc.end();
+    });
+  }).catch(function (e) { r.chequeos.pdfkit = 'EXCEPCIÓN: ' + e; r.fallas.push('pdfkit_documento'); }));
+
+  // ---- recursos de datos
+  function traer(url, tipo) {
+    return fetch(url).then(function (resp) {
+      if (!resp.ok) { throw new Error('HTTP ' + resp.status); }
+      return tipo === 'json' ? resp.json() : resp.arrayBuffer();
+    });
+  }
+  promesas.push(traer('data/tilesets.json', 'json').then(function (ts) {
+    r.chequeos.tilesets = ts.map(function (t) { return t.name + ':' + t.tiles.length; });
+    var imagenes = {};
+    ts.forEach(function (t) { t.tiles.forEach(function (x) { imagenes[x.tileType.image] = true; }); });
+    var lista = Object.keys(imagenes).map(function (i) { return 'images/tiles/' + i; })
+      .concat(['images/tiles/ev-entrance.png', 'images/tiles/ev-exit.png', 'images/tiles/tile-0.png',
+        'images/liveVictim.png', 'images/deadVictim.png', 'images/rescueKit.png', 'images/line_bonus.png', 'images/nl_bonus.png',
+        'images/evacZone/red_lv2.png', 'images/evacZone/green_lv2.png', 'images/evacZone/red_lv2_a.png', 'images/evacZone/green_lv2_a.png',
+        'images/next-robot-done.png', 'images/next-robot-undone.png', 'images/loader2.gif', 'images/logo.png', 'images/noLogo.png',
+        'images/mapimage/start.png', 'images/mapimage/start2.png', 'scoresheet_generation/line/base2024.png']);
+    return Promise.all(lista.map(function (src) {
+      return new Promise(function (ok) {
+        var im = new Image();
+        im.onload = function () { ok(im.naturalWidth > 0 ? null : src + ' (ancho 0)'); };
+        im.onerror = function () { ok(src); };
+        im.src = src;
+      });
+    })).then(function (res) {
+      var malas = res.filter(Boolean);
+      r.chequeos.imagenes_cargadas = (lista.length - malas.length) + '/' + lista.length;
+      if (malas.length) { r.chequeos.imagenes_fallidas = malas; r.fallas.push('imagenes'); }
+    });
+  }).catch(function (e) { r.chequeos.tilesets = 'EXCEPCIÓN: ' + e; r.fallas.push('tilesets'); }));
+  ['lang/en.json', 'lang/ja.json', 'lang/es.json'].forEach(function (u) {
+    promesas.push(traer(u, 'json').then(function (j) { r.chequeos[u] = Object.keys(j).length + ' claves raíz'; })
+      .catch(function (e) { r.chequeos[u] = 'EXCEPCIÓN: ' + e; r.fallas.push(u); }));
+  });
+  ['templates/tile.html', 'templates/line_editor_modal.html?gs', 'templates/line_judge_modal.html', 'templates/line_view_modal.html'].forEach(function (u) {
+    promesas.push(traer(u, 'buf').then(function (b) { r.chequeos[u] = b.byteLength + ' bytes'; })
+      .catch(function (e) { r.chequeos[u] = 'EXCEPCIÓN: ' + e; r.fallas.push(u); }));
+  });
+  ['sounds/click.mp3', 'sounds/info.mp3', 'sounds/error.mp3', 'sounds/timeup.mp3'].forEach(function (u) {
+    promesas.push(traer(u, 'buf').then(function (b) {
+      r.chequeos[u] = b.byteLength + ' bytes';
+      if (b.byteLength < 1000) { r.fallas.push(u); }
+    }).catch(function (e) { r.chequeos[u] = 'EXCEPCIÓN: ' + e; r.fallas.push(u); }));
+  });
+
+  Promise.all(promesas).then(function () { clearTimeout(guardia); escribir(); });
+})();
+</script>
+</body>
+</html>

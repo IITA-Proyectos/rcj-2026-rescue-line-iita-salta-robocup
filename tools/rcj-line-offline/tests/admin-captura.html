@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Admin — capturas (mosaico de iframes)</title>
+<!--
+  Usada por tests/admin-correr.py con --screenshot, con el mismo perfil de Edge que admin-flujo.html (los datos
+  quedan en su IndexedDB). Muestra la página pedida en n iframes de ancho×alto apilados, cada uno desplazado un
+  poco más abajo, para ver la página completa con el alto de ventana real del dispositivo.
+  Además mide, en el primer iframe: scroll horizontal, controles fuera de la pantalla o recortados (inalcanzables)
+  y controles chicos para el dedo (< 40 px). El resultado se manda por POST a /__resultado?nombre=<nombre>.
+  Parámetros: pagina=index.html ancho=412 alto=915 n=1..8 q=<query extra> nombre=<id de la captura>
+-->
+<script src="admin-comun.js"></script>
+<style>
+  html, body { margin: 0; padding: 0; background: #000; overflow: hidden; }
+  iframe { display: block; border: 0; margin: 0 0 4px 0; background: #fff; }
+  #resultado { display: none; }
+</style>
+</head>
+<body>
+<pre id="resultado">PENDIENTE</pre>
+<div id="marcos"></div>
+<script>
+T.alTerminar = function (res) {
+  var nombre = new URLSearchParams(location.search).get('nombre');
+  if (!nombre) return null;
+  return fetch('/__resultado?nombre=' + encodeURIComponent(nombre), { method: 'POST', body: JSON.stringify(res) });
+};
+
+function describir(el) {
+  var s = el.tagName.toLowerCase();
+  if (el.id) s += '#' + el.id;
+  var c = (typeof el.className === 'string' ? el.className : '').trim().split(/\s+/).filter(Boolean).slice(0, 2);
+  if (c.length) s += '.' + c.join('.');
+  var t = (el.textContent || el.getAttribute('title') || '').trim().replace(/\s+/g, ' ').slice(0, 30);
+  return s + (t ? ' «' + t + '»' : '');
+}
+
+T.correr(async function () {
+  var q = new URLSearchParams(location.search);
+  var pagina = q.get('pagina') || 'index.html';
+  var ancho = Number(q.get('ancho') || 1024), alto = Number(q.get('alto') || 768);
+  var n = Math.max(1, Math.min(8, Number(q.get('n') || 1)));
+  var url = '../' + pagina + (q.get('q') ? '?' + q.get('q') : '');
+  var marcos = [];
+  for (var k = 0; k < n; k++) marcos.push(await T.cargarIframe(url, { ancho: ancho, alto: alto }));
+  for (var j = 0; j < n; j++) await T.esperarHttp(marcos[j], 20000);
+  await T.esperar(1200);
+
+  var w = marcos[0].contentWindow, d = marcos[0].contentDocument;
+  var info = { pagina: pagina, ancho: ancho, alto: alto, n: n, innerWidth: w.innerWidth, scrollWidth: d.documentElement.scrollWidth, altoPagina: d.documentElement.scrollHeight };
+  T.check('sin scroll horizontal de la página', d.documentElement.scrollWidth <= w.innerWidth + 1, { scrollWidth: d.documentElement.scrollWidth, innerWidth: w.innerWidth });
+
+  var INTERACTIVOS = 'a[href], a[ng-click], button, input:not([type=hidden]), select, textarea, label.btn-tactil, label.btn-accion-mapa, label.btn-create-map, [ng-click], .language-card';
+  var inalcanzables = [], chicos = [], fuera = [];
+  var visto = new Set();
+  d.querySelectorAll(INTERACTIVOS).forEach(function (el) {
+    if (visto.has(el)) return;
+    visto.add(el);
+    var r = el.getBoundingClientRect();
+    if (r.width <= 1 || r.height <= 1) return; // oculto (display:none, ng-hide o input de archivo transparente)
+    if (w.getComputedStyle(el).visibility === 'hidden') return;
+    // ¿se sale de la pantalla o lo recorta un contenedor overflow:hidden?  (overflow auto/scroll deja desplazar)
+    var izq = r.left, der = r.right, problema = null;
+    if (der > w.innerWidth + 1 || izq < -1) problema = 'fuera de la pantalla';
+    for (var p = el.parentElement; p && p !== d.body; p = p.parentElement) {
+      var ox = w.getComputedStyle(p).overflowX;
+      if (ox === 'visible') continue;
+      var pr = p.getBoundingClientRect();
+      if (ox === 'auto' || ox === 'scroll') {
+        if (problema === 'fuera de la pantalla' && pr.right <= w.innerWidth + 1 && pr.left >= -1) problema = null; // se alcanza desplazando el contenedor
+        break;
+      }
+      if (ox === 'hidden' || ox === 'clip') {
+        if (der > pr.right + 1 || izq < pr.left - 1) { problema = 'recortado por ' + describir(p); break; }
+      }
+    }
+    if (problema) inalcanzables.push(describir(el) + ' [' + Math.round(izq) + '..' + Math.round(der) + '] ' + problema);
+    else if (Math.min(r.width, r.height) < 40 && !el.closest('.modal')) chicos.push(describir(el) + ' ' + Math.round(r.width) + '×' + Math.round(r.height));
+  });
+  d.querySelectorAll('body *').forEach(function (el) {
+    var r = el.getBoundingClientRect();
+    if (r.width <= 1 || r.height <= 1) return;
+    if (r.right > w.innerWidth + 1) fuera.push(describir(el) + ' right=' + Math.round(r.right));
+  });
+  info.inalcanzables = inalcanzables.slice(0, 40);
+  info.controlesChicos = chicos.length;
+  info.ejemplosChicos = chicos.slice(0, 25);
+  info.elementosMasAnchos = fuera.slice(0, 15);
+  T.check('ningún control inalcanzable o recortado', inalcanzables.length === 0, inalcanzables.slice(0, 40));
+
+  for (var m = 1; m < n; m++) marcos[m].contentWindow.scrollTo(0, m * (alto - 80));
+  await T.esperar(400);
+  return info;
+});
+</script>
+</body>
+</html>

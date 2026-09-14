@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>manual-ranking — carga manual completa (input y check)</title>
+<script src="manual-ranking-comun.js"></script>
+<script src="../local/config.js"></script>
+<script src="../local/io-shim.js"></script>
+<script src="../local/nucleo/store.js"></script>
+<script src="../local/nucleo/pathfinder-servidor.js"></script>
+<script src="../local/nucleo/init-run.js"></script>
+<script src="../local/nucleo/score-2026.js"></script>
+<script src="../local/nucleo/copy-properties.js"></script>
+<script src="../local/nucleo/api.js"></script>
+<script src="../local/nucleo/ranking.js"></script>
+</head>
+<body>
+<h1>Carga manual: manual.html (paso 1 input y paso 2 check) con clics reales sobre el DOM</h1>
+<pre id="resultado">PENDIENTE</pre>
+<script>
+/*
+ * Escenario sobre analysis/fixture-mapa-oficial (tests/backend-fixtures/fixture-mapa-oficial.json, finished=true):
+ * indexCount 14, EvacuationAreaLoPIndex 2, víctimas {live 2, dead 1}. Corrida inicializada:
+ *   0:- 1:speedbump 2:- 3:intersection 4:gap 5:checkpoint 6:obstacle 7:ramp 8:seesaw 9:- 10:checkpoint 11..13:-
+ * elementList (orden DOM): inicio(0) 1 3 4 5(CP, LoP0) 6 7 8 10(CP, LoP1) meta(LoP2)
+ * Cuenta a mano del puntaje esperado en cambios/manual-ranking.md §5.1: raw 164, multiplier 2.460375, score 404.
+ */
+T.correr(async function () {
+  await T.resetear();
+  await RCJLocal.semillas({ tilesets: await T.fixture('tilesets.json') });
+  var cid = (await T.api('GET', '/api/competitions/')).data[0]._id;
+  var ronda = (await T.api('GET', '/api/competitions/' + cid + '/rounds')).data[0];
+  var cancha = (await T.api('GET', '/api/competitions/' + cid + '/fields')).data[0];
+  var equipo = (await T.api('GET', '/api/competitions/' + cid + '/Line/teams')).data[0];
+  var fx = await T.fixture('fixture-mapa-oficial.json');
+  fx.finished = true;
+  var mapId = await RCJLocal.ingestMap(fx, { competition: cid, nombre: 'Mapa manual' });
+  var post = await T.api('POST', '/api/runs/line', { round: ronda._id, team: equipo._id, field: cancha._id, competition: cid, map: mapId });
+  T.check('POST corrida 201', post.status === 201, post);
+  var runId = post.data.id;
+  var retorno = '/line/' + cid + '/Line';
+
+  // ------------------------------------------------------------------ paso 1: input
+  var f = await T.abrirIframe('pagina', '../manual.html?run=' + runId + '&return=' + encodeURIComponent(retorno), '1366px', '1400px');
+  var w = f.contentWindow, d = f.contentDocument;
+  await T.esperarQue('elementList renderizado', function () { return d.querySelectorAll('.entry-item-compact').length === 10; }, 20000);
+  var sc = T.scope(f);
+  T.igual('título de la variante input', d.title, 'Rescue Line Input');
+  T.check('input: fredrik.css enlazado (input/line_2026.pug:14) y meta viewport agregada (desvío móvil)', !!d.querySelector('link[href="stylesheets/fredrik.css"]') && !!d.querySelector('meta[name=viewport]') && !!d.querySelector('link[href="local/ui/movil-manual-ranking.css"]'));
+  T.check('input: estilo de la variante (primary #ec4899) y plantillas quitadas', getComputedStyle(d.documentElement).getPropertyValue('--primary').trim() === '#ec4899' && d.querySelectorAll('template').length === 1 /* solo queda la del head de check */);
+  T.check('input: badge STEP 1 y navbar con equipo/ronda/cancha', d.querySelector('.navbar-brand').textContent.indexOf('IITA Salta') >= 0 && d.querySelector('.navbar-brand .badge').textContent === 'STEP 1: INPUT' &&
+    d.querySelector('.navbar .d-flex.gap-3').textContent.indexOf('Ronda 1') >= 0 && d.querySelector('.navbar .d-flex.gap-3').textContent.indexOf('Cancha 1') >= 0, d.querySelector('.navbar').textContent);
+  T.check('sin {{ }} sin compilar', d.body.innerText.indexOf('{{') < 0);
+  var items = function () { return d.querySelectorAll('.entry-item-compact'); };
+  T.igual('números de ítem (index+1) y bandera final', Array.prototype.map.call(items(), function (e) { var id = e.querySelector('.item-id'); return id.querySelector('.fa-flag-checkered') ? 'meta' : id.textContent; }), ['1', '2', '4', '5', '6', '7', '8', '9', '11', 'meta']);
+  T.igual('LoPs inicial y máximos de víctimas', [sc.LoPs, sc.maxLiveVictims, sc.maxDeadVictims], [[0, 0, 0], 2, 1]);
+  T.check('miniaturas desde images/tiles/ (regla 3a)', items()[0].querySelector('img').getAttribute('src') === 'images/tiles/tile-0.png' && items()[3].querySelector('img').getAttribute('src').indexOf('images/tiles/') === 0);
+
+  var estado = function () {
+    var e = {};
+    sc.stiles.forEach(function (t, i) { if (t.scoredItems.length) e[i] = t.scoredItems.every(function (s) { return s.scored; }); });
+    return e;
+  };
+  // S1: tocar el inicio -> showedUp y cascada hacia adelante (changerAfterAll)
+  T.clic(items()[0]);
+  T.check('S1 inicio: showedUp=true y cascada marca todo', sc.showedUp === true && JSON.stringify(estado()) === JSON.stringify({ 1: true, 3: true, 4: true, 5: true, 6: true, 7: true, 8: true, 10: true }), estado());
+  T.check('S1: clase active en todos los ítems con baldosa', Array.prototype.slice.call(items(), 0, 9).every(function (e) { return e.classList.contains('active'); }));
+  // S2: tocar la rampa (índice 7) -> se desmarca ella y todo lo posterior
+  T.clic(items()[6]);
+  T.igual('S2 rampa: cascada desmarca 7, 8 y 10', estado(), { 1: true, 3: true, 4: true, 5: true, 6: true, 7: false, 8: false, 10: false });
+  // S3: tocar la intersección (índice 3 < lastModifiedIndex 7) -> sin cascada
+  T.clic(items()[2]);
+  T.igual('S3 intersección: solo cambia ella (sin cascada hacia atrás)', estado(), { 1: true, 3: false, 4: true, 5: true, 6: true, 7: false, 8: false, 10: false });
+  // S4: tocar el sube y baja (índice 8 >= 7) -> se marca y cascada marca el checkpoint 10
+  T.clic(items()[7]);
+  T.igual('S4 sube y baja: cascada vuelve a marcar 10', estado(), { 1: true, 3: false, 4: true, 5: true, 6: true, 7: false, 8: true, 10: true });
+  T.igual('lastModifiedIndex', sc.lastModifiedIndex, 8);
+
+  // LoPs con los steppers (el wrapper frena la propagación: no alterna el checkpoint)
+  var btnLoP = function (k, cual) { return items()[k].querySelectorAll('.premium-btn')[cual]; };
+  T.clic(btnLoP(4, 1));             // + LoP0 (checkpoint 5)
+  T.clic(btnLoP(8, 0));             // - LoP1 (checkpoint 10) en 0 -> sigue 0
+  T.clic(btnLoP(9, 1)); T.clic(btnLoP(9, 1)); T.clic(btnLoP(9, 0)); // meta: +, +, -
+  T.igual('LoPs con los steppers: [1,0,1]', sc.LoPs, [1, 0, 1]);
+  T.check('el stepper no alterna el checkpoint (stopPropagation)', estado()[5] === true && estado()[10] === true);
+  T.igual('inputs de LoPs muestran los valores', Array.prototype.map.call(d.querySelectorAll('input.premium-count'), function (i) { return i.value; }), ['1', '0', '1']);
+
+  // Víctimas
+  var btnVict = d.querySelectorAll('.victim-select-btn');
+  T.clic(btnVict[0]);                                          // LIVE
+  T.clic(d.querySelector('.evac-btn-red'));                    // REGIST RED
+  T.igual('LIVE en RED registrada', sc.victim_list.map(function (v) { return v.victimType + '/' + v.zoneType; }), ['LIVE/RED']);
+  T.check('grilla: celda RED 1 muestra L', d.querySelectorAll('.zone-red .grid-cell')[0].textContent.trim() === 'L' && d.querySelectorAll('.zone-green .grid-cell')[0].textContent.trim() === '');
+  T.dobleClic(d.querySelectorAll('.zone-red .grid-cell')[0]);  // borrar
+  T.igual('doble clic en la grilla borra la víctima', sc.victim_list.length, 0);
+  T.clic(btnVict[1]);                                          // DEAD a la selección
+  T.dobleClic(d.querySelector('.victim-badge'));               // quitar de la selección
+  T.igual('doble clic en la selección la quita', sc.victim_tmp, []);
+  T.clic(btnVict[0]); T.clic(btnVict[0]);
+  T.check('botón LIVE deshabilitado al llegar al máximo', btnVict[0].classList.contains('disabled'));
+  T.clic(btnVict[0]);
+  T.igual('tercera LIVE no entra (tope del mapa)', sc.victim_tmp, ['LIVE', 'LIVE']);
+  T.clic(d.querySelector('.evac-btn-green'));                  // REGIST GREEN
+  T.clic(btnVict[1]);
+  T.clic(d.querySelector('.evac-btn-red'));
+  T.igual('orden de rescate', sc.victim_list.map(function (v) { return v.victimType + '/' + v.zoneType; }), ['LIVE/GREEN', 'LIVE/GREEN', 'DEAD/RED']);
+  T.igual('grilla GREEN/RED', [Array.prototype.map.call(d.querySelectorAll('.zone-green .grid-cell'), function (c) { return c.textContent.trim(); }),
+    Array.prototype.map.call(d.querySelectorAll('.zone-red .grid-cell'), function (c) { return c.textContent.trim(); })], [['L', 'L', ''], ['', '', 'D']]);
+
+  // Bono de salida y tiempo
+  T.clic(d.querySelector('[ng-click="changeExitBonus()"]'));
+  T.check('exit bonus activado', sc.exitBonus === true && d.querySelector('.bonus-visual').textContent.indexOf('Exit Bonus Achieved') >= 0);
+  var tecla = function (t) { return Array.prototype.find.call(d.querySelectorAll('.time-numpad button'), function (b) { return b.textContent.trim() === t; }); };
+  T.clic(tecla('4')); T.clic(tecla('3')); T.clic(tecla('7'));
+  T.igual('teclado 4-3-7 => 04:37', [d.querySelector('.time-digits').textContent, sc.minutes, sc.seconds], ['04:37', 4, 37]);
+  T.clic(d.querySelector('[ng-click="backspaceTime()"]'));
+  T.igual('borrar => 00:43', [d.querySelector('.time-digits').textContent, sc.minutes, sc.seconds], ['00:43', 0, 43]);
+  T.clic(tecla('7'));
+  T.igual('tiempo final 04:37', [sc.minutes, sc.seconds], [4, 37]);
+
+  // Enviar: se captura la respuesta del PUT dentro del iframe
+  var respuestaPut = null, cuerpoPut = null;
+  var reqOriginal = w.RCJLocal.api.request;
+  w.RCJLocal.api.request = function (metodo, url, cuerpo, opts) {
+    var p = reqOriginal.apply(this, arguments);
+    if (metodo === 'PUT') { cuerpoPut = JSON.parse(JSON.stringify(cuerpo)); p.then(function (r) { respuestaPut = r; }); }
+    return p;
+  };
+  var navegacion = T.esperarCarga(f);
+  T.clic(d.querySelector('.footer-action button'));
+  await navegacion;
+  T.check('PUT 200 Saved run', respuestaPut && respuestaPut.status === 200 && respuestaPut.data.msg === 'Saved run', respuestaPut);
+  T.check('cuerpo del PUT como el CMS (showedUp/started forzados, status 4, tiempo)', cuerpoPut && cuerpoPut.status === 4 && cuerpoPut.showedUp === true && cuerpoPut.started === true &&
+    cuerpoPut.time.minutes === 4 && cuerpoPut.time.seconds === 37 && cuerpoPut.tiles.length === 14 && cuerpoPut.tiles[5].LoP === 0 && !('$$hashKey' in cuerpoPut.tiles[5]), cuerpoPut);
+  var loc = f.contentWindow.location;
+  T.check('regla 3b: vuelve a ?return=/line/<cid>/Line mapeado por RCJLocal.ruta', loc.pathname === '/corridas.html' && loc.search === '?competition=' + cid + '&league=Line', loc.href);
+
+  var run = (await T.api('GET', '/api/runs/line/' + runId)).data;
+  var mapa = (await T.api('GET', '/api/maps/line/' + mapId + '?populate=true')).data;
+  var calc = RCJLocal.calculateLineScore(Object.assign({}, run, { map: mapa }));
+  T.check('status 4 y started', run.status === 4 && run.started === true && run.showedUp === true && run.exitBonus === true, [run.status, run.started]);
+  T.igual('LoPs, tiempo y orden de rescate guardados', [run.LoPs, run.time, run.rescueOrder.map(function (v) { return v.victimType + '/' + v.zoneType; })],
+    [[1, 0, 1], { minutes: 4, seconds: 37 }, ['LIVE/GREEN', 'LIVE/GREEN', 'DEAD/RED']]);
+  T.igual('baldosas puntuadas guardadas', run.tiles.map(function (t) { return t.scoredItems.map(function (s) { return s.item + ':' + s.scored; }).join(','); }),
+    ['', 'speedbump:true', '', 'intersection:false', 'gap:true', 'checkpoint:true', 'obstacle:true', 'ramp:false', 'seesaw:true', '', 'checkpoint:true', '', '', '']);
+  T.check('campos agregados por la página (index, LoP, evacLoP) no se guardan (modo strict)', run.tiles.every(function (t) { return !('LoP' in t) && !('index' in t) && !('evacLoP' in t); }), run.tiles[5]);
+  T.check('score guardado === RCJLocal.calculateLineScore(corrida + mapa)', run.score === calc.score && run.raw_score === calc.raw_score && run.multiplier === calc.multiplier, [run.score, run.raw_score, run.multiplier, calc]);
+  T.check('respuesta del PUT === calculateLineScore', respuestaPut.data.score === calc.score && respuestaPut.data.raw_score === calc.raw_score && respuestaPut.data.multiplier === calc.multiplier, [respuestaPut.data, calc]);
+  T.check('cuenta a mano: raw 164 x 2.460375 = 404', calc.raw_score === 164 && calc.score === 404 && Math.abs(calc.multiplier - 2.460375) < 1e-12 && calc.multiplier === 1350 * 1350 * 1350 / 1e9, calc);
+
+  // Recarga del paso 1 con la corrida ya cerrada: muestra lo guardado (status > 2 => lastModifiedIndex 100)
+  f = await T.abrirIframe('pagina', '../manual.html?run=' + runId, '1366px', '1400px');
+  d = f.contentDocument;
+  await T.esperarQue('elementList tras recarga', function () { return d.querySelectorAll('.entry-item-compact').length === 10; }, 20000);
+  sc = T.scope(f);
+  T.check('recarga: lastModifiedIndex 100, datos y tiempo 04:37', sc.lastModifiedIndex === 100 && sc.status === 4 && d.querySelector('.time-digits').textContent === '04:37' &&
+    JSON.stringify(estado()) === JSON.stringify({ 1: true, 3: false, 4: true, 5: true, 6: true, 7: false, 8: true, 10: true }), [sc.lastModifiedIndex, sc.status]);
+
+  // ------------------------------------------------------------------ paso 2: check
+  f = await T.abrirIframe('pagina', '../manual.html?run=' + runId + '&check=true&return=' + encodeURIComponent(retorno), '1366px', '1400px');
+  d = f.contentDocument;
+  await T.esperarQue('check renderizado', function () { return d.querySelectorAll('.entry-item-compact').length === 10 && d.querySelector('.calc-result') && d.querySelector('.calc-result').textContent === '404'; }, 20000);
+  sc = T.scope(f);
+  T.igual('título de la variante check', d.title, 'Rescue Line Approval - Double Check');
+  T.check('check: meta viewport, sin fredrik.css, estilo violeta', !!d.querySelector('meta[name=viewport]') && !d.querySelector('link[href="stylesheets/fredrik.css"]') &&
+    getComputedStyle(d.documentElement).getPropertyValue('--primary').trim() === '#8b5cf6');
+  T.check('check: badge STEP 2 y ESTIMATED SCORE 404', d.querySelector('.mode-badge').textContent === 'STEP 2: VERIFICATION' && d.querySelector('.score-value').textContent === '404');
+  T.igual('check: cálculo final raw x multiplier = score', Array.prototype.map.call(d.querySelectorAll('.calc-val, .calc-result'), function (e) { return e.textContent; }), ['164', '2.460375', '404']);
+  T.igual('check: LoPs como badges', Array.prototype.map.call(d.querySelectorAll('.lop-display-badge span'), function (e) { return e.textContent; }), ['1', '0', '1']);
+  T.igual('check: tiempo con numberFixedLen', d.querySelector('.static-value').textContent, '04 : 37');
+  T.check('check: bono Achieved', d.querySelector('.bonus-visual').textContent.indexOf('Achieved') >= 0 && d.querySelector('.bonus-visual .fa-check-circle'));
+  T.igual('check: grilla de víctimas', [Array.prototype.map.call(d.querySelectorAll('.zone-green .grid-cell'), function (c) { return c.textContent.trim(); }),
+    Array.prototype.map.call(d.querySelectorAll('.zone-red .grid-cell'), function (c) { return c.textContent.trim(); })], [['L', 'L', ''], ['', '', 'D']]);
+  T.clic(d.querySelectorAll('.entry-item-compact')[1]);
+  T.check('check: los ítems son de solo lectura', JSON.stringify(estado()) === JSON.stringify({ 1: true, 3: false, 4: true, 5: true, 6: true, 7: false, 8: true, 10: true }));
+  T.check('sin {{ }} sin compilar (check)', d.body.innerText.indexOf('{{') < 0);
+  navegacion = T.esperarCarga(f);
+  T.clic(d.querySelector('.btn-approve'));
+  await navegacion;
+  T.check('approval navega a return (regla 3b)', f.contentWindow.location.pathname === '/corridas.html');
+  var aprobada = (await T.api('GET', '/api/runs/line/' + runId)).data;
+  T.check('approval: status 6 y puntaje intacto', aprobada.status === 6 && aprobada.score === 404, [aprobada.status, aprobada.score]);
+
+  return {
+    runId: runId, competencia: cid, puntaje: calc,
+    capturas: [
+      { nombre: 'manual-input', url: '../manual.html?run=' + runId, listo: '.entry-item-compact', alto: 1500, ms: 1500 },
+      { nombre: 'manual-check', url: '../manual.html?run=' + runId + '&check=true', listo: '.calc-result', alto: 1300, ms: 1500 }
+    ]
+  };
+});
+</script>
+</body>
+</html>

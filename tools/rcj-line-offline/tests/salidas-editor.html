@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Salidas — botón Generate PDF/PNG de editor.html real</title>
+<!--
+  Abre editor.html?map=<id> (página del área editor, sin modificarla) en un iframe, elige las opciones de
+  "Advanced tools" con clics reales en los option-tile/btn y aprieta el botón .btn-print-action.
+  window.open y <a>.click del iframe se interceptan solo para leer el blob generado.
+-->
+<script src="salidas-comun.js"></script>
+<script src="../local/config.js"></script>
+<script src="../local/io-shim.js"></script>
+<script src="../local/nucleo/store.js"></script>
+<script src="../local/nucleo/pathfinder-servidor.js"></script>
+<script src="../local/nucleo/init-run.js"></script>
+<script src="../local/nucleo/score-2026.js"></script>
+<script src="../local/nucleo/copy-properties.js"></script>
+<script src="../local/nucleo/api.js"></script>
+<script src="../local/nucleo/ranking.js"></script>
+<style> #resultado { display: none; } </style>
+</head>
+<body>
+<pre id="resultado">PENDIENTE</pre>
+<script>
+T.correr(async function () {
+  await T.resetear();
+  await RCJLocal.semillas();
+  var cid = (await T.api('GET', '/api/competitions/')).data[0]._id;
+  var fx = await T.fixture('fixture-mapa-oficial.json');
+  var mapId = await RCJLocal.ingestMap(fx, { competition: cid });
+
+  var f = await T.cargarIframe('../editor.html?map=' + mapId, 1366, 900);
+  await T.esperarHttp(f, 30000);
+  var w = f.contentWindow, d = f.contentDocument;
+  await T.esperarQue(function () { return d.querySelector('.btn-print-action'); }, 20000, 'botón Generate');
+  T.check('editor.html incluye local/render/registrar.js', !!d.querySelector('script[src="local/render/registrar.js"]') && !!(w.RCJLocal.salidas && w.RCJLocal.salidas.registrado));
+
+  var eventos = [];
+  w.open = function (url, destino) { eventos.push({ tipo: 'open', url: url, destino: destino }); return null; };
+  w.HTMLAnchorElement.prototype.click = function () { eventos.push({ tipo: 'click', url: this.href, download: this.download }); };
+
+  function clic(sel, texto) {
+    var el = Array.prototype.find.call(d.querySelectorAll(sel), function (e) { return !texto || e.textContent.trim() === texto; });
+    if (!el) throw new Error('no encontré ' + sel + ' ' + (texto || ''));
+    el.click();
+  }
+  async function generar() {
+    eventos.length = 0;
+    d.querySelector('.btn-print-action').click();
+    await T.esperarQue(function () { return eventos.length > 0; }, 60000, 'salida del editor');
+    var ev = eventos[0];
+    var ab = await (await fetch(ev.url)).arrayBuffer();
+    return { ev: ev, ab: ab };
+  }
+
+  // Planillas (Scoresheets): POST /api/maps/line/scoresheet
+  var tiles = d.querySelectorAll('.option-tile');
+  tiles[1].click();
+  var r1 = await generar();
+  var i1 = T.pdfInfo(r1.ab);
+  T.check('Scoresheets: window.open(blob:) con PDF A4 apaisado de 1 página', r1.ev.tipo === 'open' && /^blob:/.test(r1.ev.url) && i1.cabecera.indexOf('%PDF') === 0 && i1.paginas === 1 && i1.mediaBoxes[0] === '0 0 841.89 595.28', { ev: r1.ev, info: i1 });
+  await T.guardar('editor-real-planilla.pdf', r1.ab);
+
+  // Mapas PDF Letter: POST /api/maps/line/map-image-pdf
+  tiles[0].click();
+  clic('.premium-btn-group .btn', 'PDF');
+  await T.esperar(100);
+  clic('.premium-btn-group .btn', 'Letter');
+  var r2 = await generar();
+  var i2 = T.pdfInfo(r2.ab);
+  T.check('Maps PDF Letter: window.open con PDF Letter', r2.ev.tipo === 'open' && i2.paginas === 1 && ['0 0 612 792', '0 0 792 612'].indexOf(i2.mediaBoxes[0]) >= 0, { ev: r2.ev, info: i2 });
+  await T.guardar('editor-real-mapa.pdf', r2.ab);
+
+  // Mapas PNG: POST /api/maps/line/map-image-png
+  clic('.premium-btn-group .btn', 'PNG');
+  await T.esperar(100);
+  var etiqueta = d.querySelector('.btn-print-action').textContent.trim();
+  var r3 = await generar();
+  var i3 = T.pngInfo(r3.ab);
+  T.check('Maps PNG: <a download> con PNG', r3.ev.tipo === 'click' && /\.png$/.test(r3.ev.download) && i3.firma && i3.ancho > 0, { ev: r3.ev, info: i3 });
+  await T.guardar('editor-real-mapa.png', r3.ab);
+
+  return { mapId: mapId, etiquetaBotonPNG: etiqueta, planilla: i1, mapaPdf: i2, png: i3 };
+});
+</script>
+</body>
+</html>

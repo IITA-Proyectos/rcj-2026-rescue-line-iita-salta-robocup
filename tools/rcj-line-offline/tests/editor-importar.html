@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Editor T4/T5 — import/export y pathFinder cliente</title>
+<script src="editor-comun.js"></script>
+<script src="../local/config.js"></script>
+<script src="../local/nucleo/store.js"></script>
+<script src="../local/nucleo/pathfinder-servidor.js"></script>
+<script src="../local/nucleo/init-run.js"></script>
+<script src="../local/nucleo/score-2026.js"></script>
+<script src="../local/nucleo/copy-properties.js"></script>
+<script src="../local/nucleo/api.js"></script>
+<script src="../local/nucleo/ranking.js"></script>
+</head>
+<body>
+<h1>T4 (export sha256 + round-trip + import tolerante) y T5 (casos PFc de 01 §7.3) sobre editor.html</h1>
+<pre id="resultado">PENDIENTE</pre>
+<script>
+T.correr(async function () {
+  await T.resetear();
+  await RCJLocal.semillas();
+  var comps = (await T.api('GET', '/api/competitions/')).data;
+  var cid = comps[0]._id;
+
+  // ---------------------------------------------------------------- arranque en modo admin
+  var ed = await T.abrirEditor('competition=' + cid, 'nuevo');
+  var w = ed.win, s = ed.scope;
+  T.igual('globales del pug (modo admin, D1)', { mapId: w.mapId, competitionId: w.competitionId, pubService: w.pubService, leagueId: w.leagueId },
+    { mapId: '', competitionId: cid, pubService: false, leagueId: 'Line' });
+  T.igual('tilesets en el orden de data/tilesets.json', s.tileSets.map(function (t) { return t.name + ':' + t.tiles.length; }), ['Default(2022):87', 'PTY1:86']);
+  T.check('botones Save y Save As presentes (solo admin)', !!ed.doc.querySelector('.btn-hero-icon.btn-save') && !!ed.doc.querySelector('[ng-click="openSaveAsModal()"]'));
+  T.check('breadcrumb admin con la competencia', /Admin/.test(ed.doc.querySelector('.hero-breadcrumb').textContent) &&
+    ed.doc.querySelector('.hero-breadcrumb').textContent.indexOf(comps[0].name) >= 0, ed.doc.querySelector('.hero-breadcrumb').textContent);
+  T.check('subtítulo admin "<competencia> - <liga> Map Editor 2026"', /Map Editor 2026/.test(ed.doc.querySelector('.hero-subtitle').textContent) &&
+    ed.doc.querySelector('.hero-subtitle').textContent.indexOf(comps[0].name) >= 0, ed.doc.querySelector('.hero-subtitle').textContent);
+  T.check('capa táctil inactiva en escritorio (sin touch)', w.RCJLocal.tactil && w.RCJLocal.tactil.activo === false && !ed.doc.getElementById('rcj-tactil-barra'));
+  T.check('logo de la navbar va a index.html (regla 3b)', /index\.html$/.test(ed.doc.querySelector('.navbar-brand').getAttribute('href')));
+  T.check('selector de idioma con ES/EN/JA', ['en', 'ja', 'es'].every(function (k) { return ed.doc.querySelector('.language-card[onclick="changeLanguage(\'' + k + '\')"]'); }));
+  T.check('idioma por defecto es', w.angular.element(ed.doc.body).injector().get('$translate').use() === 'es');
+
+  // ---------------------------------------------------------------- T4: import por #select y export
+  var texto = await T.textoFixture('fixture-mapa-oficial.min.json');
+  T.igual('sha256 del fixture en disco', await T.sha256(texto), T.SHA_FIXTURE);
+  await T.importar(ed, texto, 'IITA Fixture 2026.json');
+  T.igual('import: nombre, dimensiones, víctimas', [s.name, s.width, s.length, s.height, s.duration, s.finished, s.liveV, s.deadV],
+    ['IITA Fixture 2026', 7, 4, 2, 480, true, 2, 1]);
+  T.igual('import: 26 baldosas', Object.keys(s.tiles).length, 26);
+  var d1 = T.exportar(ed);
+  T.check('export: hay descarga interceptada', !!d1);
+  T.check('export: data:text/json;charset=utf-8,', d1 && d1.prefijoOk);
+  T.igual('export: nombre de archivo', d1 && d1.download, 'IITA Fixture 2026.json');
+  var sha1 = await T.sha256(d1.json);
+  T.igual('T4 export sha256 idéntico al fixture oficial', sha1, T.SHA_FIXTURE);
+  var indexCountOficial = s.indexCount, evacOficial = s.EvacuationAreaLoPIndex;
+
+  await T.importar(ed, d1.json, 'reimport.json');
+  var d2 = T.exportar(ed);
+  T.igual('T4 round-trip: export(import(export)) byte a byte', await T.sha256(d2.json), T.SHA_FIXTURE);
+  await T.importar(ed, d2.json, 'reimport2.json');
+  var d3 = T.exportar(ed);
+  T.check('T4 round-trip estable (3 vueltas)', d3.json === d1.json);
+
+  // ---------------------------------------------------------------- import tolerante (desvío D1)
+  var oficial = JSON.parse(texto);
+  var servidor = JSON.parse(texto);
+  servidor.tiles = Object.keys(oficial.tiles).map(function (k) {
+    var t = JSON.parse(JSON.stringify(oficial.tiles[k]));
+    var c = k.split(',').map(Number);
+    t.x = c[0]; t.y = c[1]; t.z = c[2];
+    t.tileType = t.tileType._id;
+    delete t.index; delete t.next;
+    return t;
+  });
+  await T.importar(ed, JSON.stringify(servidor), 'formato-servidor.json');
+  T.igual('import tolerante: tiles array + tileType id -> diccionario', Object.keys(s.tiles).sort(), Object.keys(oficial.tiles).sort());
+  T.check('import tolerante: tileType embebido con imagen', Object.keys(s.tiles).every(function (k) { return s.tiles[k].tileType && s.tiles[k].tileType.image === oficial.tiles[k].tileType.image; }));
+  T.igual('import tolerante: mismo recorrido (indexCount, EvacuationAreaLoPIndex, index)',
+    [s.indexCount, s.EvacuationAreaLoPIndex, Object.keys(oficial.tiles).map(function (k) { return s.tiles[k].index; })],
+    [indexCountOficial, evacOficial, Object.keys(oficial.tiles).map(function (k) { return oficial.tiles[k].index; })]);
+  await T.importar(ed, texto, 'otra-vez.json');
+  T.igual('import oficial después del tolerante: sha256 intacto', await T.sha256(T.exportar(ed).json), T.SHA_FIXTURE);
+
+  // ---------------------------------------------------------------- T5: casos PFc de 01 §7.3 (pathFinder.js real)
+  var logOriginal = w.console.log;
+  w.console.log = function () {}; // PFc hace console.log por paso; se silencia solo para acelerar T3
+  function tipo(img) {
+    return s.tileSets[0].tiles.find(function (t) { return t.tileType.image === img; }).tileType;
+  }
+  function baldosa(tt, rot, extra) {
+    return Object.assign({ rot: rot, tileType: tt, items: { obstacles: 0, speedbumps: 0, rampPoints: false } }, extra || {});
+  }
+  function recorrer(tiles, start, start2) {
+    var err = null;
+    s.$apply(function () {
+      s.tiles = tiles; s.startTile = start; s.startTile2 = start2 || { x: -1, y: -1, z: -1 };
+      try { s.updateTileIndex(); } catch (e) { err = e; }
+    });
+    return err;
+  }
+  function idx() {
+    var o = {};
+    Object.keys(s.tiles).sort().forEach(function (k) { o[k] = s.tiles[k].index; });
+    return o;
+  }
+  var t0 = tipo('tile-0.png'), t3 = tipo('tile-3.png'), ev1 = tipo('ev1.png'), exit = tipo('exit.png');
+
+  // T1
+  var e = recorrer({ '0,0,0': baldosa(t0, 0), '1,0,0': baldosa(t0, 0), '2,0,0': baldosa(t0, 0) }, { x: 0, y: 0, z: 0 });
+  T.igual('T5/T1 tres rectas: index, next, indexCount, EvacuationAreaLoPIndex',
+    [e, idx(), s.tiles['0,0,0'].next, s.tiles['1,0,0'].next, s.tiles['2,0,0'].next, s.indexCount, s.EvacuationAreaLoPIndex],
+    [null, { '0,0,0': [0], '1,0,0': [1], '2,0,0': [2] }, ['1,0,0'], ['2,0,0'], [], 3, 0]);
+
+  // T2 y T2b
+  var t2 = {
+    '0,0,0': baldosa(t0, 0), '1,0,0': baldosa(t0, 0, { checkPoint: true }), '2,0,0': baldosa(ev1, 0),
+    '3,0,0': baldosa(t0, 0), '4,0,0': baldosa(t0, 0), '5,0,0': baldosa(exit, 90)
+  };
+  e = recorrer(t2, { x: 0, y: 0, z: 0 }, { x: 3, y: 0, z: 0 });
+  T.igual('T5/T2 con evacuación y reinicio',
+    [e, idx(), s.tiles['1,0,0'].next, s.tiles['2,0,0'].evacExit, 'evacEntrance' in s.tiles['2,0,0'], s.indexCount, s.EvacuationAreaLoPIndex],
+    [null, { '0,0,0': [0], '1,0,0': [1], '2,0,0': [], '3,0,0': [2], '4,0,0': [3], '5,0,0': [4] }, ['2,0,0'], 90, false, 5, 1]);
+  e = recorrer(t2, { x: 0, y: 0, z: 0 }, { x: -1, y: -1, z: -1 });
+  T.igual('T5/T2b sin reinicio: termina en la evacuación y evacExit queda desactualizado', [e, s.indexCount, s.tiles['2,0,0'].evacExit], [null, 2, 90]);
+
+  // T3: lazo cerrado 2x2 de curvas tile-3 (se prueban los dos sentidos de rotación posibles)
+  var candidatos = [
+    { '0,0,0': 270, '1,0,0': 0, '1,1,0': 90, '0,1,0': 180 },
+    { '0,0,0': 90, '1,0,0': 0, '1,1,0': 270, '0,1,0': 180 },
+    { '0,0,0': 180, '1,0,0': 270, '1,1,0': 0, '0,1,0': 90 },
+    { '0,0,0': 0, '1,0,0': 90, '1,1,0': 180, '0,1,0': 270 }
+  ];
+  var t3res = candidatos.map(function (rots) {
+    var tiles = {};
+    Object.keys(rots).forEach(function (k) { tiles[k] = baldosa(t3, rots[k]); });
+    var er = recorrer(tiles, { x: 0, y: 0, z: 0 });
+    return er ? er.name + ': ' + er.message : 'sin error (indexCount=' + s.indexCount + ')';
+  });
+  T.check('T5/T3 lazo cerrado 2x2 -> RangeError: Maximum call stack size exceeded',
+    t3res.some(function (r) { return /^RangeError: Maximum call stack size exceeded/.test(r); }), t3res);
+
+  // T4/T5 del informe: el sentido depende del orden de claves de paths
+  var recta1 = { _id: 'prueba-rl', image: 'tile-0.png', gaps: 0, intersections: 0, seesaw: 0, paths: { right: 'left', left: 'right' } };
+  var recta2 = { _id: 'prueba-lr', image: 'tile-0.png', gaps: 0, intersections: 0, seesaw: 0, paths: { left: 'right', right: 'left' } };
+  e = recorrer({ '0,0,0': baldosa(recta1, 0), '1,0,0': baldosa(recta1, 0), '2,0,0': baldosa(recta1, 0) }, { x: 1, y: 0, z: 0 });
+  T.igual('T5/T4 paths {right,left}: va a la derecha', [e, idx()], [null, { '0,0,0': [], '1,0,0': [0], '2,0,0': [1] }]);
+  e = recorrer({ '0,0,0': baldosa(recta2, 0), '1,0,0': baldosa(recta2, 0), '2,0,0': baldosa(recta2, 0) }, { x: 1, y: 0, z: 0 });
+  T.igual('T5/T5 paths {left,right}: va a la izquierda', [e, idx()], [null, { '0,0,0': [1], '1,0,0': [0], '2,0,0': [] }]);
+
+  // T6 sin inicio
+  e = recorrer({ '0,0,0': baldosa(t0, 0), '1,0,0': baldosa(t0, 0) }, { x: -1, y: -1, z: -1 });
+  T.igual('T5/T6 sin inicio: indexCount y EvacuationAreaLoPIndex undefined, index vacíos',
+    [e, s.indexCount === undefined, s.EvacuationAreaLoPIndex === undefined, idx()], [null, true, true, { '0,0,0': [], '1,0,0': [] }]);
+
+  // T7 rot string
+  e = recorrer({ '0,0,0': baldosa(t0, '0'), '1,0,0': baldosa(t0, 0), '2,0,0': baldosa(t0, 0) }, { x: 0, y: 0, z: 0 });
+  T.igual('T5/T7 rot "0" string en el inicio: sin error, indexCount 1', [e, s.indexCount], [null, 1]);
+  w.console.log = logOriginal;
+
+  return { competencia: cid, t3: t3res, indexCountFixture: indexCountOficial, evacFixture: evacOficial };
+});
+</script>
+</body>
+</html>

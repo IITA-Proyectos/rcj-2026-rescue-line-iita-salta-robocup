@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Estadísticas — exploración del mapa del fixture</title>
+<!-- Vuelca la estructura del fixture ya ingerido (índices, tramos, elementos por índice, víctimas) para
+     diseñar a mano las corridas sintéticas de estadisticas-flujo.html. -->
+<script src="estadisticas-comun.js"></script>
+<script src="../local/config.js"></script>
+<script src="../local/io-shim.js"></script>
+<script src="../local/nucleo/store.js"></script>
+<script src="../local/nucleo/pathfinder-servidor.js"></script>
+<script src="../local/nucleo/init-run.js"></script>
+<script src="../local/nucleo/score-2026.js"></script>
+<script src="../local/nucleo/copy-properties.js"></script>
+<script src="../local/nucleo/api.js"></script>
+<script src="../local/nucleo/ranking.js"></script>
+<script src="../local/estadisticas/calculo.js"></script>
+</head>
+<body>
+<pre id="resultado">PENDIENTE</pre>
+<script>
+T.correr(async function () {
+  await T.resetear();
+  var sem = await RCJLocal.semillas();
+  var fixture = await (await fetch('estadisticas-fixture-mapa-oficial.json')).json();
+  var mapId = await RCJLocal.ingestMap(fixture, { competition: sem.competencia, league: 'Line' });
+  var datos = await RCJEstadisticas.cargarDatos();
+  var m = RCJEstadisticas.prepararMapa(datos.maps[0], datos.tipos);
+  T.check('mapa preparado con estructura esperada', !!m.esperada, m.errorEsperada);
+  return {
+    mapId: mapId, indexCount: m.indexCount, victims: m.victims, evac: m.EvacuationAreaLoPIndex, zonaDespuesDe: m.zonaDespuesDe,
+    indiceMeta: m.indiceMeta, maxRaw: m.maxRaw, tramos: m.tramos, keyInicio: m.keyInicio, keyReinicio: m.keyReinicio,
+    porIndice: m.porIndice.map(function (p) { return [p.indice, p.key, p.tramo, p.tile ? p.tile.tileType.image : null, p.esCheckpoint ? 'CP' + p.numeroCheckpoint : '', m.esperada.items[p.indice]]; }),
+    baldosas: m.baldosas.map(function (t) { return [t.key, t.index, t.rot, t.tileType.image, t.checkPoint, t.items, t.evacEntrance, t.evacExit, t.levelUp, t.levelDown]; })
+  };
+});
+</script>
+</body>
+</html>

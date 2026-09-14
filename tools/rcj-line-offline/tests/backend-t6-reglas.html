@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Backend T6 — reglas del PUT/GET de corridas</title>
+<script src="backend-comun.js"></script>
+<script src="../local/config.js"></script>
+<script src="../local/nucleo/store.js"></script>
+<script src="../local/nucleo/pathfinder-servidor.js"></script>
+<script src="../local/nucleo/init-run.js"></script>
+<script src="../local/nucleo/score-2026.js"></script>
+<script src="../local/nucleo/copy-properties.js"></script>
+<script src="../local/nucleo/api.js"></script>
+<script src="../local/nucleo/ranking.js"></script>
+<script src="../local/io-shim.js"></script>
+</head>
+<body>
+<h1>T6: E10 re-inicialización, pipeline de E11, validaciones y emisiones E16</h1>
+<pre id="resultado">PENDIENTE</pre>
+<script>
+T.correr(async function () {
+  await T.resetear();
+  var sets = await T.fixture('tilesets.json');
+  await RCJLocal.semillas({ tilesets: sets });
+  var comp = (await T.api('GET', '/api/competitions/')).data[0];
+  var cid = comp._id;
+  var ronda1 = (await T.api('GET', '/api/competitions/' + cid + '/rounds')).data[0];
+  var cancha = (await T.api('GET', '/api/competitions/' + cid + '/fields')).data[0];
+  var equipo = (await T.api('GET', '/api/competitions/' + cid + '/Line/teams')).data[0];
+  var ronda2 = (await T.api('POST', '/api/rounds', { name: 'Ronda 2', competition: cid })).data.id;
+  var ronda3 = (await T.api('POST', '/api/rounds', { name: 'Ronda 3', competition: cid })).data.id;
+  var fx = await T.fixture('fixture-mapa-oficial.json');
+  var mapId = await RCJLocal.ingestMap(fx, { competition: cid });
+  var mapa = (await T.api('GET', '/api/maps/line/' + mapId)).data;
+
+  // sockets para contar emisiones (misma ventana)
+  var ev = { data: [], changed: 0, lchanged: 0, campo: [] };
+  var sStatus = io(location.origin, { transports: ['websocket'] });
+  sStatus.emit('subscribe', 'runs/line/' + cid + '/status');
+  sStatus.on('LChanged', function () { ev.lchanged++; });
+  var sLista = io({ transports: ['websocket'] }).connect(location.origin);
+  sLista.emit('subscribe', 'runs/line/' + cid);
+  sLista.on('changed', function () { ev.changed++; });
+  var sCampo = io();
+  sCampo.emit('subscribe', 'fields/' + cancha._id);
+  sCampo.on('data', function (d) { ev.campo.push(d); });
+
+  // ---------------------------------------------------------------- E13
+  var nueva = await T.api('POST', '/api/runs/line', { round: ronda1._id, team: equipo._id, field: cancha._id, competition: cid, map: mapId, startTime: 1780000000000 });
+  T.check('E13 crea corrida: 201 {err:"New run has been saved", id}', nueva.status === 201 && nueva.data.err === 'New run has been saved' && /^[0-9a-f]{24}$/.test(nueva.data.id), nueva);
+  T.check('E13 header Location', nueva.headers.Location === '/api/runs/' + nueva.data.id, nueva.headers);
+  var runId = nueva.data.id;
+  var sRun = io(location.origin, { transports: ['websocket'] });
+  sRun.emit('subscribe', 'runs/' + runId);
+  sRun.on('data', function (d) { ev.data.push(d); });
+  var dup = await T.api('POST', '/api/runs/line', { round: ronda1._id, team: equipo._id, field: cancha._id, competition: cid, map: mapId });
+  T.check('E13 unicidad (round, team)', dup.status === 400 && dup.data.msg === 'Error saving run in db' && dup.data.err === 'Team "IITA Salta" already has a run in round "Ronda 1"!', dup.data);
+  var sinMapa = await T.api('POST', '/api/runs/line', { round: ronda2, team: equipo._id, field: cancha._id, competition: cid });
+  T.check('E13 map requerido', sinMapa.status === 400 && sinMapa.data.err === 'LineRun validation failed: map: Path `map` is required.', sinMapa.data);
+  var guardadaNueva = await RCJLocal.store.get('lineRuns', runId);
+  T.check('E13 defaults del esquema', guardadaNueva.status === 0 && guardadaNueva.started === false && guardadaNueva.multiplier === 1 &&
+    guardadaNueva.time.minutes === 0 && guardadaNueva.sign.captain === '' && guardadaNueva.isNL === false && Array.isArray(guardadaNueva.tiles) &&
+    guardadaNueva.startTime === 1780000000000 && !('group' in guardadaNueva) && !('normalizationGroup' in guardadaNueva), guardadaNueva);
+
+  var PUT = function (b) { return T.api('PUT', '/api/runs/line/' + runId, b); };
+  var GET = function (q) { return T.api('GET', '/api/runs/line/' + runId + (q === undefined ? '?populate=true' : q)); };
+  var leer = function (id) { return RCJLocal.store.get('lineRuns', id || runId); };
+
+  // ---------------------------------------------------------------- E10 (C1)
+  var g1 = await GET();
+  var d1 = g1.data;
+  T.check('E10 200', g1.status === 200, g1);
+  T.check('E10 tiles.length = indexCount (14)', d1.tiles.length === mapa.indexCount && mapa.indexCount === 14, [d1.tiles.length, mapa.indexCount]);
+  var visitasCp = mapa.tiles.reduce(function (n, t) { return n + (t.checkPoint ? t.index.length : 0); }, 0);
+  T.igual('E10 LoPs = visitas a checkpoint + 1', d1.LoPs, new Array(visitasCp + 1).fill(0));
+  T.igual('E10 rescueOrder []', d1.rescueOrder, []);
+  T.check('E10 tiles y scoredItems con _id', d1.tiles.every(function (t) { return /^[0-9a-f]{24}$/.test(t._id) && t.scoredItems.every(function (i) { return /^[0-9a-f]{24}$/.test(i._id); }); }));
+  T.igual('E10 orden de scoredItems (IRD) en el índice 1', d1.tiles[1].scoredItems.map(function (i) { return i.item + 'x' + i.count; }), ['speedbumpx1']);
+  T.igual('E10 team poblado (name league teamCode)', Object.keys(d1.team).sort(), ['_id', 'league', 'name', 'teamCode']);
+  T.igual('E10 competition poblada (name leagues preparation)', Object.keys(d1.competition).sort(), ['_id', 'leagues', 'name', 'preparation']);
+  T.check('E10 round y field completos; map como id', d1.round.name === 'Ronda 1' && d1.round.competition === cid && d1.field.name === 'Cancha 1' && d1.map === mapId, [d1.round, d1.field, d1.map]);
+  T.check('E10 sin __v', !('__v' in d1));
+  var guard1 = await leer();
+  T.check('E10 persistió la inicialización', guard1.tiles.length === 14 && guard1.tiles[0]._id === d1.tiles[0]._id && guard1.LoPs.length === 3);
+
+  var p1 = await PUT({ rescueOrder: [{ victimType: 'LIVE', zoneType: 'GREEN' }], LoPs: [1, 0, 0], time: { minutes: 0, seconds: 10 } });
+  T.check('PUT sin puntos: 200, score 0, multiplier 1.4', p1.status === 200 && p1.data.msg === 'Saved run' && p1.data.score === 0 && p1.data.raw_score === 0 && p1.data.multiplier === 1.4, p1.data);
+  var guard2 = await leer();
+  T.check('PUT sin puntos guarda rescueOrder/LoPs y started sigue false', guard2.rescueOrder.length === 1 && /^[0-9a-f]{24}$/.test(guard2.rescueOrder[0]._id) && guard2.LoPs[0] === 1 && guard2.started === false, guard2);
+  var g2 = await GET();
+  T.igual('C1: GET de corrida no empezada resetea rescueOrder', g2.data.rescueOrder, []);
+  T.igual('C1: GET resetea LoPs', g2.data.LoPs, [0, 0, 0]);
+  T.check('C1: GET regenera tiles (nuevos _id)', g2.data.tiles[0]._id !== d1.tiles[0]._id);
+  T.check('C1: GET conserva time', g2.data.time.seconds === 10);
+  var guard3 = await leer();
+  T.check('C1: el reseteo quedó persistido', guard3.rescueOrder.length === 0 && guard3.LoPs[0] === 0 && guard3.tiles[0]._id === g2.data.tiles[0]._id);
+
+  // ---------------------------------------------------------------- started
+  var p2 = await PUT({ showedUp: true, time: { minutes: 0, seconds: 20 } });
+  T.check('showedUp => {5,5,1}', p2.data.score === 5 && p2.data.raw_score === 5 && p2.data.multiplier === 1, p2.data);
+  var g3 = await GET();
+  T.check('started = true con score > 0', g3.data.started === true);
+  T.check('corrida empezada: el GET ya no re-inicializa', g3.data.tiles[0]._id === g2.data.tiles[0]._id && g3.data.showedUp === true);
+
+  // ---------------------------------------------------------------- KIT y enums
+  var p3 = await PUT({ rescueOrder: [{ victimType: 'KIT', zoneType: 'RED' }], time: { minutes: 0, seconds: 25 } });
+  T.check('KIT multiplica x1.4 (score 7)', p3.status === 200 && p3.data.multiplier === 1.4 && p3.data.score === 7, p3.data);
+  var p3b = await PUT({ rescueOrder: [{ victimType: 'FOO', zoneType: 'RED' }] });
+  T.check('victimType fuera del enum => 400', p3b.status === 400 && p3b.data.err === 'LineRun validation failed: rescueOrder.0.victimType: `FOO` is not a valid enum value for path `victimType`.', p3b.data);
+  T.check('enum inválido no guarda', (await leer()).rescueOrder[0].victimType === 'KIT');
+
+  // ---------------------------------------------------------------- status
+  var st = async function () { return (await leer()).status; };
+  var lch0 = ev.lchanged;
+  await PUT({ status: 3 }); T.check('status 0 -> 3', (await st()) === 3);
+  await PUT({ status: 2 }); T.check('status 3 -> 2 se ignora', (await st()) === 3);
+  await PUT({ status: 6 }); T.check('status 3 -> 6', (await st()) === 6);
+  await PUT({ status: 4 }); T.check('desde 6 puede bajar (6 -> 4)', (await st()) === 4);
+  await PUT({ status: 2 }); T.check('status 4 -> 2 se ignora', (await st()) === 4);
+  await PUT({ status: 0 }); T.check('status 0 pasa siempre (falsy)', (await st()) === 0);
+  await PUT({ status: '5' }); T.check("status '5' (string) se castea a 5", (await st()) === 5);
+  T.check('LChanged solo cuando cambia el status (5 veces)', ev.lchanged - lch0 === 5, ev.lchanged - lch0);
+
+  // ---------------------------------------------------------------- tiempo
+  var t60 = await PUT({ time: { minutes: 1, seconds: 60 } });
+  T.check('seconds = 60 => 400 con el mensaje de mongoose', t60.status === 400 && t60.data.msg === 'Could not save run' &&
+    t60.data.err === 'LineRun validation failed: time.seconds: Path `time.seconds` (60) is more than maximum allowed value (59).', t60.data);
+  T.check('seconds = 60 no guarda nada', (await leer()).time.minutes === 0);
+  var t5 = await PUT({ time: { minutes: '5', seconds: '07' } });
+  var g5 = await leer();
+  T.check("minutes '5' (string) => 200 y se guarda 5 numérico", t5.status === 200 && g5.time.minutes === 5 && g5.time.seconds === 7, [t5, g5.time]);
+  var t9 = await PUT({ time: { minutes: 9, seconds: 0 } });
+  T.check('minutes = 9 => 400', t9.status === 400 && t9.data.err === 'LineRun validation failed: time.minutes: Path `time.minutes` (9) is more than maximum allowed value (8).', t9.data);
+  var t5a = await PUT({ time: { minutes: '5a', seconds: 0 } });
+  T.check("minutes '5a' => 400 CastError", t5a.status === 400 && t5a.data.err === 'LineRun validation failed: time.minutes: Cast to Number failed for value "5a" (type string) at path "time.minutes"', t5a.data);
+
+  // ---------------------------------------------------------------- copyProperties verbatim
+  var il = await PUT({ normalizedScore: 1 });
+  T.check('clave raíz ilegal => 400 Illegal key', il.status === 400 && il.data.err === 'Illegal key: normalizedScore' && il.data.msg === 'Could not save run', il.data);
+  var h3 = await PUT({ time: { minutes: 2, foo: 1, seconds: 30 } });
+  var gh3 = await leer();
+  T.check('H3: clave ilegal interna se ignora y corta lo que sigue', h3.status === 200 && gh3.time.minutes === 2 && gh3.time.seconds === 7, [h3.status, gh3.time]);
+
+  // ---------------------------------------------------------------- tiles como diccionario disperso
+  var antes = await leer();
+  var idx = antes.tiles.findIndex(function (t) { return t.scoredItems.some(function (i) { return i.item === 'speedbump'; }); });
+  var tileMod = JSON.parse(JSON.stringify(antes.tiles[idx]));
+  tileMod.scoredItems.forEach(function (i) { i.scored = true; });
+  var cuerpo = { tiles: {}, time: { minutes: 2, seconds: 30 } };
+  cuerpo.tiles[String(idx)] = tileMod;
+  var pd = await PUT(cuerpo);
+  var despues = await leer();
+  T.check('tiles disperso: 200 y suma 10 al raw_score', pd.status === 200 && pd.data.raw_score === antes.raw_score + 10, [pd.data, antes.raw_score]);
+  T.check('tiles disperso: solo cambia ese índice', despues.tiles.every(function (t, i) {
+    return i === idx ? t.scoredItems.every(function (s) { return s.scored === true; }) : JSON.stringify(t) === JSON.stringify(antes.tiles[i]);
+  }));
+  T.check('tiles disperso: conserva los _id', despues.tiles[idx]._id === antes.tiles[idx]._id && despues.tiles[idx].scoredItems[0]._id === antes.tiles[idx].scoredItems[0]._id);
+
+  // ---------------------------------------------------------------- LoPs de otro largo
+  var lopsLargo = await PUT({ LoPs: [0, 0, 0, 0, 0] });
+  var gl = await leer();
+  T.check('LoPs más largo: 200 y se guarda con largo 5', lopsLargo.status === 200 && gl.LoPs.length === 5, [lopsLargo, gl.LoPs]);
+  var lopsCorto = await PUT({ LoPs: [0] });
+  var gc = await leer();
+  T.check('LoPs más corto: CALC da NaN => 400 y no guarda', lopsCorto.status === 400 && /score: Cast to Number failed for value "NaN" \(type number\) at path "score"/.test(lopsCorto.data.err) && gc.LoPs.length === 5, [lopsCorto, gc.LoPs]);
+
+  // ---------------------------------------------------------------- 202
+  var p202 = await PUT({ rescueOrder: [null] });
+  T.check('CALC lanza => 202 {msg:"Try again later"}', p202.status === 202 && p202.data.msg === 'Try again later', p202);
+  T.check('202 no guarda nada', (await leer()).rescueOrder.length === 1);
+
+  // ---------------------------------------------------------------- firma
+  var pf = await PUT({ comment: 'ok', sign: { captain: 'data:image/svg+xml;base64,AAA', referee: 'data:image/svg+xml;base64,BBB', referee_as: '' }, status: 4 });
+  var gf = await leer();
+  T.check('PUT de firma: guarda firmas; status 5 -> 4 se ignora', pf.status === 200 && gf.sign.captain === 'data:image/svg+xml;base64,AAA' && gf.comment === 'ok' && gf.status === 5, [pf.status, gf.status]);
+
+  // ---------------------------------------------------------------- E16
+  var ultimo = ev.data[ev.data.length - 1];
+  T.check('E16 runs/<id> "data" con la corrida poblada', !!ultimo && ultimo._id === runId && ultimo.competition._id === cid && Array.isArray(ultimo.competition.leagues) &&
+    ultimo.team.name === 'IITA Salta' && !('teamPhoto' in ultimo.team) && ultimo.map._id === mapId && ultimo.map.name === 'IITA Fixture 2026' && ultimo.map.finished === true &&
+    ultimo.round === ronda1._id && ultimo.field === cancha._id && ultimo.comment === 'ok', ultimo && { map: ultimo.map, team: ultimo.team, round: ultimo.round });
+  T.check('E16 fields/<fid> "data" {newRun}', ev.campo.length === ev.data.length && ev.campo[ev.campo.length - 1].newRun === runId, ev.campo.length);
+  T.check('E16 runs/line/<cid> "changed" por cada PUT exitoso', ev.changed === ev.data.length && ev.data.length >= 15, [ev.changed, ev.data.length]);
+
+  // ---------------------------------------------------------------- mapa no terminado
+  var sint = await T.fixture('sintetico-03.json');
+  var map2 = await RCJLocal.ingestMap(sint, { competition: cid });
+  var run2 = (await T.api('POST', '/api/runs/line', { round: ronda2, team: equipo._id, field: cancha._id, competition: cid, map: map2, startTime: 0 })).data.id;
+  var gr2 = await T.api('GET', '/api/runs/line/' + run2);
+  T.check('corrida 2: GET inicial', gr2.status === 200 && gr2.data.tiles.length === 7 && gr2.data.LoPs.length === 2, gr2.data);
+  var m2 = await RCJLocal.store.get('lineMaps', map2);
+  m2.finished = false;
+  await RCJLocal.store.put('lineMaps', m2);
+  var nf = await T.api('PUT', '/api/runs/line/' + run2, { showedUp: true, time: { minutes: 0, seconds: 1 } });
+  T.check('mapa no finished => 400 Map "..." is not finished!', nf.status === 400 && nf.data.err === 'Map "Sintetico 03" is not finished!' && nf.data.msg === 'Could not save run', nf.data);
+  T.check('mapa no finished: no guarda', (await leer(run2)).showedUp === false);
+  var nfPost = await T.api('POST', '/api/runs/line', { round: ronda3, team: equipo._id, field: cancha._id, competition: cid, map: map2 });
+  T.check('E13 sobre mapa no finished => 400', nfPost.status === 400 && nfPost.data.err === 'Map "Sintetico 03" is not finished!', nfPost.data);
+  var antesGet = await leer(run2);
+  var gnf = await T.api('GET', '/api/runs/line/' + run2);
+  var despuesGet = await leer(run2);
+  T.check('GET con mapa no finished: responde 200 con la inicialización pero no la persiste',
+    gnf.status === 200 && gnf.data.tiles[0]._id !== antesGet.tiles[0]._id && despuesGet.tiles[0]._id === antesGet.tiles[0]._id);
+  m2.finished = true;
+  await RCJLocal.store.put('lineMaps', m2);
+
+  // ---------------------------------------------------------------- started por items marcados con score 0
+  var run3 = (await T.api('POST', '/api/runs/line', { round: ronda3, team: equipo._id, field: cancha._id, competition: cid, map: mapId })).data.id;
+  var g3r = (await T.api('GET', '/api/runs/line/' + run3)).data;
+  var idxCp = g3r.tiles.findIndex(function (t) { return t.scoredItems.some(function (i) { return i.item === 'checkpoint'; }); });
+  var tcp = JSON.parse(JSON.stringify(g3r.tiles[idxCp]));
+  tcp.scoredItems.forEach(function (i) { i.scored = true; });
+  var b3 = { LoPs: [3, 0, 0], tiles: {}, time: { minutes: 0, seconds: 3 } };
+  b3.tiles[String(idxCp)] = tcp;
+  var p33 = await T.api('PUT', '/api/runs/line/' + run3, b3);
+  var s33 = await leer(run3);
+  T.check('score 0 con item marcado => started = true (huecos del diccionario salteados)', p33.status === 200 && p33.data.score === 0 && s33.started === true && idxCp === 5, [p33.data, s33.started, idxCp]);
+
+  // ---------------------------------------------------------------- E12
+  var lista = await T.api('GET', '/api/runs/line/competition/' + cid);
+  T.check('E12: 3 corridas', lista.status === 200 && lista.data.length === 3, lista.data.length);
+  var l1 = lista.data.find(function (r) { return r._id === runId; });
+  T.check('E12: score como string (Decimal.toJSON) y originalScore numérico', typeof l1.score === 'string' && typeof l1.originalScore === 'number' && Number(l1.score) === l1.originalScore, [l1.score, l1.originalScore]);
+  T.check('E12: poblados con proyección', l1.round.name === 'Ronda 1' && Object.keys(l1.round).length === 2 && l1.team.name === 'IITA Salta' && l1.map.name === 'IITA Fixture 2026' && Object.keys(l1.map).length === 2 && l1.field.name === 'Cancha 1', l1);
+  var minimo = await T.api('GET', '/api/runs/line/competition/' + cid + '?populate=true&minimum=true&ended=false');
+  T.check('E12 minimum&ended=false: status <= 1 y proyección mínima', minimo.data.length === 2 && minimo.data.every(function (r) {
+    return r.status <= 1 && !('score' in r) && !('map' in r) && 'sign' in r && 'startTime' in r;
+  }), minimo.data.map(function (r) { return Object.keys(r); }));
+
+  return { eventos: { data: ev.data.length, changed: ev.changed, lchanged: ev.lchanged, campo: ev.campo.length } };
+});
+</script>
+</body>
+</html>

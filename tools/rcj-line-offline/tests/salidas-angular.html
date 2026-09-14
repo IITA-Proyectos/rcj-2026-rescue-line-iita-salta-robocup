@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Salidas — botón Generate del editor ($scope.generateOutput real con $http)</title>
+<script src="salidas-comun.js"></script>
+<script src="../components/jquery/dist/jquery.min.js"></script>
+<script src="../components/angular/angular.min.js"></script>
+<script src="../local/config.js"></script>
+<script src="../local/io-shim.js"></script>
+<script src="../local/nucleo/store.js"></script>
+<script src="../local/nucleo/pathfinder-servidor.js"></script>
+<script src="../local/nucleo/init-run.js"></script>
+<script src="../local/nucleo/score-2026.js"></script>
+<script src="../local/nucleo/copy-properties.js"></script>
+<script src="../local/nucleo/api.js"></script>
+<script src="../local/nucleo/ranking.js"></script>
+<script src="../local/render/registrar.js"></script>
+<script src="../local/http-backend.js"></script>
+</head>
+<body>
+<div id="app"></div>
+<pre id="resultado">PENDIENTE</pre>
+<script>
+var app = angular.module('pruebaSalidas', []);
+app.run(['$http', '$rootScope', function ($http, $rootScope) { window.__ng = { $http: $http, $rootScope: $rootScope }; }]);
+RCJLocal.instalarBackend('pruebaSalidas');
+
+// Extrae $scope.generateOutput tal cual está en javascripts/admin/mapEditor/line_2026.js (L26:830-890)
+function extraerFuncion(fuente, inicio) {
+  var i = fuente.indexOf(inicio);
+  if (i < 0) throw new Error('no se encontró ' + inicio);
+  var j = fuente.indexOf('{', i), nivel = 0, k;
+  for (k = j; k < fuente.length; k++) {
+    if (fuente[k] === '{') nivel++;
+    else if (fuente[k] === '}') { nivel--; if (nivel === 0) break; }
+  }
+  return fuente.slice(i, k + 1) + ';';
+}
+
+T.correr(async function () {
+  await T.resetear();
+  await RCJLocal.semillas();
+  var fx = await T.fixture('fixture-mapa-oficial.json');
+  var fuente = await (await fetch('../javascripts/admin/mapEditor/line_2026.js', { cache: 'no-cache' })).text();
+  var codigo = extraerFuncion(fuente, '$scope.generateOutput = function () {');
+  T.check('código extraído del editor real', /map-image-pdf/.test(codigo) && /scoresheet/.test(codigo) && codigo.length > 2000, codigo.length);
+
+  angular.bootstrap(document.getElementById('app'), ['pruebaSalidas']);
+  var $http = window.__ng.$http, $rootScope = window.__ng.$rootScope;
+
+  var eventos = [];
+  window.open = function (url, destino) { eventos.push({ tipo: 'open', url: url, destino: destino }); return null; };
+  HTMLAnchorElement.prototype.click = function () { eventos.push({ tipo: 'click', url: this.href, download: this.download }); };
+  var Toast = { fire: function (o) { eventos.push({ tipo: 'toast', o: o }); } };
+
+  var llamadasIndice = 0;
+  var $scope = {
+    name: fx.name, height: fx.height, width: fx.width, length: fx.length, tiles: fx.tiles,
+    startTile: fx.startTile, startTile2: fx.startTile2, competition: { name: 'Práctica IITA 2026' },
+    EvacuationAreaLoPIndex: 2, pdfSettings: {},
+    updateTileIndex: function () { llamadasIndice++; }
+  };
+  new Function('$scope', '$http', 'Toast', 'leagueId', codigo)($scope, $http, Toast, 'Line');
+
+  async function generar(ajustes) {
+    eventos.length = 0;
+    $scope.pdfSettings = ajustes;
+    $rootScope.$apply(function () { $scope.generateOutput(); });
+    for (var i = 0; i < 300 && eventos.length === 0; i++) await T.esperar(50);
+    var ev = eventos[0];
+    if (!ev) return { ev: null };
+    if (ev.tipo === 'toast') return { ev: ev };
+    var ab = await (await fetch(ev.url)).arrayBuffer();
+    return { ev: ev, ab: ab };
+  }
+
+  var r1 = await generar({ exportType: 'Scoresheets', paperSize: 'A4', noQR: false });
+  T.check('Scoresheets: window.open(blob:, _blank) con un PDF de 1 página', r1.ev && r1.ev.tipo === 'open' && r1.ev.destino === '_blank' && /^blob:/.test(r1.ev.url) &&
+    T.pdfInfo(r1.ab).cabecera.indexOf('%PDF') === 0 && T.pdfInfo(r1.ab).paginas === 1, r1.ev);
+  if (r1.ab) await T.guardar('editor-boton-planilla.pdf', r1.ab);
+
+  var r2 = await generar({ exportType: 'Maps', exportFormat: 'PDF', paperSize: 'Letter' });
+  T.check('Maps PDF: window.open con PDF Letter', r2.ev && r2.ev.tipo === 'open' && r2.ab && ['0 0 612 792', '0 0 792 612'].indexOf(T.pdfInfo(r2.ab).mediaBoxes[0]) >= 0, r2.ev);
+  if (r2.ab) await T.guardar('editor-boton-mapa.pdf', r2.ab);
+
+  var r3 = await generar({ exportType: 'Maps', exportFormat: 'PNG', paperSize: 'A4' });
+  T.check('Maps PNG: <a download="IITA Fixture 2026.png">.click() con PNG', r3.ev && r3.ev.tipo === 'click' && r3.ev.download === 'IITA Fixture 2026.png' && r3.ab && T.pngInfo(r3.ab).firma, r3.ev);
+  if (r3.ab) await T.guardar('editor-boton-mapa.png', r3.ab);
+
+  T.igual('updateTileIndex llamado antes de cada salida', llamadasIndice, 3);
+
+  // Error: el Toast del editor aparece igual que con el servidor (map-image-png sin tiles => 400)
+  // El editor hace console.error(err) en su rama de error (L26:885-888): esperado solo en este caso
+  T.ignorarErrores(/"status":400[\s\S]*map-image-png/);
+  $scope.tiles = undefined;
+  var r4 = await generar({ exportType: 'Maps', exportFormat: 'PNG', paperSize: 'A4' });
+  T.check('Maps PNG sin tiles: Toast "Error generating output"', r4.ev && r4.ev.tipo === 'toast' && r4.ev.o.title === 'Error generating output', r4.ev);
+
+  return { angular: angular.version.full };
+});
+</script>
+</body>
+</html>

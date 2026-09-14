@@ -1,0 +1,525 @@
+{
+  "generado": "2026-09-13",
+  "archivos": {
+    "alertifyjs/dist/js/ngAlertify.js": {
+      "biblioteca": "alertify.js (ngAlertify)",
+      "version": "1.0.11 (06 §3.1 decía 1.0.12 porque miden igual; el sha coincide con 1.0.11 y difiere de 1.0.12)",
+      "licencia": "MIT",
+      "bytes": 11362,
+      "sha256": "bc8aca120bd0d8aa23be5d5e089a4c2d39b709f9b9465ee914d47455ce3d0dd0",
+      "origen": "vendor-live (copia de https://intl.rcj.cloud/components/alertifyjs/dist/js/ngAlertify.js)",
+      "verificacion": "idéntico a https://cdn.jsdelivr.net/npm/alertify.js@1.0.11/dist/js/ngAlertify.js",
+      "nota": null
+    },
+    "angular-animate/angular-animate.min.js": {
+      "biblioteca": "ngAnimate",
+      "version": "1.8.2",
+      "licencia": "MIT",
+      "bytes": 26809,
+      "sha256": "91dd61cff58efd54434d6bbea42fe6c0eed1af42968e9c592fb516736395c22a",
+      "origen": "vendor-live (copia de https://intl.rcj.cloud/components/angular-animate/angular-animate.min.js)",
+      "verificacion": "idéntico a https://cdnjs.cloudflare.com/ajax/libs/angular-animate/1.8.2/angular-animate.min.js",
+      "nota": null
+    },
+    "angular-bootstrap-datetimepicker/src/css/datetimepicker.css": {
+      "biblioteca": "angular-bootstrap-datetimepicker",
+      "version": "1.1.4",
+      "licencia": "MIT",
+      "bytes": 3127,
+      "sha256": "49cd574b5ffb39823196290585f5d9e916fe115bb5b7828bb880ff65ff1b7194",
+      "origen": "https://intl.rcj.cloud/components/angular-bootstrap-datetimepicker/src/css/datetimepicker.css",
+      "verificacion": "idéntico a https://cdnjs.cloudflare.com/ajax/libs/angular-bootstrap-datetimepicker/1.1.4/css/datetimepicker.css",
+      "nota": "lo enlaza views/admin/games.pug:20 (no está en la tabla de 06)"
+    },
+    "angular-bootstrap-datetimepicker/src/js/datetimepicker.js": {
+      "biblioteca": "angular-bootstrap-datetimepicker",
+      "version": "1.1.4",
+      "licencia": "MIT",
+      "bytes": 22071,
+      "sha256": "64df124642e81fa7ca5310dcc1f235b8fe6b0b78d68b3c58d2d83e3cc40fac42",
+      "origen": "https://intl.rcj.cloud/components/angular-bootstrap-datetimepicker/src/js/datetimepicker.js",
+      "verificacion": "idéntico a https://cdnjs.cloudflare.com/ajax/libs/angular-bootstrap-datetimepicker/1.1.4/js/datetimepicker.js",
+      "nota": null
+    },
+    "angular-bootstrap-datetimepicker/src/js/datetimepicker.templates.js": {
+      "biblioteca": "angular-bootstrap-datetimepicker",
+      "version": "1.1.4",
+      "licencia": "MIT",
+      "bytes": 2957,
+      "sha256": "2f82c5c61d98982592bd461aa5e15368396bed1c5c27045a5eae8bab7d7db553",
+      "origen": "https://intl.rcj.cloud/components/angular-bootstrap-datetimepicker/src/js/datetimepicker.templates.js",
+      "verificacion": "idéntico a https://cdnjs.cloudflare.com/ajax/libs/angular-bootstrap-datetimepicker/1.1.4/js/datetimepicker.templates.js",
+      "nota": null
+    },
+    "angular-bootstrap/dist/ui-bootstrap-csp.css": {
+      "biblioteca": "UI Bootstrap (fork rrrobo/ab-for-rcj, base ui-bootstrap4 3.0.0-beta.3)",
+      "version": "master (sin tags; fork propio, 06 §3.3)",
+      "licencia": "MIT (heredada de angular-ui/bootstrap; el fork no declara LICENSE)",
+      "bytes": 4041,
+      "sha256": "840babb7889dcdd4a72770dfdde22c5abfbbf4cae3f54c5e5d76a1e9cbaf4d78",
+      "origen": "vendor-live (copia de https://intl.rcj.cloud/components/angular-bootstrap/dist/ui-bootstrap-csp.css)",
+      "verificacion": "idéntico a https://cdn.jsdelivr.net/gh/rrrobo/ab-for-rcj@master/dist/ui-bootstrap-csp.css",
+      "nota": null
+    },
+    "angular-bootstrap/dist/ui-bootstrap-tpls.js": {
+      "biblioteca": "UI Bootstrap (fork rrrobo/ab-for-rcj, base ui-bootstrap4 3.0.0-beta.3)",
+      "version": "master (sin tags; fork propio, 06 §3.3)",
+      "licencia": "MIT (heredada de angular-ui/bootstrap; el fork no declara LICENSE)",
+      "bytes": 282113,
+      "sha256": "4145c50f7610af448ca417794d525099720fc1c7af20ade94b121389afaab745",
+      "origen": "vendor-live (copia de https://intl.rcj.cloud/components/angular-bootstrap/dist/ui-bootstrap-tpls.js)",
+      "verificacion": "idéntico a https://cdn.jsdelivr.net/gh/rrrobo/ab-for-rcj@master/dist/ui-bootstrap-tpls.js",
+      "nota": null
+    },
+    "angular-cookies/angular-cookies.min.js": {
+      "biblioteca": "ngCookies",
+      "version": "1.8.2",
+      "licencia": "MIT",
+      "bytes": 1331,
+      "sha256": "14dd592e11b348118b490883a60bdaccb4b049c9a8e9f1b79f933d61e3cafd75",
+      "origen": "vendor-live (copia de https://intl.rcj.cloud/components/angular-cookies/angular-cookies.min.js)",
+      "verificacion": "idéntico a https://cdnjs.cloudflare.com/ajax/libs/angular-cookies/1.8.2/angular-cookies.min.js",
+      "nota": null
+    },
+    "angular-datatables/demo/src/archives/dist/angular-datatables.min.js": {
+      "biblioteca": "angular-datatables (legacy AngularJS)",
+      "version": "0.5.6",
+      "licencia": "MIT",
+      "bytes": 14287,
+      "sha256": "026ed312ef5de4bd9a5477559cf5ab7b0e096572c0d21cccf8c0515e1076e142",
+      "origen": "https://intl.rcj.cloud/components/angular-datatables/demo/src/archives/dist/angular-datatables.min.js",
+      "verificacion": "idéntico a https://cdnjs.cloudflare.com/ajax/libs/angular-datatables/0.5.6/angular-datatables.min.js",
+      "nota": null
+    },
+    "angular-sanitize/angular-sanitize.min.js": {
+      "biblioteca": "ngSanitize",
+      "version": "1.8.2",
+      "licencia": "MIT",
+      "bytes": 6526,
+      "sha256": "3e8d479b61e09797aa910a2de2d84cb0bdd8d1e26acd061ec713082ddd57839a",
+      "origen": "vendor-live (copia de https://intl.rcj.cloud/components/angular-sanitize/angular-sanitize.min.js)",
+      "verificacion": "idéntico a https://cdnjs.cloudflare.com/ajax/libs/angular-sanitize/1.8.2/angular-sanitize.min.js",
+      "nota": null
+    },
+    "angular-touch/angular-touch.min.js": {
+      "biblioteca": "ngTouch",
+      "version": "1.8.2",
+      "licencia": "MIT",
+      "bytes": 1740,
+      "sha256": "e4bd11692e04ce20e8db6d96249a94dc2ccf02c49c3d8409c44396d641e52a72",
+      "origen": "vendor-live (copia de https://intl.rcj.cloud/components/angular-touch/angular-touch.min.js)",
+      "verificacion": "idéntico a https://cdnjs.cloudflare.com/ajax/libs/angular-touch/1.8.2/angular-touch.min.js",
+      "nota": null
+    },
+    "angular-translate-handler-log/angular-translate-handler-log.min.js": {
+      "biblioteca": "angular-translate (+ loader static files, storage local/cookie, handler log)",
+      "version": "2.19.1",
+      "licencia": "MIT",
+      "bytes": 592,
+      "sha256": "45428a921e90c94f8b0f46f8efc4a97766c25151dd8ce8f0e03fd45d9724eca7",
+      "origen": "vendor-live (copia de https://intl.rcj.cloud/components/angular-translate-handler-log/angular-translate-handler-log.min.js)",
+      "verificacion": "idéntico a https://cdnjs.cloudflare.com/ajax/libs/angular-translate-handler-log/2.19.1/angular-translate-handler-log.min.js",
+      "nota": null
+    },
+    "angular-translate-loader-static-files/angular-translate-loader-static-files.min.js": {
+      "biblioteca": "angular-translate (+ loader static files, storage local/cookie, handler log)",
+      "version": "2.19.1",
+      "licencia": "MIT",
+      "bytes": 1373,
+      "sha256": "1cb702a4b2ff5924c763a49a5b1dd6cff05b1af8c953d39d2f45bdd56e0ab625",
+      "origen": "https://intl.rcj.cloud/components/angular-translate-loader-static-files/angular-translate-loader-static-files.min.js",
+      "verificacion": "idéntico a https://cdnjs.cloudflare.com/ajax/libs/angular-translate-loader-static-files/2.19.1/angular-translate-loader-static-files.min.js",
+      "nota": null
+    },
+    "angular-translate-storage-cookie/angular-translate-storage-cookie.min.js": {
+      "biblioteca": "angular-translate (+ loader static files, storage local/cookie, handler log)",
+      "version": "2.19.1",
+      "licencia": "MIT",
+      "bytes": 872,
+      "sha256": "775b8bb2f847d568e2e8f4aca597e5bfc87ed736079e7687fa801243d190a2c2",
+      "origen": "vendor-live (copia de https://intl.rcj.cloud/components/angular-translate-storage-cookie/angular-translate-storage-cookie.min.js)",
+      "verificacion": "idéntico a https://cdnjs.cloudflare.com/ajax/libs/angular-translate-storage-cookie/2.19.1/angular-translate-storage-cookie.min.js",
+      "nota": null
+    },
+    "angular-translate-storage-local/angular-translate-storage-local.min.js": {
+      "biblioteca": "angular-translate (+ loader static files, storage local/cookie, handler log)",
+      "version": "2.19.1",
+      "licencia": "MIT",
+      "bytes": 896,
+      "sha256": "4b6e36fd014ce67467892576bc84df5b06528d43f39d0410fb769776e64c25db",
+      "origen": "vendor-live (copia de https://intl.rcj.cloud/components/angular-translate-storage-local/angular-translate-storage-local.min.js)",
+      "verificacion": "idéntico a https://cdnjs.cloudflare.com/ajax/libs/angular-translate-storage-local/2.19.1/angular-translate-storage-local.min.js",
+      "nota": null
+    },
+    "angular-translate/angular-translate.min.js": {
+      "biblioteca": "angular-translate (+ loader static files, storage local/cookie, handler log)",
+      "version": "2.19.1",
+      "licencia": "MIT",
+      "bytes": 24450,
+      "sha256": "06114dc257e2b0b7eb2018a93ed37f04411058cf1ca3775e4c60a730fd09bc7d",
+      "origen": "vendor-live (copia de https://intl.rcj.cloud/components/angular-translate/angular-translate.min.js)",
+      "verificacion": "idéntico a https://cdnjs.cloudflare.com/ajax/libs/angular-translate/2.19.1/angular-translate.min.js",
+      "nota": null
+    },
+    "angular-ui-select/dist/select.min.css": {
+      "biblioteca": "ui-select",
+      "version": "0.19.8 (el banner dice \"Version: 0.19.7\"; identidad por tamaño y sha con cdnjs 0.19.8)",
+      "licencia": "MIT",
+      "bytes": 6092,
+      "sha256": "e82d95d90c03ff1acb5ebaf72be2204fac4f6c58da5dc98526de80e2d2760e95",
+      "origen": "vendor-live (copia de https://intl.rcj.cloud/components/angular-ui-select/dist/select.min.css)",
+      "verificacion": "idéntico a https://cdnjs.cloudflare.com/ajax/libs/angular-ui-select/0.19.8/select.min.css",
+      "nota": null
+    },
+    "angular-ui-select/dist/select.min.js": {
+      "biblioteca": "ui-select",
+      "version": "0.19.8 (el banner dice \"Version: 0.19.7\"; identidad por tamaño y sha con cdnjs 0.19.8)",
+      "licencia": "MIT",
+      "bytes": 45235,
+      "sha256": "c92478334e1ce00cf85712561725984608d7325dcb5b02e4e85fe60d76f9eafd",
+      "origen": "vendor-live (copia de https://intl.rcj.cloud/components/angular-ui-select/dist/select.min.js)",
+      "verificacion": "idéntico a https://cdnjs.cloudflare.com/ajax/libs/angular-ui-select/0.19.8/select.min.js",
+      "nota": null
+    },
+    "angular/angular.min.js": {
+      "biblioteca": "AngularJS",
+      "version": "1.8.2",
+      "licencia": "MIT",
+      "bytes": 177366,
+      "sha256": "24103af48b9ee0409c9178cd92eba5dc3cdf0c76827b7c265c4f6f681b4dc176",
+      "origen": "vendor-live (copia de https://intl.rcj.cloud/components/angular/angular.min.js)",
+      "verificacion": "idéntico a https://cdnjs.cloudflare.com/ajax/libs/angular.js/1.8.2/angular.min.js",
+      "nota": null
+    },
+    "bootstrap-fileinput/css/fileinput.min.css": {
+      "biblioteca": "bootstrap-fileinput",
+      "version": "5.5.4",
+      "licencia": "BSD-3-Clause",
+      "bytes": 10232,
+      "sha256": "04e9a4ed8334404d5190833f008a337d69099cf3495e8ed66724866b7c577587",
+      "origen": "vendor-live (copia de https://intl.rcj.cloud/components/bootstrap-fileinput/css/fileinput.min.css)",
+      "verificacion": "idéntico a https://cdnjs.cloudflare.com/ajax/libs/bootstrap-fileinput/5.5.4/css/fileinput.min.css",
+      "nota": null
+    },
+    "bootstrap-fileinput/img/loading-sm.gif": {
+      "biblioteca": "bootstrap-fileinput",
+      "version": "5.5.4",
+      "licencia": "BSD-3-Clause",
+      "bytes": 2670,
+      "sha256": "84b11496418cc9cb300b44f9d331580dce32229b8d624f542fb1ab4a02ea9b04",
+      "origen": "https://intl.rcj.cloud/components/bootstrap-fileinput/img/loading-sm.gif",
+      "verificacion": "idéntico a https://cdnjs.cloudflare.com/ajax/libs/bootstrap-fileinput/5.5.4/img/loading-sm.gif",
+      "nota": null
+    },
+    "bootstrap-fileinput/img/loading.gif": {
+      "biblioteca": "bootstrap-fileinput",
+      "version": "5.5.4",
+      "licencia": "BSD-3-Clause",
+      "bytes": 847,
+      "sha256": "abb2c87444ef9f0ad7ff70d880ab21728e26380949753c630fa1831fe62b8026",
+      "origen": "https://intl.rcj.cloud/components/bootstrap-fileinput/img/loading.gif",
+      "verificacion": "idéntico a https://cdnjs.cloudflare.com/ajax/libs/bootstrap-fileinput/5.5.4/img/loading.gif",
+      "nota": null
+    },
+    "bootstrap-fileinput/js/fileinput.min.js": {
+      "biblioteca": "bootstrap-fileinput",
+      "version": "5.5.4",
+      "licencia": "BSD-3-Clause",
+      "bytes": 136598,
+      "sha256": "7b2aa5e45c848bdf81fdf3d623cab4ad94606d8b41bb35e690ed1702a32af818",
+      "origen": "vendor-live (copia de https://intl.rcj.cloud/components/bootstrap-fileinput/js/fileinput.min.js)",
+      "verificacion": "idéntico a https://cdnjs.cloudflare.com/ajax/libs/bootstrap-fileinput/5.5.4/js/fileinput.min.js",
+      "nota": null
+    },
+    "bootstrap-fileinput/js/locales/ja.js": {
+      "biblioteca": "bootstrap-fileinput",
+      "version": "5.5.4",
+      "licencia": "BSD-3-Clause",
+      "bytes": 8011,
+      "sha256": "312b97691c402cee2287293d2853fc6467b944d1948aa219902e5399f2a12d90",
+      "origen": "https://intl.rcj.cloud/components/bootstrap-fileinput/js/locales/ja.js",
+      "verificacion": "idéntico a https://cdnjs.cloudflare.com/ajax/libs/bootstrap-fileinput/5.5.4/js/locales/ja.js",
+      "nota": null
+    },
+    "bootstrap/dist/css/bootstrap.min.css": {
+      "biblioteca": "Bootstrap",
+      "version": "4.4.1",
+      "licencia": "MIT",
+      "bytes": 159515,
+      "sha256": "2ff5b959fa9f6b4b1d04d20a37d706e90039176ab1e2a202994d9580baeebfd6",
+      "origen": "vendor-live (copia de https://intl.rcj.cloud/components/bootstrap/dist/css/bootstrap.min.css)",
+      "verificacion": "idéntico a https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.4.1/css/bootstrap.min.css",
+      "nota": null
+    },
+    "bootstrap/dist/js/bootstrap.min.js": {
+      "biblioteca": "Bootstrap",
+      "version": "4.4.1",
+      "licencia": "MIT",
+      "bytes": 60010,
+      "sha256": "5aa53525abc5c5200c70b3f6588388f86076cd699284c23cda64e92c372a1548",
+      "origen": "vendor-live (copia de https://intl.rcj.cloud/components/bootstrap/dist/js/bootstrap.min.js)",
+      "verificacion": "idéntico a https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.4.1/js/bootstrap.min.js",
+      "nota": null
+    },
+    "css-toggle-switch/dist/toggle-switch.css": {
+      "biblioteca": "css-toggle-switch",
+      "version": "4.1.0",
+      "licencia": "MIT",
+      "bytes": 15497,
+      "sha256": "abb0c0ca34aeceafdf74a33fb9ee2088ce821c94db4a7fbcaebcaf2a6818ddd9",
+      "origen": "vendor-live (copia de https://intl.rcj.cloud/components/css-toggle-switch/dist/toggle-switch.css)",
+      "verificacion": "idéntico a https://cdn.jsdelivr.net/npm/css-toggle-switch@4.1.0/dist/toggle-switch.css",
+      "nota": null
+    },
+    "datatables/media/js/jquery.dataTables.min.js": {
+      "biblioteca": "DataTables",
+      "version": "1.10.21",
+      "licencia": "MIT",
+      "bytes": 84647,
+      "sha256": "ffbce8dbb2e5fe154a842b04fb2f26d924b96e114f11016179308bf3b1eeba60",
+      "origen": "https://intl.rcj.cloud/components/datatables/media/js/jquery.dataTables.min.js",
+      "verificacion": "idéntico a https://cdnjs.cloudflare.com/ajax/libs/datatables/1.10.21/js/jquery.dataTables.min.js",
+      "nota": null
+    },
+    "exceljs/index.js": {
+      "biblioteca": "ExcelJS",
+      "version": "4.2.1 (bower.json:52 apunta a cdnjs 4.2.1; identidad por sha)",
+      "licencia": "MIT",
+      "bytes": 1168403,
+      "sha256": "7c28f32fef3ea7e2b582470332bb0b357a2409cd32ded2a57c54f280f5505804",
+      "origen": "https://intl.rcj.cloud/components/exceljs/index.js",
+      "verificacion": "idéntico a https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.2.1/exceljs.min.js",
+      "nota": "lo enlaza views/admin/games.pug:17 (no está en la tabla de 06)"
+    },
+    "font-awesome-5/css/all.min.css": {
+      "biblioteca": "Font Awesome Free (build de GitHub)",
+      "version": "5.15.4",
+      "licencia": "CSS MIT; fuentes OFL-1.1; íconos CC-BY-4.0",
+      "bytes": 59305,
+      "sha256": "99464ceb71bc9bbdcc72275faefe44f98eb5cbb6b5d8ee665b87b35376f1a96e",
+      "origen": "vendor-live (copia de https://intl.rcj.cloud/components/font-awesome-5/css/all.min.css)",
+      "verificacion": "idéntico a https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css",
+      "nota": null
+    },
+    "font-awesome-5/webfonts/fa-brands-400.woff2": {
+      "biblioteca": "Font Awesome Free (build de GitHub)",
+      "version": "5.15.4",
+      "licencia": "CSS MIT; fuentes OFL-1.1; íconos CC-BY-4.0",
+      "bytes": 76740,
+      "sha256": "bcc6afbc327c5fdd7e8137f7cfca1144a76a24b83d338cdb782bbf4c1bae8cbb",
+      "origen": "vendor-live (copia de https://intl.rcj.cloud/components/font-awesome-5/webfonts/fa-brands-400.woff2)",
+      "verificacion": "idéntico a https://cdn.jsdelivr.net/gh/FortAwesome/Font-Awesome@5.15.4/webfonts/fa-brands-400.woff2",
+      "nota": null
+    },
+    "font-awesome-5/webfonts/fa-regular-400.woff2": {
+      "biblioteca": "Font Awesome Free (build de GitHub)",
+      "version": "5.15.4",
+      "licencia": "CSS MIT; fuentes OFL-1.1; íconos CC-BY-4.0",
+      "bytes": 13224,
+      "sha256": "f82c17b6cba4ae53d18f40ab8066eea83ffabe9e73ce61df4034403fbcd65265",
+      "origen": "vendor-live (copia de https://intl.rcj.cloud/components/font-awesome-5/webfonts/fa-regular-400.woff2)",
+      "verificacion": "idéntico a https://cdn.jsdelivr.net/gh/FortAwesome/Font-Awesome@5.15.4/webfonts/fa-regular-400.woff2",
+      "nota": null
+    },
+    "font-awesome-5/webfonts/fa-solid-900.woff2": {
+      "biblioteca": "Font Awesome Free (build de GitHub)",
+      "version": "5.15.4",
+      "licencia": "CSS MIT; fuentes OFL-1.1; íconos CC-BY-4.0",
+      "bytes": 78260,
+      "sha256": "1d0e6c7f6b40b62c10c929739ed76b0adbd9a08591aa95697b6f802c4dc4824f",
+      "origen": "vendor-live (copia de https://intl.rcj.cloud/components/font-awesome-5/webfonts/fa-solid-900.woff2)",
+      "verificacion": "idéntico a https://cdn.jsdelivr.net/gh/FortAwesome/Font-Awesome@5.15.4/webfonts/fa-solid-900.woff2",
+      "nota": null
+    },
+    "html2canvas/index.js": {
+      "biblioteca": "html2canvas",
+      "version": "1.4.1",
+      "licencia": "MIT",
+      "bytes": 198689,
+      "sha256": "e87e550794322e574a1fda0c1549a3c70dae5a93d9113417a429016838eab8cb",
+      "origen": "vendor-live (copia de https://intl.rcj.cloud/components/html2canvas/index.js)",
+      "verificacion": "idéntico a https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js",
+      "nota": null
+    },
+    "jSignature/libs/jSignature.min.js": {
+      "biblioteca": "jSignature",
+      "version": "2.1.3",
+      "licencia": "MIT",
+      "bytes": 24241,
+      "sha256": "6f7e06f6aa97431823a4dafb29c99e95d85e9696863a06edd67ddccfc4e4aedf",
+      "origen": "vendor-live (copia de https://intl.rcj.cloud/components/jSignature/libs/jSignature.min.js)",
+      "verificacion": "idéntico a https://cdnjs.cloudflare.com/ajax/libs/jSignature/2.1.3/jSignature.min.js",
+      "nota": null
+    },
+    "jquery-qrcode/jquery.qrcode.min.js": {
+      "biblioteca": "jquery-qrcode (jeromeetienne)",
+      "version": "1.0 (master)",
+      "licencia": "MIT",
+      "bytes": 13995,
+      "sha256": "f4ccf02b69092819ac24575c717a080c3b6c6d6161f1b8d82bf0bb523075032d",
+      "origen": "vendor-live (copia de https://intl.rcj.cloud/components/jquery-qrcode/jquery.qrcode.min.js)",
+      "verificacion": "idéntico a https://cdnjs.cloudflare.com/ajax/libs/jquery.qrcode/1.0/jquery.qrcode.min.js",
+      "nota": null
+    },
+    "jquery/dist/jquery.min.js": {
+      "biblioteca": "jQuery",
+      "version": "3.7.1",
+      "licencia": "MIT",
+      "bytes": 87533,
+      "sha256": "fc9a93dd241f6b045cbff0481cf4e1901becd0e12fb45166a8f17f95823f0b1a",
+      "origen": "vendor-live (copia de https://intl.rcj.cloud/components/jquery/dist/jquery.min.js)",
+      "verificacion": "idéntico a https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js",
+      "nota": null
+    },
+    "lightbox2/dist/css/lightbox.min.css": {
+      "biblioteca": "Lightbox2",
+      "version": "2.12.0",
+      "licencia": "MIT",
+      "bytes": 2693,
+      "sha256": "5a84f4d3bcc035a49e7c323da27addb85edc0a00572f17f3e29a51d7704c875e",
+      "origen": "vendor-live (copia de https://intl.rcj.cloud/components/lightbox2/dist/css/lightbox.min.css)",
+      "verificacion": "idéntico a https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.12.0/css/lightbox.min.css",
+      "nota": null
+    },
+    "lightbox2/dist/images/close.png": {
+      "biblioteca": "Lightbox2",
+      "version": "2.12.0",
+      "licencia": "MIT",
+      "bytes": 280,
+      "sha256": "5d62e6c90005bfb71f6abb440f9e4753681cb23bbd5e60477ab6f442d2f0e69c",
+      "origen": "https://intl.rcj.cloud/components/lightbox2/dist/images/close.png",
+      "verificacion": "idéntico a https://cdn.jsdelivr.net/npm/lightbox2@2.12.0/dist/images/close.png",
+      "nota": null
+    },
+    "lightbox2/dist/images/loading.gif": {
+      "biblioteca": "Lightbox2",
+      "version": "2.12.0",
+      "licencia": "MIT",
+      "bytes": 8476,
+      "sha256": "225aa88b6ab02c06222ec9468d62e15fa188e39cdb9431d1f55401ad380753ed",
+      "origen": "https://intl.rcj.cloud/components/lightbox2/dist/images/loading.gif",
+      "verificacion": "idéntico a https://cdn.jsdelivr.net/npm/lightbox2@2.12.0/dist/images/loading.gif",
+      "nota": null
+    },
+    "lightbox2/dist/images/next.png": {
+      "biblioteca": "Lightbox2",
+      "version": "2.12.0",
+      "licencia": "MIT",
+      "bytes": 1350,
+      "sha256": "15b869b02c6fbaa8c6c26445a2dd2d9bad80fd27b1409f8179e5dd89dc89d90a",
+      "origen": "https://intl.rcj.cloud/components/lightbox2/dist/images/next.png",
+      "verificacion": "idéntico a https://cdn.jsdelivr.net/npm/lightbox2@2.12.0/dist/images/next.png",
+      "nota": null
+    },
+    "lightbox2/dist/images/prev.png": {
+      "biblioteca": "Lightbox2",
+      "version": "2.12.0",
+      "licencia": "MIT",
+      "bytes": 1360,
+      "sha256": "7fd9273f20fdb1229c224341271a119020a5eee74ccf6b4605730917c864caf2",
+      "origen": "https://intl.rcj.cloud/components/lightbox2/dist/images/prev.png",
+      "verificacion": "idéntico a https://cdn.jsdelivr.net/npm/lightbox2@2.12.0/dist/images/prev.png",
+      "nota": null
+    },
+    "lightbox2/dist/js/lightbox.min.js": {
+      "biblioteca": "Lightbox2",
+      "version": "2.12.0",
+      "licencia": "MIT",
+      "bytes": 14613,
+      "sha256": "c02b1fdd46a15d65387447668bc3ad9b2b3cb47638d4c0c210273b82c7006e6b",
+      "origen": "vendor-live (copia de https://intl.rcj.cloud/components/lightbox2/dist/js/lightbox.min.js)",
+      "verificacion": "idéntico a https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.12.0/js/lightbox.min.js",
+      "nota": null
+    },
+    "mobile-drag-drop/default.css": {
+      "biblioteca": "mobile-drag-drop (polyfill HTML5 DnD táctil)",
+      "version": "2.3.0-rc.2",
+      "licencia": "MIT",
+      "bytes": 260,
+      "sha256": "78460a8d3512f692dd035f09657a924a9a44ff5053ba7107cb7fc51ce2986448",
+      "origen": "https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0-rc.2/default.css",
+      "verificacion": "idéntico a https://unpkg.com/mobile-drag-drop@2.3.0-rc.2/default.css",
+      "nota": null
+    },
+    "mobile-drag-drop/index.min.js": {
+      "biblioteca": "mobile-drag-drop (polyfill HTML5 DnD táctil)",
+      "version": "2.3.0-rc.2",
+      "licencia": "MIT",
+      "bytes": 10693,
+      "sha256": "de9f5cd8299bb2ba0384e79344bf545f74d498ff2085fe187ee4031267d9e83f",
+      "origen": "https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0-rc.2/index.min.js",
+      "verificacion": "idéntico a https://unpkg.com/mobile-drag-drop@2.3.0-rc.2/index.min.js",
+      "nota": null
+    },
+    "mobile-drag-drop/scroll-behaviour.min.js": {
+      "biblioteca": "mobile-drag-drop (polyfill HTML5 DnD táctil)",
+      "version": "2.3.0-rc.2",
+      "licencia": "MIT",
+      "bytes": 2456,
+      "sha256": "32ec4549e4cf314ebcbeae70c552ab75fc3db4244ada4b9be78c690a009a683c",
+      "origen": "https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0-rc.2/scroll-behaviour.min.js",
+      "verificacion": "idéntico a https://unpkg.com/mobile-drag-drop@2.3.0-rc.2/scroll-behaviour.min.js",
+      "nota": null
+    },
+    "ng-file-upload/ng-file-upload-all.min.js": {
+      "biblioteca": "ng-file-upload",
+      "version": "12.2.13",
+      "licencia": "MIT",
+      "bytes": 44742,
+      "sha256": "2eb66adde7c89055f4068a17ef1feb8d6c980ef30a7c55761c9a72e87070edc1",
+      "origen": "https://intl.rcj.cloud/components/ng-file-upload/ng-file-upload-all.min.js",
+      "verificacion": "idéntico a https://cdnjs.cloudflare.com/ajax/libs/danialfarid-angular-file-upload/12.2.13/ng-file-upload-all.min.js",
+      "nota": null
+    },
+    "pdfkit/js/pdfkit.standalone.js": {
+      "biblioteca": "PDFKit (build standalone para navegador)",
+      "version": "0.12.3 (misma versión que cms/package.json:48)",
+      "licencia": "MIT",
+      "bytes": 2651046,
+      "sha256": "c134a418995507e4b1c0f0c6a755a7fbcda8c7e2a56cffaf7b961283e24358ca",
+      "origen": "https://cdn.jsdelivr.net/npm/pdfkit@0.12.3/js/pdfkit.standalone.js",
+      "verificacion": "idéntico a https://unpkg.com/pdfkit@0.12.3/js/pdfkit.standalone.js",
+      "nota": null
+    },
+    "popper.js/dist/umd/popper.min.js": {
+      "biblioteca": "Popper.js",
+      "version": "1.16.1",
+      "licencia": "MIT",
+      "bytes": 21233,
+      "sha256": "fe28dc38bc057f6eb11180235bbe458b3295a39b674d889075d3d9a0b5071d9f",
+      "origen": "vendor-live (copia de https://intl.rcj.cloud/components/popper.js/dist/umd/popper.min.js)",
+      "verificacion": "idéntico a https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.1/umd/popper.min.js",
+      "nota": null
+    },
+    "qrcode-generator/qrcode.js": {
+      "biblioteca": "qrcode-generator (Kazuhiko Arase)",
+      "version": "1.4.4",
+      "licencia": "MIT",
+      "bytes": 56694,
+      "sha256": "18ae399f81182bc9de916e9c77b195df20cc58d6f2d55a62b085a299f1bf1780",
+      "origen": "https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js",
+      "verificacion": "idéntico a https://unpkg.com/qrcode-generator@1.4.4/qrcode.js",
+      "nota": null
+    },
+    "socket.io-client/dist/socket.io.min.js": {
+      "biblioteca": "socket.io-client",
+      "version": "4.2.0",
+      "licencia": "MIT",
+      "bytes": 66064,
+      "sha256": "2b3ec2cdd4d4f133329f9f582315ab273306b9a68e0718ba88bb36a0fb879bde",
+      "origen": "https://intl.rcj.cloud/components/socket.io-client/dist/socket.io.min.js",
+      "verificacion": "idéntico a https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.2.0/socket.io.min.js",
+      "nota": null
+    },
+    "sweetalert2/dist/sweetalert2.all.min.js": {
+      "biblioteca": "SweetAlert2",
+      "version": "7.33.1",
+      "licencia": "MIT",
+      "bytes": 64943,
+      "sha256": "41fc609fd8d42de18075b69e0e35de221641dd16ba3422b776f8f0006f18fb15",
+      "origen": "vendor-live (copia de https://intl.rcj.cloud/components/sweetalert2/dist/sweetalert2.all.min.js)",
+      "verificacion": "idéntico a https://cdn.jsdelivr.net/npm/sweetalert2@7.33.1/dist/sweetalert2.all.min.js",
+      "nota": null
+    }
+  }
+}

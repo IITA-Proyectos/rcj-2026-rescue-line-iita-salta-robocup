@@ -1,0 +1,176 @@
+var app = angular.module("MapAdmin", ['ngTouch','pascalprecht.translate', 'ngCookies', 'ui.bootstrap']);
+app.controller("MapAdminController", ['$scope', '$http', '$uibModal', function ($scope, $http, $uibModal) {
+    $scope.competitionId = competitionId
+
+    
+
+    $http.get("/api/competitions/" + competitionId).then(function (response) {
+        $scope.competition = response.data
+        $scope.league = response.data.leagues.find((l) => l.league == leagueId);
+        updateMapList()
+    })
+
+    $scope.selectedMaps = {};
+    $scope.allSelected = false;
+
+    $scope.toggleSelect = function (map, event) {
+        if (event) {
+            event.stopPropagation();
+        }
+        $scope.selectedMaps[map._id] = !$scope.selectedMaps[map._id];
+        updateAllSelectedState();
+    }
+
+    $scope.selectAll = function () {
+        $scope.allSelected = !$scope.allSelected;
+        for (let map of $scope.maps) {
+            $scope.selectedMaps[map._id] = $scope.allSelected;
+        }
+    }
+
+    function updateAllSelectedState() {
+        if (!$scope.maps || $scope.maps.length === 0) {
+            $scope.allSelected = false;
+            return;
+        }
+        let all = true;
+        for (let map of $scope.maps) {
+            if (!$scope.selectedMaps[map._id]) {
+                all = false;
+                break;
+            }
+        }
+        $scope.allSelected = all;
+    }
+
+    $scope.getSelectedCount = function () {
+        let count = 0;
+        for (let id in $scope.selectedMaps) {
+            if ($scope.selectedMaps[id]) count++;
+        }
+        return count;
+    }
+    $scope.removeMap = function (map, event) {
+        if (event) {
+            event.stopPropagation();
+        }
+        Swal.fire({
+            title: 'Delete Map?',
+            text: "Are you sure you want to remove the map: " + map.name + "?",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ef4444',
+            cancelButtonColor: '#94a3b8',
+            confirmButtonText: 'Yes, delete it!',
+            borderRadius: '1.25rem'
+        }).then((result) => {
+            if (result.value) {
+                $http.delete("/api/maps/" + $scope.league.type + "/" + map._id).then(function (response) {
+                    Swal.fire({
+                        title: 'Deleted!',
+                        text: 'The map has been removed.',
+                        icon: 'success',
+                        borderRadius: '1.25rem'
+                    });
+                    updateMapList();
+                }, function (error) {
+                    Swal.fire(
+                        'Error!',
+                        'Failed to delete the map.',
+                        'error'
+                    );
+                });
+            }
+        });
+    }
+
+    function updateMapList() {
+        $http.get("/api/competitions/" + competitionId +
+            "/" + $scope.league.league + "/maps").then(function (response) {
+            $scope.maps = response.data;
+            
+            const allMaps = angular.copy(response.data);
+            const parents = allMaps.filter(m => !m.parent);
+            const children = allMaps.filter(m => m.parent);
+            
+            parents.forEach(p => {
+                p.children = children.filter(c => c.parent === p._id);
+            });
+            
+            // Also include orphaned children just in case
+            const orphanedChildren = children.filter(c => !parents.some(p => p._id === c.parent));
+            
+            $scope.groupedMaps = parents.concat(orphanedChildren);
+            updateAllSelectedState();
+        })
+    }
+    $scope.updateMapList = updateMapList; // [rcj-line-offline] desvío: gancho para refrescar la lista desde local/ui/mapas.js (importar, duplicar)
+    
+    $scope.openPrintModal = function () {
+        var modalInstance = $uibModal.open({
+            templateUrl: 'printSettingsModal.html',
+            controller: 'PrintSettingsModalController',
+            size: 'lg',
+            resolve: {
+                settings: function () {
+                    return {
+                        exportType: 'Maps',
+                        exportFormat: 'PDF',
+                        paperSize: 'A4',
+                        includeLetterVictims: false,
+                        includeCognitiveTargets: true
+                    };
+                }
+            }
+        });
+
+        modalInstance.result.then(function (settings) {
+            const selectedIds = [];
+            for (let id in $scope.selectedMaps) {
+                if ($scope.selectedMaps[id]) selectedIds.push(id);
+            }
+            const ids = selectedIds.join(',');
+            
+            let url = `/api/maps/${$scope.league.type}/export?competition=${competitionId}&league=${leagueId}&ids=${ids}`;
+            
+            if (settings.exportType === 'Targets') {
+                url += `&type=targets&paperSize=${settings.paperSize}&includeLetterVictims=${settings.includeLetterVictims}&includeCognitiveTargets=${settings.includeCognitiveTargets}`;
+            } else if (settings.exportType === 'Scoresheets') {
+                url += `&type=scoresheets&rule=2026`;
+            } else if (settings.exportType === 'Maps') {
+                url += `&type=maps&format=${settings.exportFormat.toLowerCase()}&paperSize=${settings.paperSize}`;
+                
+                if (settings.exportFormat === 'PNG') {
+                    // Trigger individual downloads for PNG
+                    // [rcj-line-offline] regla 3b: sin servidor, cada /api/maps/line/image/<id> se pide al backend local
+                    // (RCJLocalUI.exportarMapas, local/ui/mapas.js) en lugar de un <a href download> al servidor
+                    RCJLocalUI.exportarMapas(url, selectedIds, settings, competitionId, leagueId);
+                    return;
+                }
+            }
+
+            if (url) {
+                // [rcj-line-offline] regla 3b: window.open('/api/maps/line/export?...') -> backend local (RCJLocalUI.exportarMapas)
+                RCJLocalUI.exportarMapas(url, selectedIds, settings, competitionId, leagueId);
+            }
+        }, function () {
+            // Cancelled
+        });
+    }
+
+    $scope.go = function (path) {
+        window.location = RCJLocal.ruta(path) // [rcj-line-offline] regla 3b: rutas del CMS -> páginas locales
+    }
+}])
+
+app.controller('PrintSettingsModalController', ['$scope', '$uibModalInstance', 'settings', function ($scope, $uibModalInstance, settings) {
+    $scope.settings = settings;
+
+    $scope.ok = function () {
+        $uibModalInstance.close($scope.settings);
+    };
+
+    $scope.cancel = function () {
+        $uibModalInstance.dismiss('cancel');
+    };
+}]);

@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Editor — layout en 412x915, 1024x768 y 1366x900</title>
+<script src="editor-comun.js"></script>
+<script src="../local/config.js"></script>
+<script src="../local/nucleo/store.js"></script>
+<script src="../local/nucleo/pathfinder-servidor.js"></script>
+<script src="../local/nucleo/init-run.js"></script>
+<script src="../local/nucleo/score-2026.js"></script>
+<script src="../local/nucleo/copy-properties.js"></script>
+<script src="../local/nucleo/api.js"></script>
+<script src="../local/nucleo/ranking.js"></script>
+</head>
+<body>
+<h1>Nada cortado ni inalcanzable: celular 412x915 (táctil), tablet 1024x768 y notebook 1366x900 (correr con --touch-events=enabled)</h1>
+<pre id="resultado">PENDIENTE</pre>
+<script>
+function rect(el) { var r = el.getBoundingClientRect(); return { l: Math.round(r.left), r: Math.round(r.right), t: Math.round(r.top), b: Math.round(r.bottom), w: Math.round(r.width), h: Math.round(r.height) }; }
+var CONTROLES = {
+  guardar: '.btn-hero-icon.btn-save', guardarComo: '[ng-click="openSaveAsModal()"]', exportar: '[ng-click="export()"]',
+  importar: '.btn-hero-icon[onclick]', nombre: '.hero-title-input', menosAlto: '[ng-click="height = height &gt; 1 ? height - 1 : 1; sliderOptions.ceil = height - 1"]',
+  masAncho: '[ng-click="width = width + 1"]', masLargo: '[ng-click="length = length + 1"]', vivas: '.time-capsule', terminado: '.status-icon-toggle',
+  calculadora: '.calc-btn-premium', centrar: '[ng-click="centerMap()"]', deshacer: '[ng-click="undo()"]', rehacer: '[ng-click="redo()"]',
+  piso: '[ng-click="changeFloor(zz)"]', tileset: 'select[ng-model="tileSet"]', sello: '[ng-click="togglePasteMode()"]',
+  generar: '.btn-print-action.w-100', idioma: '[data-target="#languageModal"]'
+};
+
+T.correr(async function () {
+  await T.resetear();
+  await RCJLocal.semillas();
+  var cid = (await T.api('GET', '/api/competitions/')).data[0]._id;
+  var fix = JSON.parse(await T.textoFixture('fixture-mapa-oficial.min.json'));
+  var mapId = await RCJLocal.ingestMap(fix, { competition: cid, league: 'Line' });
+  var medidas = {};
+
+  var tamanios = [[412, 915, 'celular'], [1024, 768, 'tablet'], [1366, 900, 'notebook']];
+  for (var n = 0; n < tamanios.length; n++) {
+    var ancho = tamanios[n][0], alto = tamanios[n][1], nom = tamanios[n][2] + ' ' + ancho + 'x' + alto;
+    var ed = await T.abrirEditor('map=' + mapId, nom, ancho, alto);
+    var d = ed.doc, w = ed.win, s = ed.scope;
+    await T.esperar(900);
+    var m = medidas[nom] = { innerWidth: w.innerWidth, scrollWidth: d.documentElement.scrollWidth };
+    T.check(nom + ': sin scroll horizontal de la página', d.documentElement.scrollWidth <= w.innerWidth + 1, m);
+
+    m.mapa = rect(d.getElementById('map-container'));
+    T.check(nom + ': el mapa tiene lugar (>= 280 px de ancho y alto)', m.mapa.w >= Math.min(280, ancho - 80) && m.mapa.h >= 280 && m.mapa.l >= 0 && m.mapa.r <= w.innerWidth + 1, m.mapa);
+    m.paleta = rect(d.querySelector('.tileset-scroll'));
+    T.check(nom + ': la paleta tiene lugar (>= 250 px de ancho, >= 150 px de alto)', m.paleta.w >= 250 && m.paleta.h >= 150 && m.paleta.r <= w.innerWidth + 1, m.paleta);
+    m.imgPaleta = rect(d.querySelector('img.toolbox-tile'));
+    T.check(nom + ': baldosas de la paleta tocables (>= 40 px)', m.imgPaleta.w >= 40, m.imgPaleta);
+
+    var fuera = [];
+    m.controles = {};
+    Object.keys(CONTROLES).forEach(function (k) {
+      var el = d.querySelector(CONTROLES[k].replace(/&gt;/g, '>'));
+      if (!el) { fuera.push(k + ': no existe'); return; }
+      var r = rect(el);
+      m.controles[k] = r.w + 'x' + r.h;
+      if (r.w === 0 || r.l < 0 || r.r > w.innerWidth + 1) fuera.push(k + ' ' + JSON.stringify(r));
+    });
+    T.check(nom + ': controles principales visibles dentro del ancho', fuera.length === 0, fuera);
+
+    var barra = d.getElementById('rcj-tactil-barra');
+    T.check(nom + ': barra táctil presente', !!barra);
+    if (barra) {
+      var rb = rect(barra);
+      var chicos = Array.prototype.filter.call(barra.querySelectorAll('button'), function (b) { var r = b.getBoundingClientRect(); return r.height < 44 || r.width < 44; }).length;
+      T.check(nom + ': barra dentro de la pantalla y botones >= 44 px', rb.l >= 0 && rb.r <= w.innerWidth + 1 && rb.b <= w.innerHeight + 1 && chicos === 0, { barra: rb, chicos: chicos });
+      m.barra = rb;
+    }
+
+    // modal de propiedades
+    T.aplicar(ed, function (s) { s.open(fix.startTile.x, fix.startTile.y); });
+    await T.esperarQue('modal ' + nom, function () { return d.querySelector('[uib-modal-window] .modal-footer .btn-print-action'); }, 8000);
+    await T.esperar(300);
+    await T.esperarQue('modal estable ' + nom, function () { return d.querySelector('[uib-modal-window] .modal-content').getBoundingClientRect().top >= 0; }, 4000).catch(function () {});
+    var rc = rect(d.querySelector('[uib-modal-window] .modal-content'));
+    var rs = rect(d.querySelector('[uib-modal-window] .modal-footer .btn-print-action'));
+    var rx = rect(d.querySelector('[uib-modal-window] .btn-cancel-action'));
+    m.modal = { contenido: rc, guardar: rs, cancelar: rx };
+    T.check(nom + ': modal dentro de la pantalla (ancho y alto)', rc.l >= 0 && rc.r <= w.innerWidth + 1 && rc.t >= 0 && rc.b <= w.innerHeight + 1, rc);
+    T.check(nom + ': Save y Cancel del modal visibles y tocables', rs.b <= w.innerHeight && rx.b <= w.innerHeight && rs.r <= w.innerWidth && rs.h >= 30 && rx.h >= 30, { guardar: rs, cancelar: rx });
+    var bGuardar = d.querySelector('[uib-modal-window] .modal-footer .btn-print-action'), bCancelar = d.querySelector('[uib-modal-window] .btn-cancel-action');
+    var eG = w.getComputedStyle(bGuardar), eC = w.getComputedStyle(bCancelar);
+    T.check(nom + ': Save y Cancel con texto legible', bGuardar.textContent.trim() && bCancelar.textContent.trim() && eG.color !== eG.backgroundColor && eC.color !== eC.backgroundColor &&
+      +eG.opacity > 0.9 && +eC.opacity > 0.9, [bGuardar.textContent.trim(), bCancelar.textContent.trim(), eG.color, eG.backgroundColor, eC.color, eC.backgroundColor]);
+    var celdaTop = d.querySelector('[uib-modal-window] [ng-click="cycleTileLevel(\'top\')"]');
+    var cuerpo = d.querySelector('[uib-modal-window] .premium-modal-body');
+    celdaTop.scrollIntoView({ block: 'nearest' });
+    var rt = rect(celdaTop), rcu = rect(cuerpo);
+    T.check(nom + ': la grilla de transiciones se alcanza (scroll interno)', rt.t >= rcu.t - 1 && rt.b <= rcu.b + 1 && rt.w > 0, { celda: rt, cuerpo: rcu });
+    T.clic(ed, d.querySelector('[uib-modal-window] .btn-cancel-action'));
+    await T.esperarQue('modal cerrado ' + nom, function () { return !d.querySelector('[uib-modal-window]'); }, 8000);
+  }
+  return { mapId: mapId, medidas: medidas };
+});
+</script>
+</body>
+</html>

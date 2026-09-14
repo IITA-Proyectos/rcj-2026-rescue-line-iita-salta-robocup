@@ -1,0 +1,349 @@
+{
+  "_meta": {
+    "note": "Resultado de helper/pathFinder.js (servidor, develop/2026) ejecutado en el navegador sobre una copia del mapa (tiles como array, evacEntrance/evacExit inicializados en -1 como default del modelo lineMap.js). NO proviene del servidor en vivo: es el mismo algoritmo copiado literal."
+  },
+  "indexCount": 14,
+  "EvacuationAreaLoPIndex": 2,
+  "tiles": [
+    {
+      "key": "0,0,0",
+      "image": "tile-0.png",
+      "rot": 0,
+      "index": [
+        0
+      ],
+      "next": [
+        "1,0,0"
+      ],
+      "next_dir": [
+        "right"
+      ],
+      "evacEntrance": -1,
+      "evacExit": -1
+    },
+    {
+      "key": "1,0,0",
+      "image": "tile-0.png",
+      "rot": 0,
+      "index": [
+        1
+      ],
+      "next": [
+        "2,0,0"
+      ],
+      "next_dir": [
+        "right"
+      ],
+      "evacEntrance": -1,
+      "evacExit": -1
+    },
+    {
+      "key": "2,0,0",
+      "image": "tile-3.png",
+      "rot": 0,
+      "index": [
+        2
+      ],
+      "next": [
+        "2,1,0"
+      ],
+      "next_dir": [
+        "bottom"
+      ],
+      "evacEntrance": -1,
+      "evacExit": -1
+    },
+    {
+      "key": "2,1,0",
+      "image": "tile-35.png",
+      "rot": 0,
+      "index": [
+        3
+      ],
+      "next": [
+        "2,2,0"
+      ],
+      "next_dir": [
+        "bottom"
+      ],
+      "evacEntrance": -1,
+      "evacExit": -1
+    },
+    {
+      "key": "2,2,0",
+      "image": "tile-20.png",
+      "rot": 270,
+      "index": [
+        4
+      ],
+      "next": [
+        "2,3,0"
+      ],
+      "next_dir": [
+        "bottom"
+      ],
+      "evacEntrance": -1,
+      "evacExit": -1
+    },
+    {
+      "key": "2,3,0",
+      "image": "tile-3.png",
+      "rot": 180,
+      "index": [
+        5
+      ],
+      "next": [
+        "3,3,0"
+      ],
+      "next_dir": [
+        "right"
+      ],
+      "evacEntrance": -1,
+      "evacExit": -1
+    },
+    {
+      "key": "3,3,0",
+      "image": "tile-0.png",
+      "rot": 0,
+      "index": [
+        6
+      ],
+      "next": [
+        "4,3,0"
+      ],
+      "next_dir": [
+        "right"
+      ],
+      "evacEntrance": -1,
+      "evacExit": -1
+    },
+    {
+      "key": "4,3,0",
+      "image": "tile-0.png",
+      "rot": 0,
+      "index": [
+        7
+      ],
+      "next": [
+        "5,3,1"
+      ],
+      "next_dir": [
+        "right"
+      ],
+      "evacEntrance": -1,
+      "evacExit": -1
+    },
+    {
+      "key": "5,3,1",
+      "image": "seesaw.png",
+      "rot": 0,
+      "index": [
+        8
+      ],
+      "next": [
+        "6,3,1"
+      ],
+      "next_dir": [
+        "right"
+      ],
+      "evacEntrance": -1,
+      "evacExit": -1
+    },
+    {
+      "key": "6,3,1",
+      "image": "tile-3.png",
+      "rot": 90,
+      "index": [
+        9
+      ],
+      "next": [
+        "6,2,1"
+      ],
+      "next_dir": [
+        "top"
+      ],
+      "evacEntrance": -1,
+      "evacExit": -1
+    },
+    {
+      "key": "6,2,1",
+      "image": "tile-0.png",
+      "rot": 90,
+      "index": [
+        10
+      ],
+      "next": [
+        "6,1,1"
+      ],
+      "next_dir": [
+        "top"
+      ],
+      "evacEntrance": -1,
+      "evacExit": -1
+    },
+    {
+      "key": "6,1,1",
+      "image": "tile-3.png",
+      "rot": 0,
+      "index": [
+        11
+      ],
+      "next": [
+        "1,1,1"
+      ],
+      "next_dir": [
+        "left"
+      ],
+      "evacEntrance": -1,
+      "evacExit": -1
+    },
+    {
+      "key": "2,0,1",
+      "image": "ev3.png",
+      "rot": 270,
+      "index": [],
+      "next": [],
+      "next_dir": [],
+      "evacEntrance": -1,
+      "evacExit": -1
+    },
+    {
+      "key": "3,0,1",
+      "image": "ev2.png",
+      "rot": 0,
+      "index": [],
+      "next": [],
+      "next_dir": [],
+      "evacEntrance": -1,
+      "evacExit": -1
+    },
+    {
+      "key": "4,0,1",
+      "image": "ev2.png",
+      "rot": 0,
+      "index": [],
+      "next": [],
+      "next_dir": [],
+      "evacEntrance": -1,
+      "evacExit": -1
+    },
+    {
+      "key": "5,0,1",
+      "image": "ev3.png",
+      "rot": 0,
+      "index": [],
+      "next": [],
+      "next_dir": [],
+      "evacEntrance": -1,
+      "evacExit": -1
+    },
+    {
+      "key": "2,1,1",
+      "image": "ev1.png",
+      "rot": 0,
+      "index": [],
+      "next": [],
+      "next_dir": [],
+      "evacEntrance": -1,
+      "evacExit": 270
+    },
+    {
+      "key": "3,1,1",
+      "image": "ev1.png",
+      "rot": 0,
+      "index": [],
+      "next": [],
+      "next_dir": [],
+      "evacEntrance": -1,
+      "evacExit": -1
+    },
+    {
+      "key": "4,1,1",
+      "image": "ev1.png",
+      "rot": 0,
+      "index": [],
+      "next": [],
+      "next_dir": [],
+      "evacEntrance": -1,
+      "evacExit": -1
+    },
+    {
+      "key": "5,1,1",
+      "image": "ev1.png",
+      "rot": 0,
+      "index": [],
+      "next": [],
+      "next_dir": [],
+      "evacEntrance": 90,
+      "evacExit": -1
+    },
+    {
+      "key": "2,2,1",
+      "image": "ev3.png",
+      "rot": 180,
+      "index": [],
+      "next": [],
+      "next_dir": [],
+      "evacEntrance": -1,
+      "evacExit": -1
+    },
+    {
+      "key": "3,2,1",
+      "image": "ev2.png",
+      "rot": 180,
+      "index": [],
+      "next": [],
+      "next_dir": [],
+      "evacEntrance": -1,
+      "evacExit": -1
+    },
+    {
+      "key": "4,2,1",
+      "image": "ev2.png",
+      "rot": 180,
+      "index": [],
+      "next": [],
+      "next_dir": [],
+      "evacEntrance": -1,
+      "evacExit": -1
+    },
+    {
+      "key": "5,2,1",
+      "image": "ev3.png",
+      "rot": 90,
+      "index": [],
+      "next": [],
+      "next_dir": [],
+      "evacEntrance": -1,
+      "evacExit": -1
+    },
+    {
+      "key": "1,1,1",
+      "image": "tile-0.png",
+      "rot": 0,
+      "index": [
+        12
+      ],
+      "next": [
+        "0,1,1"
+      ],
+      "next_dir": [
+        "left"
+      ],
+      "evacEntrance": -1,
+      "evacExit": -1
+    },
+    {
+      "key": "0,1,1",
+      "image": "exit.png",
+      "rot": 270,
+      "index": [
+        13
+      ],
+      "next": [],
+      "next_dir": [],
+      "evacEntrance": -1,
+      "evacExit": -1
+    }
+  ]
+}

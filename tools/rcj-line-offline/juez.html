@@ -1,0 +1,418 @@
+<html ng-app="ddApp"><head>
+<meta charset="utf-8">
+<title>Rescue Line Judge</title>
+<!--
+  [rcj-line-offline] Juez Line 2026: render de views/judge/line_2026.pug (CMS d805502).
+  - Sin <!doctype>, igual que el pug (html(ng-app) sin doctype): la página del CMS se dibuja en modo quirks.
+  - El <body> es la salida compacta de pug (sin espacios entre tags); los saltos de línea van DENTRO de los
+    tags para no crear nodos de texto. Verificación: python tests/juez-pug-comparar.py --cms <clon del CMS>.
+  - Cambios respecto del CMS: cambios/juez.md.
+-->
+<!-- 1.C scripts locales, parte 1 -->
+<script src="local/config.js"></script>
+<script src="local/io-shim.js"></script>
+<script src="local/nucleo/store.js"></script>
+<script src="local/nucleo/pathfinder-servidor.js"></script>
+<script src="local/nucleo/init-run.js"></script>
+<script src="local/nucleo/score-2026.js"></script>
+<script src="local/nucleo/copy-properties.js"></script>
+<script src="local/nucleo/api.js"></script>
+<script src="local/nucleo/ranking.js"></script>
+<script>
+  // [local] globales de judge/line_2026.pug:4-6 (routes/line.js:93 solo pasa `id`)
+  var runId = RCJLocal.param('run');
+  var movie = "";
+</script>
+<!-- include ../includes/common_component (line_2026.pug:8): 1.A scripts comunes -->
+<script src="components/jquery/dist/jquery.min.js"></script>
+<script src="components/popper.js/dist/umd/popper.min.js"></script>
+<script src="components/bootstrap/dist/js/bootstrap.min.js"></script>
+<script src="components/angular/angular.min.js"></script>
+<script src="components/angular-animate/angular-animate.min.js"></script>
+<!-- OMITIDO (06: C, sin uso): <script src="components/alertifyjs/dist/js/ngAlertify.js"></script> -->
+<script src="components/sweetalert2/dist/sweetalert2.all.min.js"></script>
+<!-- OMITIDO (stub: lo reemplaza local/io-shim.js): <script src="components/socket.io-client/dist/socket.io.min.js"></script> -->
+<script src="components/angular-bootstrap/dist/ui-bootstrap-tpls.js"></script>
+<script src="components/angular-translate/angular-translate.min.js"></script>
+<script src="components/angular-translate-loader-static-files/angular-translate-loader-static-files.min.js"></script>
+<script src="components/angular-translate-storage-local/angular-translate-storage-local.min.js"></script>
+<script src="components/angular-translate-storage-cookie/angular-translate-storage-cookie.min.js"></script>
+<script src="components/angular-translate-handler-log/angular-translate-handler-log.min.js"></script>
+<script src="components/angular-cookies/angular-cookies.min.js"></script>
+<script src="components/angular-touch/angular-touch.min.js"></script>
+<script src="components/angular-sanitize/angular-sanitize.min.js"></script>
+<!-- OMITIDO (06: C, ningún módulo usa ui.select): <script src="components/angular-ui-select/dist/select.min.js"></script> -->
+<!-- 1.B css comunes -->
+<link rel="stylesheet" href="components/bootstrap/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="stylesheets/style.css">
+<link rel="stylesheet" href="stylesheets/navbar_premium.css">
+<link href="components/font-awesome-5/css/all.min.css" rel="stylesheet">
+<link rel="stylesheet" href="components/angular-bootstrap/dist/ui-bootstrap-csp.css">
+<!-- OMITIDO (06: C, reglas solo .ui-select-*): <link rel="stylesheet" href="components/angular-ui-select/dist/select.min.css"> -->
+<!-- OMITIDO (solo ENVIRONMENT == "STG"): stylesheets/stg.css -->
+<script src="javascripts/judge/line_2026.js"></script>
+<script src="local/timer-persistente.js"></script> <!-- [juez] D5, flag persistirTimer -->
+<script src="local/aviso-recorrido.js"></script> <!-- aviso de baldosas con puntos fuera del recorrido (cambios/aviso-recorrido.md) -->
+<script src="local/porcentaje-maximo.js"></script> <!-- sección "En vivo": % del máximo del mapa (flag mostrarPorcentaje) -->
+<script>
+  // [rcj-line-offline] Adaptaciones locales del juez (cambios/juez.md §3). No tocan la lógica del CMS.
+  (function () {
+    'use strict';
+    var flags = RCJLocal.flags;
+    var modulo = angular.module('ddApp');
+
+    // A1. Salto del pre-chequeo al volver de la firma (08 §5.7 Juez 1). En el CMS lo decide
+    // document.referrer con 'sign' (/line/sign/<id>); la página local es firma.html y no lo contiene.
+    // Contrato con el área firma: el botón "To correct" hace sessionStorage.setItem('rcjVolviDeFirma', runId)
+    // antes de navegar. Acá se consume la marca y se copia al history.state de esta entrada, así una recarga
+    // sigue salteando el pre-chequeo (como el referrer, que se conserva al recargar) y una navegación nueva no.
+    window.rcjVolviDeFirma = function (id) {
+      id = String(id);
+      var marca = null;
+      try { marca = window.sessionStorage.getItem('rcjVolviDeFirma'); } catch (e) { /* sin sessionStorage */ }
+      if (marca !== null) {
+        try { window.sessionStorage.removeItem('rcjVolviDeFirma'); } catch (e) { /* nada */ }
+        if (marca === id) {
+          try {
+            var estado = (history.state && typeof history.state === 'object') ? history.state : {};
+            history.replaceState(Object.assign({}, estado, { rcjVolviDeFirma: id }), '');
+          } catch (e) { /* nada */ }
+          return true;
+        }
+      }
+      try { return !!(history.state && history.state.rcjVolviDeFirma === id); } catch (e) { return false; }
+    };
+
+    // A2. Flags visibles desde las plantillas y regla de la liga (fila "Rule", desvío 9).
+    modulo.run(['$rootScope', function ($rootScope) {
+      $rootScope.rcjFlags = flags;
+      $rootScope.rcjRegla = function (competition, league) {
+        if (!competition || !competition.leagues) return '';
+        for (var i = 0; i < competition.leagues.length; i++) {
+          if (competition.leagues[i].league == league) return competition.leagues[i].rule;
+        }
+        return '';
+      };
+    }]);
+
+    // A3. Fotos del pre-chequeo (E14). <img ng-src="/api/document/inspection/files/{{team._id}}/teamPhoto">
+    // no pasa por $http: se resuelve con RCJLocal.api.fotoEquipo. Sin foto se muestra images/NoImage.png,
+    // que es lo que responde el CMS cuando no hay archivo (routes/api/document.js:1556-1569).
+    // Flag fotosOpcionales (D5): sin foto, esa tarjeta ya queda confirmada (verde); se puede destildar tocándola.
+    var RE_FOTO = /^\/api\/document\/inspection\/files\/([^/]*)\/(teamPhoto|robotPhoto)$/;
+    modulo.config(['$provide', function ($provide) {
+      $provide.decorator('ngSrcDirective', ['$delegate', function ($delegate) {
+        var directiva = $delegate[0];
+        var compileOriginal = directiva.compile;
+        directiva.compile = function () {
+          var linkOriginal = compileOriginal.apply(this, arguments);
+          return function (scope, element, attr) {
+            var plantilla = element[0].getAttribute('ng-src') || '';
+            if (plantilla.indexOf('/api/') !== 0) return linkOriginal.apply(this, arguments);
+            var pedido = 0;
+            var premarcado = false;
+            attr.$observe('ngSrc', function (valor) {
+              if (!valor) return;
+              var n = ++pedido;
+              var m = RE_FOTO.exec(valor);
+              if (!m) { element.attr('src', valor); return; }
+              RCJLocal.api.listo().then(function () {
+                return RCJLocal.api.fotoEquipo(m[1], m[2]);
+              }).then(function (dataURL) {
+                if (n !== pedido) return;
+                if (dataURL) { element.attr('src', dataURL); return; }
+                element.attr('src', 'images/NoImage.png');
+                if (flags.fotosOpcionales && m[1] && !premarcado) {
+                  premarcado = true;
+                  var ctrl = angular.element(document.body).scope();
+                  if (ctrl) ctrl.$evalAsync(function () {
+                    if (m[2] === 'teamPhoto') ctrl.checkMember = true;
+                    else ctrl.checkMachine = true;
+                  });
+                }
+              }, function (e) {
+                if (n === pedido) element.attr('src', 'images/NoImage.png');
+                console.warn('[rcj-line-offline] no se pudo leer la foto', valor, e);
+              });
+            });
+          };
+        };
+        return $delegate;
+      }]);
+    }]);
+
+    // A4. Flag audioResume (D5): el AudioContext de line_2026.js:1239 se crea antes de cualquier gesto y en
+    // tablets queda 'suspended'. Se reanuda en el primer toque, clic o tecla.
+    if (flags.audioResume) {
+      var eventos = ['touchstart', 'touchend', 'pointerdown', 'mousedown', 'click', 'keydown'];
+      var reanudarAudio = function () {
+        var ctx = (typeof context !== 'undefined') ? context : null;
+        try { if (ctx && ctx.state === 'suspended') ctx.resume(); } catch (e) { /* nada */ }
+        if (!ctx || ctx.state === 'running' || ctx.state === 'closed') {
+          eventos.forEach(function (ev) { document.removeEventListener(ev, reanudarAudio, true); });
+        }
+      };
+      eventos.forEach(function (ev) { document.addEventListener(ev, reanudarAudio, true); });
+    }
+
+    // A5. Flag corregirBugsVisuales (D4): el modal usa el ícono FA4 `fa fa-play-circle-o`, que no existe en
+    // Font Awesome 5 y queda invisible (02 §2.4). Se dibuja con el glifo FA5 equivalente (far fa-play-circle).
+    if (flags.corregirBugsVisuales) {
+      var estilo = document.createElement('style');
+      estilo.setAttribute('data-rcj-line-offline', 'fa4');
+      estilo.textContent = '.fa.fa-play-circle-o{font-weight:400}.fa.fa-play-circle-o:before{content:"\\f144"}';
+      document.head.appendChild(estilo);
+    }
+  })();
+</script>
+<!-- OMITIDO (06: C, huérfanos): <script src="javascripts/deflate.js"></script> -->
+<!-- OMITIDO (06: C): <script src="components/jquery-qrcode/jquery.qrcode.min.js"></script> -->
+<!-- OMITIDO (06: C): <script src="javascripts/makeQR.js"></script> -->
+<script src="local/http-backend.js"></script>
+<script>RCJLocal.instalarBackend('ddApp');</script>
+<script src="javascripts/translate_config.js"></script>
+<!-- OMITIDO (06: C, sin data-lightbox): <script src="components/lightbox2/dist/js/lightbox.min.js"></script> -->
+<!-- OMITIDO (06: C): <link rel="stylesheet" href="components/lightbox2/dist/css/lightbox.min.css"> -->
+<link href="stylesheets/fredrik.css" rel="stylesheet">
+<link href="local/ui/movil-juez.css" rel="stylesheet"> <!-- [juez] celular < 768 px (cambios/juez.md §4) -->
+
+<!-- OMITIDO (06: C, sin .switch-toggle): <link href="components/css-toggle-switch/dist/toggle-switch.css" rel="stylesheet"> -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+</head><body
+  ng-controller="ddController"><nav
+    class="navbar" style="background-color: #e74c3c; color: #ecf0f1; position: fixed; top: 0; z-index:10 ;  width: 100%"><!-- Navbar content--><div
+      class="col-md-6 col-sm4 col-12"><li
+        class="navbar-brand" href="#" ng-show="!networkError"><i
+          class="fas fa-sync" ng-class="{'fa-spin' : sync &gt; 0}">&nbsp;</i>{{team.name}}</li><li
+        class="navbar-brand" href="#" ng-show="networkError"><i
+          class="fas fa-exclamation-triangle" style="color: #f1c40f;">&nbsp;</i> Network ERROR {{team.name}}</li></div><div
+      class="col-md-3 col-sm4 col-7"><i
+        class="fas fa-calculator fa-2x" aria-hidden="true">&nbsp;</i><li
+        class="navbar-brand" href="#"> {{score}} {{'common.point' | translate}}</li></div><div
+      class="col-md-3 col-sm4 col-5"><i
+        class="fas fa-stopwatch fa-2x" aria-hidden="true">&nbsp;</i><li
+        class="navbar-brand" href="#"> {{time | date:'mm:ss'}}</li></div></nav><div
+    class="container-fluid"><div
+      style="text-align: center;" ng-if="!checked"><h4
+        ><i
+          class="far fa-check-circle" aria-hidden="true"></i>{{'line.judge.before' | translate}}</h4><br
+        ><div
+        id="lops" class="card"><h3
+          class="card-header"><i
+            class="fas fa-info-circle" aria-hidden="true"></i> {{'line.judge.info' | translate}}</h3><table
+          class="table" style="margin-bottom:0;"><tbody
+            ><tr
+              ng-style="{backgroundColor: checkTeam? '#e1f7d5' : '#ffbdbd'}" ng-click="toggleCheckTeam()"><th
+                style="width:200px;">{{'common.team' | translate}}</th><td
+                ><h1
+                  ><b
+                    >{{team.name}}</b></h1></td></tr><tr
+              ng-style="{backgroundColor: checkRound? '#e1f7d5' : '#ffbdbd'}" ng-click="toggleCheckRound()"><th
+                >{{'common.round' | translate}}</th><td
+                ><h2
+                  ><b
+                    >{{round}}</b></h2></td></tr><tr
+              ><th
+                >{{'common.competition' | translate}}</th><td
+                >{{competition.name}}</td></tr><tr
+              ><th
+                >{{'common.field' | translate}}</th><td
+                >{{field}}</td></tr><tr
+              ><th
+                >{{'common.league' | translate}}</th><td
+                >{{league}}</td></tr><tr
+              ><th
+                >{{'common.rule' | translate}}</th><td
+                ><span
+                  ng-if="rcjFlags.corregirBugsVisuales">{{rcjRegla(competition, league)}}</span></td></tr></tbody></table></div><br
+        ><br
+        ><div
+        class="row" style="margin-bottom:30px"><div
+          class="col-md-6"><div
+            class="card"><h3
+              class="card-header"><i
+                class="far fa-images" aria-hidden="true">{{'interview.me_pic' | translate}}</i></h3><div
+              class="card-body" ng-style="{backgroundColor: checkMember? '#e1f7d5' : '#ffbdbd'}" ng-click="toggleCheckMember()"><img
+                class="img-thumbnail" style="max-width: 100%;height: auto;margin-bottom:20px" ng-src="/api/document/inspection/files/{{team._id}}/teamPhoto"></div></div></div><div
+          class="col-md-6"><div
+            class="card"><h3
+              class="card-header"><i
+                class="far fa-images" aria-hidden="true">{{'interview.ma_pic' | translate}}</i></h3><div
+              class="card-body" ng-style="{backgroundColor: checkMachine? '#e1f7d5' : '#ffbdbd'}" ng-click="toggleCheckMachine()"><div
+                ><img
+                  class="img-thumbnail" style="max-width: 100%;height: auto;margin-bottom:20px" ng-src="/api/document/inspection/files/{{team._id}}/robotPhoto"></div></div></div></div></div><p
+        ng-show="!(checkTeam &amp;&amp; checkRound &amp;&amp; checkMember &amp;&amp; checkMachine)">{{'line.judge.tap_red' | translate}}</p><button
+        class="btn btn-success" type="button" ng-click="infochecked()" ng-disabled="!(checkTeam &amp;&amp; checkRound &amp;&amp; checkMember &amp;&amp; checkMachine)"><i
+          class="fas fa-check-circle fa-2x" aria-hidden="true"> {{'line.judge.confirm' | translate}}</i></button><br
+        ><br
+        ><hr
+        ><p
+        >{{'line.judge.noShow' | translate}}</p><button
+        class="btn btn-success" style="margin:0 10px 10px 0;" type="button" ng-click="toggleTime()"><i
+          class="fas fa-stopwatch" aria-hidden="true"> {{ startedTime ? 'line.judge.tim_stop' : 'line.judge.tim_start' |translate }}</i></button></div><div
+      ng-show="checked"><div
+        class="alert alert-warning" role="alert" ng-show="networkError"><h4
+          class="alert-heading">{{'line.judge.networkError' | translate}}</h4><div
+          class="row"><div
+            class="col-md-10"><p
+              >{{'line.judge.networkErrorDescription' | translate}}</p></div><div
+            class="col-md-2"><button
+              class="btn btn-warning" type="button" ng-click="saveEverything()">{{'line.judge.reSend' | translate}}</button></div></div></div><div
+        class="row"><div
+          class="col-md-5 col-lg-4"><button
+            class="btn btn-success" style="margin:0 10px 10px 0;" type="button" ng-click="toggleTime()"><i
+              class="fas fa-stopwatch" aria-hidden="true"> {{ startedTime ? 'line.judge.tim_stop' : 'line.judge.tim_start' |translate }}</i></button><button
+            class="btn btn-warning" ng-show="!startedTime &amp;&amp; time!=0" style="margin:0 10px 10px 0;" type="button" ng-click="TimeReset()"><i
+              class="fas fa-stopwatch" aria-hidden="true"> {{'line.judge.tim_reset' | translate}}</i></button><div
+            class="alert alert-info blink" role="alert" ng-show="!startedTime &amp;&amp; minutes &lt; 8 &amp;&amp; !fromSign">{{'line.judge.push_timer' | translate}}</div><div
+            id="card_area" class="scrool" style="overflow: scroll;"><div
+              id="lops" class="card"><h3
+                class="card-header"><i
+                  class="fas fa-step-forward" aria-hidden="true"></i>{{'common.lops' | translate}}</h3><div
+                class="card-body"><div
+                  ng-repeat="cp in range(LoPs.length) track by $index"><div
+                    class="card-text" style="display:flex;" ng-style="{'background-color': $index == EvacuationAreaLoPIndex?'#ffcccc':''}"><div
+                      style="width:40%;font-size:10px;" align="center">{{$index==0?'line.judge.start':'line.judge.checkpoint'|translate}}<b
+                        style="font-size:15px;color:#FF8300;">{{$index==0?'':$index}}</b><br
+                        ><i
+                        class="fas fa-forward fa-rotate-90" aria-hidden="true"></i><span
+                        ng-if="$index == EvacuationAreaLoPIndex"><br
+                          ><i
+                          class="fas fa-ambulance fa-2x" aria-hidden="true" style="color:#c0392b;"></i><br
+                          ><i
+                          class="fas fa-forward fa-rotate-90" aria-hidden="true"></i></span><br
+                        > {{!$last?'line.judge.checkpoint':'line.judge.Lexit' | translate}}<b
+                        style="font-size:15px;color:#FF8300;">{{!$last?$index+1:''}}</b></div><div
+                      style="width:60%;position: relative;"><div
+                        class="input-group mb-3" style="width:100%; height:40px;position:absolute;margin: auto;top: calc(50% - 20px);"><div
+                          class="input-group-prepend"><button
+                            class="btn btn-danger" type="button" ng-click="decrement($index,$last)"><i
+                              class="fas fa-minus" aria-hidden="true"></i></button></div><div
+                          style="background-color: #F2F2F2; width:40%; text-align: center;"><span
+                            class="count">{{LoPs[$index]?LoPs[$index]:0}}</span></div><div
+                          class="input-group-append"><button
+                            class="btn btn-success" type="button" ng-click="increment($index,$last)"><i
+                              class="fas fa-plus" aria-hidden="true"></i></button></div></div></div></div><div
+                    ng-if="$index == EvacuationAreaLoPIndex" style="border: solid 4px #e74c3c;border-radius:calc(0.5rem - 1px);margin-top:15px;"><h3
+                      class="card-header" style="background-color: #e74c3c;color: #fff;border-radius:calc(0.2rem - 1px) calc(0.2rem - 1px) 0 0;"> {{'line.judge.rescue' | translate}}</h3><div
+                      class="row" style="padding:10px;"><div
+                        class="col-2"></div><div
+                        class="col-4" ng-click="addVictimTmp('LIVE')"><span
+                          >Max : {{maxLiveVictims}}</span><br
+                          ><div
+                          class="victim_btn" style="width:100%;position: relative;" ng-style="{'background-color': count_victim_list('L') + count_victim_tmp('L') &gt;= maxLiveVictims?'#ccc':'#E1FFFE'}"><img
+                            class="img-thumbnail" src="images/liveVictim.png" height="60px"></div></div><div
+                        class="col-4" style="" ng-click="addVictimTmp('DEAD')"><span
+                          >Max : {{maxDeadVictims}}</span><br
+                          ><div
+                          class="victim_btn" style="width:100%;position: relative;" ng-style="{'background-color': count_victim_list('D') + count_victim_tmp('D') &gt;= maxDeadVictims?'#ccc':'#E1FFFE'}"><img
+                            class="img-thumbnail" src="images/deadVictim.png" height="60px"></div></div><div
+                        class="col-12" ng-if="victim_tmp.length &gt; 0"><table
+                          border="1" style="width:100%; text-align: center; margin-top: 10px;"><tbody
+                            ><tr
+                              ><td
+                                ng-repeat="i in range(3)" ng-dblclick="delete_victim_tmp(i)" ng-swipe-left="delete_victim_tmp(i)"><img
+                                  src="images/liveVictim.png" width="30px" ng-if="victim_tmp[i] == 'LIVE'"><img
+                                  src="images/deadVictim.png" width="30px" ng-if="victim_tmp[i] == 'DEAD'"><span
+                                  style="width:30px;" ng-hide="victim_tmp[i]">---</span></td><td
+                                rowspan="6"><button
+                                  class="btn btn-warning" type="button" ng-click="victim_tmp_clear()"><i
+                                    class="far fa-trash-alt" aria-hidden="true"></i></button></td></tr></tbody></table></div><div
+                        class="col-6" ng-if="victim_tmp.length &gt; 0" style="margin-top:10px;"><div
+                          class="evac_zone_btn_red" style="width:100%;position: relative;" ng-click="victimRegist(&quot;RED&quot;)"><img
+                            class="img-thumbnail" src="images/evacZone/red_lv2_a.png" height="60px"></div></div><div
+                        class="col-6" ng-if="victim_tmp.length &gt; 0" style="margin-top:10px;" ng-click="victimRegist(&quot;GREEN&quot;)"><div
+                          class="evac_zone_btn_green" style="width:100%;position: relative;"><img
+                            class="img-thumbnail" src="images/evacZone/green_lv2_a.png" height="60px"></div></div><div
+                        class="col-12"><div
+                          ng-show="victim_list.length &gt; 0"><hr
+                            ><h6
+                            >{{'line.judge.rescuedVictims' | translate}}</h6><span
+                            style="font-size:9px;">{{'line.judge.rescuedVictimsMes' | translate}}</span><table
+                            border="1" style="width:100%; text-align: center; margin-top: 10px;" ng-repeat="j in range(6)" ng-if="victim_list.length &gt; j*3"><tbody
+                              ><tr
+                                ><th
+                                  >Zone</th><th
+                                  style="text-align:center;" ng-repeat="i in range(3)">{{j*3 + (i+1)}}</th></tr><tr
+                                ><td
+                                  ><img
+                                    src="images/evacZone/red_lv2.png" height="50px"></td><td
+                                  ng-repeat="i in range(3)" ng-style="{'background-color': victim_bk_color(j*3+i, 'RED')}" ng-dblclick="delete_victim(j*3+i)" ng-swipe-left="delete_victim(j*3+i)"><div
+                                    ng-if="victim_list[j*3+i].zoneType == 'RED'"><img
+                                      src="images/liveVictim.png" width="30px" ng-if="victim_list[j*3+i].victimType == 'LIVE'"><img
+                                      src="images/deadVictim.png" width="30px" ng-if="victim_list[j*3+i].victimType == 'DEAD'"><br
+                                      ><span
+                                      ng-if="calc_victim_multipliers(j*3+i)!=0">x{{calc_victim_multipliers(j*3+i)}}</span></div></td></tr><tr
+                                ><td
+                                  ><img
+                                    src="images/evacZone/green_lv2.png" height="50px"></td><td
+                                  ng-repeat="i in range(3)" ng-style="{'background-color': victim_bk_color(j*3+i, 'GREEN')}" ng-dblclick="delete_victim(j*3+i)" ng-swipe-left="delete_victim(j*3+i)"><div
+                                    ng-if="victim_list[j*3+i].zoneType == 'GREEN'"><img
+                                      src="images/liveVictim.png" width="30px" ng-if="victim_list[j*3+i].victimType == 'LIVE'"><img
+                                      src="images/deadVictim.png" width="30px" ng-if="victim_list[j*3+i].victimType == 'DEAD'"><br
+                                      ><span
+                                      ng-if="calc_victim_multipliers(j*3+i)!=0">x{{calc_victim_multipliers(j*3+i)}}</span></div></td></tr></tbody></table></div></div></div></div><hr
+                    ng-show="!$last"></div></div><h3
+                class="card-header"><i
+                  class="fas fa-door-open" aria-hidden="true"></i> {{'line.judge.exit' | translate}}</h3><div
+                class="card-body"><div
+                  class="col-md-12" style="position: relative;" ng-click="changeExitBonus()"><img
+                    class="img-thumbnail" src="images/line_bonus.png" width="186.3px" height="118px" ng-style="{'background-color': exitBonus?'#2ecc71':'#D91E18'}"><div
+                    style="position:absolute; top:20px; left:65px;"><i
+                      class="fas fa-check fa-fw fa-5x" ng-show="exitBonus" style="color:#27ae60; opacity:0.9;"></i><i
+                      class="fas fa-times fa-fw fa-5x" ng-show="!exitBonus " style="padding-top:4px; color:#e74c3c; opacity:0.9;"></i></div></div></div></div></div></div><div
+          class="col-md-7 col-lg-8 tilearea"><div
+            style="text-align:left;float:left;"><div
+              class="btn-group"><div
+                class="input-group-prepend"><span
+                  class="input-group-text"><i
+                    class="fas fa-arrows-alt-v" aria-hidden="true"></i></span></div><button
+                class="btn btn-outline-dark" type="button" ng-click="changeFloor(zz)" ng-repeat="zz in range(height)" ng-class="{active: zz == z}"> {{zz}}</button></div></div><div
+            style="text-align:right;float:right;"><div
+              class="btn-group"><button
+                class="btn btn-outline-dark" type="button" ng-click="tileRot(-90)"><i
+                  class="fas fa-undo" aria-hidden="true"></i></button><button
+                class="btn btn-outline-dark" type="button" ng-click="tileRot(90)"><i
+                  class="fas fa-redo" aria-hidden="true"></i></button></div></div><div
+            style="clear:both;"></div><div
+            id="wrapTile" class="mx-auto" style="margin-top:5px;"><div
+              ng-repeat="r in range(length)" ng-if="sRotate==0" style="display: flex;"><div
+                style="text-align:center;"><div
+                  class="slot" ng-repeat="c in range(width)"><tile
+                    tile="mtiles[c+','+r+','+z]" ng-click="doScoring(c,r,z)"></tile></div></div></div><div
+              ng-repeat="r in range(length)" ng-if="sRotate==180" style="display: flex;"><div
+                class="slot" ng-repeat="c in range(width)"><tile
+                  tile="mtiles[width - c -1+','+(length - r -1)+','+z]" ng-click="doScoring(width - c -1,length - r -1,z)"></tile></div></div><div
+              ng-repeat="r in range(width)" ng-if="sRotate==270" style="display: flex;"><div
+                class="slot" ng-repeat="c in range(length)"><tile
+                  tile="mtiles[width - r -1+','+c+','+z]" ng-click="doScoring(width-r-1,c,z)"></tile></div></div><div
+              ng-repeat="r in range(width)" ng-if="sRotate==90" style="display: flex;"><div
+                class="slot" ng-repeat="c in range(length)"><tile
+                  tile="mtiles[r+','+ (length - c-1) +','+z]" ng-click="doScoring(r,length-c-1,z)"></tile></div></div></div></div></div><div
+        class="row" style="margin:50 0 0 0;"><div
+          class="col-sm-12"><button
+            class="btn btn-success" style="margin:0 10px 10px 0;" type="button" ng-click="toggleTime()"><i
+              class="fas fa-stopwatch" aria-hidden="true"> {{ startedTime ? 'line.judge.tim_stop' : 'line.judge.tim_start' |translate }}</i></button></div><div
+          class="col-md-12 confirmation"><div
+            ><h4
+              >{{'line.judge.adjust'| translate}}</h4><br
+              ><strong
+              ng-if="!startedTime">{{'line.judge.confirm_text'| translate}}</strong><strong
+              ng-if="startedTime" style="color:red">{{'line.judge.disabled_confirm_text'| translate}}</strong><div
+              class="row"><div
+                class="col-sm-7" style="margin-bottom:10px;"><div
+                  class="input-group input-group-lg"><input
+                    class="form-control" type="tel" placeholder="" aria-label="min" min="0" max="8" ng-model="minutes" ng-disabled="startedTime"><div
+                    class="input-group-append"><span
+                      class="input-group-text">{{'common.min' | translate}}</span></div><input
+                    class="form-control" type="tel" placeholder="" aria-label="sec" min="0" max="60" ng-model="seconds" ng-disabled="startedTime"><div
+                    class="input-group-append"><span
+                      class="input-group-text">{{'common.sec' | translate}}</span></div></div></div><div
+                class="col-sm-5"><div
+                  style="text-align:right;"><button
+                    class="btn btn-danger" type="button" ng-click="confirm()" ng-disabled="startedTime || networkError"><i
+                      class="fas fa-arrow-right fa-2x" aria-hidden="true"> {{'line.judge.toSign'| translate}}</i></button></div></div></div></div></div></div></div><div
+      class="row" style="margin:20 0 0 0;"><div
+        class="col-md12"><button
+          class="btn btn-secondary" style="margin:0 10px 10px 0;" type="button" ng-click="getParam('return')? go(getParam('return')):go('/line/' + competition._id + '/' + league)"><i
+            class="fas fa-undo" aria-hidden="true"> {{'common.back' | translate}}</i></button></div></div></div></body></html>

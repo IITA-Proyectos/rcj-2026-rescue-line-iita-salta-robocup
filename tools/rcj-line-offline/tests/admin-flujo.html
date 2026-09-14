@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Admin — flujo completo desde cero</title>
+<!--
+  Usada por tests/admin-correr.py (--dump-dom). Recorre las páginas reales del área admin dentro de un iframe,
+  como lo haría una persona, desde una base vacía:
+    Inicio (semillas, idempotencia, crear/elegir competencia) -> Configuración (flags, almacenamiento, versión,
+    licencia, borrar todo con doble confirmación y re-siembra) -> Mapas (importar 3 archivos a la vez por el
+    input file con DataTransfer sintético: export oficial, variante con tiles array y un JSON roto; terminado;
+    exportar con sha256 del export oficial; duplicar; borrar; planilla E8) -> Inicio (corrida rápida -> juez)
+    -> Corridas (lista y botón juez) -> Mapas (modal crear corrida, estadísticas, editar) -> Administrar corridas
+    (rondas, pistas, equipos, agregar/borrar corrida, grupo) -> Configuración (respaldo: exportar, importar
+    reemplazar y fusionar).
+-->
+<script src="admin-comun.js"></script>
+<script src="../local/config.js"></script>
+<script src="../local/io-shim.js"></script>
+<script src="../local/nucleo/store.js"></script>
+<script src="../local/nucleo/pathfinder-servidor.js"></script>
+<script src="../local/nucleo/init-run.js"></script>
+<script src="../local/nucleo/score-2026.js"></script>
+<script src="../local/nucleo/copy-properties.js"></script>
+<script src="../local/nucleo/api.js"></script>
+<script src="../local/nucleo/ranking.js"></script>
+<script src="../javascripts/pathFinder.js"></script>
+<style>body { font-family: sans-serif; margin: 0; } #resultado { white-space: pre-wrap; }</style>
+</head>
+<body>
+<pre id="resultado">PENDIENTE</pre>
+<div id="marcos"></div>
+<script>
+T.correr(async function () {
+  var ex = {};
+  var SHA = 'df7986072ce370a1c5347ce76b2f4eacb8e9bf9de228cff0932652834de1251e';
+  var FIX = await (await fetch('admin-fixtures/fixture-mapa-oficial.min.json', { cache: 'no-store' })).text();
+  T.igual('fixture intacto (sha256 del export oficial)', await T.sha256(FIX), SHA);
+  var oficial = JSON.parse(FIX);
+  var doc = function (f) { return f.contentDocument; };
+  var hayCon = function (f, sel) { return f.contentDocument.querySelector(sel); };
+
+  // ------------------------------------------------------------------ 0. base vacía
+  T.paso('base vacía');
+  await T.resetear();
+  try { localStorage.removeItem('rcjLocalCompetenciaActiva'); localStorage.removeItem('rcjLocalFlags'); } catch (e) { /* sin localStorage */ }
+
+  // ------------------------------------------------------------------ 1. Inicio: semillas
+  T.paso('inicio: semillas');
+  var f = await T.cargarIframe('../index.html', { ancho: 1024, alto: 768 });
+  await T.esperarQue(function () { return f.contentWindow.__inicioListo; }, 20000, 'inicio listo');
+  var s = T.scope(f);
+  T.igual('semillas: una competencia «Práctica IITA 2026»', s.competencias.map(function (c) { return c.name; }), ['Práctica IITA 2026']);
+  var cid0 = s.sel.competencia;
+  await T.esperarQue(function () { return s.resumen; }, 10000, 'resumen del inicio');
+  T.igual('semillas: equipo «IITA Salta»', s.resumen.equipos.map(function (e) { return e.name; }), ['IITA Salta']);
+  T.igual('semillas: ronda «Ronda 1»', (await T.api('GET', '/api/competitions/' + cid0 + '/rounds')).data.map(function (r) { return r.name; }), ['Ronda 1']);
+  T.igual('semillas: cancha «Cancha 1»', (await T.api('GET', '/api/competitions/' + cid0 + '/fields')).data.map(function (r) { return r.name; }), ['Cancha 1']);
+  T.igual('semillas: liga Line regla 2026', ((await T.api('GET', '/api/competitions/' + cid0)).data.leagues || []).map(function (l) { return l.league + '/' + l.rule; }), ['Line/2026']);
+  T.igual('competencia activa guardada', localStorage.getItem('rcjLocalCompetenciaActiva'), cid0);
+  T.igual('inicio: 8 accesos grandes', doc(f).querySelectorAll('.acceso-grande').length, 8);
+  T.igual('inicio: accesos llevan ?competition=', doc(f).querySelector('#accesoMapas').getAttribute('href'), RCJLocal.base + 'mapas.html?competition=' + cid0);
+
+  T.paso('inicio: semillas idempotentes');
+  await T.navegar(f, '../index.html');
+  await T.esperarQue(function () { return f.contentWindow.__inicioListo; }, 20000, 'inicio listo (2)');
+  T.igual('semillas idempotentes', T.scope(f).competencias.length, 1);
+
+  // ------------------------------------------------------------------ 2. Configuración
+  T.paso('configuracion: flags y almacenamiento');
+  await T.navegar(f, '../configuracion.html');
+  await T.esperarQue(function () { return f.contentWindow.__configListo; }, 20000, 'configuración lista');
+  var w = f.contentWindow;
+  var NOMBRES = ['corregirBugsVisuales', 'tactil', 'persistirTimer', 'audioResume', 'fotosOpcionales', 'soloFirmaCapitan'];
+  T.igual('flags de ESPEC §2 listadas', Array.prototype.map.call(doc(f).querySelectorAll('.flag-fila'), function (x) { return x.getAttribute('data-flag'); }), NOMBRES);
+  T.igual('defaults de ESPEC §2', NOMBRES.map(function (k) { return w.RCJLocal.flagsPorDefecto[k]; }), [false, true, true, true, true, false]);
+  T.igual('cada flag tiene explicación y default', Array.prototype.filter.call(doc(f).querySelectorAll('.flag-fila'), function (x) { return x.querySelector('.flag-desc').textContent.length > 40 && /Por defecto: (encendido|apagado)/.test(x.querySelector('.flag-defecto').textContent); }).length, 6);
+  T.clic(f, '#flag-soloFirmaCapitan');
+  await T.esperar(100);
+  T.igual('flag guardada en localStorage', JSON.parse(localStorage.getItem('rcjLocalFlags') || '{}').soloFirmaCapitan, true);
+  await T.navegar(f, '../configuracion.html');
+  await T.esperarQue(function () { return f.contentWindow.__configListo; }, 20000, 'configuración lista (2)');
+  w = f.contentWindow;
+  T.check('flag vigente al abrir otra página', w.RCJLocal.flags.soloFirmaCapitan === true && doc(f).querySelector('#flag-soloFirmaCapitan').checked);
+  T.clic(f, '#tarjetaFlags .modern-card-header button');
+  await T.esperar(100);
+  T.igual('valores por defecto restablecidos', JSON.parse(localStorage.getItem('rcjLocalFlags') || '{}').soloFirmaCapitan, false);
+  await T.esperarQue(function () { return ['sí', 'no'].indexOf(doc(f).querySelector('#estadoPersistente').textContent.trim()) >= 0; }, 8000, 'estado persistente');
+  ex.persisted = doc(f).querySelector('#estadoPersistente').textContent.trim();
+  await T.esperarQue(function () { return hayCon(f, '#usoAlmacen'); }, 8000, 'estimate()');
+  ex.estimate = doc(f).querySelector('#usoAlmacen').textContent.trim();
+  T.check('navigator.storage.estimate() mostrado', /de/.test(ex.estimate));
+  T.igual('versión', doc(f).querySelector('#versionApp').textContent.trim(), w.RCJLocal.version);
+  T.check('link a la licencia MIT del CMS', !!hayCon(f, 'a[href="LICENSE-rcj-rescue-cms.txt"]') && (await fetch('../LICENSE-rcj-rescue-cms.txt')).ok);
+  T.igual('idioma por defecto es', T.scope(f).idioma.actual, 'es');
+
+  T.paso('configuracion: borrar todo');
+  var d0 = doc(f);
+  T.clic(f, '#botonBorrarTodo');
+  await T.esperarSwal(f, '¿Borrar todos los datos?');
+  T.confirmarSwal(f);
+  await T.esperarSwal(f, 'Confirmación final');
+  T.confirmarSwal(f, 'borrar');
+  await T.esperar(500);
+  T.check('la 2ª confirmación exige escribir BORRAR', w.swal.isVisible() && w.swal.getTitle().textContent.indexOf('Confirmación final') >= 0 && (await RCJLocal.store.count('competitions')) === 1);
+  T.confirmarSwal(f, 'BORRAR');
+  await T.esperarQue(function () { return w.__datosBorrados; }, 10000, 'datos borrados');
+  T.igual('base vacía después de borrar', await RCJLocal.store.count('competitions') + await RCJLocal.store.count('teams'), 0);
+  await T.esperarSwal(f, 'Datos borrados');
+  T.confirmarSwal(f);
+  var wi = await T.esperarNavegacion(f, /\/index\.html/, d0);
+  await T.esperarQue(function () { return wi.__inicioListo; }, 20000, 'inicio re-siembra');
+  s = T.scope(f);
+  T.igual('re-siembra al volver al Inicio', s.competencias.map(function (c) { return c.name; }), ['Práctica IITA 2026']);
+  var cid = s.sel.competencia;
+  T.check('competencia nueva distinta', !!cid && cid !== cid0);
+
+  // ------------------------------------------------------------------ 3. Inicio: crear y elegir competencia
+  T.paso('inicio: crear competencia');
+  await T.esperarQue(function () { return s.resumen; }, 10000, 'resumen');
+  T.aplicar(s, function () { s.sel.nombreNueva = 'Práctica del sábado'; s.crearCompetencia(); });
+  await T.esperarQue(function () { return s.competencias.length === 2 && !s.estado.creandoCompetencia; }, 10000, 'competencia creada');
+  var nueva = s.competencias.filter(function (c) { return c.name === 'Práctica del sábado'; })[0];
+  T.check('competencia creada queda activa', !!nueva && s.sel.competencia === nueva._id && localStorage.getItem('rcjLocalCompetenciaActiva') === nueva._id);
+  T.aplicar(s, function () { s.sel.competencia = cid; s.cambiarCompetencia(); });
+  await T.esperarQue(function () { return s.resumen && s.resumen.competencia._id === cid; }, 10000, 'cambio de competencia');
+  T.igual('selector de competencia activa', localStorage.getItem('rcjLocalCompetenciaActiva'), cid);
+
+  // ------------------------------------------------------------------ 4. Mapas: importar varios archivos
+  T.paso('mapas: importar');
+  await T.navegar(f, '../mapas.html');
+  await T.esperarHttp(f, 20000);
+  var mb = T.scope(f);
+  var sl = T.scope(f, '[ng-controller="MapasLocalController"]');
+  T.igual('mapas: competencia = activa', f.contentWindow.competitionId, cid);
+  T.igual('mapas: lista vacía', (mb.maps || []).length, 0);
+  var conArray = JSON.parse(FIX);
+  conArray.name = 'Fixture tiles array';
+  conArray.tiles = Object.keys(oficial.tiles).map(function (k) {
+    var t = JSON.parse(JSON.stringify(oficial.tiles[k]));
+    var p = k.split(',');
+    t.x = +p[0]; t.y = +p[1]; t.z = +p[2];
+    t.tileType = t.tileType._id;
+    delete t.index; delete t.next;
+    return t;
+  });
+  T.ponerArchivos(f, '#importarMapas', [
+    { nombre: 'fixture-mapa-oficial.min.json', texto: FIX },
+    { nombre: 'fixture-tiles-array.json', texto: JSON.stringify(conArray) },
+    { nombre: 'roto.json', texto: '{esto no es json' }
+  ]);
+  await T.esperarQue(function () { return sl.local.resultados && sl.local.resultados.length === 3 && !sl.local.importando; }, 30000, 'importación');
+  var res = sl.local.resultados;
+  T.igual('importar: 3 archivos a la vez (2 ok, 1 roto)', res.map(function (r) { return [r.archivo, r.ok]; }), [['fixture-mapa-oficial.min.json', true], ['fixture-tiles-array.json', true], ['roto.json', false]]);
+  T.igual('importar: nombre y terminado del export oficial', [res[0].nombre, res[0].finished], ['IITA Fixture 2026', true]);
+  T.check('importar: el roto explica el error', /JSON/.test(res[2].error || ''), res[2]);
+  var idOf = res[0].id, idArr = res[1].id;
+  await T.esperarQue(function () { return hayCon(f, '[data-mapa="' + idOf + '"]') && hayCon(f, '[data-mapa="' + idArr + '"]'); }, 10000, 'tarjetas de mapas');
+  T.igual('lista con 2 mapas', mb.maps.length, 2);
+
+  T.paso('mapas: terminado');
+  var dMapas = doc(f);
+  await T.esperarQue(function () { return sl.local.detalles[idOf]; }, 10000, 'detalles');
+  T.clic(f, '[data-mapa="' + idOf + '"] .accion-terminado');
+  await T.esperarQue(function () { return sl.local.detalles[idOf] && sl.local.detalles[idOf].finished === false; }, 10000, 'sin terminar');
+  T.igual('marcar sin terminar (store)', (await RCJLocal.store.get('lineMaps', idOf)).finished, false);
+  T.clic(f, '[data-mapa="' + idOf + '"] .accion-terminado');
+  await T.esperarQue(function () { return sl.local.detalles[idOf] && sl.local.detalles[idOf].finished === true; }, 10000, 'terminado');
+  T.igual('marcar terminado (store)', (await RCJLocal.store.get('lineMaps', idOf)).finished, true);
+  T.check('los botones de la tarjeta no abren el editor', doc(f) === dMapas);
+
+  T.paso('mapas: exportar');
+  var UIw = f.contentWindow.RCJLocalUI;
+  UIw.ultimaDescarga = null;
+  T.clic(f, '[data-mapa="' + idOf + '"] .accion-exportar');
+  await T.esperarQue(function () { return UIw.ultimaDescarga; }, 10000, 'descarga del export');
+  T.igual('exportar: nombre de archivo', UIw.ultimaDescarga.nombre, 'IITA Fixture 2026.json');
+  var textoExp = await UIw.ultimaDescarga.blob.text();
+  ex.shaExport = await T.sha256(textoExp);
+  T.igual('exportar: sha256 byte-idéntico al export oficial', ex.shaExport, SHA);
+  UIw.ultimaDescarga = null;
+  T.clic(f, '[data-mapa="' + idArr + '"] .accion-exportar');
+  await T.esperarQue(function () { return UIw.ultimaDescarga; }, 10000, 'descarga del export (array)');
+  var objArr = JSON.parse(await UIw.ultimaDescarga.blob.text());
+  objArr.name = oficial.name;
+  T.igual('importar formato tiles array: el export (con el nombre original) es el oficial', await T.sha256(JSON.stringify(objArr)), SHA);
+
+  T.paso('mapas: duplicar y borrar');
+  T.clic(f, '[data-mapa="' + idOf + '"] .accion-duplicar');
+  await T.esperarQue(function () { return mb.maps && mb.maps.length === 3; }, 10000, 'duplicado');
+  var dup = mb.maps.filter(function (m) { return m.name === 'IITA Fixture 2026 (copia)'; })[0];
+  T.check('duplicar: «IITA Fixture 2026 (copia)»', !!dup, mb.maps.map(function (m) { return m.name; }));
+  // el aviso «Mapa duplicado» se cierra solo con un timer de 1,4 s (tiempo virtual en headless): se cierra a mano
+  // (sin esperar el cierre animado: el paso siguiente espera el título «Delete Map?»)
+  if (f.contentWindow.swal.isVisible()) f.contentWindow.swal.close();
+  if (dup) {
+    await T.esperarQue(function () { return hayCon(f, '[data-mapa="' + dup._id + '"]'); }, 10000, 'tarjeta del duplicado');
+    T.clic(f, '[data-mapa="' + dup._id + '"] .btn-delete-item');
+    await T.esperarSwal(f, 'Delete Map?');
+    T.confirmarSwal(f);
+    await T.esperarQue(function () { return mb.maps.length === 2; }, 10000, 'mapa borrado');
+    await T.esperarSwal(f, 'Deleted!');
+    T.confirmarSwal(f);
+    T.check('borrar mapa', !(await RCJLocal.store.get('lineMaps', dup._id)));
+  }
+
+  T.paso('mapas: planilla E8');
+  var cuerpo = await UIw.cuerpoSalidaMapa(idOf, cid, 'Line', { rule: '2026' });
+  var rp = await f.contentWindow.RCJLocal.api.request('POST', '/api/maps/line/scoresheet', cuerpo, { responseType: 'arraybuffer' });
+  T.igual('planilla del mapa (E8 de salidas): HTTP 200', rp.status, 200);
+  T.igual('planilla del mapa: es un PDF', rp.status === 200 ? new TextDecoder().decode(new Uint8Array(rp.data).slice(0, 4)) : null, '%PDF');
+
+  // ------------------------------------------------------------------ 5. Inicio: corrida rápida -> juez
+  T.paso('inicio: corrida rápida');
+  await T.navegar(f, '../index.html');
+  await T.esperarQue(function () { return f.contentWindow.__inicioListo; }, 20000, 'inicio listo (3)');
+  s = T.scope(f);
+  await T.esperarQue(function () { return s.resumen && s.resumen.mapas.length === 2; }, 10000, 'resumen con mapas');
+  T.igual('inicio: 2 mapas terminados', s.resumen.mapasTerminados, 2);
+  var equipo = s.resumen.equipos[0];
+  T.aplicar(s, function () { s.sel.mapa = idOf; s.sel.equipo = equipo._id; });
+  var dInicio = doc(f);
+  T.clic(f, '#botonCorridaRapida');
+  var wj = await T.esperarNavegacion(f, /\/juez\.html\?/, dInicio);
+  var runId = new URL(wj.location.href).searchParams.get('run');
+  ex.runId = runId;
+  T.check('juez.html abre con ?run=<id>', /^[0-9a-f]{24}$/.test(runId || ''), wj.location.href);
+  T.igual('juez: global runId', wj.runId, runId);
+  T.check('juez: ?return= al Inicio', /return=[^&]*index\.html/.test(decodeURIComponent(wj.location.search)), wj.location.search);
+  var run = await RCJLocal.store.get('lineRuns', runId);
+  T.igual('corrida rápida: mapa y equipo elegidos', [run.map, run.team], [idOf, equipo._id]);
+  T.igual('corrida rápida: usa «Ronda 1» y «Cancha 1»', [(await RCJLocal.store.get('rounds', run.round)).name, (await RCJLocal.store.get('fields', run.field)).name], ['Ronda 1', 'Cancha 1']);
+  await T.esperarQue(function () { return wj.document.body && wj.document.body.textContent.indexOf('IITA Salta') >= 0; }, 20000, 'el juez muestra el equipo');
+  T.check('juez carga la corrida (muestra «IITA Salta»)', true);
+
+  // ------------------------------------------------------------------ 6. Corridas
+  T.paso('corridas');
+  await T.navegar(f, '../corridas.html');
+  var sc;
+  await T.esperarQue(function () { sc = T.scope(f); return sc && sc.runs != null; }, 15000, 'lista de corridas');
+  await T.esperarHttp(f);
+  var filas = function () { return Array.prototype.slice.call(doc(f).querySelectorAll('table.run-table-modern tbody tr')); };
+  await T.esperarQue(function () { return filas().length >= 1; }, 10000, 'filas');
+  T.igual('corridas: lista la corrida', filas().map(function (tr) { return tr.querySelector('td').textContent.trim(); }), ['IITA Salta']);
+  T.igual('corridas: título = competencia', doc(f).querySelector('.hero-title').textContent.trim(), 'Práctica IITA 2026');
+  var btnJ = filas()[0].querySelector('.btn-run-judge');
+  T.check('corridas: botón Juez', !!btnJ);
+  if (btnJ) {
+    var dCorr = doc(f);
+    btnJ.click();
+    await T.esperarSwal(f);
+    T.confirmarSwal(f);
+    var wj2 = await T.esperarNavegacion(f, /\/juez\.html\?/, dCorr);
+    T.igual('corridas -> juez con la corrida', new URL(wj2.location.href).searchParams.get('run'), runId);
+  }
+
+  // ------------------------------------------------------------------ 7. Mapas: crear corrida (modal), estadísticas, editar
+  T.paso('mapas: modal crear corrida');
+  await T.navegar(f, '../mapas.html');
+  await T.esperarHttp(f, 20000);
+  await T.esperarQue(function () { return hayCon(f, '[data-mapa="' + idArr + '"] .accion-corrida'); }, 10000, 'tarjeta');
+  T.clic(f, '[data-mapa="' + idArr + '"] .accion-corrida');
+  await T.esperarQue(function () { var e = hayCon(f, '#ccEquipo'); return e && f.contentWindow.angular.element(e).scope().f.team; }, 10000, 'modal con equipos');
+  doc(f).querySelectorAll('.modal-footer button')[1].click();
+  await T.esperarSwal(f, 'Corrida creada', 10000);
+  var runsArr = await RCJLocal.store.list('lineRuns', function (r) { return r.map === idArr; });
+  T.igual('modal: una corrida sobre el mapa', runsArr.length, 1);
+  if (runsArr.length) {
+    T.igual('modal: ronda automática «Práctica 2», «Cancha 1», grupo = ronda', [(await RCJLocal.store.get('rounds', runsArr[0].round)).name, (await RCJLocal.store.get('fields', runsArr[0].field)).name, runsArr[0].normalizationGroup], ['Práctica 2', 'Cancha 1', 'Práctica 2']);
+  }
+  T.igual('nuevo mapa -> editor.html?competition&league', f.contentWindow.RCJLocal.ruta('/admin/' + cid + '/Line/mapEditor'), RCJLocal.base + 'editor.html?competition=' + cid + '&league=Line');
+  var dM2 = doc(f);
+  T.clic(f, '[data-mapa="' + idOf + '"] .accion-estadisticas');
+  var we = await T.esperarNavegacion(f, /estadisticas\.html/, dM2);
+  T.igual('estadísticas: estadisticas.html?competition&map', [new URL(we.location.href).searchParams.get('competition'), new URL(we.location.href).searchParams.get('map')], [cid, idOf]);
+  await T.navegar(f, '../mapas.html');
+  await T.esperarHttp(f, 20000);
+  await T.esperarQue(function () { return hayCon(f, '[data-mapa="' + idOf + '"] .modern-item-name'); }, 10000, 'tarjeta');
+  var dM3 = doc(f);
+  T.clic(f, '[data-mapa="' + idOf + '"] .modern-item-name');
+  var wed = await T.esperarNavegacion(f, /editor\.html/, dM3);
+  T.igual('editar: editor.html?map=<id>', new URL(wed.location.href).searchParams.get('map'), idOf);
+
+  // ------------------------------------------------------------------ 8. Administrar corridas
+  T.paso('admin-corridas');
+  await T.navegar(f, '../admin-corridas.html');
+  var sa;
+  await T.esperarQue(function () { sa = T.scope(f); return sa && sa.runs && sa.runs.length === 2; }, 20000, 'tabla de corridas');
+  await T.esperarHttp(f);
+  var cat = T.scope(f, '#catalogosLocales');
+  await T.esperarQue(function () { return cat.cat.cargado; }, 10000, 'catálogos');
+  T.igual('admin: 2 corridas en la tabla', doc(f).querySelectorAll('table.table-modern tbody tr').length, 2);
+  T.aplicar(cat, function () { cat.nuevo.ronda = 'Final'; cat.agregarRonda(); });
+  await T.esperarQue(function () { return cat.cat.rondas.some(function (r) { return r.name === 'Final'; }); }, 10000, 'ronda Final');
+  T.aplicar(cat, function () { cat.nuevo.pista = 'Cancha 2'; cat.agregarPista(); });
+  await T.esperarQue(function () { return cat.cat.pistas.some(function (r) { return r.name === 'Cancha 2'; }); }, 10000, 'pista Cancha 2');
+  T.aplicar(cat, function () { cat.nuevo.equipoNombre = 'Robot B'; cat.nuevo.equipoCodigo = 'B'; cat.agregarEquipo(); });
+  await T.esperarQue(function () { return cat.cat.equipos.some(function (r) { return r.name === 'Robot B'; }); }, 10000, 'equipo Robot B');
+  T.check('admin: alta de ronda, pista y equipo', true);
+  await T.esperarQue(function () {
+    return sa.rounds.some(function (r) { return r.name === 'Final'; }) && sa.fields.some(function (r) { return r.name === 'Cancha 2'; }) &&
+      sa.teams.some(function (r) { return r.name === 'Robot B'; }) && sa.maps && Object.values(sa.maps).some(function (m) { return m._id === idOf; });
+  }, 10000, 'selects de «Add run» actualizados');
+  T.aplicar(sa, function () {
+    sa.run = {
+      round: sa.rounds.filter(function (r) { return r.name === 'Final'; })[0],
+      team: sa.teams.filter(function (r) { return r.name === 'Robot B'; })[0],
+      map: Object.values(sa.maps).filter(function (m) { return m._id === idOf; })[0], // games.js:31-34 guarda maps como objeto
+      field: sa.fields.filter(function (r) { return r.name === 'Cancha 2'; })[0],
+      normalizationGroup: 'G1'
+    };
+    sa.addRun();
+  });
+  await T.esperarQue(function () { return sa.runs.length === 3; }, 10000, 'corrida agregada');
+  var nuevaRun = sa.runs.filter(function (r) { return r.team && r.team.name === 'Robot B'; })[0];
+  T.check('admin: corrida agregada (Final, Cancha 2, G1)', !!nuevaRun && nuevaRun.round.name === 'Final' && nuevaRun.field.name === 'Cancha 2' && nuevaRun.normalizationGroup === 'G1', nuevaRun);
+  T.aplicar(sa, function () { nuevaRun.checked = true; });
+  T.aplicar(cat, function () { cat.nuevo.grupo = 'G2'; cat.asignarGrupo(); });
+  await T.esperar(200);
+  await T.esperarQue(function () { return !cat.asignando; }, 10000, 'asignar grupo');
+  T.igual('admin: asignar grupo a las tildadas', (await RCJLocal.store.get('lineRuns', nuevaRun._id)).normalizationGroup, 'G2');
+  // Entre diálogos consecutivos se recarga la página: en headless la animación de cierre de SweetAlert2 corre con
+  // tiempo virtual y puede cerrar el diálogo siguiente si se abre en el mismo instante (una persona tarda más).
+  async function recargarAdmin() {
+    await T.navegar(f, '../admin-corridas.html');
+    await T.esperarQue(function () { sa = T.scope(f); return sa && sa.runs && sa.runs.length >= 2; }, 20000, 'tabla de corridas (recarga)');
+    await T.esperarHttp(f);
+    cat = T.scope(f, '#catalogosLocales');
+    await T.esperarQue(function () { return cat.cat.cargado; }, 10000, 'catálogos (recarga)');
+  }
+  sa.removeRun(nuevaRun._id);
+  await T.esperarSwal(f, 'Delete Run?');
+  T.confirmarSwal(f, 'DELETE');
+  await T.esperarQue(function () { return sa.runs.length === 2; }, 10000, 'corrida borrada');
+  T.check('admin: borrar corrida', !(await RCJLocal.store.get('lineRuns', nuevaRun._id)));
+  await recargarAdmin();
+  T.aplicar(cat, function () { cat.borrarRonda(cat.cat.rondas.filter(function (r) { return r.name === 'Final'; })[0]); });
+  await T.esperarSwal(f, '¿Borrar la ronda?');
+  T.confirmarSwal(f);
+  await T.esperarQue(function () { return !cat.cat.rondas.some(function (r) { return r.name === 'Final'; }); }, 10000, 'ronda borrada');
+  await recargarAdmin();
+  T.aplicar(cat, function () { cat.borrarPista(cat.cat.pistas.filter(function (r) { return r.name === 'Cancha 2'; })[0]); });
+  await T.esperarSwal(f, '¿Borrar la pista?');
+  T.confirmarSwal(f);
+  await T.esperarQue(function () { return !cat.cat.pistas.some(function (r) { return r.name === 'Cancha 2'; }); }, 10000, 'pista borrada');
+  await recargarAdmin();
+  T.aplicar(cat, function () { cat.borrarEquipo(cat.cat.equipos.filter(function (r) { return r.name === 'Robot B'; })[0]); });
+  await T.esperarSwal(f, '¿Borrar el equipo?');
+  T.confirmarSwal(f);
+  await T.esperarQue(function () { return !cat.cat.equipos.some(function (r) { return r.name === 'Robot B'; }); }, 10000, 'equipo borrado');
+  T.check('admin: baja de ronda, pista y equipo', !(await RCJLocal.store.list('teams', function (t) { return t.name === 'Robot B'; })).length &&
+    !(await RCJLocal.store.list('rounds', function (r) { return r.name === 'Final'; })).length && !(await RCJLocal.store.list('fields', function (r) { return r.name === 'Cancha 2'; })).length);
+  await recargarAdmin();
+  T.aplicar(cat, function () { cat.borrarRonda(cat.cat.rondas.filter(function (r) { return r.name === 'Ronda 1'; })[0]); });
+  await T.esperarSwal(f, 'No se puede borrar');
+  T.confirmarSwal(f);
+  T.check('admin: ronda con corridas protegida', (await RCJLocal.store.list('rounds', function (r) { return r.name === 'Ronda 1'; })).length === 1);
+
+  // ------------------------------------------------------------------ 9. Respaldo
+  T.paso('configuracion: exportar respaldo');
+  await T.navegar(f, '../configuracion.html');
+  await T.esperarQue(function () { return f.contentWindow.__configListo; }, 20000, 'configuración lista (3)');
+  var UIc = f.contentWindow.RCJLocalUI;
+  var scfg = T.scope(f);
+  UIc.ultimaDescarga = null;
+  T.clic(f, '#botonExportarRespaldo');
+  await T.esperarQue(function () { return UIc.ultimaDescarga && scfg.respaldo.ultimo; }, 15000, 'respaldo exportado');
+  var nombreResp = UIc.ultimaDescarga.nombre;
+  T.check('respaldo: archivo .json con fecha', /^rcj-line-offline-respaldo_\d{4}-\d{2}-\d{2}_\d{4}\.json$/.test(nombreResp), nombreResp);
+  var textoResp = await UIc.ultimaDescarga.blob.text();
+  var resp = JSON.parse(textoResp);
+  T.igual('respaldo descargado = RCJLocal.backup.exportar()', resp.colecciones, (await RCJLocal.backup.exportar()).colecciones);
+  ex.conteosRespaldo = {};
+  Object.keys(resp.colecciones).forEach(function (k) { ex.conteosRespaldo[k] = resp.colecciones[k].length; });
+
+  T.paso('configuracion: importar reemplazar');
+  await RCJLocal.store.del('lineMaps', idArr);
+  await T.api('POST', '/api/teams', { name: 'Equipo intruso', league: 'Line', competition: cid, teamCode: '' });
+  T.ponerArchivos(f, '#archivoRespaldo', [{ nombre: nombreResp, texto: textoResp }]);
+  await T.esperarQue(function () { return scfg.respaldo.elegido; }, 10000, 'respaldo elegido');
+  T.aplicar(scfg, function () { scfg.respaldo.modo = 'reemplazar'; });
+  T.clic(f, '#botonImportarRespaldo');
+  await T.esperarSwal(f, '¿Reemplazar todos los datos?');
+  T.confirmarSwal(f);
+  await T.esperarSwal(f, 'Respaldo importado', 20000);
+  T.confirmarSwal(f);
+  T.igual('importar reemplazar: restaura exactamente el respaldo', (await RCJLocal.backup.exportar()).colecciones, resp.colecciones);
+  T.igual('después de restaurar, el export del mapa sigue byte-idéntico', await T.sha256(JSON.stringify(await RCJLocal.exportMap(idOf))), SHA);
+
+  T.paso('configuracion: importar fusionar');
+  // recarga entre diálogos (misma razón que en admin-corridas)
+  await T.navegar(f, '../configuracion.html');
+  await T.esperarQue(function () { return f.contentWindow.__configListo; }, 20000, 'configuración lista (4)');
+  scfg = T.scope(f);
+  await T.api('POST', '/api/teams', { name: 'Equipo nuevo', league: 'Line', competition: cid, teamCode: '' });
+  await RCJLocal.store.del('lineMaps', idArr);
+  T.ponerArchivos(f, '#archivoRespaldo', [{ nombre: nombreResp, texto: textoResp }]);
+  await T.esperarQue(function () { return scfg.respaldo.elegido; }, 10000, 'respaldo elegido (2)');
+  T.aplicar(scfg, function () { scfg.respaldo.modo = 'fusionar'; });
+  T.clic(f, '#botonImportarRespaldo');
+  await T.esperarSwal(f, '¿Fusionar el respaldo?');
+  T.confirmarSwal(f);
+  await T.esperarSwal(f, 'Respaldo importado', 20000);
+  T.confirmarSwal(f);
+  var fus = await RCJLocal.backup.exportar();
+  var nombresEq = fus.colecciones.teams.map(function (t) { return t.name; });
+  T.check('importar fusionar: conserva lo nuevo y repone lo borrado', nombresEq.indexOf('Equipo nuevo') >= 0 && !!(await RCJLocal.store.get('lineMaps', idArr)) && fus.colecciones.teams.length === resp.colecciones.teams.length + 1, nombresEq);
+
+  ex.competencia = cid;
+  ex.mapaOficial = idOf;
+  return ex;
+});
+</script>
+</body>
+</html>

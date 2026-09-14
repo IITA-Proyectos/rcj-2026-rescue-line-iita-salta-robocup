@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Juez — recargas: re-inicialización, cronómetro persistente y vuelta desde la firma</title>
+<script src="juez-comun.js"></script>
+<script src="../local/config.js"></script>
+<script src="../local/nucleo/store.js"></script>
+<script src="../local/nucleo/pathfinder-servidor.js"></script>
+<script src="../local/nucleo/init-run.js"></script>
+<script src="../local/nucleo/score-2026.js"></script>
+<script src="../local/nucleo/copy-properties.js"></script>
+<script src="../local/nucleo/api.js"></script>
+<script src="../local/nucleo/ranking.js"></script>
+<script src="../local/io-shim.js"></script>
+</head>
+<body>
+<pre id="resultado">PENDIENTE</pre>
+<script>
+T.correr(async function () {
+  var J = T.juez;
+  var s = await T.sembrar(await T.fixture('fixture-mapa-oficial.json'));
+  var runId = s.runId;
+  var CLAVE = 'rcjJuezTimer:' + runId;
+  T.extra.runId = runId;
+  J.crear(1366, 860);
+  var leer = function () { return RCJLocal.store.get('lineRuns', runId); };
+  var tramos = function () { return J.$$('div[ng-repeat="cp in range(LoPs.length) track by $index"]'); };
+  var botonTimer = function () { return J.$$('button[ng-click="toggleTime()"]')[0]; };
+  async function pasarPrechequeo() {
+    await T.esperarQue(function () { return J.scope().checkMember && J.scope().checkMachine; }, 5000, 'fotos premarcadas');
+    J.click(J.$('tr[ng-click="toggleCheckTeam()"]'));
+    J.click(J.$('tr[ng-click="toggleCheckRound()"]'));
+    await T.esperar(50);
+    J.click(J.$('button[ng-click="infochecked()"]'));
+    await T.esperar(300);
+  }
+  async function accion(fn) {
+    var n0 = J.pedidos.length;
+    fn();
+    return (await J.esperarPedidos(n0, 1)).filter(function (p) { return p.method === 'PUT'; }).pop();
+  }
+
+  // ------------------------------------------------ A. re-inicialización al recargar antes de started (E10, C1)
+  await J.abrir('../juez.html?run=' + runId);
+  await pasarPrechequeo();
+  var idTile0 = J.scope().stiles[0]._id;
+  var p = await accion(function () { J.click(tramos()[0].querySelector('button.btn-success')); });
+  T.check('A: LoP antes de arrancar -> score 0', p.status === 200 && p.data.score === 0, p);
+  J.click(tramos()[2].querySelector('[ng-click="addVictimTmp(\'LIVE\')"]'));
+  await T.esperar(100);
+  p = await accion(function () { J.click(tramos()[2].querySelector('[ng-click=\'victimRegist("GREEN")\']')); });
+  T.check('A: víctima antes de arrancar -> score 0 (raw 0), multiplicador 1.4', p.status === 200 && p.data.score === 0 && p.data.multiplier === 1.4, p.data);
+  var g = await leer();
+  T.check('A: guardado sin started, con LoPs [1,0,0] y 1 víctima', g.started === false && JSON.stringify(g.LoPs) === '[1,0,0]' && g.rescueOrder.length === 1, g);
+  await J.recargar();
+  var sc = J.scope();
+  T.igual('A: tras recargar, LoPs re-inicializados', sc.LoPs, [0, 0, 0]);
+  T.igual('A: tras recargar, rescueOrder vacío', sc.victim_list, []);
+  T.check('A: tras recargar, tiles regenerados (nuevos _id) y pre-chequeo otra vez', sc.stiles.length === 14 && sc.stiles[0]._id !== idTile0 && !sc.checked);
+  g = await leer();
+  T.check('A: la re-inicialización quedó persistida', JSON.stringify(g.LoPs) === '[0,0,0]' && g.rescueOrder.length === 0 && g.started === false, g);
+
+  // ------------------------------------------------ B. cronómetro persistente (flag persistirTimer, default true)
+  T.check('B: flag persistirTimer activo por defecto', J.win().RCJLocal.flags.persistirTimer === true);
+  p = await accion(function () { J.click(botonTimer()); }); // botón "no show" del pre-chequeo
+  T.check('B: Start desde el pre-chequeo manda status 2', p.body.status === 2 && sc.startedTime === true, p.body);
+  await T.esperar(3300);
+  var guardadoTimer = JSON.parse(localStorage.getItem(CLAVE) || 'null');
+  T.check('B: estado del reloj en localStorage mientras corre', guardadoTimer && guardadoTimer.startedTime === true && guardadoTimer.runId === runId && guardadoTimer.prev === 0, guardadoTimer);
+  var tAntes = sc.time;
+  T.check('B: el reloj avanzó (>= 3 s)', tAntes >= 3000, tAntes);
+  var n0 = J.pedidos.length;
+  await J.recargar();
+  sc = J.scope();
+  await T.esperarQue(function () { return sc.startedTime === true; }, 3000, 'reloj reanudado');
+  await T.esperar(1200);
+  T.check('B: tras recargar el reloj sigue corriendo desde donde iba', sc.startedTime === true && sc.time >= tAntes + 1000 && sc.time < tAntes + 15000, { antes: tAntes, despues: sc.time });
+  T.check('B: al reanudar se usa el handler Start (PUT status 2)', J.pedidos.slice(n0).some(function (q) { return q.method === 'PUT' && q.body.status === 2; }));
+  var tStop = await (async function () {
+    var put = await accion(function () { J.click(botonTimer()); });
+    return put;
+  })();
+  g = await leer();
+  T.check('B: Stop guarda el tiempo reanudado y borra la clave', sc.startedTime === false && localStorage.getItem(CLAVE) === null &&
+    g.time.minutes * 60 + g.time.seconds === Math.floor(sc.time / 1000) && Math.floor(sc.time / 1000) >= 4, { guardado: g.time, time: sc.time, put: tStop.body });
+  var tDetenido = sc.time;
+
+  // ------------------------------------------------ C. flag persistirTimer = false: comportamiento original
+  RCJLocal.setFlag('persistirTimer', false);
+  await J.recargar();
+  sc = J.scope();
+  T.check('C: flag leído en false por el juez', J.win().RCJLocal.flags.persistirTimer === false);
+  T.check('C: recargar con el reloj detenido conserva el tiempo guardado', sc.startedTime === false && sc.time === Math.floor(tDetenido / 1000) * 1000, [sc.time, tDetenido]);
+  var tServidor = sc.time;
+  await accion(function () { J.click(botonTimer()); });
+  await T.esperar(2300);
+  T.check('C: sin flag no se guarda estado del reloj', localStorage.getItem(CLAVE) === null && sc.startedTime === true);
+  await J.recargar();
+  sc = J.scope();
+  await T.esperar(1200);
+  T.check('C: sin flag, recargar detiene el reloj y vuelve al último tiempo guardado (original)', sc.startedTime === false && sc.time === tServidor, [sc.time, tServidor]);
+  RCJLocal.setFlag('persistirTimer', true);
+
+  // ------------------------------------------------ D. estado viejo (> 15 min) no se reanuda
+  var ahora = Date.now();
+  localStorage.setItem(CLAVE, JSON.stringify({ runId: runId, startedTime: true, startUnixTime: ahora - 21 * 60000, prev: 0, time: 60000, guardadoEn: ahora - 20 * 60000 }));
+  await J.recargar();
+  sc = J.scope();
+  await T.esperar(800);
+  T.check('D: estado de hace 20 min descartado: reloj detenido y clave borrada', sc.startedTime === false && sc.time === tServidor && localStorage.getItem(CLAVE) === null, [sc.startedTime, sc.time, localStorage.getItem(CLAVE)]);
+
+  // ------------------------------------------------ E. marca rcjVolviDeFirma (contrato con firma.html)
+  sessionStorage.setItem('rcjVolviDeFirma', runId);
+  await J.abrir('../juez.html?run=' + runId + '&return=');
+  sc = J.scope();
+  T.check('E: con la marca se saltea el pre-chequeo (checked y fromSign)', sc.checked === true && sc.fromSign === true);
+  T.check('E: la marca se consume y queda en history.state', sessionStorage.getItem('rcjVolviDeFirma') === null && J.win().history.state && J.win().history.state.rcjVolviDeFirma === runId, J.win().history.state);
+  T.check('E: alerta parpadeante oculta por fromSign', J.$('.alert.blink').classList.contains('ng-hide'));
+  await J.recargar();
+  T.check('E: recargar sigue salteando el pre-chequeo (como el referrer)', J.scope().checked === true && J.scope().fromSign === true);
+  await J.abrir('../juez.html?run=' + runId);
+  T.check('E: una navegación nueva sin marca muestra el pre-chequeo', !J.scope().checked && !J.scope().fromSign);
+  sessionStorage.setItem('rcjVolviDeFirma', 'aaaaaaaaaaaaaaaaaaaaaaaa');
+  await J.abrir('../juez.html?run=' + runId + '&x=1');
+  T.check('E: marca de otra corrida: no saltea y se descarta', !J.scope().checked && sessionStorage.getItem('rcjVolviDeFirma') === null);
+
+  // ------------------------------------------------ F. referrer original con "sign" sigue funcionando
+  J.vigilar('juez.html');
+  J.iframe.src = 'juez-desde-sign.html?run=' + runId;
+  await T.esperarQue(function () {
+    var w = J.win();
+    return w.location.href.indexOf('juez.html') >= 0 && w.document.readyState === 'complete' && w.angular && J.scope() && J.scope().team;
+  }, 15000, 'juez desde URL con sign');
+  await T.esperar(300);
+  T.check('F: referrer con "sign" saltea el pre-chequeo (condición original)', J.win().document.referrer.indexOf('sign') >= 0 && J.scope().checked === true && J.scope().fromSign === true, J.win().document.referrer);
+});
+</script>
+</body>
+</html>

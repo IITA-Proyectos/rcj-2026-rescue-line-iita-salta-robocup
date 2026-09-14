@@ -1,0 +1,28 @@
+/*
+ * rcj-line-offline — área salidas. Ajustes táctiles de planillas.html (gamesPrint 2026).
+ * Solo pantalla (@media screen): la impresión queda igual al CMS. Sin cambios de markup.
+ */
+
+/* Tablet y celular (o cualquier pantalla táctil): controles de al menos 44 px para el dedo */
+@media screen and (max-width: 1024px), screen and (pointer: coarse) {
+  .refine .card-header .btn {
+    min-height: 44px;
+  }
+  .refine .form-control,
+  .refine .input-group-text {
+    min-height: 44px;
+  }
+}
+
+/* Celular: la tabla de corridas/ranking se desplaza sola a lo ancho (la página no) */
+@media screen and (max-width: 768px) {
+  table.custom {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .refine .card-header .btn {
+    margin-bottom: 6px;
+  }
+}

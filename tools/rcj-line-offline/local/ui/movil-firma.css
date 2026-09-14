@@ -1,0 +1,64 @@
+/*
+ * rcj-line-offline — área firma. CSS extra para celular (Chrome Android ~412×915) y tablet chica.
+ * Se enlaza desde firma.html y vista.html DESPUÉS de los estilos del CMS. No cambia nada en pantallas de
+ * escritorio/tablet horizontal (todas las reglas están dentro de media queries por ancho), así que la
+ * referencia visual del CMS (1366×900) queda igual. Detalle y motivo de cada regla: cambios/firma.md §8.
+ */
+
+/* ---------------------------------------------------------------- celular (< 576 px, xs de Bootstrap 4) */
+@media (max-width: 575.98px) {
+  /* 1. La navbar fija ocupa dos filas (col-12 + col-7/col-5): sin esto tapa el principio de la página y no
+        hay forma de desplazarse para verlo. navbar_premium.css pone 70px pensando en una sola fila. */
+  body { padding-top: 95px; }
+
+  /* 2. #card_area (LoPs) recibe un alto fijo = innerHeight-130 desde tile_size(); en columnas apiladas la
+        lista de LoPs se desborda encima del mapa. En celular se deja crecer con su contenido. */
+  #card_area { height: auto !important; }
+  .col-md-5.col-lg-4[style*="margin-bottom:100px"] { margin-bottom: 20px !important; }
+
+  /* 3. Filas de números con columnas fijas (col-3/col-1/col-4) dentro de las alertas: un <h1> de 2.5rem
+        ("60 puntos") no entra en ~90px y se pisa con la columna vecina. */
+  .alert .col-md-8 .row > [class*="col-"] h1 { font-size: 1.15rem; word-break: break-word; }
+  .alert .col-md-8 .row > [class*="col-"] p { font-size: 0.8rem; }
+  .alert h1 { font-size: 1.9rem; }
+
+  /* 4. "calc_victim_type_lop_multiplier(0) - (x0.05 × LoPs)" usa font-size:1vw (≈4px en un celular) */
+  .victim_btn span[style*="font-size:1vw"] { font-size: 12px !important; }
+
+  /* 5. Fila sobre el plano (col-3 pisos | col-6 Subtotal | col-3 rotar): en ~100px no entran el ícono y los
+        botones de piso y el Subtotal los tapa. En celular: pisos y rotar en la primera línea, Subtotal abajo. */
+  .tilearea > .row > .col-3 { flex: 0 0 50%; max-width: 50%; }
+  .tilearea > .row > .col-6 { flex: 0 0 100%; max-width: 100%; order: 3; }
+
+  /* 6. Controles tocables (mínimo ~44px) sin cambiar el markup */
+  .tilearea .btn-group .btn,
+  .tilearea .input-group-text { min-height: 44px; min-width: 44px; }
+  .modal-footer .btn { min-height: 44px; min-width: 88px; }
+
+  /* 8. vista.html?iframe=true (view_iframe/line_2026.pug): el plano va DENTRO de la navbar fija, así que el
+        alert de LoPs/víctimas/multiplicador queda debajo de la navbar y no se puede ver; y con el ancho como
+        límite, tile_size() da (innerWidth - 2·width)/width por baldosa sin contar el padding de la navbar ni el
+        margin de .slot, y la última columna se corta. En celular la navbar de esa variante no es fija. */
+  body:has(> nav.navbar .tilearea) { padding-top: 0; }
+  nav.navbar:has(.tilearea) { position: static !important; padding-left: 0; padding-right: 0; }
+  nav.navbar .tilearea .slot { margin-right: 0; }
+  nav.navbar .tilearea { flex: 0 0 100%; max-width: 100%; min-width: 0; }
+  nav.navbar .tilearea #wrapTile { max-width: 100%; }
+
+  /* 9. Botón "To correct" de la navbar (margin -5px, ~30px de alto) y footer con text-truncate + nowrap
+        inline: en 412 px la versión del CMS queda recortada fuera de la pantalla. */
+  nav.navbar .btn { min-height: 40px; }
+  footer.footer .footer-text { white-space: normal !important; overflow: visible; text-overflow: clip; }
+
+  /* 7. Títulos de sección más compactos para que el desglose no sea kilométrico */
+  body > .container-fluid > h2,
+  body > .container-fluid > div > h2 { font-size: 1.5rem; }
+  .tilearea .alert h3 { font-size: 1.1rem; }
+}
+
+/* ---------------------------------------------------------------- tablet (576–1199 px) */
+@media (min-width: 576px) and (max-width: 1199.98px) {
+  /* Tarjetas de "Puntaje por checkpoints" (col-md-3 col-lg-2): "25 puntos" en h1 de 2.5rem no entra en ~95px y el
+     h1 absoluto de la tarjeta Subtotal se pisa con su título. Solo se achica la letra de esas tarjetas. */
+  .col-md-3.col-lg-2 .alert h1 { font-size: 1.6rem; }
+}

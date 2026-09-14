@@ -1,0 +1,307 @@
+<html ng-app="RunAdmin">
+  <head>
+    <meta charset="utf-8">
+    <!--
+      rcj-line-offline — área salidas. Render a mano de views/admin/gamesPrint/line_2026.pug (CMS d805502),
+      ruta /admin/:competitionid/:leagueId/games/print (routes/admin.js:467-480).
+      Sin <!doctype>: el pug no lo declara (el original se ve en modo quirks y así se conserva).
+      Cambios respecto del pug (cambios/salidas.md): rutas de estáticos relativas (regla 3a), <meta charset>,
+      scripts local/* (backend local, io() sobre BroadcastChannel, registrar de salidas) y globals por query string.
+    -->
+    <title>Rescue Line Runs Print</title>
+    <!-- include ../../includes/common_component (common_component.pug:1-30) -->
+    <script src="components/jquery/dist/jquery.min.js"></script>
+    <script src="components/popper.js/dist/umd/popper.min.js"></script>
+    <script src="components/bootstrap/dist/js/bootstrap.min.js"></script>
+    <script src="components/angular/angular.min.js"></script>
+    <script src="components/angular-animate/angular-animate.min.js"></script>
+    <!-- OMITIDO (06: C, sin uso): <script src="components/alertifyjs/dist/js/ngAlertify.js"></script> -->
+    <script src="components/sweetalert2/dist/sweetalert2.all.min.js"></script>
+    <!-- OMITIDO (stub: lo reemplaza local/io-shim.js): <script src="components/socket.io-client/dist/socket.io.min.js"></script> -->
+    <script src="components/angular-bootstrap/dist/ui-bootstrap-tpls.js"></script>
+    <script src="components/angular-translate/angular-translate.min.js"></script>
+    <script src="components/angular-translate-loader-static-files/angular-translate-loader-static-files.min.js"></script>
+    <script src="components/angular-translate-storage-local/angular-translate-storage-local.min.js"></script>
+    <script src="components/angular-translate-storage-cookie/angular-translate-storage-cookie.min.js"></script>
+    <script src="components/angular-translate-handler-log/angular-translate-handler-log.min.js"></script>
+    <script src="components/angular-cookies/angular-cookies.min.js"></script>
+    <script src="components/angular-touch/angular-touch.min.js"></script>
+    <script src="components/angular-sanitize/angular-sanitize.min.js"></script>
+    <!-- OMITIDO (06: C, ningún módulo usa ui.select): <script src="components/angular-ui-select/dist/select.min.js"></script> -->
+    <link rel="stylesheet" href="components/bootstrap/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="stylesheets/style.css">
+    <link rel="stylesheet" href="stylesheets/navbar_premium.css">
+    <link href="components/font-awesome-5/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="components/angular-bootstrap/dist/ui-bootstrap-csp.css">
+    <!-- OMITIDO (06: C, reglas solo .ui-select-*): <link rel="stylesheet" href="components/angular-ui-select/dist/select.min.css"> -->
+    <!-- OMITIDO (solo ENVIRONMENT == "STG"): stylesheets/stg.css -->
+
+    <!-- [local] backend local (herramientas/fragmentos-head.md 1.C) -->
+    <script src="local/config.js"></script>
+    <script src="local/io-shim.js"></script>
+    <script src="local/nucleo/store.js"></script>
+    <script src="local/nucleo/pathfinder-servidor.js"></script>
+    <script src="local/nucleo/init-run.js"></script>
+    <script src="local/nucleo/score-2026.js"></script>
+    <script src="local/nucleo/copy-properties.js"></script>
+    <script src="local/nucleo/api.js"></script>
+    <script src="local/nucleo/ranking.js"></script>
+    <!-- [salidas] PNG/PDF de mapas y planillas (carga pdfkit y los generadores bajo demanda) -->
+    <script src="local/render/registrar.js"></script>
+
+    <script>
+      // [local] globales de gamesPrint/line_2026.pug:7-9 (antes los inyectaba pug desde routes/admin.js:477)
+      var competitionId = RCJLocal.param('competition')
+      var leagueId = RCJLocal.param('league') || 'Line'
+    </script>
+    <script src="javascripts/admin/gamesPrint/line_2026.js"></script>
+    <link rel="stylesheet" href="stylesheets/admin/live_ranking.css">
+    <!-- [salidas] ajustes táctiles para celular/tablet (solo pantalla; la impresión no cambia) -->
+    <link rel="stylesheet" href="local/ui/movil-salidas.css">
+
+    <script src="components/angular-bootstrap-datetimepicker/src/js/datetimepicker.js"></script>
+    <script src="components/angular-bootstrap-datetimepicker/src/js/datetimepicker.templates.js"></script>
+    <script src="components/ng-file-upload/ng-file-upload-all.min.js"></script>
+    <!-- [local] decorador de $httpBackend: /api/* lo atiende RCJLocal.api -->
+    <script src="local/http-backend.js"></script>
+    <script>RCJLocal.instalarBackend('RunAdmin');</script>
+    <script src="javascripts/translate_config.js"></script>
+    <style type="text/css">
+      .uib-time input {
+        padding-left: 0;
+        padding-right: 0;
+        width: 2.5em;
+        margin-right: 0;
+      }
+
+      .uib-timepicker .btn {
+        padding-left: 6px;
+        padding-right: 6px;
+      }
+
+      @media print {
+        .no_print {
+          display: none;
+        }
+
+        @page {
+          margin: 10mm;
+        }
+
+        body{
+          overflow-y: visible;
+          overflow-x: visible;
+        }
+
+        thead {
+          display: table-header-group;
+          break-inside: avoid;
+        }
+      }
+    </style>
+  </head>
+  <body ng-controller="RunAdminController">
+    <!-- Removed for Ranking in favor of styled table header for better print layout-->
+    <div id="ranking-export" ng-if="displayMode == DisplayMode.LIST">
+      <div class="row">
+        <div class="col-10" style="text-align:center;">
+          <h1>{{list.comment}}</h1>
+        </div>
+        <div class="col-2" style="text-align:right;"><img ng-src="{{competition.logo}}" style="max-width:100%;max-height:50px;"></div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-12">
+        <div class="refine no_print">
+          <div class="card border-dark mb-3" style="width:100%;">
+            <div class="card-header bg-transparent border-dark fa-2x">
+              <div class="row">
+                <div class="col-md-6"><i class="fas fa-cog" aria-hidden="true">Config</i></div>
+                <div class="col-md-6" style="text-align:right;">
+                  <button class="btn btn-secondary" type="button" ng-click="displayMode = displayMode == DisplayMode.LIST ? DisplayMode.RANKING : DisplayMode.LIST" style="margin-right:10px;"><i class="fas fa-table" ng-if="displayMode == DisplayMode.LIST"></i><i class="fas fa-list" ng-if="displayMode == DisplayMode.RANKING"></i><span ng-if="displayMode == DisplayMode.LIST">&nbsp;Ranking View</span><span ng-if="displayMode == DisplayMode.RANKING">&nbsp;Run List</span></button>
+                  <button class="btn btn-success" type="button" ng-if="displayMode == DisplayMode.RANKING" ng-click="exportRankingXlsx()" style="margin-right:10px;"><i class="fas fa-file-excel"></i> Export XLSX</button>
+                  <button class="btn btn-info" onclick="window.print();" style="text-align:right;"><i class="fas fa-print">&nbsp;{{"common.print" | translate}}</i></button>
+                </div>
+              </div>
+            </div>
+            <div class="card-body text-dark">
+              <div ng-if="displayMode == DisplayMode.LIST">
+                <p>Please use Google Chrome to print this page.</p>
+                <hr>
+                <h6 class="card-title">{{'line.competition.refine.round' | translate}}</h6><span ng-repeat="(key, value) in Rrounds track by key">
+                  <input type="checkbox" ng-model="Rrounds[key]" id="checkR_{{key}}">
+                  <label class="checkbox" for="checkR_{{key}}">{{key}}</label></span>
+              </div>
+              <div ng-if="displayMode == DisplayMode.RANKING">
+                <hr>
+                <h6 class="card-title">Rounds (Normalization Groups)</h6><span ng-repeat="(key, value) in Rgroups track by key">
+                  <input type="checkbox" ng-model="Rgroups[key]" id="checkG_{{key}}">
+                  <label class="checkbox" for="checkG_{{key}}">Group {{key}}</label></span>
+              </div>
+              <div ng-if="displayMode == DisplayMode.LIST">
+                <hr>
+                <h6 class="card-title">{{'line.competition.refine.field' | translate}}</h6><span ng-repeat="(key, value) in Rfields track by key">
+                  <input type="checkbox" ng-model="Rfields[key]" id="checkF_{{key}}">
+                  <label class="checkbox" for="checkF_{{key}}">{{key}}</label></span>
+                <hr>
+                <h6 class="card-title">{{'line.competition.refine.team' | translate}}</h6>
+                <div class="input-group">
+                  <div class="input-group-prepend"><span class="input-group-text"><i class="fas fa-users" aria-hidden="true"></i></span></div>
+                  <input class="form-control" type="text" placeholder="Team name" aria-label="Username" aria-describedby="basic-addon1" ng-model="teamName">
+                </div>
+              </div>
+              <div ng-if="displayMode == DisplayMode.RANKING">
+                <hr>
+                <h6 class="card-title">Ranking Table Settings</h6>
+                <input type="checkbox" ng-model="tableOptions.showRaw" ng-change="$evalAsync()" id="tableShowRaw">
+                <label class="checkbox" for="tableShowRaw">Show Raw Score</label>
+                <input type="checkbox" ng-model="tableOptions.showNorm" ng-change="$evalAsync()" id="tableShowNorm">
+                <label class="checkbox" for="tableShowNorm">Show Normalized Score</label>
+                <input type="checkbox" ng-model="tableOptions.showTeamCode" ng-change="$evalAsync()" id="tableShowTeamCode">
+                <label class="checkbox" for="tableShowTeamCode">Team Code</label>
+                <input type="checkbox" ng-model="tableOptions.showTeamName" ng-change="$evalAsync()" id="tableShowTeamName">
+                <label class="checkbox" for="tableShowTeamName">Team Name</label>
+                <input type="checkbox" ng-model="tableOptions.showTime" ng-change="$evalAsync()" id="tableShowTime">
+                <label class="checkbox" for="tableShowTime">Total Time</label>
+                <input type="checkbox" ng-model="tableOptions.showRuns" ng-change="$evalAsync()" id="tableShowRuns">
+                <label class="checkbox" for="tableShowRuns">Number of Runs</label>
+                <hr>
+                <h6 class="card-title">Comment</h6>
+                <div class="input-group">
+                  <div class="input-group-prepend"><span class="input-group-text"><i class="fas fa-pen" aria-hidden="true"></i></span></div>
+                  <input class="form-control" type="text" placeholder="" aria-label="comment" aria-describedby="basic-addon1" ng-model="ranking.comment">
+                </div>
+              </div>
+              <div ng-if="displayMode == DisplayMode.LIST">
+                <hr>
+                <h6 class="card-title">Display items</h6><br><br>
+                <input type="checkbox" ng-model="showTeam" id="showTeam">
+                <label class="checkbox" for="showTeam">Team</label>
+                <input type="checkbox" ng-model="showCode" id="showCode">
+                <label class="checkbox" for="showCode">Code</label>
+                <input type="checkbox" ng-model="showField" id="showField">
+                <label class="checkbox" for="showField">Field</label>
+                <input type="checkbox" ng-model="showOriginalScore" id="showOriginalScore">
+                <label class="checkbox" for="showOriginalScore">Original Score</label>
+                <input type="checkbox" ng-model="showAdjustment" id="showAdjustment">
+                <label class="checkbox" for="showAdjustment">Adjustment</label>
+                <input type="checkbox" ng-model="showScore" id="showScore">
+                <label class="checkbox" for="showScore">Score</label>
+                <input type="checkbox" ng-model="showNormalizedScore" id="showNormalizedScore">
+                <label class="checkbox" for="showNormalizedScore">Normalized score</label>
+                <input type="checkbox" ng-model="showTime" id="showTime">
+                <label class="checkbox" for="showTime">Time</label>
+                <input type="checkbox" ng-model="showLoPs" id="showLoPs">
+                <label class="checkbox" for="showLoPs">LoPs</label>
+                <input type="checkbox" ng-model="showMisidentification" id="showMisidentification">
+                <label class="checkbox" for="showMisidentification">Misidentification</label>
+                <input type="checkbox" ng-model="showVictim" id="showVictim">
+                <label class="checkbox" for="showVictim">Victim</label>
+                <input type="checkbox" ng-model="showExit" id="showExit">
+                <label class="checkbox" for="showExit">Exit</label>
+                <hr>
+                <h6 class="card-title">Comment
+                  <div class="input-group">
+                    <div class="input-group-prepend"><span class="input-group-text"><i class="fas fa-pen" aria-hidden="true"></i></span></div>
+                    <input class="form-control" type="text" placeholder="" aria-label="Username" aria-describedby="basic-addon1" ng-model="list.comment">
+                  </div>
+                </h6>
+              </div>
+            </div>
+          </div>
+        </div>
+        <center>
+          <div class="loader"><img src="images/loader2.gif">
+            <p>Now Loading...</p>
+          </div>
+        </center>
+        <table class="custom" style="margin-bottom:10px;" ng-if="displayMode == DisplayMode.LIST">
+          <thead>
+            <tr>
+              <th>{{"common.starttime" | translate}}</th>
+              <th>{{"common.round" | translate}}</th>
+              <th ng-if="showCode">Team code</th>
+              <th ng-if="showTeam">{{"common.team" | translate}}</th>
+              <th ng-if="showField">{{"common.field" | translate}}</th>
+              <th ng-if="showOriginalScore">Original Score</th>
+              <th ng-if="showAdjustment">Adjustment</th>
+              <th ng-if="showScore">{{"common.score" | translate}}</th>
+              <th ng-if="showNormalizedScore">{{"common.normalizedScore" | translate}}</th>
+              <th ng-if="showTime">{{"common.time" | translate}}</th>
+              <th ng-if="showLoPs">{{"common.lops" | translate}}</th>
+              <th ng-if="showVictim">{{'common.rescued' | translate}}</th>
+              <th ng-if="showMultiplier">{{'common.multipliers' | translate}}</th>
+              <th ng-if="showExit">{{'maze.score.exit' | translate}}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr ng-repeat="run in runs | filter:list_filter | orderBy:&quot;[startTime,round.name,team.name]&quot;" runs-read-finished="">
+              <td ng-bind="run.startTime | date:&quot;dd / HH:mm&quot;"></td>
+              <td ng-bind="run.round.name"></td>
+              <td ng-bind="run.team.teamCode" ng-if="showCode"></td>
+              <td ng-bind="run.team.name" ng-if="showTeam"></td>
+              <td ng-bind="run.field.name" ng-if="showField"></td>
+              <td ng-bind="run.originalScore" ng-if="showOriginalScore"></td>
+              <td ng-if="showAdjustment">{{run.adjustment}}%</td>
+              <td ng-bind="run.score" ng-if="showScore"></td>
+              <td ng-bind="run.normalizedScore" ng-if="showNormalizedScore"></td>
+              <td ng-bind="run.time.minutes*60*1000+run.time.seconds*1000 | date:'mm:ss'" ng-if="showTime"></td>
+              <td ng-bind="total(run.LoPs)" ng-if="showLoPs"></td>
+              <td ng-if="showVictim &amp;&amp; run.team.league != 'LineNL'"><span class="badge badge-warning" style="margin-right:5px;" ng-show="run.evacuationLevel == 1">Level 1</span><span class="badge badge-danger" style="margin-right:5px;" ng-show="run.evacuationLevel == 2">Level 2</span>
+                <div class="img-thumbnail" style="padding:0;display: inline-block;margin-right:5px;" ng-repeat="victim in run.rescueOrder" ng-style="{backgroundColor: evacZoneColor(victim), opacity: active_victim(run.rescueOrder, $index) ? '1.0':'0.3'}"><img ng-src="images/{{victimImgPath(victim)}}" style="height:20px;"></div>
+              </td>
+              <td class="text-center" ng-style="run.isplaying &amp;&amp; {'background-color': '#ffffa8'}" ng-if="showVictim &amp;&amp; run.team.league=='LineNL'">
+                <div class="img-thumbnail" style="padding:0;display: inline-block;margin-right:5px;" ng-repeat="victim in range(run.nlUnknownVictimCount)"><img src="images/unknownVictim.png" style="height:20px;"><span style="font-size:20px;"></span></div>
+                <div class="img-thumbnail" style="padding:0;display: inline-block;margin-right:5px;" ng-repeat="victim in range(run.nlLiveVictimCount)"><img src="images/greenVictim.png" style="height:20px;"><span style="font-size:20px;"></span></div>
+                <div class="img-thumbnail" style="padding:0;display: inline-block;margin-right:5px;" ng-repeat="victim in range(run.nlDeadVictimCount)"><img src="images/blackVictim.png" style="height:20px;"><span style="font-size:20px;"></span></div>
+              </td>
+              <td ng-if="showMultiplier"><span>×{{run.multiplier}}</span></td>
+              <td ng-if="showExit"><i class="fas fa-check" aria-hidden="true" style="color:#2ecc71;" ng-if="run.exitBonus"></i><i class="fas fa-times" aria-hidden="true" style="color:#e74c3c;" ng-if="!run.exitBonus"></i></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div id="ranking-export">
+      <div class="ranking-header">
+        <div class="ranking-title">
+          <h3>{{competition.name}}</h3>
+          <h2>{{ranking.comment}}</h2>
+        </div><img class="competition-logo" ng-if="competition.logo" ng-src="{{competition.logo}}" alt="Competition Logo">
+      </div>
+      <table class="custom" style="margin-bottom:10px;" ng-if="displayMode == DisplayMode.RANKING">
+        <thead>
+          <tr>
+            <th rowspan="2">Rank</th>
+            <th rowspan="2" ng-if="tableOptions.showTeamCode">Team Code</th>
+            <th rowspan="2" ng-if="tableOptions.showTeamName">Team</th>
+            <th rowspan="1" colspan="{{getRoundColspan()}}" ng-if="tableOptions.showRaw || tableOptions.showNorm">Round Scores</th>
+            <th rowspan="2" ng-if="tableOptions.showRaw &amp;&amp; !tableOptions.showNorm">TOTAL</th>
+            <th rowspan="2" ng-if="tableOptions.showNorm">Mean of<br>Normalized<br>TOTAL</th>
+            <th rowspan="2" ng-if="tableOptions.showTime">Total Time</th>
+            <th rowspan="2" ng-if="tableOptions.showRuns">Runs</th>
+          </tr>
+          <tr>
+            <th ng-repeat-start="group in selectedRankingGroups" ng-if="tableOptions.showRaw">Round {{group}}</th>
+            <th ng-if="tableOptions.showNorm">Normalized<br>Round {{group}}</th>
+            <th ng-repeat-end style="display:none"></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr ng-repeat="team in rankingTable">
+            <td>{{$index + 1}}</td>
+            <td ng-if="tableOptions.showTeamCode">{{team.teamCode}}</td>
+            <td ng-if="tableOptions.showTeamName">{{team.name}}</td>
+            <td ng-repeat-start="group in selectedRankingGroups" ng-if="tableOptions.showRaw"><span ng-if="team.groupScores[group]">{{team.groupScores[group].rawScore}}</span><span ng-if="!team.groupScores[group]">-</span></td>
+            <td ng-if="tableOptions.showNorm"><span ng-if="team.groupScores[group]">{{team.groupScores[group].formattedNormalizedScore}}</span><span ng-if="!team.groupScores[group]">-</span></td>
+            <td ng-repeat-end style="display:none"></td>
+            <td ng-if="tableOptions.showRaw &amp;&amp; !tableOptions.showNorm">{{team.totalRawScore}}</td>
+            <td ng-if="tableOptions.showNorm">{{team.meanNormalizedScore | number:3}}</td>
+            <td ng-if="tableOptions.showTime">{{team.totalTime || '-'}}</td>
+            <td ng-if="tableOptions.showRuns">{{team.runCount}}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Backend — integración con AngularJS ($httpBackend) y jQuery</title>
+<script src="backend-comun.js"></script>
+<script src="../components/jquery/dist/jquery.min.js"></script>
+<script src="../components/angular/angular.min.js"></script>
+<script src="../local/config.js"></script>
+<script src="../local/nucleo/store.js"></script>
+<script src="../local/nucleo/pathfinder-servidor.js"></script>
+<script src="../local/nucleo/init-run.js"></script>
+<script src="../local/nucleo/score-2026.js"></script>
+<script src="../local/nucleo/copy-properties.js"></script>
+<script src="../local/nucleo/api.js"></script>
+<script src="../local/nucleo/ranking.js"></script>
+<script src="../local/io-shim.js"></script>
+<script src="../local/http-backend.js"></script>
+</head>
+<body>
+<h1>$http real contra el backend local</h1>
+<div id="app"></div>
+<pre id="resultado">PENDIENTE</pre>
+<script>
+var app = angular.module('pruebaBackend', []);
+app.run(['$http', '$q', '$rootScope', function ($http, $q, $rootScope) {
+  window.__ng = { $http: $http, $q: $q, $rootScope: $rootScope };
+}]);
+RCJLocal.instalarBackend('pruebaBackend');
+
+// rutas de prueba registradas (E8 simulado y una ruta lenta para timeouts)
+RCJLocal.api.registrarRuta('POST', /^\/api\/maps\/line\/map-image-png$/, function () {
+  return { status: 200, data: new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]).buffer, headers: { 'Content-Type': 'image/png' } };
+});
+RCJLocal.api.registrarRuta('GET', /^\/api\/prueba\/lento$/, function () {
+  return new Promise(function (res) { setTimeout(function () { res({ status: 200, data: { lento: true }, headers: { 'Content-Type': 'application/json; charset=utf-8' } }); }, 3000); });
+});
+
+T.correr(async function () {
+  T.check('jQuery.ajax parcheado al cargar http-backend.js', $.ajax.__rcjLocal === true);
+  await T.resetear();
+  var sets = await T.fixture('tilesets.json');
+  await RCJLocal.semillas({ tilesets: sets });
+  var comp = (await T.api('GET', '/api/competitions/')).data[0];
+  var cid = comp._id;
+  var ronda = (await T.api('GET', '/api/competitions/' + cid + '/rounds')).data[0];
+  var cancha = (await T.api('GET', '/api/competitions/' + cid + '/fields')).data[0];
+  var equipo = (await T.api('GET', '/api/competitions/' + cid + '/Line/teams')).data[0];
+  var mapId = await RCJLocal.ingestMap(await T.fixture('fixture-mapa-oficial.json'), { competition: cid });
+  var runId = (await T.api('POST', '/api/runs/line', { round: ronda._id, team: equipo._id, field: cancha._id, competition: cid, map: mapId })).data.id;
+  var mapa = await RCJLocal.store.get('lineMaps', mapId);
+  var esperadoT0 = mapa.tiles.filter(function (t) { return t.tileType === '570c27c3f5a9dabe23f3af90'; }).length;
+
+  angular.bootstrap(document.getElementById('app'), ['pruebaBackend']);
+  var $http = window.__ng.$http, $q = window.__ng.$q, $rootScope = window.__ng.$rootScope;
+  var rechazo = function (p) { return p.then(function (x) { return { ok: true, r: x }; }, function (e) { return { ok: false, r: e }; }); };
+
+  var r1 = await $http.get('/api/competitions/');
+  T.check('$http GET: 200, JSON parseado, statusText y headers()', r1.status === 200 && Array.isArray(r1.data) && r1.data.length === 1 && r1.statusText === 'OK' &&
+    /application\/json/.test(r1.headers('Content-Type')), { status: r1.status, statusText: r1.statusText, ct: r1.headers('Content-Type') });
+
+  var r2 = await $http.get('/api/runs/line/' + runId + '?populate=true');
+  T.check('$http GET corrida (E10) con tiles inicializados', r2.status === 200 && r2.data.tiles.length === 14 && r2.data.team.name === 'IITA Salta');
+
+  var r3 = await $http.put('/api/runs/line/' + runId, { showedUp: true, time: { minutes: 0, seconds: 5 }, $$hashKey: 'object:12' }, { timeout: 10000 });
+  T.check('$http PUT: angular.toJson quita $$hashKey (si no, sería "Illegal key")', r3.status === 200 && r3.data.score === 5 && r3.data.msg === 'Saved run', r3.data);
+
+  var r4 = await rechazo($http.put('/api/runs/line/' + runId, { time: { minutes: 0, seconds: 60 } }));
+  T.check('$http PUT 400: rechaza con status, statusText y data.msg', !r4.ok && r4.r.status === 400 && r4.r.statusText === 'Bad Request' && r4.r.data.msg === 'Could not save run' && r4.r.xhrStatus === 'complete', r4.r);
+
+  var r5 = await $http.post('/api/maps/line/map-image-png', { tiles: {} }, { responseType: 'arraybuffer' });
+  T.check('$http responseType arraybuffer (handler registrado)', r5.data instanceof ArrayBuffer && r5.data.byteLength === 8 && new Uint8Array(r5.data)[1] === 80 && r5.headers('content-type') === 'image/png');
+
+  var r6 = await rechazo($http.post('/api/maps/line/scoresheet', { tiles: {} }, { responseType: 'arraybuffer' }));
+  T.check('$http arraybuffer sin handler: rechazo 501 con ArrayBuffer', !r6.ok && r6.r.status === 501 && r6.r.data instanceof ArrayBuffer, r6.r && r6.r.status);
+
+  var r7 = await $http.get('/api/competitions/' + cid, { responseType: 'blob' });
+  T.check('$http responseType blob', r7.data instanceof Blob && JSON.parse(await r7.data.text()).name === 'Práctica IITA 2026');
+
+  var r8 = await $http.get('backend-fixtures/ejemplo-01.json');
+  T.check('$http a un estático pasa al $httpBackend real', r8.status === 200 && r8.data.name === 'Ejemplo IITA');
+
+  var r9 = await rechazo($http.get('/api/prueba/lento', { timeout: 100 }));
+  T.check('$http timeout numérico => status -1, xhrStatus timeout', !r9.ok && r9.r.status === -1 && r9.r.xhrStatus === 'timeout', r9.r && { status: r9.r.status, xhrStatus: r9.r.xhrStatus });
+
+  var diferido = $q.defer();
+  var p10 = rechazo($http.get('/api/prueba/lento', { timeout: diferido.promise }));
+  setTimeout(function () { $rootScope.$apply(function () { diferido.resolve(); }); }, 50);
+  var r10 = await p10;
+  T.check('$http timeout por promesa => xhrStatus abort', !r10.ok && r10.r.status === -1 && r10.r.xhrStatus === 'abort', r10.r && { status: r10.r.status, xhrStatus: r10.r.xhrStatus });
+
+  var r11 = await $http.get('/api/maps/line/' + mapId + '/maxScore');
+  T.check('$http E7 maxScore', r11.data.score === 576);
+
+  // jQuery como lo usa el editor (L26:480-485)
+  var jq = $.ajax({ type: 'GET', url: '/api/maps/line/tileCount/null/5c19d2439590f2d68b15b302', async: false, dataType: 'json' });
+  var filaT0 = jq.responseJSON && jq.responseJSON.find(function (x) { return x.tileId === '570c27c3f5a9dabe23f3af90'; });
+  T.check('$.ajax síncrono de tileCount: responseJSON inmediato', Array.isArray(jq.responseJSON) && jq.responseJSON.length === 87 && filaT0.usedCount === esperadoT0 && jq.status === 200, { status: jq.status, filaT0: filaT0, esperadoT0: esperadoT0 });
+  var jq2 = await new Promise(function (res, rej) {
+    $.ajax({ url: 'backend-fixtures/ejemplo-01.json', dataType: 'json' }).done(res).fail(function (x, s, e) { rej(new Error(s + ' ' + e)); });
+  });
+  T.check('$.ajax a un estático usa el $.ajax original', jq2.name === 'Ejemplo IITA');
+  var jq3 = await new Promise(function (res, rej) {
+    $.ajax({ url: '/api/competitions/', dataType: 'json' }).done(res).fail(function (x) { rej(new Error('fail ' + x.status)); });
+  });
+  T.check('$.ajax asíncrono a /api', Array.isArray(jq3) && jq3.length === 1);
+  return { angular: angular.version.full, jquery: $.fn.jquery };
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,188 @@
+{
+ "tileSet": "5c19d2439590f2d68b15b302",
+ "name": "Sintetico 03",
+ "length": 4,
+ "height": 1,
+ "width": 5,
+ "duration": 480,
+ "finished": true,
+ "startTile": {
+  "x": 0,
+  "y": 0,
+  "z": 0
+ },
+ "startTile2": {
+  "x": 4,
+  "y": 1,
+  "z": 0
+ },
+ "tiles": {
+  "0,0,0": {
+   "rot": 0,
+   "tileType": {
+    "_id": "570c27c3f5a9dabe23f3af90",
+    "image": "tile-0.png",
+    "gaps": 0,
+    "intersections": 0,
+    "seesaw": 0,
+    "paths": {
+     "right": "left",
+     "left": "right"
+    },
+    "__v": 0
+   },
+   "items": {
+    "obstacles": 0,
+    "speedbumps": 0,
+    "rampPoints": false
+   },
+   "checkPoint": false
+  },
+  "1,0,0": {
+   "rot": 0,
+   "tileType": {
+    "_id": "570c27c3f5a9dabe23f3af9b",
+    "image": "tile-11.png",
+    "gaps": 2,
+    "intersections": 0,
+    "seesaw": 0,
+    "paths": {
+     "right": "left",
+     "left": "right"
+    },
+    "__v": 0
+   },
+   "items": {
+    "obstacles": 0,
+    "speedbumps": 0,
+    "rampPoints": false
+   },
+   "checkPoint": false
+  },
+  "2,0,0": {
+   "rot": 0,
+   "tileType": {
+    "_id": "570c27c3f5a9dabe23f3af90",
+    "image": "tile-0.png",
+    "gaps": 0,
+    "intersections": 0,
+    "seesaw": 0,
+    "paths": {
+     "right": "left",
+     "left": "right"
+    },
+    "__v": 0
+   },
+   "items": {
+    "obstacles": 0,
+    "speedbumps": 0,
+    "rampPoints": false
+   },
+   "checkPoint": true
+  },
+  "3,0,0": {
+   "rot": 0,
+   "tileType": {
+    "_id": "570c27c3f5a9dabe23f3af90",
+    "image": "tile-0.png",
+    "gaps": 0,
+    "intersections": 0,
+    "seesaw": 0,
+    "paths": {
+     "right": "left",
+     "left": "right"
+    },
+    "__v": 0
+   },
+   "items": {
+    "obstacles": 1,
+    "speedbumps": 0,
+    "rampPoints": false
+   },
+   "checkPoint": false
+  },
+  "4,0,0": {
+   "rot": 0,
+   "tileType": {
+    "_id": "58cfd6549792e9313b1610e1",
+    "image": "ev1.png",
+    "gaps": 0,
+    "intersections": 0,
+    "seesaw": 0,
+    "__v": 0
+   },
+   "items": {
+    "obstacles": 0,
+    "speedbumps": 0,
+    "rampPoints": false
+   },
+   "checkPoint": false
+  },
+  "4,1,0": {
+   "rot": 0,
+   "tileType": {
+    "_id": "570c27c3f5a9dabe23f3af97",
+    "image": "tile-7.png",
+    "gaps": 0,
+    "intersections": 0,
+    "seesaw": 0,
+    "paths": {
+     "top": "bottom",
+     "bottom": "top"
+    },
+    "__v": 0
+   },
+   "items": {
+    "obstacles": 0,
+    "speedbumps": 0,
+    "rampPoints": false
+   },
+   "checkPoint": false
+  },
+  "4,2,0": {
+   "rot": 90,
+   "tileType": {
+    "_id": "570c27c3f5a9dabe23f3af90",
+    "image": "tile-0.png",
+    "gaps": 0,
+    "intersections": 0,
+    "seesaw": 0,
+    "paths": {
+     "right": "left",
+     "left": "right"
+    },
+    "__v": 0
+   },
+   "items": {
+    "obstacles": 0,
+    "speedbumps": 0,
+    "rampPoints": false
+   },
+   "checkPoint": false
+  },
+  "4,3,0": {
+   "rot": 180,
+   "tileType": {
+    "_id": "58cfd6549792e9313b1610e0",
+    "image": "exit.png",
+    "gaps": 0,
+    "intersections": 0,
+    "seesaw": 0,
+    "paths": {
+     "bottom": "top"
+    },
+    "__v": 0
+   },
+   "items": {
+    "obstacles": 0,
+    "speedbumps": 0,
+    "rampPoints": false
+   },
+   "checkPoint": false
+  }
+ },
+ "victims": {
+  "live": 2,
+  "dead": 1
+ }
+}
