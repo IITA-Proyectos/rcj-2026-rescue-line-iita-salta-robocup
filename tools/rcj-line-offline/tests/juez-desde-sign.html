@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Juez — redirección desde una URL que contiene "sign"</title>
+</head>
+<body>
+<script>
+// Simula la vuelta del CMS /line/sign/<id> -> /line/judge/<id>: el document.referrer de juez.html contiene
+// "sign" (el nombre de este archivo), que es la condición original de judge/line_2026.js:202.
+location.href = '../juez.html?run=' + encodeURIComponent(new URLSearchParams(location.search).get('run') || '');
+</script>
+</body>
+</html>

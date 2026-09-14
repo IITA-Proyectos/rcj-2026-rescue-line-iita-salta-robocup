@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<!-- rcj-line-offline — área admin. Port de views/admin/maps.pug (extends includes/modern_layout; routes/admin.js:495-504)
+     del CMS d805502, con agregados locales (importar/exportar JSON, duplicar, terminado, corrida, planilla, estadísticas).
+     Cambios respecto del pug: ver cambios/admin.md §mapas.html -->
+<html style="height:100%; overflow-y:scroll;" ng-app="MapAdmin">
+<head>
+<meta charset="utf-8">
+<title>RoboCupJunior CMS</title>
+<!-- 1.A scripts comunes (common_component.pug:1-19) -->
+<script src="components/jquery/dist/jquery.min.js"></script>
+<script src="components/popper.js/dist/umd/popper.min.js"></script>
+<script src="components/bootstrap/dist/js/bootstrap.min.js"></script>
+<script src="components/angular/angular.min.js"></script>
+<script src="components/angular-animate/angular-animate.min.js"></script>
+<!-- OMITIDO (06: C, sin uso): <script src="components/alertifyjs/dist/js/ngAlertify.js"></script> -->
+<script src="components/sweetalert2/dist/sweetalert2.all.min.js"></script>
+<!-- OMITIDO (stub: lo reemplaza local/io-shim.js): <script src="components/socket.io-client/dist/socket.io.min.js"></script> -->
+<script src="components/angular-bootstrap/dist/ui-bootstrap-tpls.js"></script>
+<script src="components/angular-translate/angular-translate.min.js"></script>
+<script src="components/angular-translate-loader-static-files/angular-translate-loader-static-files.min.js"></script>
+<script src="components/angular-translate-storage-local/angular-translate-storage-local.min.js"></script>
+<script src="components/angular-translate-storage-cookie/angular-translate-storage-cookie.min.js"></script>
+<script src="components/angular-translate-handler-log/angular-translate-handler-log.min.js"></script>
+<script src="components/angular-cookies/angular-cookies.min.js"></script>
+<script src="components/angular-touch/angular-touch.min.js"></script>
+<script src="components/angular-sanitize/angular-sanitize.min.js"></script>
+<!-- OMITIDO (06: C, ningún módulo usa ui.select): <script src="components/angular-ui-select/dist/select.min.js"></script> -->
+<!-- 1.C scripts locales, parte 1 -->
+<script src="local/config.js"></script>
+<script src="local/io-shim.js"></script>
+<script src="local/nucleo/store.js"></script>
+<script src="local/nucleo/pathfinder-servidor.js"></script>
+<script src="local/nucleo/init-run.js"></script>
+<script src="local/nucleo/score-2026.js"></script>
+<script src="local/nucleo/copy-properties.js"></script>
+<script src="local/nucleo/api.js"></script>
+<script src="local/nucleo/ranking.js"></script>
+<script src="local/ui/comun.js"></script>
+<!-- [salidas] E8 (PNG/PDF/planilla del mapa) registra rutas en RCJLocal.api (fragmentos-head.md §2.10): -->
+<script src="local/render/registrar.js"></script>
+<script>
+  // [local] globales de maps.pug:8-10 (routes/admin.js:504: id -> competitionId). Sin ?competition= se usa la competencia activa del Inicio.
+  var competitionId = RCJLocal.param('competition') || RCJLocalUI.competenciaActiva();
+  var leagueId = RCJLocal.param('league') || 'Line';
+</script>
+<!-- [admin] pathFinder cliente verbatim: RCJLocal.exportMap recalcula index/next como updateTileIndex del editor, así el JSON exportado es idéntico al del editor -->
+<script src="javascripts/pathFinder.js"></script>
+<script src="javascripts/admin/maps.js"></script>
+<script src="local/ui/mapas.js"></script> <!-- [admin] importar/exportar/duplicar/terminado/corrida/planilla/estadísticas -->
+<script src="local/http-backend.js"></script>
+<script>RCJLocal.instalarBackend('MapAdmin');</script>
+<!-- 1.B css comunes (common_component.pug:21-30) -->
+<link rel="stylesheet" href="components/bootstrap/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="stylesheets/style.css">
+<link rel="stylesheet" href="stylesheets/navbar_premium.css">
+<link href="components/font-awesome-5/css/all.min.css" rel="stylesheet">
+<link rel="stylesheet" href="components/angular-bootstrap/dist/ui-bootstrap-csp.css">
+<!-- OMITIDO (06: C, reglas solo .ui-select-*): <link rel="stylesheet" href="components/angular-ui-select/dist/select.min.css"> -->
+<!-- OMITIDO (solo ENVIRONMENT == "STG"): stylesheets/stg.css -->
+<!-- (maps.pug no define page_css) -->
+<!-- 1.D modern layout (modern_layout.pug:4-9) -->
+<link href="stylesheets/common/modern_layout.css" rel="stylesheet">
+<link href="stylesheets/common/modern_components.css" rel="stylesheet">
+<link href="stylesheets/common/modern_list.css" rel="stylesheet">
+<link href="stylesheets/common/modern_modal.css" rel="stylesheet">
+<link href="local/ui/estilos.css" rel="stylesheet"> <!-- [admin] estilos de los agregados locales -->
+<link href="local/ui/movil-admin.css" rel="stylesheet"> <!-- [admin] ajustes para celular (412 px) -->
+<!-- 1.E cola de head.pug:6-44 -->
+<script src="javascripts/translate_config.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0,minimum-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#043C78">
+<meta name="charset" content="UTF-8">
+<link rel="icon" type="image/vnd.microsoft.icon" sizes="16x16" href="images/favicon-16.ico">
+<link rel="icon" type="image/vnd.microsoft.icon" sizes="32x32" href="images/favicon-32.ico">
+<link rel="icon" type="image/vnd.microsoft.icon" sizes="96x96" href="images/favicon-96.ico">
+<link rel="apple-touch-icon" sizes="144x144" href="images/apple-touch-icon-144.png">
+<link rel="apple-touch-icon" sizes="152x152" href="images/apple-touch-icon-152.png">
+<link rel="apple-touch-icon" sizes="180x180" href="images/apple-touch-icon-180.png">
+<link rel="icon" type="image/png" sizes="196x196" href="images/favicon-196.png">
+<link rel="icon" type="image/png" sizes="32x32" href="images/favicon-32.png">
+<link rel="icon" type="image/png" sizes="128x128" href="images/favicon-128.png">
+<!-- PENDIENTE (docs): <link rel="manifest" href="manifest.webmanifest"> ; el CMS usaba /manifest.json -->
+<!-- OMITIDO (ESPEC §1, fuentes rotas en el origen): <link href="stylesheets/fonts.css" rel="stylesheet"> -->
+<script>
+  currentWidth = -1;
+  $(window).on('load resize', function(){
+  if (currentWidth == window.innerWidth) {
+  return;
+  }
+  currentWidth = window.innerWidth;
+  var height = $('.navbar').height();
+  $('body').css('padding-top',height+13);
+  });
+
+  let lastTouch = 0;
+  document.addEventListener('touchend', event => {
+  const now = window.performance.now();
+  if (now - lastTouch <= 500) {
+  event.preventDefault();
+  }
+  lastTouch = now;
+  }, true);
+</script>
+</head>
+<body ng-controller="MapAdminController" style="display: flex; flex-direction: column; min-height: 100vh;">
+  <!-- navbar.pug -->
+  <nav class="navbar navbar-expand premium-navbar">
+    <a class="navbar-brand" href="index.html"><img class="d-inline-block align-top" src="images/logo.png" alt="Logo"><span class="brand-text">&nbsp;RCJ CMS</span></a>
+    <div class="ml-auto d-flex align-items-center">
+      <a class="nav-user-link mr-2" href="#" data-toggle="modal" data-target="#languageModal" title="{{'select_lang' | translate}}"><i class="fas fa-globe-americas"></i></a>
+      <!-- [rcj-line-offline] OMITIDO (navbar.pug:13-37): menú de usuario y login; offline no hay usuarios. En su lugar, acceso a Configuración. -->
+      <a class="nav-user-link" href="configuracion.html" title="Configuración"><i class="fas fa-cog"></i></a>
+    </div>
+  </nav>
+  <!-- [rcj-line-offline] ng-controller local: hereda el scope de MapAdminController (local/ui/mapas.js) -->
+  <div class="container-fluid" style="overflow: hidden; flex-grow: 1;" ng-controller="MapasLocalController">
+    <!-- block bread: vacío en modern_layout -->
+    <div class="maps-hero">
+      <div class="maps-container">
+        <nav class="breadcrumb premium-breadcrumb hero-breadcrumb">
+          <a class="breadcrumb-item" ng-click="go('/home')"><i class="fas fa-home mr-1"></i>Home</a>
+          <a class="breadcrumb-item" ng-click="go('/admin')">Admin</a>
+          <a class="breadcrumb-item" ng-click="go('/admin/'+competitionId)">{{competition.name}}</a>
+          <!-- [rcj-line-offline] #{leagueId} (interpolación pug) -> league.league -->
+          <span class="breadcrumb-item active">{{league.league}} Maps</span>
+        </nav>
+        <div class="hero-content-wrapper">
+          <div class="hero-text">
+            <h1 class="hero-title">{{competition.name}}</h1>
+            <div class="hero-subtitle">{{league.name}} {{"admin.lineMapAdmin.title" | translate}}</div>
+          </div>
+          <div class="hero-actions">
+            <button class="btn-print-targets" ng-click="openPrintModal()" ng-disabled="getSelectedCount() == 0" title="{{ 'admin.mazeMapAdmin.printSelected' | translate }}"><i class="fas fa-print"></i><span class="badge-count" ng-if="getSelectedCount() > 0">{{getSelectedCount()}}</span></button>
+            <!-- [rcj-line-offline] AGREGADO: importar uno o varios JSON exportados por el editor oficial -->
+            <label class="btn-create-map mb-0" style="cursor: pointer;" title="Importar uno o varios archivos JSON exportados por el editor oficial"><i class="fas fa-file-import"></i><span>Importar JSON</span><input id="importarMapas" class="input-archivo-oculto" type="file" accept=".json,application/json" multiple rcj-archivo="importarArchivos($archivos)"></label>
+            <!-- [rcj-line-offline] regla 3b: ng-href="/admin/{{competitionId}}/{{league.league}}/mapEditor" -> go(...) que pasa por RCJLocal.ruta -->
+            <a class="btn-create-map" href="" ng-click="go('/admin/' + competitionId + '/' + league.league + '/mapEditor')"><i class="fas fa-plus-circle"></i><span>{{"admin.lineMapAdmin.create" | translate}}</span></a>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="maps-container">
+      <!-- [rcj-line-offline] AGREGADO: resultado de la importación -->
+      <div class="modern-card resultado-importacion" id="resultadoImportacion" ng-if="local.importando || local.resultados">
+        <div class="modern-card-header">
+          <div class="d-flex justify-content-between align-items-center w-100">
+            <div><i class="fas fa-file-import"></i>Importación de mapas</div>
+            <button type="button" class="close" ng-hide="local.importando" ng-click="local.resultados = null" aria-label="Cerrar">&times;</button>
+          </div>
+        </div>
+        <div class="modern-card-body">
+          <div ng-if="local.importando"><i class="fas fa-spinner fa-spin mr-2"></i>Importando…</div>
+          <div class="fila-resultado" ng-repeat="r in local.resultados" data-ok="{{r.ok}}">
+            <i class="fas" ng-class="r.ok ? 'fa-check-circle text-success' : 'fa-times-circle text-danger'"></i>
+            <strong>{{r.archivo}}</strong>
+            <span ng-if="r.ok">→ «{{r.nombre}}» <span class="estado-pastilla" ng-class="r.finished ? 'terminado' : 'borrador'">{{r.finished ? 'terminado' : 'sin terminar'}}</span></span>
+            <span class="text-danger" ng-if="!r.ok">{{r.error}}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="modern-list" ng-if="groupedMaps.length > 0">
+        <div class="modern-list-header d-none d-md-flex">
+          <div class="header-select" ng-click="selectAll()" style="cursor: pointer;" title="{{allSelected ? ('admin.mazeMapAdmin.unselectAll' | translate) : ('admin.mazeMapAdmin.selectAll' | translate)}}">
+            <div class="custom-checkbox" ng-class="{'checked': allSelected}"><i class="fas fa-check" ng-if="allSelected"></i></div>
+          </div>
+          <div class="header-name">{{"admin.mazeMapEditor.mapName" | translate}}</div>
+          <div class="header-actions">{{"common.delete" | translate}}</div>
+        </div>
+
+        <div class="parent-group" ng-repeat="parentMap in groupedMaps">
+          <div class="modern-item-card" data-mapa="{{parentMap._id}}" ng-click="go('/admin/'+competitionId+'/'+league.league+'/mapEditor/'+parentMap._id)" ng-class="{'selected': selectedMaps[parentMap._id]}">
+            <div class="modern-item-selection" ng-click="toggleSelect(parentMap, $event)" title="Select for bulk print">
+              <div class="custom-checkbox" ng-class="{'checked': selectedMaps[parentMap._id]}"><i class="fas fa-check" ng-if="selectedMaps[parentMap._id]"></i></div>
+            </div>
+            <div class="modern-item-info">
+              <div class="modern-item-icon"><i class="fas fa-map-marked-alt"></i></div>
+              <div class="modern-item-details">
+                <span class="modern-item-name" ng-bind="parentMap.name" title="{{parentMap.name}}"></span>
+                <!-- [rcj-line-offline] AGREGADO: estado y datos del mapa -->
+                <span class="detalle-mapa-local" ng-if="local.detalles[parentMap._id]">
+                  <span class="estado-pastilla" ng-class="local.detalles[parentMap._id].finished ? 'terminado' : 'borrador'">{{local.detalles[parentMap._id].finished ? 'terminado' : 'sin terminar'}}</span>
+                  · {{local.detalles[parentMap._id].dimensiones}} · {{local.detalles[parentMap._id].indexCount || 0}} índices · {{local.detalles[parentMap._id].corridas}} corridas
+                </span>
+              </div>
+            </div>
+            <div class="modern-item-actions">
+              <!-- [rcj-line-offline] AGREGADO: acciones locales por mapa -->
+              <span class="acciones-mapa-local">
+                <button type="button" class="btn-accion-mapa accion-terminado" ng-class="{'activo': local.detalles[parentMap._id].finished}" ng-click="alternarTerminado(parentMap, $event)" title="Marcar como terminado / sin terminar"><i class="fas fa-flag-checkered"></i></button>
+                <button type="button" class="btn-accion-mapa accion-corrida" ng-click="crearCorridaMapa(parentMap, $event)" title="Crear una corrida sobre este mapa"><i class="fas fa-play"></i></button>
+                <button type="button" class="btn-accion-mapa accion-exportar" ng-click="exportarMapa(parentMap, $event)" title="Exportar JSON (formato del editor oficial)"><i class="fas fa-file-export"></i></button>
+                <button type="button" class="btn-accion-mapa accion-duplicar" ng-click="duplicarMapa(parentMap, $event)" title="Duplicar"><i class="fas fa-copy"></i></button>
+                <button type="button" class="btn-accion-mapa accion-planilla" ng-click="planillaMapa(parentMap, $event)" title="Planilla de puntaje del mapa (PDF)"><i class="fas fa-file-signature"></i></button>
+                <button type="button" class="btn-accion-mapa accion-estadisticas" ng-click="estadisticasMapa(parentMap, $event)" title="Estadísticas del mapa"><i class="fas fa-chart-bar"></i></button>
+              </span>
+              <div class="btn-delete-item" ng-click="removeMap(parentMap, $event)" title='{{"common.delete" | translate}}'><i class="fas fa-trash-alt"></i></div>
+            </div>
+          </div>
+
+          <div class="modern-item-card is-child" ng-repeat="childMap in parentMap.children" ng-click="go('/admin/'+competitionId+'/'+league.league+'/mapEditor/'+childMap._id)" ng-class="{'selected': selectedMaps[childMap._id]}">
+            <div class="modern-item-selection" ng-click="toggleSelect(childMap, $event)" title="Select for bulk print">
+              <div class="custom-checkbox" ng-class="{'checked': selectedMaps[childMap._id]}"><i class="fas fa-check" ng-if="selectedMaps[childMap._id]"></i></div>
+            </div>
+            <div class="modern-item-info">
+              <div class="modern-item-icon"><i class="fas fa-dice-d6"></i></div>
+              <div class="modern-item-details">
+                <span class="modern-item-name" ng-bind="childMap.name" title="{{childMap.name}}"></span>
+              </div>
+            </div>
+            <div class="modern-item-actions">
+              <div class="btn-delete-item" ng-click="removeMap(childMap, $event)" title='{{"common.delete" | translate}}'><i class="fas fa-trash-alt"></i></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="empty-state" ng-if="maps.length == 0">
+        <i class="fas fa-folder-open"></i>
+        <p>No maps found for this league.</p>
+      </div>
+
+      <script type="text/ng-template" id="printSettingsModal.html">
+        <div class="modal-header premium-modal-header">
+          <h3 class="modal-title"><i class="fas fa-print mr-2"></i>{{ 'admin.mazeMapAdmin.print.title' | translate }}</h3>
+        </div>
+        <div class="modal-body premium-modal-body">
+          <div class="print-section">
+            <label class="section-title">{{ 'admin.mazeMapAdmin.print.outputContent' | translate }}</label>
+            <div class="option-tiles">
+              <div class="option-tile" ng-class="{'active': settings.exportType === 'Maps'}" ng-click="settings.exportType = 'Maps'">
+                <div class="option-visual"><i class="fas fa-map"></i></div>
+                <div class="option-label">{{ 'admin.mazeMapAdmin.print.mapImages' | translate }}</div>
+                <div class="option-check"><i class="fas fa-check-circle"></i></div>
+              </div>
+              <div class="option-tile" ng-class="{'active': settings.exportType === 'Scoresheets'}" ng-click="settings.exportType = 'Scoresheets'">
+                <div class="option-visual"><i class="fas fa-file-signature"></i></div>
+                <div class="option-label">{{ 'admin.mazeMapAdmin.print.scoreSheets' | translate }}</div>
+                <div class="option-check"><i class="fas fa-check-circle"></i></div>
+              </div>
+              <div class="option-tile" ng-class="{'active': settings.exportType === 'Targets'}" ng-click="settings.exportType = 'Targets'" ng-if="league.type == 'maze'">
+                <div class="option-visual"><i class="fas fa-bullseye"></i></div>
+                <div class="option-label">{{ 'admin.mazeMapAdmin.print.victimsTargets' | translate }}</div>
+                <div class="option-check"><i class="fas fa-check-circle"></i></div>
+              </div>
+            </div>
+          </div>
+
+          <hr ng-if="settings.exportType != 'Scoresheets'">
+
+          <div class="row">
+            <div class="col-md-6" ng-show="settings.exportType === 'Maps'">
+              <label class="section-title">{{ 'admin.mazeMapAdmin.print.fileFormat' | translate }}</label>
+              <div class="premium-btn-group">
+                <div class="btn" ng-class="{'active': settings.exportFormat === 'PDF'}" ng-click="settings.exportFormat = 'PDF'">PDF</div>
+                <div class="btn" ng-class="{'active': settings.exportFormat === 'PNG'}" ng-click="settings.exportFormat = 'PNG'">PNG</div>
+              </div>
+            </div>
+            <div class="col-md-6" ng-show="settings.exportType === 'Targets' || (settings.exportType === 'Maps' &amp;&amp; settings.exportFormat === 'PDF')">
+              <label class="section-title">{{ 'admin.mazeMapAdmin.print.paperSize' | translate }}</label>
+              <div class="premium-btn-group">
+                <div class="btn" ng-class="{'active': settings.paperSize === 'A4'}" ng-click="settings.paperSize = 'A4'">A4</div>
+                <div class="btn" ng-class="{'active': settings.paperSize === 'Letter'}" ng-click="settings.paperSize = 'Letter'">Letter</div>
+              </div>
+            </div>
+          </div>
+
+          <div ng-show="settings.exportType === 'Targets'">
+            <hr>
+            <div class="print-section">
+              <label class="section-title">{{ 'admin.mazeMapAdmin.print.targetTypes' | translate }}</label>
+              <div class="option-tiles">
+                <div class="option-tile" ng-class="{'active': settings.includeCognitiveTargets}" ng-click="settings.includeCognitiveTargets = !settings.includeCognitiveTargets">
+                  <div class="option-visual">
+                    <div class="cognitive-preview"><div class="ring ring-1"></div><div class="ring ring-2"></div><div class="ring ring-3"></div></div>
+                  </div>
+                  <div class="option-label">{{ 'admin.mazeMapAdmin.print.cognitiveTargets' | translate }}</div>
+                  <div class="option-check"><i class="fas fa-check-circle"></i></div>
+                </div>
+                <div class="option-tile" ng-class="{'active': settings.includeLetterVictims}" ng-click="settings.includeLetterVictims = !settings.includeLetterVictims">
+                  <div class="option-visual">
+                    <div class="letter-preview"><span>Φ</span><span>Ψ</span><span>Ω</span></div>
+                  </div>
+                  <div class="option-label">{{ 'admin.mazeMapAdmin.print.letterVictims' | translate }}</div>
+                  <div class="option-check"><i class="fas fa-check-circle"></i></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div ng-if="settings.exportType == 'Scoresheets'">
+            <hr>
+            <div class="print-section">
+              <p class="text-muted mb-0">{{ 'admin.mazeMapAdmin.print.scoreSheetInfo' | translate }}</p>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer premium-modal-footer">
+          <button class="btn btn-print-action" ng-click="ok()" ng-disabled="settings.exportType == 'Targets' &amp;&amp; !settings.includeCognitiveTargets &amp;&amp; !settings.includeLetterVictims">
+            <i class="fas fa-magic mr-2"></i>
+            <span ng-if="settings.exportType === 'Maps' &amp;&amp; settings.exportFormat === 'PNG'">{{ 'admin.mazeMapAdmin.print.generatePNG' | translate }}</span>
+            <span ng-if="settings.exportType !== 'Maps' || settings.exportFormat === 'PDF'">{{ 'admin.mazeMapAdmin.print.generatePDF' | translate }}</span>
+          </button>
+          <button class="btn btn-cancel-action" ng-click="cancel()">{{ 'common.cancel' | translate }}</button>
+        </div>
+      </script>
+
+      <!-- [rcj-line-offline] AGREGADO: modal para crear una corrida sobre un mapa (local/ui/mapas.js) -->
+      <script type="text/ng-template" id="crearCorridaModal.html">
+        <div class="modal-header premium-modal-header">
+          <h3 class="modal-title"><i class="fas fa-play mr-2"></i>Nueva corrida sobre «{{mapa.name}}»</h3>
+        </div>
+        <div class="modal-body premium-modal-body formulario-local">
+          <div class="alert alert-warning" ng-if="!terminado">Este mapa no está marcado como terminado: el CMS no permite crear corridas sobre él. Marcalo con la bandera a cuadros.</div>
+          <div class="form-group">
+            <label for="ccEquipo">Equipo</label>
+            <select class="form-control" id="ccEquipo" ng-model="f.team" ng-options="t._id as ((t.teamCode ? '[' + t.teamCode + '] ' : '') + t.name) for t in equipos"></select>
+          </div>
+          <div class="form-group">
+            <label for="ccRonda">Ronda</label>
+            <select class="form-control" id="ccRonda" ng-model="f.round" ng-options="r._id as r.name for r in rondas"><option value="">Automática (primera libre para el equipo o «Práctica N»)</option></select>
+          </div>
+          <div class="form-group">
+            <label for="ccPista">Pista</label>
+            <select class="form-control" id="ccPista" ng-model="f.field" ng-options="p._id as p.name for p in pistas"><option value="">Automática (primera pista o «Cancha 1»)</option></select>
+          </div>
+          <div class="form-group">
+            <label for="ccGrupo">Grupo de normalización</label>
+            <input class="form-control" id="ccGrupo" ng-model="f.normalizationGroup" placeholder="Vacío = nombre de la ronda">
+          </div>
+          <div class="alert alert-danger mb-0" ng-if="error">{{error}}</div>
+        </div>
+        <div class="modal-footer premium-modal-footer">
+          <button class="btn btn-print-action" ng-click="crear(true)" ng-disabled="creando || !f.team"><i class="fas fa-gavel mr-2"></i>Crear y puntuar</button>
+          <button class="btn btn-cancel-action" ng-click="crear(false)" ng-disabled="creando || !f.team">Crear</button>
+          <button class="btn btn-cancel-action" ng-click="cancelar()">Cancelar</button>
+        </div>
+      </script>
+    </div>
+  </div>
+  <!-- 1.G footer.pug -->
+  <footer class="footer" style="background-color: #000000; width: 100%;">
+    <div class="d-flex justify-content-between align-items-center w-100 px-3 pt-1 pb-2 m-0">
+      <div class="footer-text text-truncate" style="text-align:left; font-size:max(12px, min(1vw, 25px)); white-space: nowrap; color: #aaaaaa;">
+        <i class="far fa-copyright" aria-hidden="true"></i>&nbsp;2016-2026 RoboCupJunior Rescue CMS Development SubCommittee&nbsp;-&nbsp;<i class="fas fa-code-branch" aria-hidden="true"></i>&nbsp; v26.0.2
+      </div>
+    </div>
+  </footer>
+  <!-- OMITIDO (login_modal.pug): offline no hay login -->
+  <!-- 1.F language_modal.pug con ES (regla 3c) -->
+  <div class="modal fade" id="languageModal" tabindex="-1" role="dialog" aria-labelledby="languageModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+      <div class="modal-content premium-modal-content">
+        <div class="modal-header border-0">
+          <button class="close" type="button" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+        </div>
+        <div class="modal-body px-5 pb-5">
+          <div class="text-center mb-5">
+            <i class="fas fa-language fa-4x mb-3" style="color: var(--primary-color);"></i>
+            <h2 class="modal-title font-weight-bold">{{"select_lang" | translate}}</h2>
+          </div>
+          <div class="row no-gutters gap-3">
+            <div class="col-6 pr-2">
+              <div class="language-card" onclick="changeLanguage('en')">
+                <div class="lang-circle bg-primary">EN</div>
+                <h4>English</h4>
+              </div>
+            </div>
+            <div class="col-6 pl-2">
+              <div class="language-card" onclick="changeLanguage('ja')">
+                <div class="lang-circle bg-danger">JA</div>
+                <h4>日本語</h4>
+              </div>
+            </div>
+          </div>
+          <!-- [rcj-line-offline] regla 3c: español agregado al selector -->
+          <div class="row no-gutters gap-3 mt-3">
+            <div class="col-6 pr-2">
+              <div class="language-card" onclick="changeLanguage('es')">
+                <div class="lang-circle bg-success">ES</div>
+                <h4>Español</h4>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+      function changeLanguage(langKey) {
+          try {
+              const injector = angular.element(document.body).injector();
+              const $translate = injector.get('$translate');
+              $translate.use(langKey).then(function() {
+                  window.location.reload();
+              });
+          } catch (e) {
+              // Fallback for non-angular pages or if injection fails
+              console.error("Language switch failed, reloading anyway...", e);
+              window.location.reload();
+          }
+      }
+  </script>
+</body>
+</html>

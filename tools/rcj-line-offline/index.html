@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<!-- rcj-line-offline — área admin. Página NUEVA (no existe en el CMS): Inicio en español, con la estructura de
+     includes/modern_layout del CMS (navbar premium, hero y tarjetas modernas). Lógica: local/ui/inicio.js -->
+<html lang="es" style="height:100%; overflow-y:scroll;" ng-app="RCJInicio">
+<head>
+<meta charset="utf-8">
+<title>RCJ Rescue Line offline</title>
+<!-- 1.A scripts comunes (common_component.pug:1-19) -->
+<script src="components/jquery/dist/jquery.min.js"></script>
+<script src="components/popper.js/dist/umd/popper.min.js"></script>
+<script src="components/bootstrap/dist/js/bootstrap.min.js"></script>
+<script src="components/angular/angular.min.js"></script>
+<script src="components/angular-animate/angular-animate.min.js"></script>
+<script src="components/sweetalert2/dist/sweetalert2.all.min.js"></script>
+<script src="components/angular-bootstrap/dist/ui-bootstrap-tpls.js"></script>
+<script src="components/angular-translate/angular-translate.min.js"></script>
+<script src="components/angular-translate-loader-static-files/angular-translate-loader-static-files.min.js"></script>
+<script src="components/angular-translate-storage-local/angular-translate-storage-local.min.js"></script>
+<script src="components/angular-translate-storage-cookie/angular-translate-storage-cookie.min.js"></script>
+<script src="components/angular-translate-handler-log/angular-translate-handler-log.min.js"></script>
+<script src="components/angular-cookies/angular-cookies.min.js"></script>
+<script src="components/angular-touch/angular-touch.min.js"></script>
+<script src="components/angular-sanitize/angular-sanitize.min.js"></script>
+<!-- 1.C scripts locales, parte 1 -->
+<script src="local/config.js"></script>
+<script src="local/io-shim.js"></script>
+<script src="local/nucleo/store.js"></script>
+<script src="local/nucleo/pathfinder-servidor.js"></script>
+<script src="local/nucleo/init-run.js"></script>
+<script src="local/nucleo/score-2026.js"></script>
+<script src="local/nucleo/copy-properties.js"></script>
+<script src="local/nucleo/api.js"></script>
+<script src="local/nucleo/ranking.js"></script>
+<script src="local/ui/comun.js"></script>
+<script src="local/ui/inicio.js"></script> <!-- crea `app` (módulo RCJInicio) -->
+<script src="local/http-backend.js"></script>
+<script>RCJLocal.instalarBackend('RCJInicio');</script>
+<!-- 1.B css comunes -->
+<link rel="stylesheet" href="components/bootstrap/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="stylesheets/style.css">
+<link rel="stylesheet" href="stylesheets/navbar_premium.css">
+<link href="components/font-awesome-5/css/all.min.css" rel="stylesheet">
+<link rel="stylesheet" href="components/angular-bootstrap/dist/ui-bootstrap-csp.css">
+<!-- 1.D modern layout -->
+<link href="stylesheets/common/modern_layout.css" rel="stylesheet">
+<link href="stylesheets/common/modern_components.css" rel="stylesheet">
+<link href="stylesheets/common/modern_list.css" rel="stylesheet">
+<link href="stylesheets/common/modern_modal.css" rel="stylesheet">
+<link href="local/ui/estilos.css" rel="stylesheet">
+<link href="local/ui/movil-admin.css" rel="stylesheet">
+<!-- 1.E cola de head.pug -->
+<script src="javascripts/translate_config.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0,minimum-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#043C78">
+<link rel="icon" type="image/vnd.microsoft.icon" sizes="16x16" href="images/favicon-16.ico">
+<link rel="icon" type="image/vnd.microsoft.icon" sizes="32x32" href="images/favicon-32.ico">
+<link rel="icon" type="image/vnd.microsoft.icon" sizes="96x96" href="images/favicon-96.ico">
+<link rel="apple-touch-icon" sizes="144x144" href="images/apple-touch-icon-144.png">
+<link rel="apple-touch-icon" sizes="152x152" href="images/apple-touch-icon-152.png">
+<link rel="apple-touch-icon" sizes="180x180" href="images/apple-touch-icon-180.png">
+<link rel="icon" type="image/png" sizes="196x196" href="images/favicon-196.png">
+<link rel="icon" type="image/png" sizes="32x32" href="images/favicon-32.png">
+<link rel="icon" type="image/png" sizes="128x128" href="images/favicon-128.png">
+<!-- PENDIENTE (docs): <link rel="manifest" href="manifest.webmanifest"> -->
+<script>
+  currentWidth = -1;
+  $(window).on('load resize', function(){
+  if (currentWidth == window.innerWidth) {
+  return;
+  }
+  currentWidth = window.innerWidth;
+  var height = $('.navbar').height();
+  $('body').css('padding-top',height+13);
+  });
+
+  let lastTouch = 0;
+  document.addEventListener('touchend', event => {
+  const now = window.performance.now();
+  if (now - lastTouch <= 500) {
+  event.preventDefault();
+  }
+  lastTouch = now;
+  }, true);
+</script>
+</head>
+<body ng-controller="RCJInicioController" style="display: flex; flex-direction: column; min-height: 100vh;">
+  <nav class="navbar navbar-expand premium-navbar">
+    <a class="navbar-brand" href="index.html"><img class="d-inline-block align-top" src="images/logo.png" alt="Logo"><span class="brand-text">&nbsp;RCJ CMS</span><span class="env-badge">offline</span></a>
+    <div class="ml-auto d-flex align-items-center">
+      <a class="nav-user-link mr-2" href="#" data-toggle="modal" data-target="#languageModal" title="{{'select_lang' | translate}}"><i class="fas fa-globe-americas"></i></a>
+      <a class="nav-user-link" href="configuracion.html" title="Configuración"><i class="fas fa-cog"></i></a>
+    </div>
+  </nav>
+  <div class="container-fluid" style="overflow: hidden; flex-grow: 1;">
+    <div class="maps-hero">
+      <div class="maps-container">
+        <nav class="breadcrumb premium-breadcrumb hero-breadcrumb">
+          <span class="breadcrumb-item active"><i class="fas fa-home mr-1"></i>Inicio</span>
+        </nav>
+        <div class="hero-content-wrapper">
+          <div class="hero-text">
+            <h1 class="hero-title">RCJ Rescue Line offline</h1>
+            <div class="hero-subtitle" ng-cloak>{{resumen.competencia.name || 'Sin competencia activa'}} · Line 2026</div>
+            <div class="hero-resumen" ng-if="resumen" ng-cloak>
+              <span class="pastilla"><i class="fas fa-map"></i>{{resumen.mapas.length}} mapas ({{resumen.mapasTerminados}} terminados)</span>
+              <span class="pastilla"><i class="fas fa-users"></i>{{resumen.equipos.length}} equipos</span>
+              <span class="pastilla"><i class="fas fa-flag-checkered"></i>{{resumen.corridas.length}} corridas · {{resumen.pendientes.length}} pendientes</span>
+            </div>
+          </div>
+          <div class="hero-actions">
+            <a class="btn-hero-local" href="configuracion.html"><i class="fas fa-cog"></i>Configuración</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="maps-container">
+      <div class="alert alert-danger" ng-if="estado.error" ng-cloak><i class="fas fa-exclamation-triangle mr-2"></i>No se pudieron preparar los datos locales: {{estado.error}}</div>
+      <div class="text-center text-muted p-5" ng-if="estado.cargando">
+        <img src="images/loader2.gif" alt="">
+        <p class="mt-2">Preparando los datos locales…</p>
+      </div>
+
+      <div class="modern-card mb-4" ng-if="!estado.cargando" ng-cloak>
+        <div class="modern-card-header"><div><i class="fas fa-trophy"></i>Competencia activa</div></div>
+        <div class="modern-card-body">
+          <div class="competencia-activa formulario-local">
+            <select class="form-control" id="selectorCompetencia" aria-label="Competencia activa" ng-model="sel.competencia" ng-change="cambiarCompetencia()" ng-options="c._id as c.name for c in competencias"></select>
+            <form class="d-flex flex-grow-1" style="gap: 0.5rem; min-width: 260px;" ng-submit="crearCompetencia()">
+              <input class="form-control" id="nombreCompetencia" aria-label="Nombre de la nueva competencia" ng-model="sel.nombreNueva" placeholder="Nueva competencia (p. ej. Práctica del sábado)">
+              <button class="btn-tactil oscuro" type="submit" ng-disabled="!sel.nombreNueva || estado.creandoCompetencia"><i class="fas fa-plus"></i>Crear</button>
+            </form>
+          </div>
+          <p class="small text-muted mt-2 mb-0">Cada competencia tiene sus propios mapas, equipos, rondas, pistas y corridas (liga Line, regla 2026). Todo queda guardado en este navegador.</p>
+        </div>
+      </div>
+
+      <div ng-if="!estado.cargando" ng-cloak>
+        <h5 class="seccion-titulo"><i class="fas fa-th-large"></i>Accesos</h5>
+        <div class="accesos-grid">
+          <a class="acceso-grande destacado" href="" ng-click="irAPuntuar($event)">
+            <div class="acceso-icono tono-claro"><i class="fas fa-gavel"></i></div>
+            <div><p class="acceso-titulo">Puntuar una corrida</p><p class="acceso-desc">Elegí una corrida pendiente y abrí el juez.</p></div>
+            <i class="fas fa-gavel acceso-fondo"></i>
+          </a>
+          <a class="acceso-grande" id="accesoMapas" ng-href="{{url('mapas.html')}}">
+            <div class="acceso-icono tono-azul"><i class="fas fa-map-marked-alt"></i></div>
+            <div><p class="acceso-titulo">Mapas</p><p class="acceso-desc">Importar, crear, editar, exportar y marcar terminados.</p></div>
+            <i class="fas fa-map-marked-alt acceso-fondo"></i>
+          </a>
+          <a class="acceso-grande" id="accesoCorridas" ng-href="{{url('corridas.html', {league: 'Line'})}}">
+            <div class="acceso-icono tono-verde"><i class="fas fa-list"></i></div>
+            <div><p class="acceso-titulo">Corridas</p><p class="acceso-desc">Lista de corridas de la liga, igual que en el CMS.</p></div>
+            <i class="fas fa-list acceso-fondo"></i>
+          </a>
+          <a class="acceso-grande" id="accesoAdmin" ng-href="{{url('admin-corridas.html', {league: 'Line'})}}">
+            <div class="acceso-icono tono-violeta"><i class="fas fa-sliders-h"></i></div>
+            <div><p class="acceso-titulo">Administrar corridas</p><p class="acceso-desc">Corridas, rondas, pistas, equipos y grupos.</p></div>
+            <i class="fas fa-sliders-h acceso-fondo"></i>
+          </a>
+          <a class="acceso-grande" id="accesoRanking" ng-href="{{url('ranking.html', {league: 'Line'})}}">
+            <div class="acceso-icono tono-ambar"><i class="fas fa-trophy"></i></div>
+            <div><p class="acceso-titulo">Ranking</p><p class="acceso-desc">Posiciones con el algoritmo del CMS o el desempate 6.1.8.</p></div>
+            <i class="fas fa-trophy acceso-fondo"></i>
+          </a>
+          <a class="acceso-grande" id="accesoEstadisticas" ng-href="{{url('estadisticas.html')}}">
+            <div class="acceso-icono tono-cian"><i class="fas fa-chart-bar"></i></div>
+            <div><p class="acceso-titulo">Estadísticas</p><p class="acceso-desc">Éxito por baldosa, LoPs por tramo y evolución.</p></div>
+            <i class="fas fa-chart-bar acceso-fondo"></i>
+          </a>
+          <a class="acceso-grande" id="accesoPlanillas" ng-href="{{url('planillas.html', {league: 'Line'})}}">
+            <div class="acceso-icono tono-rojo"><i class="fas fa-print"></i></div>
+            <div><p class="acceso-titulo">Planillas</p><p class="acceso-desc">Lista de corridas imprimible por ronda y pista.</p></div>
+            <i class="fas fa-print acceso-fondo"></i>
+          </a>
+          <a class="acceso-grande" id="accesoConfiguracion" href="configuracion.html">
+            <div class="acceso-icono tono-gris"><i class="fas fa-cog"></i></div>
+            <div><p class="acceso-titulo">Configuración</p><p class="acceso-desc">Opciones, idioma, respaldo y almacenamiento.</p></div>
+            <i class="fas fa-cog acceso-fondo"></i>
+          </a>
+        </div>
+
+        <div class="row">
+          <div class="col-lg-7 mb-4" id="puntuar">
+            <div class="modern-card h-100">
+              <div class="modern-card-header">
+                <div class="d-flex justify-content-between align-items-center w-100">
+                  <div><i class="fas fa-gavel"></i>Puntuar una corrida</div>
+                  <a class="small font-weight-bold" ng-href="{{url('corridas.html', {league: 'Line'})}}">Ver todas</a>
+                </div>
+              </div>
+              <div class="modern-card-body">
+                <div class="lista-pendientes">
+                  <div class="fila-pendiente" ng-repeat="run in resumen.pendientes" data-run="{{run._id}}">
+                    <div class="fp-info">
+                      <div class="fp-equipo">{{run.team.name}}</div>
+                      <div class="fp-detalle">{{run.round.name}} · {{run.field.name}} · {{run.map.name}}</div>
+                    </div>
+                    <span class="estado-pastilla e{{run.status}}">{{textoEstado(run.status)}}</span>
+                    <div class="fp-acciones">
+                      <button type="button" class="btn-tactil juez" ng-if="run.status < 3" ng-click="puntuar(run)"><i class="fas fa-gavel"></i>Puntuar</button>
+                      <button type="button" class="btn-tactil firma" ng-if="run.status == 3" ng-click="firmar(run)"><i class="fas fa-signature"></i>Firmar</button>
+                      <button type="button" class="btn-tactil ver" ng-click="ver(run)" title="Ver"><i class="fas fa-eye"></i></button>
+                    </div>
+                  </div>
+                </div>
+                <div class="aviso-vacio" ng-if="resumen && resumen.pendientes.length === 0">No hay corridas pendientes. Creá una con la corrida rápida o desde Administrar corridas.</div>
+                <div class="aviso-vacio" ng-if="!resumen">Elegí o creá una competencia.</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-5 mb-4">
+            <div class="modern-card h-100">
+              <div class="modern-card-header"><div><i class="fas fa-bolt"></i>Corrida rápida de práctica</div></div>
+              <div class="modern-card-body formulario-local">
+                <form ng-submit="corridaRapida()">
+                  <div class="form-group">
+                    <label for="rapidaMapa">Mapa</label>
+                    <select class="form-control" id="rapidaMapa" ng-model="sel.mapa" ng-options="m._id as etiquetaMapa(m) disable when !m.finished for m in resumen.mapas"><option value="">Elegí un mapa terminado</option></select>
+                    <small class="form-text text-muted" ng-if="resumen && resumen.mapasTerminados === 0">No hay mapas terminados. <a ng-href="{{url('mapas.html')}}">Importá o creá uno</a> y marcalo como terminado.</small>
+                  </div>
+                  <div class="form-group">
+                    <label for="rapidaEquipo">Equipo</label>
+                    <select class="form-control" id="rapidaEquipo" ng-model="sel.equipo" ng-options="e._id as e.name for e in resumen.equipos"><option value="">Elegí un equipo</option></select>
+                    <small class="form-text text-muted" ng-if="resumen && resumen.equipos.length === 0">No hay equipos. <a ng-href="{{url('admin-corridas.html', {league: 'Line'})}}#catalogosLocales">Agregá uno</a>.</small>
+                  </div>
+                  <p class="small text-muted">Usa la primera ronda en la que el equipo todavía no corrió (o crea «Práctica N») y la primera pista (o crea «Cancha 1»). Después abre el juez.</p>
+                  <button class="btn-tactil oscuro w-100" type="submit" id="botonCorridaRapida" ng-disabled="!sel.mapa || !sel.equipo || estado.creandoCorrida"><i class="fas fa-play"></i>Crear y puntuar</button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- 1.G footer.pug -->
+  <footer class="footer" style="background-color: #000000; width: 100%;">
+    <div class="d-flex justify-content-between align-items-center w-100 px-3 pt-1 pb-2 m-0">
+      <div class="footer-text text-truncate" style="text-align:left; font-size:max(12px, min(1vw, 25px)); white-space: nowrap; color: #aaaaaa;">
+        <i class="far fa-copyright" aria-hidden="true"></i>&nbsp;2016-2026 RoboCupJunior Rescue CMS Development SubCommittee&nbsp;-&nbsp;<i class="fas fa-code-branch" aria-hidden="true"></i>&nbsp; v26.0.2
+      </div>
+    </div>
+  </footer>
+  <!-- 1.F language_modal.pug con ES (regla 3c) -->
+  <div class="modal fade" id="languageModal" tabindex="-1" role="dialog" aria-labelledby="languageModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+      <div class="modal-content premium-modal-content">
+        <div class="modal-header border-0">
+          <button class="close" type="button" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+        </div>
+        <div class="modal-body px-5 pb-5">
+          <div class="text-center mb-5">
+            <i class="fas fa-language fa-4x mb-3" style="color: var(--primary-color);"></i>
+            <h2 class="modal-title font-weight-bold">{{"select_lang" | translate}}</h2>
+          </div>
+          <div class="row no-gutters gap-3">
+            <div class="col-6 pr-2">
+              <div class="language-card" onclick="changeLanguage('en')">
+                <div class="lang-circle bg-primary">EN</div>
+                <h4>English</h4>
+              </div>
+            </div>
+            <div class="col-6 pl-2">
+              <div class="language-card" onclick="changeLanguage('ja')">
+                <div class="lang-circle bg-danger">JA</div>
+                <h4>日本語</h4>
+              </div>
+            </div>
+          </div>
+          <div class="row no-gutters gap-3 mt-3">
+            <div class="col-6 pr-2">
+              <div class="language-card" onclick="changeLanguage('es')">
+                <div class="lang-circle bg-success">ES</div>
+                <h4>Español</h4>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+      function changeLanguage(langKey) {
+          try {
+              const injector = angular.element(document.body).injector();
+              const $translate = injector.get('$translate');
+              $translate.use(langKey).then(function() {
+                  window.location.reload();
+              });
+          } catch (e) {
+              console.error("Language switch failed, reloading anyway...", e);
+              window.location.reload();
+          }
+      }
+  </script>
+</body>
+</html>

@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Firma — uso en celular 412×915 y tablet 1024×768 (layout, táctil, flujo de firma)</title>
+<script src="firma-comun.js"></script>
+<script src="../local/config.js"></script>
+<script src="../local/io-shim.js"></script>
+<script src="../local/nucleo/store.js"></script>
+<script src="../local/nucleo/pathfinder-servidor.js"></script>
+<script src="../local/nucleo/init-run.js"></script>
+<script src="../local/nucleo/score-2026.js"></script>
+<script src="../local/nucleo/copy-properties.js"></script>
+<script src="../local/nucleo/api.js"></script>
+<script src="../local/nucleo/ranking.js"></script>
+</head>
+<body style="margin:0">
+<pre id="resultado">PENDIENTE</pre>
+<script>
+/*
+ * Revisa que firma.html y vista.html sean usables en un celular (412×915) y en una tablet horizontal (1024×768):
+ *  - nada se sale por la derecha (html tiene overflow-x:hidden en style.css: lo que se sale queda inalcanzable);
+ *  - la navbar fija no tapa el principio de la página;
+ *  - la columna de LoPs no se pisa con el plano;
+ *  - botones con alto tocable;
+ *  - firma con eventos táctiles sintéticos (TouchEvent) y flujo Submit -> Finish Run? -> Recorded! en 412 px,
+ *    con los popups de SweetAlert2 dentro de la pantalla.
+ */
+function visibles(d) {
+  var w = d.defaultView;
+  return Array.prototype.filter.call(d.body.querySelectorAll('*'), function (el) {
+    if (el.closest('.swal2-container, .modal, script, style, template')) return false;
+    var r = el.getBoundingClientRect();
+    if (r.width === 0 || r.height === 0) return false;
+    var cs = w.getComputedStyle(el);
+    return cs.visibility !== 'hidden' && cs.display !== 'none';
+  });
+}
+function describir(el) {
+  return el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') + (el.className && typeof el.className === 'string' ? '.' + el.className.trim().split(/\s+/).join('.') : '') +
+    ' "' + (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 30) + '"';
+}
+function salenPorDerecha(f, ancho) {
+  var d = f.contentDocument, w = f.contentWindow;
+  var sx = w.pageXOffset;
+  return visibles(d).filter(function (el) {
+    var r = el.getBoundingClientRect();
+    return r.right + sx > ancho + 1;
+  }).map(function (el) { return describir(el) + ' right=' + Math.round(el.getBoundingClientRect().right); });
+}
+// Solo los "hojas" que se salen (si un hijo se sale, no reportar a todos sus ancestros)
+function hojas(lista) { return lista.slice(0, 12); }
+
+async function revisarLayout(pagina, ancho, alto, s) {
+  var nombre = pagina + ' ' + ancho + '×' + alto;
+  var f = await T.cargarIframe('../' + pagina + '?run=' + s.runId, { nombre: nombre, ancho: ancho, alto: alto });
+  await T.esperarCarga(f, nombre);
+  await T.esperar(3500); // tile_size a 0/500/1500/3000 ms
+  var d = f.contentDocument, w = f.contentWindow;
+  var fuera = salenPorDerecha(f, ancho);
+  T.check(nombre + ': nada se sale por la derecha', fuera.length === 0, hojas(fuera));
+  var nav = d.querySelector('nav').getBoundingClientRect();
+  var primero = pagina === 'vista.html'
+    ? d.querySelector('.container-fluid > .row button') // botón Back de la vista
+    : d.querySelector('#lops .card-header');
+  var r1 = primero.getBoundingClientRect();
+  T.check(nombre + ': la navbar fija no tapa el principio (' + Math.round(nav.height) + ' px)', r1.top >= nav.bottom - 1, { navBottom: nav.bottom, primeroTop: r1.top });
+  var card = d.getElementById('card_area').getBoundingClientRect();
+  var plano = d.querySelector('.tilearea').getBoundingClientRect();
+  var lops = d.querySelector('#card_area #lops').getBoundingClientRect();
+  if (ancho < 768) {
+    T.check(nombre + ': la lista de LoPs no se pisa con el plano (columnas apiladas)', lops.bottom <= plano.top + 1, { lopsBottom: lops.bottom, planoTop: plano.top, cardH: card.height });
+  } else {
+    T.check(nombre + ': LoPs y plano lado a lado', lops.right <= plano.left + 1, { lopsRight: lops.right, planoLeft: plano.left });
+  }
+  var baldosa = d.querySelector('#wrapTile tile');
+  T.check(nombre + ': baldosas con tamaño visible y el plano entra en el ancho', baldosa && baldosa.getBoundingClientRect().width > 15 && d.getElementById('wrapTile').getBoundingClientRect().right <= ancho + 1,
+    baldosa && [baldosa.getBoundingClientRect().width, d.getElementById('wrapTile').getBoundingClientRect().right]);
+  // se puede llegar al final de la página
+  var fin = pagina === 'firma.html' ? d.querySelector('button[ng-click="send_sign()"]') : d.querySelector('footer');
+  w.scrollTo(0, 1e6);
+  await T.esperar(200);
+  var rf = fin.getBoundingClientRect();
+  T.check(nombre + ': el final de la página se alcanza desplazando', rf.bottom <= alto + 1 && rf.top >= 0, { top: rf.top, bottom: rf.bottom });
+  w.scrollTo(0, 0);
+  return f;
+}
+
+function toque(w, canvas, tipo, px, py) {
+  var r = canvas.getBoundingClientRect();
+  var x = r.left + px * r.width, y = r.top + py * r.height;
+  var t = new w.Touch({ identifier: 1, target: canvas, clientX: x, clientY: y, pageX: x + w.pageXOffset, pageY: y + w.pageYOffset, screenX: x, screenY: y, radiusX: 2, radiusY: 2, force: 1 });
+  var lista = tipo === 'touchend' ? [] : [t];
+  canvas.dispatchEvent(new w.TouchEvent(tipo, { bubbles: true, cancelable: true, view: w, touches: lista, targetTouches: lista, changedTouches: [t] }));
+}
+async function firmarConDedo(f, id) {
+  var w = f.contentWindow, d = f.contentDocument;
+  await T.esperarQue(function () { return d.querySelector('#' + id + ' canvas'); }, 5000, 'canvas ' + id);
+  var canvas = d.querySelector('#' + id + ' canvas');
+  canvas.scrollIntoView({ block: 'center' });
+  await T.esperar(100);
+  var pts = [[0.1, 0.5], [0.2, 0.25], [0.3, 0.7], [0.45, 0.3], [0.6, 0.65], [0.8, 0.35], [0.9, 0.55]];
+  toque(w, canvas, 'touchstart', pts[0][0], pts[0][1]);
+  for (var k = 1; k < pts.length; k++) {
+    for (var q = 1; q <= 4; q++) {
+      toque(w, canvas, 'touchmove', pts[k - 1][0] + (pts[k][0] - pts[k - 1][0]) * q / 4, pts[k - 1][1] + (pts[k][1] - pts[k - 1][1]) * q / 4);
+      await T.esperar(5);
+    }
+  }
+  toque(w, canvas, 'touchend', pts[pts.length - 1][0], pts[pts.length - 1][1]);
+  await T.esperar(50);
+  return { trazos: w.jQuery('#' + id).jSignature('getData', 'native').length, lienzo: [Math.round(canvas.getBoundingClientRect().width), Math.round(canvas.getBoundingClientRect().height)] };
+}
+function dentroDePantalla(el, ancho, alto) {
+  var r = el.getBoundingClientRect();
+  return r.left >= -1 && r.right <= ancho + 1 && r.top >= -1 && r.bottom <= alto + 1;
+}
+
+T.correr(async function () {
+  try { localStorage.removeItem('rcjLocalFlags'); sessionStorage.removeItem('rcjVolviDeFirma'); } catch (e) {}
+  var s = await T.sembrarCorrida(function (run) {
+    var lops = run.LoPs.map(function (_, k) { return [0, 1, 2, 0, 3][k % 5]; });
+    return {
+      showedUp: true, tiles: T.tilesPuntuadas(run, {}), LoPs: lops, exitBonus: true,
+      rescueOrder: [{ victimType: 'LIVE', zoneType: 'GREEN' }, { victimType: 'LIVE', zoneType: 'GREEN' }, { victimType: 'DEAD', zoneType: 'RED' }, { victimType: 'DEAD', zoneType: 'RED' }],
+      time: { minutes: 7, seconds: 5 }, status: 3
+    };
+  });
+
+  // sonda: ¿corre requestAnimationFrame dentro de un iframe en este headless?
+  var fr = await T.cargarIframe('../vista.html?run=' + s.runId, { nombre: 'sonda rAF', ancho: 412, alto: 300 });
+  var cuadros = 0, t0 = Date.now();
+  (function paso() { cuadros++; if (Date.now() - t0 < 1000) fr.contentWindow.requestAnimationFrame(paso); })();
+  await T.esperar(1500);
+  T.extra.rAFenIframeEn1s = cuadros;
+  fr.parentNode.removeChild(fr);
+
+  // ------------------------------------------------ layout en 412×915, 1024×768 y 1366×900
+  var tamanios = [[412, 915], [1024, 768], [1366, 900]];
+  for (var i = 0; i < tamanios.length; i++) {
+    var fv = await revisarLayout('vista.html', tamanios[i][0], tamanios[i][1], s);
+    fv.parentNode.removeChild(fv);
+    var ff = await revisarLayout('firma.html', tamanios[i][0], tamanios[i][1], s);
+    if (tamanios[i][0] !== 412) ff.parentNode.removeChild(ff);
+  }
+  // en escritorio el CSS de celular no aplica (la referencia visual del CMS queda igual)
+  var fe = await T.cargarIframe('../firma.html?run=' + s.runId, { nombre: 'firma 1366 css', ancho: 1366, alto: 900 });
+  await T.esperarCarga(fe, 'firma 1366 css');
+  T.igual('1366: body padding-top del CMS (70px, navbar_premium.css)', fe.contentWindow.getComputedStyle(fe.contentDocument.body).paddingTop, '70px');
+  fe.parentNode.removeChild(fe);
+
+  // variante iframe de la vista en 412
+  var fi = await T.cargarIframe('../vista.html?run=' + s.runId + '&iframe=true', { nombre: 'vista iframe 412', ancho: 412, alto: 915 });
+  await T.esperarCarga(fi, 'vista iframe 412');
+  await T.esperar(3500);
+  var fueraI = salenPorDerecha(fi, 412);
+  T.check('vista.html?iframe=true 412×915: nada se sale por la derecha', fueraI.length === 0, hojas(fueraI));
+  fi.parentNode.removeChild(fi);
+
+  // ------------------------------------------------ firma en 412×915 con el dedo
+  var f = Array.prototype.filter.call(document.querySelectorAll('iframe'), function (x) { return /firma\.html/.test(x.src); })[0];
+  var w = f.contentWindow, d = f.contentDocument, sc = T.scope(f);
+  var ids = ['cap_sig', 'ref_sig', 'refas_sig'];
+  var botonesAltos = Array.prototype.map.call(d.querySelectorAll('button[ng-click^="toggleSign"], button[ng-click="send_sign()"], nav button'), function (b) {
+    return b.offsetParent === null ? null : Math.round(b.getBoundingClientRect().height);
+  }).filter(function (x) { return x !== null; });
+  T.check('412: botones de firma/Submit/Corregir con alto tocable (≥ 38 px)', botonesAltos.length >= 5 && botonesAltos.every(function (h) { return h >= 38; }), botonesAltos);
+  var puts = [];
+  var original = w.RCJLocal.api.request;
+  w.RCJLocal.api.request = function (m, u, c) { if (m === 'PUT') puts.push(c); return original.apply(this, arguments); };
+  for (var k = 0; k < 3; k++) {
+    var b = T.clic(f, 'button.btn-info', 'toggleSign(' + k + ')');
+    var res = await firmarConDedo(f, ids[k]);
+    T.check('412: firma ' + k + ' con TouchEvent registrada por jSignature (lienzo ' + res.lienzo.join('×') + ')', res.trazos >= 1 && res.lienzo[0] >= 300, res);
+    var lienzo = d.querySelector('#' + ids[k] + ' canvas');
+    T.check('412: lienzo ' + k + ' dentro del ancho de pantalla', lienzo.getBoundingClientRect().right <= 413 && lienzo.getBoundingClientRect().left >= -1);
+    T.clic(f, 'button.btn-success', 'toggleSign(' + k + ')');
+    await T.esperarQue(function () { return sc.signData[k] && !sc.enableSign[k]; }, 5000, 'Complete ' + k);
+    var svg = '';
+    try { svg = atob((sc.signData[k] || '').split(',')[1]); } catch (e) {}
+    T.check('412: firma ' + k + ' = SVG con trazo', /<path|<polyline/.test(svg), (sc.signData[k] || '').slice(0, 40));
+  }
+  var ta = d.querySelector('textarea[ng-model="comment"]');
+  ta.value = 'Firmado desde el celular';
+  ta.dispatchEvent(new w.Event('input', { bubbles: true }));
+  var enviar = d.querySelector('button[ng-click="send_sign()"]');
+  enviar.scrollIntoView({ block: 'center' });
+  enviar.click();
+  var conf = await T.esperarSwal(f, 'Finish Run?');
+  await T.esperar(400);
+  T.check('412: "Finish Run?" entra en la pantalla', conf && dentroDePantalla(d.querySelector('.swal2-popup'), 412, 915) && dentroDePantalla(d.querySelector('.swal2-confirm'), 412, 915),
+    conf && d.querySelector('.swal2-popup').getBoundingClientRect());
+  d.querySelector('.swal2-confirm').click();
+  await T.esperarQue(function () { return puts.length === 1; }, 8000, 'PUT 412');
+  var cuerpo = puts[0] ? JSON.parse(puts[0]) : {};
+  T.check('412: PUT {comment, sign:{captain,referee,referee_as}, status:4}', cuerpo.status === 4 && cuerpo.comment === 'Firmado desde el celular' && Object.keys(cuerpo.sign || {}).join() === 'captain,referee,referee_as');
+  var rec = await T.esperarSwal(f, 'Recorded!');
+  await T.esperar(400);
+  T.check('412: "Recorded!" entra en la pantalla', rec && dentroDePantalla(d.querySelector('.swal2-popup'), 412, 915));
+  var guardada = await RCJLocal.store.get('lineRuns', s.runId);
+  T.check('412: corrida guardada en status 4 con las firmas', guardada.status === 4 && guardada.sign.captain === sc.signData[0] && guardada.comment === 'Firmado desde el celular');
+
+  // modal de dirección en 412
+  var f2 = await T.cargarIframe('../firma.html?run=' + s.runId, { nombre: 'firma modal 412', ancho: 412, alto: 915 });
+  await T.esperarCarga(f2, 'firma modal 412');
+  var s2 = T.scope(f2);
+  s2.$apply(function () { s2.open(s.mapa.startTile.x, s.mapa.startTile.y, s.mapa.startTile.z); });
+  await T.esperarQue(function () { return f2.contentDocument.querySelector('.modal-dialog .modal-footer button'); }, 8000, 'modal 412');
+  await T.esperar(800);
+  var dlg = f2.contentDocument.querySelector('.modal-dialog');
+  T.check('412: modal de dirección dentro del ancho', dlg.getBoundingClientRect().left >= -1 && dlg.getBoundingClientRect().right <= 413, dlg.getBoundingClientRect());
+  var ok = f2.contentDocument.querySelector('.modal-footer button[ng-click="ok()"]');
+  ok.scrollIntoView({ block: 'center' });
+  await T.esperar(100);
+  T.check('412: botón OK del modal alcanzable', dentroDePantalla(ok, 412, 915) && ok.getBoundingClientRect().height >= 38, ok.getBoundingClientRect());
+  ok.click();
+  await T.esperarQue(function () { return T.modalCerrado(f2); }, 5000, 'cierre modal 412');
+});
+</script>
+</body>
+</html>

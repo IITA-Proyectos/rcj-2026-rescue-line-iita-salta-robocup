@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Salidas — planillas.html con 2 corridas</title>
+<script src="salidas-comun.js"></script>
+<style>
+  body { margin: 0; }
+  #marco { width: 100%; height: 900px; border: 0; display: block; }
+  #resultado { display: none; }
+</style>
+</head>
+<body>
+<iframe id="marco" title="planillas.html"></iframe>
+<pre id="resultado">PENDIENTE</pre>
+<script>
+T.correr(async function () {
+  var cid = new URLSearchParams(location.search).get('competition');
+  T.check('competition por query', !!cid);
+  var marco = document.getElementById('marco');
+  marco.src = '../planillas.html?competition=' + encodeURIComponent(cid) + '&league=Line';
+  var doc = null, filas = [];
+  for (var i = 0; i < 300; i++) {
+    await T.esperar(100);
+    try {
+      doc = marco.contentDocument;
+      filas = doc ? doc.querySelectorAll('table.custom tbody tr') : [];
+      if (filas.length >= 2 && !doc.querySelector('.loader')) break;
+    } catch (e) { /* todavía cargando */ }
+  }
+  var w = marco.contentWindow;
+  // Errores de Angular posteriores a la carga
+  var erroresMarco = [];
+  try {
+    var ce = w.console.error;
+    w.console.error = function () { erroresMarco.push(Array.prototype.map.call(arguments, String).join(' ')); return ce.apply(w.console, arguments); };
+  } catch (e) { /* sin acceso */ }
+
+  T.igual('tabla LIST con 2 corridas', filas.length, 2);
+  T.check('loader "Now Loading..." removido', doc && !doc.querySelector('.loader'));
+  var h1 = doc.querySelector('#ranking-export h1');
+  T.igual('cabecera list.comment = "<competencia> - <liga>"', h1 && h1.textContent.trim(), 'Práctica IITA 2026 - Rescue Line');
+  var textos = Array.prototype.map.call(filas, function (tr) {
+    return Array.prototype.map.call(tr.children, function (td) { return td.textContent.replace(/\s+/g, ' ').trim(); });
+  });
+  var cabeceras = Array.prototype.map.call(doc.querySelectorAll('table.custom thead th'), function (th) { return th.textContent.trim(); });
+  T.check('cabeceras traducidas (sin {{ }} ni claves crudas)', cabeceras.length >= 3 && cabeceras.every(function (t) { return t && !/\{\{|^common\./.test(t); }), cabeceras);
+  T.check('fila 1: Ronda 1 / IITA Salta', textos[0] && textos[0].indexOf('Ronda 1') >= 0 && textos[0].indexOf('IITA Salta') >= 0, textos[0]);
+  T.check('fila 2: Ronda 2 / Equipo Práctica B', textos[1] && textos[1].indexOf('Ronda 2') >= 0 && textos[1].indexOf('Equipo Práctica B') >= 0, textos[1]);
+  var alcance = w.angular.element(doc.body).scope();
+  T.igual('por defecto solo la columna Team (gamesPrint/line_2026.js:5)', cabeceras.length, 3);
+
+  // Bug del CMS conservado (D4): los checkboxes "Display items" usan ng-model primitivo dentro de un ng-if
+  // (scope hijo), así que tildarlos NO agrega columnas. Se verifica que se comporta igual que el original.
+  doc.querySelector('label[for="showVictim"]').click();
+  await T.esperar(300);
+  T.check('tildar "Victim" no agrega la columna (igual que el CMS: ng-model dentro de ng-if)',
+    doc.querySelector('#showVictim').checked && alcance.showVictim !== true && doc.querySelectorAll('table.custom thead th').length === 3,
+    { checked: doc.querySelector('#showVictim').checked, showVictim: alcance.showVictim });
+
+  // Render de la columna de víctimas activándola en el scope del controlador
+  alcance.$apply(function () { alcance.showVictim = true; });
+  await T.esperar(200);
+  var victimas = doc.querySelectorAll('table.custom tbody .img-thumbnail img');
+  for (var k = 0; k < 50 && Array.prototype.some.call(victimas, function (im) { return !im.complete; }); k++) await T.esperar(100);
+  T.igual('4 íconos de víctima (3 + 1)', victimas.length, 4);
+  T.check('íconos de víctima cargados (images/ relativo)', Array.prototype.every.call(victimas, function (im) { return im.complete && im.naturalWidth > 0; }),
+    Array.prototype.map.call(victimas, function (im) { return im.getAttribute('src'); }));
+  var badges = Array.prototype.map.call(doc.querySelectorAll('table.custom tbody .badge'), function (b) { return w.getComputedStyle(b).display !== 'none' ? b.textContent.trim() : null; }).filter(Boolean);
+  T.igual('badges de nivel de evacuación', badges, ['Level 2', 'Level 1']);
+  T.igual('$scope.runs con 2 corridas (E12 normalized)', alcance.runs.length, 2);
+  alcance.$apply(function () { alcance.showVictim = false; });
+  var sinImprimir = doc.querySelectorAll('.no_print').length;
+  var reglaPrint = Array.prototype.some.call(doc.styleSheets, function (ss) {
+    try { return Array.prototype.some.call(ss.cssRules, function (r) { return r.media && /print/.test(r.media.mediaText) && /no_print/.test(r.cssText); }); } catch (e) { return false; }
+  });
+  T.check('@media print oculta .no_print', sinImprimir === 1 && reglaPrint);
+  T.check('modo quirks como el original (sin doctype)', doc.compatMode === 'BackCompat', doc.compatMode);
+
+  // Ranking View y vuelta a Run List
+  doc.querySelector('.card-header button.btn-secondary').click();
+  await T.esperar(300);
+  var filasRanking = doc.querySelectorAll('#ranking-export table.custom tbody tr').length;
+  T.check('Ranking View muestra la tabla de ranking', filasRanking >= 1, filasRanking);
+  doc.querySelector('.card-header button.btn-secondary').click();
+  await T.esperar(300);
+  T.igual('vuelve a Run List', doc.querySelectorAll('table.custom tbody tr[ng-repeat^="run in runs"]').length, 2);
+  // Filtro por equipo
+  var entrada = doc.querySelector('input[ng-model="teamName"]');
+  entrada.value = 'IITA';
+  entrada.dispatchEvent(new w.Event('input', { bubbles: true }));
+  await T.esperar(300);
+  // Mismo bug del CMS: teamName es primitivo dentro de ng-if, el filtro del controlador no se entera
+  T.igual('filtro de equipo "IITA" no filtra (igual que el CMS: ng-model dentro de ng-if)', doc.querySelectorAll('table.custom tbody tr[ng-repeat^="run in runs"]').length, 2);
+  alcance.$apply(function () { alcance.teamName = 'IITA'; });
+  await T.esperar(300);
+  T.igual('list_filter con teamName="IITA" en el controlador deja 1 fila', doc.querySelectorAll('table.custom tbody tr[ng-repeat^="run in runs"]').length, 1);
+  alcance.$apply(function () { alcance.teamName = ''; });
+  entrada.value = '';
+  entrada.dispatchEvent(new w.Event('input', { bubbles: true }));
+  await T.esperar(300);
+  T.igual('sin errores de consola en planillas.html después de cargar', erroresMarco, []);
+  return { filas: textos, cabeceras: cabeceras };
+});
+</script>
+</body>
+</html>

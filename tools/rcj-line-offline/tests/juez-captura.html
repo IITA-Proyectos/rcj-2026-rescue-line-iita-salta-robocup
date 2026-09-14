@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<!-- sin esto, con emulación de celular la página exterior se diseña a ~980 px y el iframe del juez no ve 412 -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Juez — captura de pantalla</title>
+<style>html,body{margin:0;padding:0;overflow:hidden;background:#fff}#juez{border:0;display:block;width:100vw;height:100vh}#resultado{display:none}</style>
+<script src="juez-comun.js"></script>
+<script src="../local/config.js"></script>
+<script src="../local/nucleo/store.js"></script>
+<script src="../local/nucleo/pathfinder-servidor.js"></script>
+<script src="../local/nucleo/init-run.js"></script>
+<script src="../local/nucleo/score-2026.js"></script>
+<script src="../local/nucleo/copy-properties.js"></script>
+<script src="../local/nucleo/api.js"></script>
+<script src="../local/nucleo/ranking.js"></script>
+<script src="../local/io-shim.js"></script>
+</head>
+<body>
+<pre id="resultado">PENDIENTE</pre>
+<script>
+/*
+ * Usada por tests/juez-correr.py con --screenshot, con un perfil de Edge NUEVO en cada captura: siembra sus
+ * propios datos (mapa oficial + corrida por E13) y muestra juez.html a pantalla completa en un iframe
+ * (el ancho del iframe = ancho de la ventana, así las media queries del juez ven 412 / 1024 / 1366).
+ * ?vista=prechequeo|puntuacion|modal
+ *  - prechequeo: juez recién abierto.
+ *  - puntuacion: salta el pre-chequeo con la marca rcjVolviDeFirma y juega con clics: Start, inicio, lomo,
+ *    intersección, 1 LoP en el tramo 0, 2 vivas en zona verde, Stop.
+ *  - modal: lo mismo y abre el modal "Direction scored" del lomo (1,0,0).
+ */
+(async function () {
+  var vista = new URLSearchParams(location.search).get('vista') || 'prechequeo';
+  var J = T.juez;
+  var f = document.createElement('iframe');
+  f.id = 'juez';
+  document.body.insertBefore(f, document.body.firstChild);
+  J.iframe = f;
+  var tramos = function () { return J.$$('div[ng-repeat="cp in range(LoPs.length) track by $index"]'); };
+  async function clic(el) {
+    var n0 = J.pedidos.length;
+    J.click(el);
+    await J.esperarPedidos(n0, 1);
+  }
+  try {
+    var s = await T.sembrar(await T.fixture('fixture-mapa-oficial.json'));
+    if (vista !== 'prechequeo') sessionStorage.setItem('rcjVolviDeFirma', s.runId);
+    await J.abrir('../juez.html?run=' + s.runId);
+    var sc = J.scope();
+    if (vista !== 'prechequeo') {
+      await clic(J.$$('button[ng-click="toggleTime()"]')[0]);
+      await T.esperar(1500);
+      await clic(J.baldosa(0, 0));
+      await clic(J.baldosa(1, 0));
+      await clic(J.baldosa(2, 1));
+      await clic(tramos()[0].querySelector('button.btn-success'));
+      var vivas = tramos()[2].querySelector('[ng-click="addVictimTmp(\'LIVE\')"]');
+      J.click(vivas);
+      J.click(vivas);
+      await T.esperar(150);
+      await clic(tramos()[2].querySelector('[ng-click=\'victimRegist("GREEN")\']'));
+      await clic(J.$$('button[ng-click="toggleTime()"]')[0]);
+      J.win().scrollTo(0, 0);
+    }
+    if (vista === 'modal') {
+      sc.$apply(function () { sc.open(1, 0, 0); });
+      await T.esperarQue(function () { return J.$('.modal-dialog button[ng-click="ok()"]'); }, 8000, 'modal abierto');
+    }
+    await T.esperarQue(function () {
+      return J.$$('img').every(function (i) { return !i.getAttribute('src') || i.complete; });
+    }, 8000, 'imágenes cargadas');
+    await T.esperar(1500);
+    T.terminar({ estado: 'LISTO' });
+  } catch (e) {
+    var sc2 = null;
+    try { sc2 = J.scope(); } catch (x) { /* nada */ }
+    T.terminar({
+      estado: 'ERROR ' + e,
+      pedidos: J.pedidos.slice(0, 25).map(function (p) { return p.method + ' ' + p.url + ' ' + p.status; }),
+      sondas: J.sondas,
+      juez: (function () {
+        try {
+          return { href: J.win().location.href, readyState: J.doc().readyState, angular: !!J.win().angular, scope: !!sc2,
+            team: sc2 && sc2.team, duration: sc2 && sc2.duration, flags: J.win().RCJLocal && J.win().RCJLocal.flags };
+        } catch (x) { return String(x); }
+      })()
+    });
+  }
+  T.detenerLatido();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Firma — capturas (mosaico de iframes)</title>
+<!--
+  Usada por tests/firma-correr.py con --screenshot. Siembra una corrida sobre el fixture oficial y muestra la página
+  pedida en n iframes de 1366×900 apilados, cada uno desplazado un poco más abajo, para ver la página completa con el
+  mismo alto de ventana que una tablet (tile_size depende de innerHeight). Parámetros:
+    pagina=firma.html|vista.html  iframe=true  n=1..8  firmar=1  estado=2|3  scroll=rescate  flags=a,b  victimas=3|4  modal=1
+    ancho=1366 alto=900 (tamaño de cada iframe; 412×915 = celular)
+-->
+<script src="firma-comun.js"></script>
+<script src="../local/config.js"></script>
+<script src="../local/io-shim.js"></script>
+<script src="../local/nucleo/store.js"></script>
+<script src="../local/nucleo/pathfinder-servidor.js"></script>
+<script src="../local/nucleo/init-run.js"></script>
+<script src="../local/nucleo/score-2026.js"></script>
+<script src="../local/nucleo/copy-properties.js"></script>
+<script src="../local/nucleo/api.js"></script>
+<script src="../local/nucleo/ranking.js"></script>
+<style>
+  html, body { margin: 0; padding: 0; background: #000; overflow: hidden; }
+  iframe { display: block; border: 0; margin: 0 0 4px 0; background: #fff; }
+  #resultado { display: none; }
+</style>
+</head>
+<body>
+<pre id="resultado">PENDIENTE</pre>
+<script>
+T.correr(async function () {
+  var q = new URLSearchParams(location.search);
+  var pagina = q.get('pagina') || 'firma.html';
+  var n = Math.max(1, Math.min(8, Number(q.get('n') || 1)));
+  var ancho = Number(q.get('ancho') || 1366), alto = Number(q.get('alto') || 900);
+  var flags = {};
+  (q.get('flags') || '').split(',').filter(Boolean).forEach(function (k) { flags[k] = true; });
+  if (Object.keys(flags).length) localStorage.setItem('rcjLocalFlags', JSON.stringify(flags)); else localStorage.removeItem('rcjLocalFlags');
+  document.cookie = 'sRotate=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+
+  var victimas = q.get('victimas') === '4'
+    ? [{ victimType: 'LIVE', zoneType: 'RED' }, { victimType: 'LIVE', zoneType: 'GREEN' }, { victimType: 'DEAD', zoneType: 'RED' }, { victimType: 'LIVE', zoneType: 'GREEN' }]
+    : [{ victimType: 'LIVE', zoneType: 'GREEN' }, { victimType: 'LIVE', zoneType: 'GREEN' }, { victimType: 'DEAD', zoneType: 'RED' }];
+  var s = await T.sembrarCorrida(function (run) {
+    var lops = run.LoPs.map(function (_, k) { return [0, 1, 2, 0, 3][k % 5]; });
+    var fallidos = {};
+    for (var i = 0; i < run.tiles.length; i++) {
+      if (run.tiles[i].scoredItems.some(function (x) { return x.item !== 'checkpoint'; })) { fallidos[i] = true; break; }
+    }
+    return {
+      showedUp: q.get('victimas') !== '4', tiles: T.tilesPuntuadas(run, fallidos), LoPs: lops, exitBonus: true,
+      rescueOrder: victimas, time: { minutes: 3, seconds: 27 }, status: Number(q.get('estado') || 3)
+    };
+  });
+
+  var url = '../' + pagina + '?run=' + s.runId + (q.get('iframe') === 'true' ? '&iframe=true' : '');
+  var marcos = [];
+  for (var k = 0; k < n; k++) {
+    var f = await T.cargarIframe(url, { nombre: pagina + '#' + k, ancho: ancho, alto: alto });
+    await T.esperarCarga(f, pagina + '#' + k);
+    marcos.push(f);
+  }
+  await T.esperar(3500); // tile_size a 0/500/1500/3000 ms
+
+  if (q.get('firmar') === '1') {
+    for (var m = 0; m < marcos.length; m++) {
+      var sc = T.scope(marcos[m]);
+      var ids = ['cap_sig', 'ref_sig', 'refas_sig'];
+      for (var i = 0; i < 3; i++) {
+        T.clic(marcos[m], 'button.btn-info', 'toggleSign(' + i + ')');
+        await T.dibujarFirma(marcos[m], ids[i]);
+        T.clic(marcos[m], 'button.btn-success', 'toggleSign(' + i + ')');
+        await T.esperarQue(function () { return sc.signData[i] && !sc.enableSign[i]; }, 5000, 'firma');
+      }
+      var ta = marcos[m].contentDocument.querySelector('textarea');
+      ta.value = 'Corrida de práctica sobre el mapa oficial.';
+      ta.dispatchEvent(new marcos[m].contentWindow.Event('input', { bubbles: true }));
+    }
+    await T.esperar(800);
+  }
+
+  // alto menos lo que tapa la navbar fija (en celular la navbar ocupa dos filas)
+  var paso = alto - (ancho < 576 ? 130 : 80);
+  marcos.forEach(function (f, k) {
+    var w = f.contentWindow, d = f.contentDocument;
+    if (q.get('scroll') === 'rescate') {
+      var h2 = Array.prototype.filter.call(d.querySelectorAll('h2'), function (x) { return x.textContent.trim() === 'Rescate'; })[0];
+      if (h2) w.scrollTo(0, h2.getBoundingClientRect().top + w.pageYOffset - 90);
+    } else {
+      w.scrollTo(0, k * paso);
+    }
+  });
+
+  if (q.get('modal') === '1') {
+    var f0 = marcos[0], s0 = T.scope(f0);
+    s0.$apply(function () { s0.open(s.mapa.startTile.x + 1, s.mapa.startTile.y, s.mapa.startTile.z); });
+    await T.esperarQue(function () { return f0.contentDocument.querySelector('.modal-dialog'); }, 8000, 'modal');
+    await T.esperar(1200);
+  }
+  T.extra = { runId: s.runId, score: s.run.score, alturaPagina: marcos[0].contentDocument.body.scrollHeight };
+  await T.esperar(500);
+});
+</script>
+</body>
+</html>

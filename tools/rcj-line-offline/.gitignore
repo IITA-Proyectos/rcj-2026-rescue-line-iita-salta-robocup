@@ -1,0 +1,10 @@
+# Salidas de herramientas/construir_exe.py (el .exe se regenera, no se versiona)
+/build/
+/dist/
+# Entorno virtual con PyInstaller para armar el .exe
+/.venv-exe/
+# Capturas de las pruebas de Edge headless (se regeneran; pesan ~12 MB)
+/tests/capturas/
+/tests/_tmp*/
+# El .gitignore del repo ignora dist/ en cualquier nivel; las librerías vendorizadas lo necesitan.
+!/components/**/dist/

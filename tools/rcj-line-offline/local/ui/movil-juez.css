@@ -1,0 +1,26 @@
+/*
+ * rcj-line-offline — área juez. Ajustes para celular (ancho < 768 px, p. ej. Android 412x915).
+ * Solo CSS: no cambia el markup de juez.html ni la lógica de javascripts/judge/line_2026.js.
+ * En tablet y notebook (>= 768 px) no aplica nada: la página se ve igual que el CMS.
+ */
+@media (max-width: 767.98px) {
+  /* La navbar fija (position:fixed) pasa a 2 filas (col-12 + col-7/col-5, unos 83 px) y el padding-top de
+     navbar_premium.css es 70 px: el título del pre-chequeo y los botones Start/Reset quedaban tapados. */
+  body {
+    padding-top: 96px;
+  }
+
+  /* tile_size() (judge/line_2026.js) le pone a #card_area un alto inline del tamaño de la ventana con
+     overflow:scroll. En una sola columna eso es una caja con scroll propio dentro del scroll de la página,
+     incómoda con el dedo. En celular crece con su contenido y se desplaza toda la página. */
+  #card_area {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* Botones de piso y de rotación de la vista: con " 0" / " 1" quedaban de unos 30 px de ancho. */
+  .tilearea .btn-group > .btn {
+    min-width: 44px;
+    min-height: 38px;
+  }
+}

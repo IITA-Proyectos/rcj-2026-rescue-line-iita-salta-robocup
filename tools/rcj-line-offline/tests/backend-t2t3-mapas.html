@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Backend T2/T3 — maxScore y pathFinder servidor</title>
+<script src="backend-comun.js"></script>
+<script src="../local/config.js"></script>
+<script src="../local/nucleo/store.js"></script>
+<script src="../local/nucleo/pathfinder-servidor.js"></script>
+<script src="../local/nucleo/init-run.js"></script>
+<script src="../local/nucleo/score-2026.js"></script>
+<script src="../local/nucleo/copy-properties.js"></script>
+<script src="../local/nucleo/api.js"></script>
+<script src="../local/nucleo/ranking.js"></script>
+</head>
+<body>
+<h1>T2 (maxScore vía E7 tras ingestMap) y T3 (PFs = fixture servidor)</h1>
+<pre id="resultado">PENDIENTE</pre>
+<script>
+// Simula POST /api/maps/line (lista blanca + defaults) como analysis/_tmp/build_verif_08.py
+function toServerMap(exp) {
+  var tiles = [];
+  Object.keys(exp.tiles).forEach(function (k) {
+    var t = exp.tiles[k]; var c = k.split(',').map(Number);
+    tiles.push({ x: c[0], y: c[1], z: c[2], tileType: JSON.parse(JSON.stringify(t.tileType)), rot: Number(t.rot),
+      items: { obstacles: t.items.obstacles, speedbumps: t.items.speedbumps, rampPoints: !!t.items.rampPoints },
+      levelUp: t.levelUp, levelDown: t.levelDown, checkPoint: !!t.checkPoint, evacEntrance: -1, evacExit: -1 });
+  });
+  return { startTile: exp.startTile, startTile2: exp.startTile2, victims: exp.victims, tiles: tiles, EvacuationAreaLoPIndex: 0, indexCount: undefined };
+}
+
+T.correr(async function () {
+  T.ignorarErrores(/pathFinder \(servidor\) lanzó una excepción[\s\S]*RangeError/);
+  await T.resetear();
+  var sets = await T.fixture('tilesets.json');
+  var sem = await RCJLocal.semillas({ tilesets: sets });
+  T.check('semillas crea tilesets y competencia', sem.tilesets === 2 && sem.creados === true, sem);
+  T.check('PFs no pisa globales del pathFinder cliente', typeof window.traverse === 'undefined' && typeof window.findPath === 'undefined');
+
+  var comps = (await T.api('GET', '/api/competitions/')).data;
+  var comp = comps[0];
+  T.check('competencia semilla', comp && comp.name === 'Práctica IITA 2026', comps);
+
+  var casos = [
+    ['ejemplo-01.json', { raw_score: 80, score: 220, multiplier: 2.744 }],
+    ['fixture-mapa-oficial.json', { raw_score: 210, score: 576, multiplier: 2.744 }],
+    ['sintetico-03.json', { raw_score: 125, score: 343, multiplier: 2.744 }]
+  ];
+  var ids = {};
+  var t2 = {};
+  for (var i = 0; i < casos.length; i++) {
+    var exp = await T.fixture(casos[i][0]);
+    var id = await RCJLocal.ingestMap(exp, { competition: comp._id, league: 'Line' });
+    ids[casos[i][0]] = id;
+    var r = await T.api('GET', '/api/maps/line/' + id + '/maxScore');
+    var e = casos[i][1];
+    t2[casos[i][0]] = r.data;
+    T.check('T2 ' + casos[i][0] + ' => ' + JSON.stringify(e), r.status === 200 && r.data.raw_score === e.raw_score && r.data.score === e.score && r.data.multiplier === e.multiplier, r);
+  }
+
+  // Datos derivados que confirman 08 §2.3
+  var m01 = (await T.api('GET', '/api/maps/line/' + ids['ejemplo-01.json'])).data;
+  T.check('ejemplo 01: indexCount 4, EvacuationAreaLoPIndex 1', m01.indexCount === 4 && m01.EvacuationAreaLoPIndex === 1, m01);
+  var t100 = m01.tiles.find(function (t) { return t.x === 1 && t.y === 0; });
+  T.igual('ejemplo 01: next de (1,0,0) apunta a startTile2 (PFs)', t100.next, ['3,0,0']);
+  var ev = m01.tiles.find(function (t) { return t.x === 2 && t.y === 0; });
+  T.check('ejemplo 01: ev1 con evacEntrance 270 y evacExit 90', ev.evacEntrance === 270 && ev.evacExit === 90, ev);
+  var s03 = (await T.api('GET', '/api/maps/line/' + ids['sintetico-03.json'])).data;
+  T.check('sintético 03: indexCount 7, EvacuationAreaLoPIndex 1', s03.indexCount === 7 && s03.EvacuationAreaLoPIndex === 1, s03);
+
+  // T3: el mapa guardado por ingestMap contra el fixture del pathFinder servidor
+  var srv = await T.fixture('fixture-mapa-oficial-pathfinder-servidor.json');
+  var fx = await T.fixture('fixture-mapa-oficial.json');
+  var m7 = (await T.api('GET', '/api/maps/line/' + ids['fixture-mapa-oficial.json'])).data;
+  var diffs = [];
+  srv.tiles.forEach(function (s) {
+    var t = m7.tiles.find(function (x) { return x.x + ',' + x.y + ',' + x.z === s.key; });
+    if (!t) { diffs.push({ key: s.key, error: 'falta la baldosa' }); return; }
+    var a = JSON.stringify([t.index, t.next, t.next_dir, t.evacEntrance, t.evacExit]);
+    var b = JSON.stringify([s.index, s.next, s.next_dir, s.evacEntrance, s.evacExit]);
+    if (a !== b) diffs.push({ key: s.key, calc: a, fixture: b });
+  });
+  T.check('T3 ingestMap: 0 diferencias por baldosa', diffs.length === 0, diffs);
+  T.check('T3 ingestMap: misma cantidad de baldosas', m7.tiles.length === srv.tiles.length, [m7.tiles.length, srv.tiles.length]);
+  T.check('T3 ingestMap: indexCount 14 y EvacuationAreaLoPIndex 2', m7.indexCount === srv.indexCount && m7.EvacuationAreaLoPIndex === srv.EvacuationAreaLoPIndex, [m7.indexCount, m7.EvacuationAreaLoPIndex]);
+
+  // T3 directo: RCJLocal.PFs sobre la copia del mapa (idéntico a verif_08)
+  var s = toServerMap(fx);
+  RCJLocal.PFs.findPath(s);
+  var diffs2 = [];
+  srv.tiles.forEach(function (x) {
+    var t = s.tiles.find(function (y) { return y.x + ',' + y.y + ',' + y.z === x.key; });
+    var a = JSON.stringify([t.index, t.next, t.next_dir, t.evacEntrance, t.evacExit]);
+    var b = JSON.stringify([x.index, x.next, x.next_dir, x.evacEntrance, x.evacExit]);
+    if (a !== b) diffs2.push({ key: x.key, calc: a, fixture: b });
+  });
+  T.check('T3 RCJLocal.PFs directo: 0 diferencias', diffs2.length === 0 && s.indexCount === 14 && s.EvacuationAreaLoPIndex === 2, diffs2);
+
+  // E4: poblado sin __v, tiles como array, duration conservada del export
+  var m7p = (await T.api('GET', '/api/maps/line/' + ids['fixture-mapa-oficial.json'] + '?populate=true')).data;
+  T.check('E4 populate: tileType objeto sin __v y con paths', typeof m7p.tiles[0].tileType === 'object' && !('__v' in m7p.tiles[0].tileType) && !!m7p.tiles[0].tileType.paths, m7p.tiles[0]);
+  T.check('E4 sin populate: tileType como id', typeof m7.tiles[0].tileType === 'string');
+  T.check('ingestMap conserva duration y usa finished del export', m7.duration === 480 && m7.finished === true);
+  T.check('ingestMap: x,y,z y rot numéricos, _id por baldosa al final', m7.tiles.every(function (t) {
+    return typeof t.x === 'number' && typeof t.rot === 'number' && /^[0-9a-f]{24}$/.test(t._id) && Object.keys(t).pop() === '_id';
+  }));
+  var noExiste = await T.api('GET', '/api/maps/line/000000000000000000000000');
+  T.check('E4 mapa inexistente: 200 con cuerpo vacío', noExiste.status === 200 && noExiste.data === '', noExiste);
+
+  // D1: import tolerante a tiles como array y tileType como id
+  var arr = JSON.parse(JSON.stringify(fx));
+  arr.name = 'Fixture como array';
+  arr.tiles = Object.keys(fx.tiles).map(function (k) {
+    var t = JSON.parse(JSON.stringify(fx.tiles[k]));
+    var c = k.split(',').map(Number);
+    t.x = c[0]; t.y = c[1]; t.z = c[2];
+    t.tileType = t.tileType._id;
+    return t;
+  });
+  var idArr = await RCJLocal.ingestMap(arr, { competition: comp._id });
+  var rArr = await T.api('GET', '/api/maps/line/' + idArr + '/maxScore');
+  T.check('D1 tiles array + tileType id => mismo maxScore {210,576}', rArr.data.raw_score === 210 && rArr.data.score === 576, rArr.data);
+
+  // Nombre repetido en la competencia
+  var dup = null;
+  try { await RCJLocal.ingestMap(fx, { competition: comp._id }); } catch (e) { dup = e.message; }
+  T.check('ingestMap nombre repetido => error del pre-save', dup === 'Map "IITA Fixture 2026" already exists in competition "Práctica IITA 2026"!', dup);
+  var idRen = await RCJLocal.ingestMap(fx, { competition: comp._id, renombrarSiExiste: true });
+  var mRen = (await T.api('GET', '/api/maps/line/' + idRen)).data;
+  T.check('ingestMap renombrarSiExiste', mRen.name === 'IITA Fixture 2026 (2)', mRen.name);
+
+  // exportMap: forma y orden de claves del export del editor
+  var ex = await RCJLocal.exportMap(ids['fixture-mapa-oficial.json']);
+  T.igual('exportMap: orden de claves', Object.keys(ex), ['tileSet', 'name', 'length', 'height', 'width', 'duration', 'finished', 'startTile', 'startTile2', 'tiles', 'victims']);
+  T.igual('exportMap: mismas claves de baldosa que el fixture', Object.keys(ex.tiles).sort(), Object.keys(fx.tiles).sort());
+  var idRe = await RCJLocal.ingestMap(ex, { competition: comp._id, nombre: 'Reimportado' });
+  var rRe = await T.api('GET', '/api/maps/line/' + idRe + '/maxScore');
+  T.check('export -> ingest mantiene maxScore', rRe.data.score === 576, rRe.data);
+
+  // Lazo: el RangeError se traga como en models/lineMap.js:142-146 y el mapa se guarda igual
+  var byImg = {};
+  sets[0].tiles.forEach(function (e) { byImg[e.tileType.image] = e.tileType; });
+  var it = { obstacles: 0, speedbumps: 0, rampPoints: false };
+  var lazo = {
+    tileSet: sets[0]._id, name: 'Lazo', length: 2, height: 1, width: 2, duration: 480, finished: true,
+    startTile: { x: 0, y: 0, z: 0 }, startTile2: { x: -1, y: -1, z: -1 },
+    tiles: {
+      '0,0,0': { rot: 270, tileType: byImg['tile-3.png'], items: it },
+      '1,0,0': { rot: 0, tileType: byImg['tile-3.png'], items: it },
+      '1,1,0': { rot: 90, tileType: byImg['tile-3.png'], items: it },
+      '0,1,0': { rot: 180, tileType: byImg['tile-3.png'], items: it }
+    },
+    victims: { live: 2, dead: 1 }
+  };
+  var t0 = performance.now();
+  var idLazo = await RCJLocal.ingestMap(lazo, { competition: comp._id });
+  var dt = Math.round(performance.now() - t0);
+  var mLazo = (await T.api('GET', '/api/maps/line/' + idLazo)).data;
+  T.check('lazo: se guarda (RangeError capturado) con índices enormes', mLazo && mLazo.indexCount > 1000, mLazo && mLazo.indexCount);
+  T.check('lazo: no cuelga (< 10 s)', dt < 10000, dt);
+
+  return { maxScore: t2, lazo: { indexCount: mLazo.indexCount, ms: dt } };
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Backend — endpoints de administración, ranking, respaldo y utilidades</title>
+<script src="backend-comun.js"></script>
+<script src="../local/config.js"></script>
+<script src="../local/nucleo/store.js"></script>
+<script src="../local/nucleo/pathfinder-servidor.js"></script>
+<script src="../local/nucleo/init-run.js"></script>
+<script src="../local/nucleo/score-2026.js"></script>
+<script src="../local/nucleo/copy-properties.js"></script>
+<script src="../local/nucleo/api.js"></script>
+<script src="../local/nucleo/ranking.js"></script>
+</head>
+<body>
+<h1>Administración, mapas (E5/E6/E9), ranking (D9 + 6.1.8), fotos (E14), E8, respaldo, ruta()</h1>
+<pre id="resultado">PENDIENTE</pre>
+<script>
+T.correr(async function () {
+  var B = RCJLocal.base;
+  // ------------------------------------------------------------ config.js
+  T.igual('flags por defecto (ESPEC §2)', RCJLocal.flagsPorDefecto, { corregirBugsVisuales: false, tactil: true, persistirTimer: true, audioResume: true, fotosOpcionales: true, soloFirmaCapitan: false });
+  RCJLocal.setFlag('corregirBugsVisuales', true);
+  T.check('setFlag guarda en localStorage[rcjLocalFlags]', JSON.parse(localStorage.getItem('rcjLocalFlags')).corregirBugsVisuales === true && RCJLocal.flags.corregirBugsVisuales === true);
+  RCJLocal.setFlag('corregirBugsVisuales', false);
+  var ids = []; for (var i = 0; i < 500; i++) ids.push(RCJLocal.newId());
+  T.check('newId: 24 hex, únicos y crecientes', ids.every(function (x) { return /^[0-9a-f]{24}$/.test(x); }) && new Set(ids).size === 500 && ids.slice().sort().join() === ids.join());
+  T.check('esIdValido como ObjectId.isValid', RCJLocal.esIdValido('0123456789abcdef01234567') && !RCJLocal.esIdValido('tilesets') && RCJLocal.esIdValido('competitions') && !RCJLocal.esIdValido(''));
+  T.check('param() vacío si falta', RCJLocal.param('noexiste') === '');
+  T.igual('ruta judge', RCJLocal.ruta('/line/judge/abc'), B + 'juez.html?run=abc');
+  T.igual('ruta sign con ?return', RCJLocal.ruta('/line/sign/abc?return=%2Fline%2Fc%2FLine'), B + 'firma.html?run=abc&return=%2Fline%2Fc%2FLine');
+  T.igual('ruta view', RCJLocal.ruta('/line/view/abc'), B + 'vista.html?run=abc');
+  T.igual('ruta view iframe', RCJLocal.ruta('/line/view/abc/iframe'), B + 'vista.html?run=abc&iframe=true');
+  T.igual('ruta input', RCJLocal.ruta('/line/input/abc'), B + 'manual.html?run=abc');
+  T.igual('ruta check', RCJLocal.ruta('/line/check/abc?return=/x'), B + 'manual.html?run=abc&check=true&return=/x');
+  T.igual('ruta lista de competencia', RCJLocal.ruta('/line/C1/Line'), B + 'corridas.html?competition=C1&league=Line');
+  T.igual('ruta ranking', RCJLocal.ruta('/line/C1/Line/ranking'), B + 'ranking.html?competition=C1&league=Line');
+  T.igual('ruta mapas (con liga)', RCJLocal.ruta('/admin/C1/Line/maps'), B + 'mapas.html?competition=C1');
+  T.igual('ruta mapas', RCJLocal.ruta('/admin/C1/maps'), B + 'mapas.html?competition=C1');
+  T.igual('ruta games', RCJLocal.ruta('/admin/C1/games'), B + 'admin-corridas.html?competition=C1');
+  T.igual('ruta games (con liga)', RCJLocal.ruta('/admin/C1/Line/games'), B + 'admin-corridas.html?competition=C1');
+  T.igual('ruta games print', RCJLocal.ruta('/admin/C1/Line/games/print'), B + 'planillas.html?competition=C1&league=Line');
+  T.igual('ruta mapEditor con id', RCJLocal.ruta('/admin/C1/Line/mapEditor/0123456789abcdef01234567'), B + 'editor.html?map=0123456789abcdef01234567');
+  T.igual('ruta home', RCJLocal.ruta('/home'), B + 'index.html');
+  T.igual('ruta access_denied', RCJLocal.ruta('/home/access_denied'), B + 'index.html');
+  T.igual('ruta local sin cambios', RCJLocal.ruta('corridas.html?competition=1'), 'corridas.html?competition=1');
+  T.igual('ruta con origen', RCJLocal.ruta(location.origin + '/line/judge/abc'), B + 'juez.html?run=abc');
+
+  // ------------------------------------------------------------ semillas y competencias
+  await T.resetear();
+  var sets = await T.fixture('tilesets.json');
+  var s1 = await RCJLocal.semillas({ tilesets: sets });
+  var s2 = await RCJLocal.semillas({ tilesets: sets });
+  T.check('semillas idempotente', s1.creados === true && s1.tilesets === 2 && s2.creados === false && s2.tilesets === 0, [s1, s2]);
+  var e1 = await T.api('GET', '/api/maps/line/tilesets?populate=true');
+  T.igual('E1: tilesets tal cual el JSON vivo (sin reordenar)', e1.data, sets);
+  var e1b = await T.api('GET', '/api/maps/line/tilesets');
+  T.check('E1 sin populate: tileType como id', typeof e1b.data[0].tiles[0].tileType === 'string');
+  var comps = await T.api('GET', '/api/competitions/');
+  var cid = comps.data[0]._id;
+  T.check('A1: lista con authLevel', comps.status === 200 && comps.data.length === 1 && comps.data[0].authLevel === 15 && comps.data[0].logo === '/images/noLogo.png', comps.data);
+  var c = await T.api('GET', '/api/competitions/' + cid);
+  T.check('A2: ligas con name/type y ranking por defecto', c.data.leagues.length === 1 && c.data.leagues[0].name === 'Rescue Line' && c.data.leagues[0].type === 'line' &&
+    c.data.leagues[0].rule === '2026' && c.data.leagues[0].mode === 'SUM_OF_BEST_N_GAMES' && c.data.leagues[0].num === 20 && c.data.leagues[0].disclose === false && c.data.preparation === true, c.data);
+  T.igual('A3: /competitions/leagues/Line', (await T.api('GET', '/api/competitions/leagues/Line')).data, { id: 'Line', type: 'line', name: 'Rescue Line' });
+  var nf = await T.api('GET', '/api/no/existe');
+  T.check('404 {"message":"404 Not found"} en /api desconocida', nf.status === 404 && nf.data.message === '404 Not found');
+  var cdup = await T.api('POST', '/api/competitions', { name: 'Práctica IITA 2026' });
+  T.check('competencia con nombre repetido => 400', cdup.status === 400 && cdup.data.msg === 'Error saving competition', cdup.data);
+
+  // ------------------------------------------------------------ rondas, canchas, equipos
+  var rr = await T.api('POST', '/api/rounds', { name: 'Final', competition: cid });
+  T.check('POST ronda 201 + Location', rr.status === 201 && rr.data.msg === 'New round has been saved' && rr.headers.Location === '/api/rounds/' + rr.data.id, rr);
+  var rdup = await T.api('POST', '/api/rounds', { name: 'Final', competition: cid });
+  T.check('ronda repetida => 400', rdup.status === 400 && rdup.data.err === 'Round with name "Final" already exists!', rdup.data);
+  var ff = await T.api('POST', '/api/fields', { name: 'Cancha 2', competition: cid });
+  T.check('POST cancha 201', ff.status === 201 && ff.data.msg === 'New field has been saved');
+  var tb = await T.api('POST', '/api/teams', { name: 'Equipo B', league: 'Line', competition: cid, teamCode: 'B1' });
+  T.check('POST equipo 201', tb.status === 201 && tb.data.msg === 'New team has been saved');
+  var tmal = await T.api('POST', '/api/teams', { name: 'X', league: 'Foo', competition: cid });
+  T.check('equipo con liga inválida => 400', tmal.status === 400 && tmal.data.err === 'Team validation failed: league: `Foo` is not a valid enum value for path `league`.', tmal.data);
+  var equipos = (await T.api('GET', '/api/competitions/' + cid + '/Line/teams')).data;
+  T.check('equipos por liga', equipos.length === 2 && equipos.every(function (t) { return t.league === 'Line'; }), equipos);
+  var dr = await T.api('DELETE', '/api/rounds/' + rr.data.id);
+  T.check('DELETE ronda', dr.status === 200 && dr.data.msg === 'Round has been removed!');
+  var rondas = (await T.api('GET', '/api/competitions/' + cid + '/rounds')).data;
+  var canchas = (await T.api('GET', '/api/competitions/' + cid + '/fields')).data;
+  T.check('listas de rondas y canchas', rondas.length === 1 && canchas.length === 2);
+
+  // ------------------------------------------------------------ E5 / E6 / E7 / E9 como el editor
+  var fx = await T.fixture('fixture-mapa-oficial.json');
+  var cuerpoPost = JSON.parse(JSON.stringify(fx));
+  cuerpoPost.competition = cid; cuerpoPost.league = 'Line'; cuerpoPost.duration = 300; cuerpoPost.name = 'Editor POST';
+  var e5 = await T.api('POST', '/api/maps/line', cuerpoPost);
+  T.check('E5: 201 {msg, id} + Location', e5.status === 201 && e5.data.msg === 'New map has been saved' && e5.headers.Location === '/api/maps/line/' + e5.data.id, e5);
+  var mid = e5.data.id;
+  var m5 = (await T.api('GET', '/api/maps/line/' + mid)).data;
+  T.check('E5: ignora duration (480) y corre PFs', m5.duration === 480 && m5.indexCount === 14 && m5.EvacuationAreaLoPIndex === 2, [m5.duration, m5.indexCount]);
+  var sinItems = JSON.parse(JSON.stringify(cuerpoPost)); sinItems.name = 'Sin items'; delete sinItems.tiles['0,0,0'].items;
+  var e5b = await T.api('POST', '/api/maps/line', sinItems);
+  T.check('E5: baldosa sin items => 404 JSON (TypeError síncrono en Express)', e5b.status === 404 && e5b.data.message === '404 Not found', e5b);
+  var e5c = await T.api('POST', '/api/maps/line', Object.assign(JSON.parse(JSON.stringify(cuerpoPost)), { name: 'Editor POST' }));
+  T.check('E5: nombre repetido => 400 Error saving map', e5c.status === 400 && e5c.data.msg === 'Error saving map' && e5c.data.err === 'Map "Editor POST" already exists in competition "Práctica IITA 2026"!', e5c.data);
+  var e5d = await T.api('POST', '/api/maps/line', Object.assign(JSON.parse(JSON.stringify(cuerpoPost)), { name: 'Alto cero', height: 0 }));
+  T.check('E5: height 0 => validación min 1', e5d.status === 400 && e5d.data.err === 'LineMap validation failed: height: Path `height` (0) is less than minimum allowed value (1).', e5d.data);
+
+  var mp = (await T.api('GET', '/api/maps/line/' + mid + '?populate=true')).data;
+  var dic = {};
+  mp.tiles.forEach(function (t) { dic[t.x + ',' + t.y + ',' + t.z] = t; });
+  var cuerpoPut = { competition: cid, tileSet: mp.tileSet, name: mp.name, length: mp.length, height: mp.height, width: mp.width, duration: 300, finished: true,
+    startTile: mp.startTile, startTile2: mp.startTile2, tiles: dic, victims: { live: 2, dead: 1 }, league: 'Line' };
+  var e6 = await T.api('PUT', '/api/maps/line/' + mid, cuerpoPut);
+  var m6 = (await T.api('GET', '/api/maps/line/' + mid)).data;
+  T.check('E6: 200 {msg:"Saved!"} y guarda duration', e6.status === 200 && e6.data.msg === 'Saved!' && m6.duration === 300, [e6, m6.duration]);
+  T.check('E6: conserva los _id de baldosa y tileType como id', m6.tiles.every(function (t) { return typeof t.tileType === 'string' && mp.tiles.some(function (x) { return x._id === t._id; }); }));
+  T.check('E6: recalcula índices con PFs', m6.indexCount === 14);
+  var ilegal = await T.api('PUT', '/api/maps/line/' + mid, { foo: 1 });
+  T.check('E6: clave ilegal => 400', ilegal.status === 400 && ilegal.data.err === 'Illegal key: foo' && ilegal.data.msg === 'Could not save map', ilegal.data);
+  var otro = await RCJLocal.ingestMap(fx, { competition: cid, nombre: 'Otro' });
+  var renom = await T.api('PUT', '/api/maps/line/' + mid, Object.assign(JSON.parse(JSON.stringify(cuerpoPut)), { name: 'Otro' }));
+  T.check('E6: renombrar a un nombre existente => 400', renom.status === 400 && renom.data.msg === 'Could not save map' && renom.data.err === 'Map "Otro" already exists in competition "Práctica IITA 2026"!', renom.data);
+  var e7 = await T.api('GET', '/api/maps/line/' + mid + '/maxScore');
+  T.check('E7 tras el PUT', e7.status === 200 && e7.data.score === 576 && e7.data.raw_score === 210, e7.data);
+
+  var tsId = '5c19d2439590f2d68b15b302', t0id = '570c27c3f5a9dabe23f3af90';
+  var todos = await RCJLocal.store.list('lineMaps');
+  var cuenta = function (excluir) {
+    return todos.filter(function (m) { return m.tileSet === tsId && m._id !== excluir; })
+      .reduce(function (n, m) { return n + m.tiles.filter(function (t) { return t.tileType === t0id; }).length; }, 0);
+  };
+  var asin = await T.api('GET', '/api/maps/line/tileCount/null/' + tsId);
+  var sinc = RCJLocal.api.requestSync('GET', '/api/maps/line/tileCount/null/' + tsId);
+  T.check('E9: asíncrono = síncrono (caché)', asin.status === 200 && sinc.status === 200 && JSON.stringify(asin.data) === JSON.stringify(sinc.data));
+  var fila = asin.data.find(function (x) { return x.tileId === t0id; });
+  T.check('E9: 87 filas en orden del tileset y usedCount correcto', asin.data.length === 87 && asin.data[0].tileId === sets[0].tiles[0].tileType._id && fila.usedCount === cuenta(null) && fila.usedCount > 0, [fila, cuenta(null)]);
+  var exc = RCJLocal.api.requestSync('GET', '/api/maps/line/tileCount/' + mid + '/' + tsId);
+  T.check('E9: excluye el mapa pedido', exc.data.find(function (x) { return x.tileId === t0id; }).usedCount === cuenta(mid));
+  var uno = await T.api('GET', '/api/maps/line/tileCount/null/' + tsId + '/' + t0id);
+  T.check('E9 variante con tileId', uno.data.usedCount === cuenta(null) && uno.data.expectMapId === null && uno.data.tileId === t0id, uno.data);
+  var listaMapas = await T.api('GET', '/api/competitions/' + cid + '/Line/maps');
+  T.check('B11: /competitions/:c/:league/maps', listaMapas.data.length === todos.length && listaMapas.data.every(function (m) { return Object.keys(m).sort().join() === '_id,competition,league,name'; }), listaMapas.data);
+
+  // ------------------------------------------------------------ ranking (D9 + 6.1.8)
+  var equipoA = equipos.find(function (t) { return t.name === 'IITA Salta'; });
+  var equipoB = equipos.find(function (t) { return t.name === 'Equipo B'; });
+  var r1 = rondas[0]._id;
+  var r2 = (await T.api('POST', '/api/rounds', { name: 'Ronda 2', competition: cid })).data.id;
+  async function crear(team, round, grupo, minutos) {
+    var n = await T.api('POST', '/api/runs/line', { round: round, team: team, field: canchas[0]._id, competition: cid, map: mid, normalizationGroup: grupo, startTime: 0 });
+    await T.api('GET', '/api/runs/line/' + n.data.id);
+    await T.api('PUT', '/api/runs/line/' + n.data.id, { showedUp: true, time: { minutes: minutos, seconds: 0 } });
+    return n.data.id;
+  }
+  var aR1 = await crear(equipoA._id, r1, 'R1', 1), aR2 = await crear(equipoA._id, r2, 'R2', 1);
+  var bR1 = await crear(equipoB._id, r1, 'R1', 2), bR2 = await crear(equipoB._id, r2, 'R2', 2);
+  var bulk = await T.api('PUT', '/api/runs/line/bulk', [{ _id: aR1, adjustment: 100 }, { _id: aR2, adjustment: 500 }, { _id: bR1, adjustment: 300 }, { _id: bR2, adjustment: 300 }]);
+  T.check('PUT bulk de adjustment', bulk.status === 200 && bulk.data.msg === 'All success: 4', bulk.data);
+  var rk = await T.api('GET', '/api/ranking/' + cid + '/Line');
+  T.check('ranking SUM: empate 40-40, desempata por tiempo (A primero)', rk.status === 200 && rk.data.mode === 'SUM_OF_BEST_N_GAMES' && rk.data.ranking.length === 2 &&
+    rk.data.ranking[0].team.name === 'IITA Salta' && rk.data.ranking[0].finalScore === 40 && rk.data.ranking[1].finalScore === 40, rk.data.ranking && rk.data.ranking.map(function (r) { return [r.team.name, r.finalScore, r.gameSum.time]; }));
+  T.igual('ranking SUM: runGroups = nombres de ronda', rk.data.runGroups, ['Ronda 1', 'Ronda 2']);
+  T.check('ranking SUM: games por ronda, used, victims y lops', Object.keys(rk.data.ranking[0].games).sort().join() === 'Ronda 1,Ronda 2' &&
+    rk.data.ranking[0].games['Ronda 1'].used === true && Array.isArray(rk.data.ranking[0].gameSum.victims) && rk.data.ranking[0].gameSum.lops === 0 &&
+    rk.data.ranking[0].gameSum.time.minutes === 2 && rk.data.modeDetails.nonNormalized === true, rk.data.ranking[0]);
+  var rk2 = await T.api('GET', '/api/ranking/' + cid + '/Line?desempate=6.1.8');
+  T.check('6.1.8: desempata por media de normalizados (B primero: 0.8333 vs 0.75)', rk2.data.desempate === '6.1.8' && rk2.data.ranking[0].team.name === 'Equipo B' &&
+    Math.abs(rk2.data.ranking[0].desempate6118 - 5 / 6) < 1e-12 && Math.abs(rk2.data.ranking[1].desempate6118 - 0.75) < 1e-12,
+    rk2.data.ranking && rk2.data.ranking.map(function (r) { return [r.team.name, r.desempate6118]; }));
+  var e12 = await T.api('GET', '/api/runs/line/competition/' + cid + '?normalized=true');
+  T.check('E12: score ajustado como string Decimal', e12.data.find(function (r) { return r._id === aR2; }).score === '30' && !('normalizedScore' in e12.data[0]));
+
+  var modoMedia = [{ league: 'Line', rule: '2026', mode: 'MEAN_OF_NORMALIZED_BEST_N_GAMES', num: 20, disclose: false }];
+  var pc = await T.api('PUT', '/api/competitions/' + cid, { leagues: modoMedia });
+  T.check('PUT competencia (modo de ranking)', pc.status === 200 && pc.data.msg === 'Settings has been saved', pc.data);
+  var rk3 = await T.api('GET', '/api/ranking/' + cid + '/Line');
+  T.check('ranking MEAN normalizado: B primero con 0.8333', rk3.data.mode === 'MEAN_OF_NORMALIZED_BEST_N_GAMES' && rk3.data.ranking[0].team.name === 'Equipo B' &&
+    Math.abs(rk3.data.ranking[0].finalScore - 5 / 6) < 1e-12 && rk3.data.modeDetails.normalized === true, rk3.data.ranking && rk3.data.ranking.map(function (r) { return [r.team.name, r.finalScore]; }));
+  T.igual('ranking MEAN: runGroups = grupos de normalización', rk3.data.runGroups, ['R1', 'R2']);
+  var e12n = await T.api('GET', '/api/runs/line/competition/' + cid + '?normalized=true');
+  var fa = e12n.data.find(function (r) { return r._id === aR1; });
+  T.check('E12 normalized: normalizedScore con score ajustado (10/20)', Math.abs(fa.normalizedScore - 0.5) < 1e-12, fa.normalizedScore);
+  var e10n = await T.api('GET', '/api/runs/line/' + aR2 + '?normalized=true');
+  T.check('E10 normalized: sin adjustment (5/5 = 1)', e10n.data.normalizedScore === 1, e10n.data.normalizedScore);
+  await T.api('PUT', '/api/competitions/' + cid, { leagues: [{ league: 'Line', rule: '2026', mode: 'GAMES_DOCUMENT_CHALLENGE', num: 20 }] });
+  var rkDoc = await T.api('GET', '/api/ranking/' + cid + '/Line');
+  T.check('modo con documentos fuera de v1 => 400', rkDoc.status === 400 && rkDoc.data.mode === 'GAMES_DOCUMENT_CHALLENGE', rkDoc);
+  await T.api('PUT', '/api/competitions/' + cid, { leagues: [{ league: 'Line', rule: '2026', mode: 'SUM_OF_BEST_N_GAMES', num: 20 }] });
+  var rkNL = await T.api('GET', '/api/ranking/' + cid + '/Maze');
+  T.check('ranking de liga no-Line => 404', rkNL.status === 404);
+
+  // ------------------------------------------------------------ E14 fotos
+  var png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+  await RCJLocal.api.guardarFotoEquipo(equipoA._id, 'teamPhoto', png);
+  var foto = await T.api('GET', '/api/document/inspection/files/' + equipoA._id + '/teamPhoto');
+  T.check('E14: foto como Blob image/png', foto.status === 200 && foto.data instanceof Blob && foto.data.type === 'image/png' && foto.data.size === 70 && foto.headers['Content-Type'] === 'image/png', [foto.status, foto.data && foto.data.size]);
+  var sinFoto = await T.api('GET', '/api/document/inspection/files/' + equipoA._id + '/robotPhoto');
+  T.check('E14: sin foto => 404', sinFoto.status === 404);
+  var tpub = await T.api('GET', '/api/competitions/' + cid + '/teams/' + equipoA._id);
+  T.check('las fotos no salen en las respuestas de equipo', tpub.status === 200 && tpub.data.name === 'IITA Salta' && !('teamPhoto' in tpub.data), tpub.data);
+  T.check('RCJLocal.api.fotoEquipo', (await RCJLocal.api.fotoEquipo(equipoA._id, 'teamPhoto')) === png);
+
+  // ------------------------------------------------------------ E8 y registrarRuta
+  RCJLocal.api.registrarRuta('POST', /^\/api\/maps\/line\/map-image-png$/, function (ctx) {
+    return { status: 200, data: new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]).buffer, headers: { 'Content-Type': 'image/png' } };
+  });
+  var e8 = await T.api('POST', '/api/maps/line/map-image-png', { tiles: {} });
+  T.check('registrarRuta: handler de E8 devuelve ArrayBuffer', e8.status === 200 && e8.data instanceof ArrayBuffer && e8.data.byteLength === 8);
+  var e8b = await T.api('POST', '/api/maps/line/scoresheet', { tiles: {} });
+  T.check('E8 sin handler => 501 con msg', e8b.status === 501 && typeof e8b.data.msg === 'string', e8b);
+  var e8c = await T.api('POST', '/api/maps/line/map-image-pdf', {});
+  T.check('E8 map-image-pdf sin tiles => 400 Invalid map data', e8c.status === 400 && e8c.data.msg === 'Invalid map data');
+
+  // ------------------------------------------------------------ borrados con reglas
+  var delMapa = await T.api('DELETE', '/api/maps/line/' + mid);
+  T.check('DELETE mapa con corrida empezada => 400', delMapa.status === 400 && delMapa.data.err === "Can't remove map with started run connected!", delMapa.data);
+  var runOtro = (await T.api('POST', '/api/runs/line', { round: r2, team: (await T.api('POST', '/api/teams', { name: 'Equipo C', league: 'Line', competition: cid })).data.id, field: canchas[0]._id, competition: cid, map: otro })).data.id;
+  var delOtro = await T.api('DELETE', '/api/maps/line/' + otro);
+  T.check('DELETE mapa sin corridas empezadas borra sus corridas', delOtro.status === 200 && delOtro.data.msg === 'Map has been removed!' && (await RCJLocal.store.get('lineRuns', runOtro)) === null);
+  T.check('la caché de tileCount se actualiza al borrar', RCJLocal.api.requestSync('GET', '/api/maps/line/tileCount/null/' + tsId).data.find(function (x) { return x.tileId === t0id; }).usedCount === cuenta(otro));
+
+  // ------------------------------------------------------------ respaldo
+  var resp = await RCJLocal.backup.exportar();
+  var cuentas = {};
+  Object.keys(resp.colecciones).forEach(function (k) { cuentas[k] = resp.colecciones[k].length; });
+  await T.resetear();
+  var imp = await RCJLocal.backup.importar(JSON.parse(JSON.stringify(resp)), { modo: 'reemplazar' });
+  T.igual('respaldo: reemplazar restaura todas las colecciones', imp.cuenta, cuentas);
+  var rkPost = await T.api('GET', '/api/ranking/' + cid + '/Line');
+  T.check('respaldo: el ranking responde igual tras restaurar', rkPost.status === 200 && rkPost.data.ranking[0].team.name === 'IITA Salta' && rkPost.data.ranking[0].finalScore === 40);
+  var imp2 = await RCJLocal.backup.importar(resp, { modo: 'fusionar' });
+  T.check('respaldo: fusionar', imp2.modo === 'fusionar' && (await RCJLocal.store.count('lineRuns')) === cuentas.lineRuns);
+  var mal = null;
+  try { await RCJLocal.backup.importar({}); } catch (e) { mal = e.message; }
+  T.check('respaldo inválido => error', mal === 'El archivo no es un respaldo de rcj-line-offline', mal);
+
+  // ------------------------------------------------------------ borrados en cascada
+  var delRun = await T.api('DELETE', '/api/runs/line/' + bR1);
+  T.check('DELETE corrida', delRun.status === 200 && delRun.data.msg === 'Run has been removed!' && (await RCJLocal.store.get('lineRuns', bR1)) === null);
+  var delEq = await T.api('DELETE', '/api/teams/' + equipoB._id);
+  T.check('DELETE equipo borra sus corridas', delEq.status === 200 && delEq.data.msg === 'Team has been removed!' && (await RCJLocal.store.get('lineRuns', bR2)) === null);
+  var delComp = await T.api('DELETE', '/api/competitions/' + cid);
+  T.check('DELETE competencia en cascada', delComp.status === 200 && delComp.data.msg === 'Competition has been removed!' &&
+    (await RCJLocal.store.count('lineRuns')) === 0 && (await RCJLocal.store.count('lineMaps')) === 0 && (await RCJLocal.store.count('teams')) === 0 &&
+    (await RCJLocal.store.count('rounds')) === 0 && (await RCJLocal.store.count('fields')) === 0 && (await RCJLocal.store.count('tileSets')) === 2);
+  return { persistente: RCJLocal.store.persistente, enMemoria: RCJLocal.store.enMemoria() };
+});
+</script>
+</body>
+</html>

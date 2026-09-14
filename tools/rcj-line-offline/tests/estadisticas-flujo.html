@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Estadísticas — flujo con datos sintéticos</title>
+<!--
+  Siembra el fixture oficial (analysis/fixture-mapa-oficial.json) y 7 corridas con patrones conocidos por la API
+  local (POST + GET + PUT, igual que el juez), adultera a mano el score guardado de una, y verifica:
+  A) puntajes que calcula el servidor contra la cuenta a mano;
+  B) RCJEstadisticas.calcular: tabla por tipo, mapa de calor por índice y por baldosa física, LoPs por tramo,
+     víctimas, exit bonus, tiempo, evolución, mejor/peor/promedio, consistencia y filtros;
+  C) CSV Excel y estándar;
+  D) baldosa con dos pasadas (mapa derivado en memoria);
+  E) la página estadisticas.html en un iframe (DOM, filtros, selección, exportación, deep link ?map=).
+  La cuenta a mano está documentada en cambios/estadisticas.md §4.
+-->
+<script src="estadisticas-comun.js"></script>
+<script src="../local/config.js"></script>
+<script src="../local/io-shim.js"></script>
+<script src="../local/nucleo/store.js"></script>
+<script src="../local/nucleo/pathfinder-servidor.js"></script>
+<script src="../local/nucleo/init-run.js"></script>
+<script src="../local/nucleo/score-2026.js"></script>
+<script src="../local/nucleo/copy-properties.js"></script>
+<script src="../local/nucleo/api.js"></script>
+<script src="../local/nucleo/ranking.js"></script>
+<script src="../local/estadisticas/calculo.js"></script>
+<script src="../local/estadisticas/csv.js"></script>
+<script src="../local/estadisticas/graficos.js"></script>
+<style>#marcos iframe { margin-top: 8px; }</style>
+</head>
+<body>
+<pre id="resultado">PENDIENTE</pre>
+<div id="marcos"></div>
+<script>
+var E = RCJEstadisticas;
+var HORA = 3600000;
+var DIA1 = new Date(2026, 8, 1, 10, 0).getTime();
+var DIA2 = new Date(2026, 8, 5, 11, 30).getTime();
+var DIA3 = new Date(2026, 8, 12, 9, 15).getTime();
+// Índices del fixture: 1 speedbump, 3 intersección, 4 gap, 5 CP1, 6 obstáculo, 7 rampa, 8 seesaw, 10 CP2, 13 meta.
+var TODOS = [1, 3, 4, 5, 6, 7, 8, 10];
+function sin(lista) { return TODOS.filter(function (i) { return lista.indexOf(i) < 0; }); }
+function V(t, z) { return { victimType: t, zoneType: z }; }
+var M4 = (1350 * 1350 * 1350 * 1350) / 1e12;
+var SPEC = [
+  { n: 'R1', eq: 'IITA', ronda: 'Ronda 1', fecha: DIA1, status: 4, ok: sin([4]), LoPs: [1, 0, 0], exit: true, resc: [V('LIVE', 'GREEN'), V('LIVE', 'GREEN'), V('DEAD', 'RED')], seg: 300, esp: { raw: 185, mult: 2.744, score: 508 } },
+  { n: 'R2', eq: 'IITA', ronda: 'Ronda 2', fecha: DIA1 + HORA, status: 4, ok: sin([4, 8]), LoPs: [2, 1, 3], exit: true, resc: [V('LIVE', 'GREEN'), V('DEAD', 'RED'), V('LIVE', 'RED')], seg: 480, esp: { raw: 105, mult: 1.25, score: 131 } },
+  { n: 'R3', eq: 'B', ronda: 'Ronda 1', fecha: DIA2, status: 3, ok: sin([4, 6, 8, 10]), LoPs: [0, 4, 0], exit: false, resc: [], seg: 480, esp: { raw: 60, mult: 1, score: 60 } },
+  { n: 'R4', eq: 'IITA', ronda: 'Ronda 3', fecha: DIA2 + HORA, status: 6, ok: TODOS, LoPs: [0, 0, 1], exit: true, resc: [V('LIVE', 'GREEN'), V('LIVE', 'GREEN'), V('KIT', 'GREEN'), V('DEAD', 'RED')], seg: 250, esp: { raw: 199, mult: M4, score: 661 } },
+  { n: 'R5', eq: 'B', ronda: 'Ronda 2', fecha: DIA3, status: 4, ok: sin([4, 8]), LoPs: [1, 1, 0], exit: false, resc: [V('DEAD', 'GREEN'), V('LIVE', 'GREEN')], seg: 480, esp: { raw: 85, mult: 1.4, score: 119 } },
+  { n: 'R6', eq: 'IITA', ronda: 'Ronda 4', fecha: DIA3 + HORA, status: 4, ok: sin([4, 6]), LoPs: [0, 2, 0], exit: false, resc: [], seg: 480, esp: { raw: 85, mult: 1, score: 85 }, adulterar: 90 },
+  { n: 'R7', eq: 'B', ronda: 'Ronda 3', fecha: DIA3 + 2 * HORA, status: 2, ok: [1], LoPs: [3, 0, 0], exit: false, resc: [], seg: 100, esp: { raw: 15, mult: 1, score: 15 } }
+];
+
+T.correr(async function () {
+  // ------------------------------------------------------------------ siembra
+  T.paso('siembra');
+  await T.resetear();
+  var sem = await RCJLocal.semillas();
+  var cid = sem.competencia;
+  var fixture = await (await fetch('estadisticas-fixture-mapa-oficial.json')).json();
+  var mapId = await RCJLocal.ingestMap(fixture, { competition: cid, league: 'Line' });
+  var equipos = { IITA: (await RCJLocal.store.list('teams'))[0]._id };
+  var rB = await T.api('POST', '/api/teams', { name: 'Equipo B', league: 'Line', competition: cid, teamCode: '' });
+  T.check('alta Equipo B', rB.status === 201, rB);
+  equipos.B = (await RCJLocal.store.list('teams', function (t) { return t.name === 'Equipo B'; }))[0]._id;
+  for (var k = 2; k <= 4; k++) await T.api('POST', '/api/rounds', { name: 'Ronda ' + k, competition: cid });
+  var rondas = {};
+  (await RCJLocal.store.list('rounds')).forEach(function (r) { rondas[r.name] = r._id; });
+  var cancha = (await RCJLocal.store.list('fields'))[0]._id;
+
+  T.paso('corridas por la API');
+  var ids = {};
+  for (var i = 0; i < SPEC.length; i++) {
+    var s = SPEC[i];
+    var alta = await T.api('POST', '/api/runs/line', { round: rondas[s.ronda], team: equipos[s.eq], field: cancha, competition: cid, map: mapId, startTime: s.fecha });
+    T.check(s.n + ': POST 201', alta.status === 201, alta);
+    var id = alta.data.id;
+    ids[s.n] = id;
+    var g = (await T.api('GET', '/api/runs/line/' + id + '?populate=true')).data;
+    var tiles = g.tiles.map(function (t, idx) {
+      return Object.assign({}, t, { scoredItems: t.scoredItems.map(function (it) { return Object.assign({}, it, { scored: s.ok.indexOf(idx) >= 0 }); }) });
+    });
+    var put = await T.api('PUT', '/api/runs/line/' + id, {
+      tiles: tiles, LoPs: s.LoPs, exitBonus: s.exit, rescueOrder: s.resc, showedUp: true,
+      time: { minutes: Math.floor(s.seg / 60), seconds: s.seg % 60 }, status: s.status
+    });
+    T.check(s.n + ': PUT 200', put.status === 200, put);
+    var guardada = await RCJLocal.store.get('lineRuns', id);
+    T.igual(s.n + ': servidor raw/score/multiplicador = cuenta a mano', [guardada.raw_score, guardada.score, guardada.multiplier, guardada.status], [s.esp.raw, s.esp.score, s.esp.mult, s.status]);
+    if (s.adulterar != null) {
+      guardada.score = s.adulterar; // simula un puntaje guardado desactualizado
+      await RCJLocal.store.put('lineRuns', guardada);
+    }
+  }
+
+  // ------------------------------------------------------------------ B) cálculo
+  T.paso('cálculo');
+  var datos = await E.cargarDatos();
+  var res = E.calcular(datos, { competition: cid, map: mapId, estadoMinimo: 3 });
+  T.igual('n corridas (estado ≥ 3)', [res.n, res.nValidas], [6, 6]);
+  T.igual('maxRaw del mapa (E7)', res.mapa.maxRaw, 210);
+  var tipos = {};
+  res.tablaTipos.forEach(function (t) { tipos[t.tipo] = [t.intentos, t.logrados, t.posibles, t.obtenidos, t.perdidos]; });
+  T.igual('tabla por tipo', tipos, {
+    gap: [6, 1, 60, 10, 50], intersection: [6, 6, 60, 60, 0], obstacle: [6, 4, 120, 80, 40], ramp: [6, 6, 60, 60, 0],
+    seesaw: [6, 3, 120, 60, 60], speedbump: [6, 6, 60, 60, 0], checkpoint: [12, 11, 300, 195, 105],
+    meta: [6, 3, 90, 24, 66], exitBonus: [6, 3, 360, 140, 220], inicio: [6, 6, 30, 30, 0]
+  });
+  T.cerca('% gap', res.tablaTipos.filter(function (t) { return t.tipo === 'gap'; })[0].pct, 100 / 6);
+  T.igual('total obtenidos = suma de raw', res.totalLinea.obtenidos, 185 + 105 + 60 + 199 + 85 + 85);
+
+  var pctIndice = res.heat.indices.map(function (d) { return d.total.pct == null ? null : Math.round(d.total.pct * 100) / 100; });
+  T.igual('heat por índice (% redondeado a 2)', pctIndice, [null, 100, null, 100, 16.67, 100, 66.67, 100, 50, null, 83.33, null, null, 50]);
+  T.igual('heat índice 13 = meta + exit bonus', [res.heat.indices[13].total.intentos, res.heat.indices[13].total.logrados], [12, 6]);
+  var bGap = res.heat.baldosas['2,2,0'];
+  T.igual('baldosa física 2,2,0 (gap)', [bGap.indices, bGap.total.intentos, bGap.total.logrados, bGap.pasadas.length, bGap.pasadas[0].fallas.length], [[4], 6, 1, 1, 5]);
+  T.igual('fallas del CP1 (parciales por LoPs)', res.heat.baldosas['2,3,0'].pasadas[0].fallas.map(function (x) { return x.perdidos; }).sort(), [10, 10, 20]);
+  T.igual('baldosas de la zona sin índice', [res.heat.baldosas['3,1,1'].indices.length, res.heat.baldosas['3,1,1'].total.pct], [0, null]);
+
+  T.igual('LoPs por tramo', res.tramos.map(function (t) {
+    return [t.nombre, t.esZona, Math.round(t.promedio * 1e4) / 1e4, t.maximo, t.distribucion, t.perdidosPorLops];
+  }), [
+    ['Inicio → CP1', false, 0.6667, 2, { '0': 3, '1': 2, '2': 1, '3+': 0 }, 40],
+    ['CP1 → CP2', false, 1.3333, 4, { '0': 2, '1': 2, '2': 1, '3+': 1 }, 40],
+    ['CP2 → Meta', true, 0.6667, 3, { '0': 4, '1': 1, '2': 0, '3+': 1 }, 21]
+  ]);
+
+  var v = res.victimas;
+  T.igual('víctimas: conteos', [v.corridas, v.registradas, v.efectivas, v.zonaErronea, v.vivaEnRoja, v.muertaEnVerde, v.muertaAntes, v.kit, v.maximoPosible], [6, 12, 9, 2, 1, 1, 1, 1, 18]);
+  T.igual('víctimas: % efectivas y sobre máximo', [v.pctEfectivas, v.pctSobreMaximo], [75, 50]);
+  T.cerca('multiplicador promedio', v.multiplicadorPromedio, (2.744 + 1.25 + 1 + M4 + 1.4 + 1) / 6);
+  T.cerca('multiplicador promedio con rescate', v.multiplicadorPromedioConRescate, (2.744 + 1.25 + M4 + 1.4) / 4);
+  T.cerca('multiplicador teórico sin LoPs de zona', v.multiplicadorPromedioSinLopsZona, (Math.pow(1.4, 3) + 1.4 + Math.pow(1.4, 4) + 1.4) / 4);
+
+  T.igual('exit bonus', [res.exitBonus.n, res.exitBonus.pct], [3, 50]);
+  T.cerca('exit bonus puntos promedio', res.exitBonus.puntosPromedio, 140 / 6);
+  T.igual('tiempo mín/máx', [res.tiempo.n, res.tiempo.peor, res.tiempo.mejor], [6, 250, 480]);
+  T.cerca('tiempo promedio', res.tiempo.promedio, 2470 / 6);
+  T.cerca('LoPs por corrida', res.lops.promedio, 16 / 6);
+  T.igual('score guardado mejor/peor/promedio', [res.score.mejor, res.score.peor, res.score.promedio, res.score.mejorCorrida.runId, res.score.peorCorrida.runId], [661, 60, 261.5, ids.R4, ids.R3]);
+  T.cerca('raw promedio', res.raw.promedio, 719 / 6);
+  T.igual('serie ordenada por fecha', res.serie.map(function (p) { return [p.score, p.raw]; }), [[508, 185], [131, 105], [60, 60], [661, 199], [119, 85], [90, 85]]);
+  T.igual('consistencia: solo R6 difiere', res.inconsistentes.map(function (a) { return [a._id, a.guardado.score, a.recalculado.score]; }), [[ids.R6, 90, 85]]);
+  T.igual('desglose === raw de CALC en todas', res.corridas.every(function (a) { return a.desglose.raw === a.recalculado.raw_score && a.avisos.length === 0; }), true);
+
+  var filtro = function (extra) { return E.calcular(datos, Object.assign({ competition: cid, map: mapId, estadoMinimo: 3 }, extra)).n; };
+  T.igual('filtros: estado ≥0, ≥6, equipo B, ronda 1, 05-09, sin mapa', [
+    filtro({ estadoMinimo: 0 }), filtro({ estadoMinimo: 6 }), filtro({ team: equipos.B }), filtro({ round: rondas['Ronda 1'] }),
+    filtro({ desde: '2026-09-05', hasta: '2026-09-05' }), filtro({ desde: '2026-09-06' }), filtro({ map: '' })
+  ], [7, 1, 2, 2, 2, 2, 6]);
+  T.igual('sin mapa elegido: sin heat ni tramos', (function () { var r = E.calcular(datos, { competition: cid, map: '', estadoMinimo: 3 }); return [r.heat, r.tramos, r.tablaTipos.length]; })(), [null, null, 10]);
+
+  // ------------------------------------------------------------------ C) CSV
+  T.paso('CSV');
+  var excel = E.csv.corridas(res, 'excel');
+  var estandar = E.csv.corridas(res, 'estandar');
+  var lx = excel.split('\r\n'), ls = estandar.split('\r\n');
+  T.igual('CSV Excel: BOM, CRLF, 1 + 6 filas', [excel.charCodeAt(0), lx.length, lx[lx.length - 1]], [0xFEFF, 8, '']);
+  T.igual('CSV Excel: encabezado', lx[0], '﻿fecha;equipo;ronda;cancha;mapa;estado;LoPs por tramo;LoPs total;víctimas efectivas;víctimas registradas;exit bonus;tiempo (s);raw guardado;multiplicador guardado;score guardado;ajuste (%);raw recalculado;multiplicador recalculado;score recalculado;consistente;avisos;id');
+  var filaR4 = lx.filter(function (l) { return l.indexOf(ids.R4) >= 0; })[0].split(';');
+  T.igual('CSV Excel: fila R4', filaR4, ['2026-09-05 12:30', 'IITA Salta', 'Ronda 3', 'Cancha 1', 'IITA Fixture 2026', '6. Aprobada', '0|0|1', '1', '4', '4', 'sí', '250', '199', '3,32150625', '661', '0', '199', '3,32150625', '661', 'sí', '', ids.R4]);
+  var filaR6 = lx.filter(function (l) { return l.indexOf(ids.R6) >= 0; })[0].split(';');
+  T.igual('CSV Excel: fila R6 inconsistente', [filaR6[14], filaR6[18], filaR6[19]], ['90', '85', 'no']);
+  T.igual('CSV Excel: multiplicador 2,744 y 1,25', [lx.filter(function (l) { return l.indexOf(ids.R1) >= 0; })[0].split(';')[13], lx.filter(function (l) { return l.indexOf(ids.R2) >= 0; })[0].split(';')[13]], ['2,744', '1,25']);
+  var filaR4e = ls.filter(function (l) { return l.indexOf(ids.R4) >= 0; })[0].split(',');
+  T.igual('CSV estándar: sin BOM, coma y punto decimal', [estandar.charCodeAt(0) === 0xFEFF, ls.length, filaR4e[13], filaR4e.length], [false, 8, '3.32150625', 22]);
+  var pas = E.csv.pasadas(res, 'excel').split('\r\n');
+  T.igual('CSV pasadas Excel: fila del gap', pas.filter(function (l) { return l.indexOf(';Gap;') >= 0; }), ['IITA Fixture 2026;4;2,2,0;Inicio → CP1;Gap;6;1;16,7;60;10;50']);
+  T.igual('CSV: protección de fórmulas y comillas', [E.csv.armar([['=1+1', { n: 1.5 }, 'a;b', 'di "x"']], 'excel'), E.csv.armar([['=1+1', { n: 1.5 }, 'a,b']], 'estandar')],
+    ['﻿\'=1+1;1,5;"a;b";"di ""x"""\r\n', '=1+1,1.5,"a,b"\r\n']);
+
+  // ------------------------------------------------------------------ D) baldosa con dos pasadas (en memoria)
+  T.paso('dos pasadas');
+  var mapaDoc = datos.maps.filter(function (m) { return m._id === mapId; })[0];
+  var mod = JSON.parse(JSON.stringify(mapaDoc));
+  mod._id = 'mapamultipasada000000001';
+  mod.name = 'Fixture con dos pasadas';
+  mod.tiles.forEach(function (t) {
+    var key = t.x + ',' + t.y + ',' + t.z;
+    if (key === '2,1,0') t.index = [3, 9];
+    if (key === '6,3,1') t.index = [];
+  });
+  var prep = E.prepararMapa(mod, datos.tipos);
+  T.check('IRD sobre el mapa derivado: índice 9 = intersección', prep.esperada && prep.esperada.items[9] === 'intersection:1', prep.esperada && prep.esperada.items);
+  var corridasMod = [];
+  for (var q = 0; q < 2; q++) {
+    var run = { _id: 'corridamultipasada00000' + q, competition: cid, team: equipos.IITA, round: rondas['Ronda 1'], field: cancha, map: mod._id,
+      status: 4, started: false, showedUp: true, exitBonus: false, rescueOrder: [], nl: { liveVictim: [], deadVictim: [] }, isNL: false,
+      startTime: DIA3 + q * HORA, time: { minutes: 8, seconds: 0 } };
+    await RCJLocal.initLine(run, prep.doc, '2026', false);
+    // IRD deja run.map poblado y precarga rescueOrder: en la base la corrida guarda el id del mapa
+    run.map = mod._id;
+    run.rescueOrder = [];
+    run.started = true;
+    run.tiles.forEach(function (t, idx) { t.scoredItems.forEach(function (it) { it.scored = idx === 3 || (q === 1 && idx === 9); }); });
+    var calc = RCJLocal.calculateLineScore(Object.assign({}, run, { map: prep.doc }));
+    run.score = calc.score; run.raw_score = calc.raw_score; run.multiplier = calc.multiplier;
+    corridasMod.push(run);
+  }
+  var datos2 = Object.assign({}, datos, { maps: [mod], runs: corridasMod });
+  var res2 = E.calcular(datos2, { competition: cid, map: mod._id, estadoMinimo: 3 });
+  var b2 = res2.heat.baldosas['2,1,0'];
+  T.igual('dos pasadas: baldosa física 2,1,0', [b2.indices, b2.total.intentos, b2.total.logrados, b2.total.pct, b2.pasadas.map(function (d) { return d.total.pct; })], [[3, 9], 4, 3, 75, [100, 50]]);
+  T.igual('dos pasadas: consistentes y raw 15/25', res2.corridas.map(function (a) { return [a.consistente, a.recalculado.raw_score]; }), [[true, 15], [true, 25]]);
+
+  // ------------------------------------------------------------------ E) página
+  T.paso('página');
+  var f = await T.cargarIframe('../estadisticas.html?map=' + mapId, { ancho: 1366, alto: 900 });
+  var w = f.contentWindow, d = f.contentDocument;
+  var sc = await T.esperarQue(function () { var s0 = T.scope(f); return s0 && !s0.estado.cargando && s0.res ? s0 : null; }, 20000, 'carga de estadisticas.html');
+  await T.esperar(400);
+  T.igual('deep link ?map=: competencia y mapa', [sc.f.competition, sc.f.map], [cid, mapId]);
+  T.igual('KPIs', ['#kpiCorridas', '#kpiScore', '#kpiRaw', '#kpiExit', '#kpiTiempo', '#kpiLops', '#kpiRescates', '#kpiMultiplicador'].map(function (s0) { return d.querySelector(s0).textContent.trim(); }),
+    ['6', '261,5', '119,8', '50 %', '6:52', '2,67', '75 %', '×1,786']);
+  T.igual('tabla de corridas: 6 filas, 1 inconsistente, más nueva primero', [d.querySelectorAll('#tablaCorridas tbody tr').length, d.querySelectorAll('#tablaCorridas .fila-inconsistente').length, d.querySelector('#tablaCorridas tbody tr').getAttribute('data-run')], [6, 1, ids.R6]);
+  var filaVista = d.querySelector('#tablaCorridas tbody tr[data-run="' + ids.R4 + '"] .btn-tactil.ver');
+  var filaJuez = d.querySelector('#tablaCorridas tbody tr[data-run="' + ids.R4 + '"] .btn-tactil.juez');
+  T.check('links a vista.html y juez.html', /vista\.html\?run=/.test(filaVista.getAttribute('href')) && filaVista.getAttribute('href').indexOf(ids.R4) >= 0 && /juez\.html\?run=/.test(filaJuez.getAttribute('href')), [filaVista.getAttribute('href'), filaJuez.getAttribute('href')]);
+  T.igual('tabla por tipo (DOM): fila gap', Array.prototype.map.call(d.querySelectorAll('#tablaTipos tr[data-tipo="gap"] td'), function (td) { return td.textContent.trim(); }), ['Gap', '6', '1', '16,7 %', '60', '50']);
+  T.igual('consistencia (DOM)', d.querySelectorAll('#listaInconsistentes li').length, 1);
+
+  var slot = function (key) { return d.querySelector('#mapaCalor .est-slot[data-key="' + key + '"]'); };
+  var pctDe = function (key) { var el = slot(key); var p = el && el.querySelector('.est-pct'); return el ? (p ? p.textContent.trim() : '') : 'no está'; };
+  T.igual('heat piso 0: gap 17 %, CP1 100 %, obstáculo 67 %, lomo 100 %, recta sin elementos', [pctDe('2,2,0'), pctDe('2,3,0'), pctDe('3,3,0'), pctDe('1,0,0'), pctDe('0,0,0'), pctDe('5,3,1')], ['17 %', '100 %', '67 %', '100 %', '', 'no está']);
+  var imgGap = slot('2,2,0').querySelector('img.tile-image');
+  T.igual('heat: imagen, rotación y color de la baldosa', [imgGap.getAttribute('src'), imgGap.classList.contains('rot270'), slot('2,2,0').querySelector('.est-pct').style.backgroundColor.replace(/\s/g, '')],['images/tiles/tile-20.png', true, E.colorExito(100 / 6)]);
+  T.check('heat: imagen cargada', await T.esperarQue(function () { return imgGap.complete && imgGap.naturalWidth > 0; }, 5000, 'imagen de baldosa'));
+  T.igual('heat: CP numerado y lomo dibujado', [slot('2,3,0').querySelector('.est-cp').textContent, slot('1,0,0').querySelectorAll('.est-lomo').length, slot('2,3,0').querySelector('img').classList.contains('drop-tile')], ['1', 1, true]);
+  T.check('heat: tooltip con detalle por elemento', /Gap: 1\/6 \(16,7 %\)/.test(slot('2,2,0').getAttribute('title')), slot('2,2,0').getAttribute('title'));
+  T.igual('tira: 14 índices y marca de zona', [d.querySelectorAll('#tiraRecorrido .celda-indice').length, d.querySelectorAll('#tiraRecorrido .marca-zona').length], [14, 1]);
+  T.check('LoPs: tramo de evacuación marcado', d.querySelector('#graficoLops').textContent.indexOf('ZONA DE EVACUACIÓN') >= 0 && d.querySelectorAll('#tablaTramos .est-fila-zona').length === 1);
+
+  // piso 1 con clic real
+  Array.prototype.filter.call(d.querySelectorAll('.est-piso'), function (b0) { return b0.textContent.indexOf('Piso 1') >= 0; })[0].click();
+  await T.esperar(200);
+  T.igual('piso 1: seesaw 50 %, CP2 83 %, meta 50 %, zona sin %', [pctDe('5,3,1'), pctDe('6,2,1'), pctDe('0,1,1'), pctDe('3,1,1'), pctDe('2,2,0')], ['50 %', '83 %', '50 %', '', 'no está']);
+  T.check('piso 1: cinta de entrada a la zona', !!slot('5,1,1').querySelector('img[src="images/tiles/ev-entrance.png"]'));
+
+  // selección desde la tira (clic en el índice 4 -> vuelve al piso 0)
+  d.querySelector('#tiraRecorrido .celda-indice[data-indice="4"] rect').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  await T.esperar(200);
+  T.igual('clic en la tira: selecciona 2,2,0 en el piso 0', [sc.vista.piso, sc.vista.seleccion && sc.vista.seleccion.key, d.querySelectorAll('#detalleBaldosa .est-falla').length, !!slot('2,2,0') && slot('2,2,0').classList.contains('seleccionada')], [0, '2,2,0', 5, true]);
+  T.check('tira: celda activa marcada', d.querySelector('#tiraRecorrido .celda-indice[data-indice="4"]').classList.contains('activa'));
+  slot('2,3,0').click();
+  await T.esperar(200);
+  T.igual('clic en la baldosa CP1: 3 corridas con puntos perdidos', [sc.vista.seleccion.key, d.querySelectorAll('#detalleBaldosa .est-falla').length], ['2,3,0', 3]);
+
+  // evolución: puntero sobre la capa
+  var svgEv = d.querySelector('#graficoEvolucion svg');
+  var capa = svgEv.querySelector('.capa-hover').getBoundingClientRect();
+  svgEv.querySelector('.capa-hover').dispatchEvent(new w.PointerEvent('pointermove', { bubbles: true, clientX: capa.right - 2, clientY: capa.top + 10, pointerType: 'mouse' }));
+  T.igual('evolución: 6 puntos y tarjetita de la última corrida', [svgEv.querySelectorAll('.punto').length, d.querySelector('#tipEvolucion').hidden, /score 90/.test(d.querySelector('#tipEvolucion').textContent)], [6, false, true]);
+
+  // filtros en la página
+  sc.$apply(function () { sc.f.estadoMinimo = 0; sc.recalcular(); });
+  T.igual('filtro estado ≥ 0: 7 filas y URL', [d.querySelectorAll('#tablaCorridas tbody tr').length, /estado=0/.test(w.location.search)], [7, true]);
+  var selEquipo = d.getElementById('filtroEquipo');
+  selEquipo.value = Array.prototype.filter.call(selEquipo.options, function (o) { return o.textContent === 'Equipo B'; })[0].value;
+  selEquipo.dispatchEvent(new w.Event('change'));
+  await T.esperar(100);
+  T.igual('filtro equipo B por el select: 3 filas', [sc.f.team, d.querySelectorAll('#tablaCorridas tbody tr').length], [equipos.B, 3]);
+  d.getElementById('botonLimpiarFiltros').click();
+  await T.esperar(100);
+  T.igual('limpiar filtros', [sc.f.team, sc.f.estadoMinimo, d.querySelectorAll('#tablaCorridas tbody tr').length], ['', 3, 6]);
+  sc.$apply(function () { sc.fechas.desde = new Date(2026, 8, 5); sc.fechas.hasta = new Date(2026, 8, 5); sc.cambioFechas(); });
+  T.igual('filtro de fechas por el input date', [sc.f.desde, sc.f.hasta, sc.res.n], ['2026-09-05', '2026-09-05', 2]);
+  sc.$apply(function () { sc.limpiarFiltros(); });
+  var selMapa = d.getElementById('filtroMapa');
+  selMapa.value = '';
+  selMapa.dispatchEvent(new w.Event('change'));
+  await T.esperar(100);
+  T.igual('mapa «Todos»: sin mapa de calor, columna Mapa', [sc.f.map, !!d.getElementById('mapaCalor'), d.querySelectorAll('#tablaCorridas thead th').length], ['', false, 14]);
+  sc.$apply(function () { sc.f.map = mapId; sc.recalcular(); });
+
+  // exportación desde la página (sin descargar de verdad)
+  var capturados = [];
+  w.RCJEstadisticas.csv.descargar = function (texto, nombre) { capturados.push({ texto: texto, nombre: nombre }); return nombre; };
+  d.getElementById('exportarCorridas').click();
+  d.getElementById('formatoEstandar').click();
+  d.getElementById('exportarPasadas').click();
+  await T.esperar(100);
+  T.igual('exportar desde la página: nombres y formatos', capturados.map(function (c) { return [/^rcj-estadisticas-corridas-\d{4}-\d{2}-\d{2}-excel\.csv$/.test(c.nombre) || /^rcj-estadisticas-pasadas-\d{4}-\d{2}-\d{2}\.csv$/.test(c.nombre), c.texto.charCodeAt(0) === 0xFEFF]; }), [[true, true], [true, false]]);
+  T.igual('exportar corridas = CSV del cálculo', capturados[0].texto, excel);
+
+  // dos pasadas en la página (datos en memoria)
+  sc.$apply(function () { sc.usarDatos(datos2); sc.f.map = mod._id; sc.recalcular(); });
+  await T.esperar(100);
+  T.igual('dos pasadas en la página: física 75 %', pctDe('2,1,0'), '75 %');
+  d.getElementById('modoPasada').click();
+  await T.esperar(100);
+  var selP = d.getElementById('selectorPasada');
+  T.igual('selector de pasadas', [selP.options.length, pctDe('2,1,0')], [2, '100 %']);
+  selP.value = selP.options[1].value;
+  selP.dispatchEvent(new w.Event('change'));
+  await T.esperar(100);
+  T.igual('pasada 2: 50 % y 6,3,1 sin índice', [pctDe('2,1,0'), sc.vista.pasada], ['50 %', 1]);
+  sc.$apply(function () { sc.seleccionarKey('2,1,0'); });
+  T.igual('detalle con dos pasadas', d.querySelectorAll('#detalleBaldosa .est-pasada').length, 2);
+
+  return { ids: ids, mapId: mapId, competencia: cid };
+});
+</script>
+</body>
+</html>

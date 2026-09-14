@@ -1,0 +1,50 @@
+/*
+ * rcj-line-offline — área estadísticas. Ajustes para celular (Chrome Android, 412×915, táctil) de
+ * estadisticas.html. Solo actúan en pantallas angostas (≤ 576 px); en tablet y notebook no cambian nada.
+ * Criterio: nada recortado ni fuera de la pantalla (medido por tests/estadisticas-captura.html) y controles
+ * de al menos ~44 px para el dedo. Las tablas anchas y el recorrido se desplazan dentro de su tarjeta.
+ */
+@media (max-width: 576px) {
+  .pagina-estadisticas .premium-navbar .nav-user-link {
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .pagina-estadisticas .premium-breadcrumb .breadcrumb-item { display: inline-flex; align-items: center; min-height: 40px; }
+  .pagina-estadisticas .hero-title { font-size: 1.8rem; }
+  .pagina-estadisticas .hero-actions .btn-hero-local { min-height: 44px; }
+  .pagina-estadisticas .modern-card-body { padding: 0.9rem 0.75rem; }
+
+  /* filtros en dos columnas, controles altos */
+  .pagina-estadisticas .est-filtros { grid-template-columns: 1fr 1fr; gap: 0 0.6rem; }
+  .pagina-estadisticas .est-filtros .form-control { min-height: 44px; font-size: 16px; }
+  .pagina-estadisticas .est-filtros-accion { grid-column: 1 / -1; }
+  .pagina-estadisticas .est-filtros-accion .btn-tactil { min-height: 44px; }
+
+  .est-kpis { grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+  .est-kpi { padding: 0.6rem 0.7rem; }
+  .est-kpi-valor { font-size: 1.35rem; }
+
+  /* mapa de calor: baldosas de 44 px (un mapa de 7 columnas entra sin desplazar) */
+  .pagina-estadisticas .btn-group.est-grupo .btn { min-height: 44px; }
+  .est-select-pasada { min-height: 44px; font-size: 16px; }
+  .est-leyenda { margin-left: 0; width: 100%; }
+  .est-leyenda svg { max-width: 100%; height: auto; }
+  .est-slot, .est-slot .tile-image { width: 44px; height: 44px; }
+  .est-slot { margin: 0 1px 1px 0; }
+  .est-pct { font-size: 10px; line-height: 14px; padding: 0 3px; bottom: 2px; }
+  .est-icono { font-size: 10px; }
+  .est-detalle { min-width: 0; flex-basis: 100%; }
+  .est-cerrar { min-width: 44px; min-height: 44px; }
+  .est-fallas .btn-tactil, #listaInconsistentes .btn-tactil { min-width: 44px; min-height: 44px; justify-content: center; }
+
+  /* exportar: botones a lo ancho */
+  .est-exportar .est-grupo { width: 100%; display: flex; }
+  .est-exportar .est-grupo .btn { flex: 1 1 50%; font-size: 0.85rem; }
+  .est-exportar > .btn-tactil { flex: 1 1 100%; min-height: 44px; justify-content: center; }
+
+  .est-acciones .btn-tactil { min-width: 44px; min-height: 44px; justify-content: center; }
+  .est-tabla { font-size: 0.85rem; }
+}

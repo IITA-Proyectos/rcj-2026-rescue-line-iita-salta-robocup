@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Backend T1 — vectores 2026</title>
+<script src="backend-comun.js"></script>
+<script src="../local/config.js"></script>
+<script src="../local/nucleo/score-2026.js"></script>
+</head>
+<body>
+<h1>T1: 39 vectores con calculateLineScore verbatim</h1>
+<pre id="resultado">PENDIENTE</pre>
+<script>
+T.correr(async function () {
+  var vectores = await T.fixture('test-vectors-2026.json');
+  T.check('hay 39 vectores', vectores.length === 39, vectores.length);
+  var ok = 0;
+  var detalle = [];
+  vectores.forEach(function (v) {
+    var run = JSON.parse(JSON.stringify(v.run));
+    var got = RCJLocal.calculateLineScore(run);
+    var e = v.esperado_codigo;
+    var igual = !!got && got.raw_score === e.raw_score && got.score === e.score && got.multiplier === e.multiplier;
+    if (igual) ok++;
+    else detalle.push({ nombre: v.nombre, obtenido: got, esperado: e });
+    T.check('T1 ' + v.nombre, igual, { obtenido: got, esperado: e });
+  });
+  // despachador verbatim (scoreCalculator.js:12-19) con la regla 2026
+  var v17 = JSON.parse(JSON.stringify(vectores.find(function (v) { return /^V17/.test(v.nombre); }).run));
+  v17.team = { league: 'Line' };
+  v17.competition = { leagues: [{ league: 'Line', rule: '2026' }] };
+  var d = RCJLocal.calculateScore(v17);
+  T.check('despachador calculateScore(rule 2026) = V17', d && d.score === 288 && d.raw_score === 105 && d.multiplier === 2.744, d);
+  T.check('Math.round(12.5) = 13 en V30', (function () {
+    var v30 = vectores.find(function (v) { return /^V30/.test(v.nombre); });
+    return RCJLocal.calculateLineScore(JSON.parse(JSON.stringify(v30.run))).score === 13;
+  })());
+  return { vectores_ok: ok + '/' + vectores.length, diferencias: detalle };
+});
+</script>
+</body>
+</html>

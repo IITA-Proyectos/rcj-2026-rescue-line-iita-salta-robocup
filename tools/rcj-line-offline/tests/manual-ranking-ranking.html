@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>manual-ranking — ranking con empate, normalización, desempate 6.1.8 y refresco en vivo</title>
+<script src="manual-ranking-comun.js"></script>
+<script src="../local/config.js"></script>
+<script src="../local/io-shim.js"></script>
+<script src="../local/nucleo/store.js"></script>
+<script src="../local/nucleo/pathfinder-servidor.js"></script>
+<script src="../local/nucleo/init-run.js"></script>
+<script src="../local/nucleo/score-2026.js"></script>
+<script src="../local/nucleo/copy-properties.js"></script>
+<script src="../local/nucleo/api.js"></script>
+<script src="../local/nucleo/ranking.js"></script>
+</head>
+<body>
+<h1>ranking.html: 3 equipos x 3 corridas (num=2), empates, normalización por grupo, selector 6.1.8 y refresco por io-shim</h1>
+<pre id="resultado">PENDIENTE</pre>
+<script>
+/*
+ * Mapa tests/backend-fixtures/ejemplo-01.json (indexCount 4, checkpoint en el índice 1, EvacuationAreaLoPIndex 1).
+ * Puntajes (cuenta a mano en cambios/manual-ranking.md §5.2):
+ *   80  = CP + bono (60) + tramo final 2x5 + 5          (LoPs [0,0])
+ *   71  = CP + bono (55) + tramo final 2x3 + 5          (LoPs [0,1])
+ *   10  = CP + 5, sin bono
+ *   5   = solo la salida (showedUp)
+ *   112 = 80 x 1.4 (una LIVE en GREEN)
+ * Grupo = ronda: "1"/Ronda 1, "2"/Ronda 2, "3"/Ronda 3.
+ */
+var DATOS = {
+  A: [
+    { s: true, exit: true, L: [0, 0], ro: [{ victimType: 'LIVE', zoneType: 'RED' }], t: [4, 30], esperado: 80 },
+    { s: false, exit: false, L: [2, 2], ro: [], t: [7, 0], esperado: 5 },
+    { s: true, exit: true, L: [0, 1], ro: [], t: [3, 50], esperado: 71 }
+  ],
+  B: [
+    { s: true, exit: true, L: [0, 1], ro: [], t: [3, 40], esperado: 71 },
+    { s: true, exit: true, L: [0, 0], ro: [{ victimType: 'DEAD', zoneType: 'GREEN' }], t: [4, 15], esperado: 80 },
+    { s: false, exit: false, L: [0, 0], ro: [], t: [2, 0], esperado: 5 }
+  ],
+  C: [
+    { s: true, exit: false, L: [0, 4], ro: [], t: [6, 10], esperado: 10 },
+    { s: true, exit: true, L: [0, 0], ro: [{ victimType: 'LIVE', zoneType: 'GREEN' }], t: [3, 20], esperado: 112 },
+    { s: true, exit: true, L: [0, 1], ro: [], t: [4, 5], esperado: 71 }
+  ]
+};
+
+function cuerpoPut(tilesGet, e) {
+  var tiles = JSON.parse(JSON.stringify(tilesGet));
+  tiles[1].scoredItems[0].scored = e.s;
+  return { showedUp: true, exitBonus: e.exit, LoPs: e.L, rescueOrder: e.ro, tiles: tiles, time: { minutes: e.t[0], seconds: e.t[1] }, status: 4 };
+}
+
+// Lee la tabla renderizada del iframe
+function leerTabla(d) {
+  return Array.prototype.map.call(d.querySelectorAll('table.custom tbody tr'), function (tr) {
+    var tds = Array.prototype.filter.call(tr.children, function (td) { return !td.classList.contains('ng-hide'); });
+    var grupos = tds.slice(6, tds.length - 1);
+    return {
+      puesto: tds[0].textContent, equipo: tds[1].textContent, final: tds[2].textContent, tiempo: tds[3].textContent,
+      victimas: Array.prototype.map.call(tds[4].querySelectorAll('.img-thumbnail'), function (v) {
+        return v.querySelector('img').getAttribute('src') + ' ' + v.textContent.trim() + ' ' + v.style.backgroundColor;
+      }),
+      lops: tds[5].textContent,
+      grupos: grupos.map(function (td) { return td.textContent + (td.style.backgroundColor === 'rgb(204, 204, 204)' ? ' (gris)' : ''); }),
+      total: tds[tds.length - 1].textContent
+    };
+  });
+}
+
+T.correr(async function () {
+  await T.resetear();
+  await RCJLocal.semillas({ tilesets: await T.fixture('tilesets.json') });
+  var cid = (await T.api('GET', '/api/competitions/')).data[0]._id;
+  var cancha = (await T.api('GET', '/api/competitions/' + cid + '/fields')).data[0];
+  var rondas = [(await T.api('GET', '/api/competitions/' + cid + '/rounds')).data[0]._id];
+  rondas.push((await T.api('POST', '/api/rounds', { name: 'Ronda 2', competition: cid })).data.id);
+  rondas.push((await T.api('POST', '/api/rounds', { name: 'Ronda 3', competition: cid })).data.id);
+  var mapId = await RCJLocal.ingestMap(await T.fixture('ejemplo-01.json'), { competition: cid, nombre: 'Mapa ranking' });
+  var modo = function (m) { return T.api('PUT', '/api/competitions/' + cid, { leagues: [{ league: 'Line', rule: '2026', mode: m, num: 2, disclose: false }] }); };
+  T.check('competencia en MEAN_OF_NORMALIZED_BEST_N_GAMES con num=2', (await modo('MEAN_OF_NORMALIZED_BEST_N_GAMES')).status === 200);
+
+  var ids = {};
+  for (var nombre of ['A', 'B', 'C']) {
+    var tid = (await T.api('POST', '/api/teams', { name: 'Equipo ' + nombre, league: 'Line', competition: cid, teamCode: '' })).data.id;
+    ids[nombre] = [];
+    for (var g = 0; g < 3; g++) {
+      var e = DATOS[nombre][g];
+      var n = await T.api('POST', '/api/runs/line', { round: rondas[g], team: tid, field: cancha._id, competition: cid, map: mapId, normalizationGroup: String(g + 1), startTime: 0 });
+      var ini = (await T.api('GET', '/api/runs/line/' + n.data.id)).data;
+      var p = await T.api('PUT', '/api/runs/line/' + n.data.id, cuerpoPut(ini.tiles, e));
+      T.check('corrida ' + nombre + ' G' + (g + 1) + ': PUT => ' + e.esperado, p.status === 200 && p.data.score === e.esperado, p.data);
+      ids[nombre].push(n.data.id);
+    }
+  }
+
+  // ------------------------------------------------------------------ fase 1: MEAN normalizado (CMS)
+  var url = '../ranking.html?competition=' + cid + '&league=Line';
+  var f = await T.abrirIframe('pagina', url, '1366px', '900px');
+  var d = f.contentDocument;
+  await T.esperarQue('tabla del ranking', function () { return d.querySelectorAll('table.custom tbody tr').length === 3 && d.querySelector('table.custom tbody tr td').textContent === '1'; }, 20000);
+  await T.esperar(300);
+  var sc = T.scope(f);
+  T.igual('MEAN: runGroups = grupos de normalización', sc.runGroups, ['1', '2', '3']);
+  T.check('MEAN: columnas normalizadas visibles y las de suma ocultas', sc.showMode.normalized === true && sc.showMode.nonNormalized === false && sc.gameRowSpan === 6);
+  var bMean = (0 + 71 / 80 + 80 / 112) / 2;   // sum() de ranking.js: reduce desde 0 sobre [0.8875, 0.7142857...]
+  var api1 = (await T.api('GET', '/api/ranking/' + cid + '/Line')).data;
+  T.check('MEAN (API): finalScore exactos C=1, A=1, B=(71/80+80/112)/2', api1.ranking.map(function (r) { return r.team.name; }).join() === 'Equipo C,Equipo A,Equipo B' &&
+    api1.ranking[0].finalScore === 1 && api1.ranking[1].finalScore === 1 && api1.ranking[2].finalScore === bMean, api1.ranking.map(function (r) { return [r.team.name, r.finalScore, r.gameSum.time]; }));
+  T.check('MEAN (API): corridas usadas/normalizados', api1.ranking[1].games['2'].used === false && api1.ranking[1].games['2'].normalizedScore === 5 / 112 &&
+    api1.ranking[2].games['3'].used === false && api1.ranking[2].games['3'].normalizedScore === 5 / 71 && api1.ranking[0].games['1'].used === false && api1.ranking[0].games['1'].normalizedScore === 10 / 80);
+  var verde = 'rgb(214, 255, 214)', rojo = 'rgb(255, 214, 214)';
+  T.igual('MEAN: tabla renderizada (empate C/A en 1 resuelto por tiempo 07:25 < 08:20)', leerTabla(d), [
+    { puesto: '1', equipo: 'Equipo C', final: '1', tiempo: '07:25', victimas: ['images/liveVictim.png ×1 ' + verde], lops: '1', grupos: ['0.13 (gris)', '1', '1'], total: '1' },
+    { puesto: '2', equipo: 'Equipo A', final: '1', tiempo: '08:20', victimas: ['images/liveVictim.png ×1 ' + rojo], lops: '1', grupos: ['1', '0.04 (gris)', '1'], total: '1' },
+    { puesto: '3', equipo: 'Equipo B', final: '0.80', tiempo: '07:55', victimas: ['images/deadVictim.png ×1 ' + verde], lops: '1', grupos: ['0.89', '0.71', '0.07 (gris)'], total: '0.80' }
+  ]);
+  T.igual('encabezado: grupos y título de liga', [Array.prototype.map.call(d.querySelectorAll('thead tr:nth-child(3) th'), function (t) { return t.textContent; }), d.querySelector('.ranking-title h3').textContent],
+    [['1', '2', '3'], 'Práctica IITA 2026']);
+  T.check('sin {{ }} sin compilar', d.body.innerText.indexOf('{{') < 0);
+  T.check('selector de desempate: CMS activo por defecto', d.getElementById('rcj-desempate-cms').classList.contains('active') && !d.getElementById('rcj-desempate-6118').classList.contains('active'));
+  T.check('breadcrumb y Back resuelven la liga', d.querySelectorAll('.premium-breadcrumb .breadcrumb-item')[2].textContent === 'Rescue Line');
+  // openRunDetails abre vista.html (regla 3b) dentro de un SweetAlert
+  T.clic(d.querySelectorAll('table.custom tbody tr')[0].querySelectorAll('td')[7]);
+  await T.esperarQue('modal de detalle', function () { return d.querySelector('.swal2-container iframe'); }, 5000);
+  var srcDetalle = d.querySelector('.swal2-container iframe').getAttribute('src');
+  T.igual('openRunDetails => vista.html?run=<id>&iframe=true', srcDetalle, '/vista.html?run=' + ids.C[1] + '&iframe=true');
+  f.contentWindow.Swal.close();
+  await T.esperar(300);
+
+  // ------------------------------------------------------------------ fase 2: SUM con empate, CMS vs 6.1.8
+  T.check('competencia en SUM_OF_BEST_N_GAMES', (await modo('SUM_OF_BEST_N_GAMES')).status === 200);
+  f = await T.abrirIframe('pagina', url, '1366px', '900px');
+  d = f.contentDocument;
+  await T.esperarQue('tabla SUM', function () { var tr = d.querySelectorAll('table.custom tbody tr'); return tr.length === 3 && tr[0].children[3].textContent === '183.00'; }, 20000);
+  await T.esperar(300);
+  T.igual('SUM (CMS): empate 151 A/B resuelto por tiempo (B 07:55 < A 08:20)', leerTabla(d).map(function (r) { return [r.puesto, r.equipo, r.final, r.tiempo, r.grupos, r.total]; }), [
+    ['1', 'Equipo C', '183.00', '07:25', ['10 (gris)', '112', '71'], '183'],
+    ['2', 'Equipo B', '151.00', '07:55', ['71', '80', '5 (gris)'], '151'],
+    ['3', 'Equipo A', '151.00', '08:20', ['80', '5 (gris)', '71'], '151']
+  ]);
+  T.igual('SUM: runGroups = nombres de ronda', T.scope(f).runGroups, ['Ronda 1', 'Ronda 2', 'Ronda 3']);
+  var navegacion = T.esperarCarga(f);
+  T.clic(d.getElementById('rcj-desempate-6118'));
+  await navegacion;
+  d = f.contentDocument;
+  T.check('selector: la página recarga con ?desempate=6.1.8', f.contentWindow.location.search === '?competition=' + cid + '&league=Line&desempate=6.1.8', f.contentWindow.location.search);
+  await T.esperarQue('tabla SUM 6.1.8', function () { var tr = d.querySelectorAll('table.custom tbody tr'); return tr.length === 3 && tr[0].children[3].textContent === '183.00'; }, 20000);
+  await T.esperar(300);
+  T.igual('SUM 6.1.8: A (media normalizada 1) queda antes que B (0.8009)', leerTabla(d).map(function (r) { return [r.puesto, r.equipo, r.final, r.tiempo]; }), [
+    ['1', 'Equipo C', '183.00', '07:25'], ['2', 'Equipo A', '151.00', '08:20'], ['3', 'Equipo B', '151.00', '07:55']
+  ]);
+  T.check('selector: 6.1.8 activo', d.getElementById('rcj-desempate-6118').classList.contains('active') && d.getElementById('rcj-desempate-nota').textContent.indexOf('6.1.8') >= 0);
+  var api2 = (await T.api('GET', '/api/ranking/' + cid + '/Line?desempate=6.1.8')).data;
+  T.check('6.1.8 (API): medias 1 y (80/112+71/80)/2', api2.desempate === '6.1.8' && api2.ranking[1].desempate6118 === 1 && Math.abs(api2.ranking[2].desempate6118 - (80 / 112 + 71 / 80) / 2) < 1e-15,
+    api2.ranking.map(function (r) { return [r.team.name, r.desempate6118]; }));
+  navegacion = T.esperarCarga(f);
+  T.clic(d.getElementById('rcj-desempate-cms'));
+  await navegacion;
+  d = f.contentDocument;
+  await T.esperarQue('tabla SUM de nuevo CMS', function () { var tr = d.querySelectorAll('table.custom tbody tr'); return tr.length === 3 && tr[1].children[1].textContent !== ''; }, 20000);
+  await T.esperar(300);
+  T.check('selector CMS: vuelve al orden por tiempo y quita el parámetro', f.contentWindow.location.search === '?competition=' + cid + '&league=Line' &&
+    leerTabla(d).map(function (r) { return r.equipo; }).join() === 'Equipo C,Equipo B,Equipo A');
+
+  // ------------------------------------------------------------------ fase 3: MEAN + refresco en vivo por io-shim
+  T.check('competencia de nuevo en MEAN', (await modo('MEAN_OF_NORMALIZED_BEST_N_GAMES')).status === 200);
+  f = await T.abrirIframe('pagina', url, '1366px', '900px');
+  d = f.contentDocument;
+  await T.esperarQue('tabla MEAN', function () { var tr = d.querySelectorAll('table.custom tbody tr'); return tr.length === 3 && tr[2].children[1].textContent === 'Equipo B'; }, 20000);
+  await T.esperar(500);
+  var w = f.contentWindow;
+  w.__sinRecarga = true;
+  var pedidosRanking = 0;
+  var reqOriginal = w.RCJLocal.api.request;
+  w.RCJLocal.api.request = function (metodo, u) {
+    if (metodo === 'GET' && String(u).indexOf('/api/ranking/') === 0) pedidosRanking++;
+    return reqOriginal.apply(this, arguments);
+  };
+  T.check('el socket del ranking está suscripto a runs/line/<cid>', w.RCJLocal.io.sockets.some(function (s) { return s.rooms.has('runs/line/' + cid); }));
+  // PUT desde OTRO contexto (la página de prueba): B sube su corrida del grupo 3 de 5 a 80
+  var iniB3 = (await T.api('GET', '/api/runs/line/' + ids.B[2])).data;
+  var pB3 = await T.api('PUT', '/api/runs/line/' + ids.B[2], { tiles: cuerpoPut(iniB3.tiles, { s: true }).tiles, exitBonus: true, LoPs: [0, 0] });
+  T.check('PUT B G3 => 80', pB3.status === 200 && pB3.data.score === 80, pB3.data);
+  await T.esperarQue('la tabla se actualiza sola', function () { var tr = d.querySelectorAll('table.custom tbody tr'); return tr.length === 3 && tr[0].children[1].textContent === 'Equipo B'; }, 10000);
+  await T.esperar(300);
+  var m3 = (0 + 1 + 71 / 80) / 2;
+  T.igual('refresco en vivo: triple empate en (1+71/80)/2 = 0.94375, orden por tiempo B 05:40, C 07:25, A 08:20', leerTabla(d).map(function (r) { return [r.puesto, r.equipo, r.final, r.tiempo, r.grupos, r.victimas.length]; }), [
+    ['1', 'Equipo B', '0.94', '05:40', ['0.89', '0.71 (gris)', '1'], 0],
+    ['2', 'Equipo C', '0.94', '07:25', ['0.13 (gris)', '1', '0.89'], 1],
+    ['3', 'Equipo A', '0.94', '08:20', ['1', '0.04 (gris)', '0.89'], 1]
+  ]);
+  T.check('refresco sin recargar la página y con un único GET del ranking', w.__sinRecarga === true && f.contentWindow === w && pedidosRanking === 1, pedidosRanking);
+  var api3 = (await T.api('GET', '/api/ranking/' + cid + '/Line')).data;
+  T.check('refresco (API): los tres finalScore === (0+1+71/80)/2', m3 === 0.94375 && api3.ranking.every(function (r) { return r.finalScore === m3; }), api3.ranking.map(function (r) { return r.finalScore; }));
+
+  // Datos para las capturas (mismo perfil): MEAN actual, y SUM con B G3 de vuelta en 5 (CMS y 6.1.8)
+  var revertirB3 = ['PUT', '/api/runs/line/' + ids.B[2], { tiles: cuerpoPut(iniB3.tiles, { s: false }).tiles, exitBonus: false, LoPs: [0, 0] }];
+  var sumaModo = ['PUT', '/api/competitions/' + cid, { leagues: [{ league: 'Line', rule: '2026', mode: 'SUM_OF_BEST_N_GAMES', num: 2, disclose: false }] }];
+  return {
+    competencia: cid, ids: ids,
+    capturas: [
+      { nombre: 'ranking-media-tras-refresco', url: url, listo: 'table.custom tbody tr', alto: 900 },
+      { nombre: 'ranking-suma-cms', url: url, listo: 'table.custom tbody tr', alto: 900, api: JSON.stringify([revertirB3, sumaModo]) },
+      { nombre: 'ranking-suma-6118', url: url + '&desempate=6.1.8', listo: 'table.custom tbody tr', alto: 900 }
+    ]
+  };
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Salidas — siembra de 2 corridas para planillas.html</title>
+<script src="salidas-comun.js"></script>
+<script src="../local/config.js"></script>
+<script src="../local/io-shim.js"></script>
+<script src="../local/nucleo/store.js"></script>
+<script src="../local/nucleo/pathfinder-servidor.js"></script>
+<script src="../local/nucleo/init-run.js"></script>
+<script src="../local/nucleo/score-2026.js"></script>
+<script src="../local/nucleo/copy-properties.js"></script>
+<script src="../local/nucleo/api.js"></script>
+<script src="../local/nucleo/ranking.js"></script>
+</head>
+<body>
+<pre id="resultado">PENDIENTE</pre>
+<script>
+T.correr(async function () {
+  var s = await T.sembrar();
+  var lista = await T.api('GET', '/api/runs/line/competition/' + s.cid + '?normalized=true');
+  T.igual('E12 devuelve las 2 corridas', lista.data.length, 2);
+  T.check('las 2 corridas quedaron puntuadas', s.puntajes.every(function (p) { return p.msg === 'Saved run'; }), s.puntajes);
+  return { cid: s.cid, mapId: s.mapId, runs: s.runs, puntajes: s.puntajes };
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>manual-ranking — celular 412x915, tablet 1024x768 y notebook 1366x900</title>
+<script src="manual-ranking-comun.js"></script>
+<script src="../local/config.js"></script>
+<script src="../local/io-shim.js"></script>
+<script src="../local/nucleo/store.js"></script>
+<script src="../local/nucleo/pathfinder-servidor.js"></script>
+<script src="../local/nucleo/init-run.js"></script>
+<script src="../local/nucleo/score-2026.js"></script>
+<script src="../local/nucleo/copy-properties.js"></script>
+<script src="../local/nucleo/api.js"></script>
+<script src="../local/nucleo/ranking.js"></script>
+</head>
+<body>
+<h1>manual.html (input y check) y ranking.html en 412x915, 1024x768 y 1366x900: nada cortado, todo alcanzable con el dedo</h1>
+<pre id="resultado">PENDIENTE</pre>
+<script>
+/*
+ * Cada página corre en un iframe del tamaño CSS del dispositivo (las media queries ven ese ancho).
+ * Se mide el layout real con getBoundingClientRect y se "toca" cada control: se lo lleva a la vista con
+ * scrollIntoView y se verifica con elementFromPoint que en su centro no haya otra cosa encima (navbar fija,
+ * barra inferior fija, desborde recortado). Recién ahí se dispara el clic.
+ * En 412x915 se hace además una carga manual completa, la aprobación y el detalle de corrida del ranking.
+ */
+var TAM = [[412, 915], [1024, 768], [1366, 900]];
+var MIN_TOQUE = 40;   // px CSS: lado mínimo de un control tocable en celular
+
+function visible(el) {
+  var r = el.getBoundingClientRect();
+  if (r.width === 0 || r.height === 0) return false;
+  var cs = el.ownerDocument.defaultView.getComputedStyle(el);
+  return cs.visibility !== 'hidden' && cs.display !== 'none';
+}
+function recortadoPorScroll(el) {
+  // ¿algún ancestro tiene overflow-x propio (auto/scroll)? Entonces el desborde es alcanzable desplazando ese contenedor
+  var w = el.ownerDocument.defaultView;
+  for (var a = el.parentElement; a && a !== el.ownerDocument.body; a = a.parentElement) {
+    var ox = w.getComputedStyle(a).overflowX;
+    if (ox === 'auto' || ox === 'scroll') return a;
+  }
+  return null;
+}
+function describir(el) {
+  var r = el.getBoundingClientRect();
+  return el.tagName + '.' + String(el.className).replace(/ng-[a-z-]+/g, '').replace(/\s+/g, ' ').trim().slice(0, 40) +
+    ' "' + (el.textContent || '').trim().slice(0, 20) + '" ' + Math.round(r.left) + ',' + Math.round(r.top) + ' ' + Math.round(r.width) + 'x' + Math.round(r.height);
+}
+
+// Medidas generales de una página ya renderizada
+function medir(f, etiqueta, ancho, selectoresTocables) {
+  var w = f.contentWindow, d = f.contentDocument;
+  var se = d.scrollingElement || d.documentElement;
+  T.check(etiqueta + ': el marco mide ' + ancho + ' px de ancho', w.innerWidth === ancho, w.innerWidth);
+  var desbordan = Array.prototype.filter.call(d.body.querySelectorAll('*'), function (e) {
+    if (!visible(e)) return false;
+    if (e.closest('.swal2-container, .modal:not(.show)')) return false;
+    var r = e.getBoundingClientRect();
+    return (r.right > w.innerWidth + 1 || r.left < -1) && !recortadoPorScroll(e);
+  });
+  T.check(etiqueta + ': sin scroll horizontal de la página ni contenido cortado a los costados',
+    se.scrollWidth <= w.innerWidth + 1 && desbordan.length === 0,
+    { scrollWidth: se.scrollWidth, innerWidth: w.innerWidth, desbordan: desbordan.slice(0, 8).map(describir) });
+  if (ancho < 768) {
+    var chicos = Array.prototype.filter.call(d.querySelectorAll(selectoresTocables), function (e) {
+      if (!visible(e)) return false;
+      var r = e.getBoundingClientRect();
+      return r.width < MIN_TOQUE || r.height < MIN_TOQUE;
+    });
+    T.check(etiqueta + ': controles tocables de al menos ' + MIN_TOQUE + 'x' + MIN_TOQUE + ' px', chicos.length === 0, chicos.slice(0, 12).map(describir));
+  }
+}
+
+// Lleva el control a la vista y verifica que el dedo lo alcanza (nada encima en su centro); después hace clic
+function tocar(f, el, nombre, sinClic) {
+  if (!el) { T.check('tocar ' + nombre + ': existe', false); return false; }
+  var w = f.contentWindow, d = f.contentDocument;
+  el.scrollIntoView({ block: 'center', inline: 'center' });
+  var r = el.getBoundingClientRect();
+  var x = r.left + r.width / 2, y = r.top + r.height / 2;
+  var arriba = d.elementFromPoint(x, y);
+  var ok = x >= 0 && y >= 0 && x <= w.innerWidth && y <= w.innerHeight && !!arriba && (arriba === el || el.contains(arriba));
+  T.check('tocar ' + nombre + ': alcanzable y sin nada encima', ok, { centro: [Math.round(x), Math.round(y)], ventana: [w.innerWidth, w.innerHeight], encima: arriba ? describir(arriba) : null });
+  if (ok && !sinClic) T.clic(arriba === el ? el : arriba);
+  return ok;
+}
+
+// Con la página desplazada al final, lo último del contenido no queda debajo de la barra inferior fija
+function finNoTapado(f, etiqueta, selectorUltimo) {
+  var w = f.contentWindow, d = f.contentDocument;
+  var se = d.scrollingElement || d.documentElement;
+  w.scrollTo(0, se.scrollHeight);
+  var ultimo = Array.prototype.slice.call(d.querySelectorAll(selectorUltimo)).filter(visible).pop();
+  var barra = d.querySelector('.footer-action');
+  var ru = ultimo.getBoundingClientRect(), rb = barra.getBoundingClientRect();
+  T.check(etiqueta + ': al final, el contenido no queda debajo de la barra fija de envío', ru.bottom <= rb.top + 1, { ultimoAbajo: Math.round(ru.bottom), barraArriba: Math.round(rb.top) });
+  var boton = barra.querySelector('button:last-child').getBoundingClientRect();
+  T.check(etiqueta + ': el botón de la barra fija entra en la pantalla', boton.left >= 0 && boton.right <= w.innerWidth + 1 && boton.bottom <= w.innerHeight + 1, [boton.left, boton.right, boton.bottom]);
+}
+
+function primerContenidoNoTapado(f, etiqueta) {
+  var w = f.contentWindow, d = f.contentDocument;
+  w.scrollTo(0, 0);
+  var nav = d.querySelector('nav.fixed-top').getBoundingClientRect();
+  var card = d.querySelector('.card-entry').getBoundingClientRect();
+  T.check(etiqueta + ': la primera tarjeta empieza debajo de la navbar fija', card.top >= nav.bottom - 1, { navAbajo: Math.round(nav.bottom), tarjetaArriba: Math.round(card.top) });
+  T.check(etiqueta + ': la navbar fija no se sale de la pantalla', nav.right <= w.innerWidth + 1 && nav.height <= 140, { derecha: nav.right, alto: nav.height });
+}
+
+var TOCABLES_MANUAL = 'button, .victim-select-btn, .evac-btn, .evac-btn-trash, .entry-item-compact, [ng-click="changeExitBonus()"], input.premium-count';
+var TOCABLES_RANKING = 'button, .btn, .breadcrumb-item[ng-click], .nav-user-link';
+
+T.correr(async function () {
+  await T.resetear();
+  await RCJLocal.semillas({ tilesets: await T.fixture('tilesets.json') });
+  var cid = (await T.api('GET', '/api/competitions/')).data[0]._id;
+  var ronda1 = (await T.api('GET', '/api/competitions/' + cid + '/rounds')).data[0]._id;
+  var ronda2 = (await T.api('POST', '/api/rounds', { name: 'Ronda 2', competition: cid })).data.id;
+  var cancha = (await T.api('GET', '/api/competitions/' + cid + '/fields')).data[0];
+  var equipo = (await T.api('GET', '/api/competitions/' + cid + '/Line/teams')).data[0];
+  var fx = await T.fixture('fixture-mapa-oficial.json');
+  fx.finished = true;
+  var mapId = await RCJLocal.ingestMap(fx, { competition: cid, nombre: 'Mapa celular' });
+  var nueva = async function (team, round, grupo) {
+    var p = await T.api('POST', '/api/runs/line', { round: round, team: team, field: cancha._id, competition: cid, map: mapId, normalizationGroup: grupo });
+    return p.data.id;
+  };
+
+  // Ranking con muchas columnas: modo normalizado, 3 equipos (uno con nombre largo) x 2 grupos
+  await T.api('PUT', '/api/competitions/' + cid, { leagues: [{ league: 'Line', rule: '2026', mode: 'MEAN_OF_NORMALIZED_BEST_N_GAMES', num: 2, disclose: false }] });
+  var equipos = [equipo._id];
+  equipos.push((await T.api('POST', '/api/teams', { name: 'Robotistas del Valle de Lerma', league: 'Line', competition: cid, teamCode: '' })).data.id);
+  equipos.push((await T.api('POST', '/api/teams', { name: 'Equipo C', league: 'Line', competition: cid, teamCode: '' })).data.id);
+  var idsRanking = [];
+  for (var i = 0; i < equipos.length; i++) {
+    for (var g = 0; g < 2; g++) {
+      var id = await nueva(equipos[i], g ? ronda2 : ronda1, String(g + 1));
+      await T.api('PUT', '/api/runs/line/' + id, { showedUp: true, exitBonus: (i + g) % 2 === 0, LoPs: [i, 0, g], time: { minutes: 3 + i, seconds: 10 * g },
+        rescueOrder: [{ victimType: 'LIVE', zoneType: 'GREEN' }, { victimType: 'DEAD', zoneType: i ? 'RED' : 'GREEN' }], status: 4 });
+      idsRanking.push(id);
+    }
+  }
+  var runManual = await nueva(equipo._id, ronda1, '3');   // la que se carga a mano en el celular
+  var retorno = '/line/' + cid + '/Line';
+
+  // ------------------------------------------------------------ medidas en los 3 tamaños
+  for (var t = 0; t < TAM.length; t++) {
+    var ancho = TAM[t][0], alto = TAM[t][1], tam = ancho + 'x' + alto;
+
+    var f = await T.abrirIframe('m' + t, '../manual.html?run=' + idsRanking[0], ancho + 'px', alto + 'px');
+    var d = f.contentDocument;
+    await T.esperarQue('input ' + tam, function () { return d.querySelectorAll('.entry-item-compact').length === 10; }, 20000);
+    await T.esperar(400);
+    T.check('input ' + tam + ': meta viewport width=device-width (sin él Chrome Android arma la página a 980 px y la achica)',
+      !!d.querySelector('meta[name=viewport][content*="width=device-width"]'));
+    T.check('input ' + tam + ': movil-manual-ranking.css enlazada', Array.prototype.some.call(d.styleSheets, function (h) { return (h.href || '').indexOf('local/ui/movil-manual-ranking.css') >= 0; }));
+    medir(f, 'input ' + tam, ancho, TOCABLES_MANUAL);
+    primerContenidoNoTapado(f, 'input ' + tam);
+    finNoTapado(f, 'input ' + tam, '.card-entry');
+
+    f = await T.abrirIframe('m' + t, '../manual.html?run=' + idsRanking[0] + '&check=true', ancho + 'px', alto + 'px');
+    d = f.contentDocument;
+    await T.esperarQue('check ' + tam, function () { return d.querySelector('.calc-result') && d.querySelector('.calc-result').textContent !== ''; }, 20000);
+    await T.esperar(400);
+    medir(f, 'check ' + tam, ancho, TOCABLES_MANUAL);
+    primerContenidoNoTapado(f, 'check ' + tam);
+    finNoTapado(f, 'check ' + tam, '.calc-summary');
+    var navCheck = d.querySelector('nav.fixed-top');
+    T.check('check ' + tam + ': el puntaje estimado de la navbar se ve entero', (function () {
+      var r = d.querySelector('.score-display').getBoundingClientRect();
+      return r.right <= f.contentWindow.innerWidth + 1 && r.bottom <= navCheck.getBoundingClientRect().bottom + 1 && r.width > 0;
+    })(), describir(d.querySelector('.score-display')));
+
+    f = await T.abrirIframe('m' + t, '../ranking.html?competition=' + cid + '&league=Line', ancho + 'px', alto + 'px');
+    d = f.contentDocument;
+    await T.esperarQue('ranking ' + tam, function () { return d.querySelectorAll('table.custom tbody tr').length === 3; }, 20000);
+    await T.esperar(400);
+    medir(f, 'ranking ' + tam, ancho, TOCABLES_RANKING);
+    var filas = d.querySelectorAll('table.custom tbody tr');
+    var celdas = filas[2].querySelectorAll('td:not(.ng-hide)');
+    tocar(f, celdas[celdas.length - 1], 'ranking ' + tam + ' última columna de la última fila (media)', true);
+    tocar(f, d.getElementById('rcj-desempate-6118'), 'ranking ' + tam + ' botón de desempate 6.1.8', true);
+    tocar(f, d.querySelector('button.btn-secondary'), 'ranking ' + tam + ' botón Back', true);
+  }
+
+  // ------------------------------------------------------------ carga manual completa en el celular
+  var W = 412, H = 915;
+  var f = await T.abrirIframe('celular', '../manual.html?run=' + runManual + '&return=' + encodeURIComponent(retorno), W + 'px', H + 'px');
+  var d = f.contentDocument, w = f.contentWindow;
+  await T.esperarQue('input celular', function () { return d.querySelectorAll('.entry-item-compact').length === 10; }, 20000);
+  await T.esperar(300);
+  var sc = T.scope(f);
+  var items = function () { return d.querySelectorAll('.entry-item-compact'); };
+  tocar(f, items()[0], 'inicio (cascada)');
+  tocar(f, items()[2], 'intersección (desmarcar)');
+  T.check('celular: cascada y desmarcado', sc.showedUp === true && sc.stiles[3].scoredItems[0].scored === false && sc.stiles[10].scoredItems[0].scored === true);
+  tocar(f, items()[4].querySelectorAll('.premium-btn')[1], '+ LoP del checkpoint 1');
+  tocar(f, items()[9].querySelectorAll('.premium-btn')[1], '+ LoP de la meta (stepper chico en el CMS)');
+  T.igual('celular: LoPs', sc.LoPs, [1, 0, 1]);
+  var bv = d.querySelectorAll('.victim-select-btn');
+  tocar(f, bv[0], 'víctima LIVE');
+  tocar(f, d.querySelector('.evac-btn-green'), 'REGIST GREEN');
+  tocar(f, bv[0], 'víctima LIVE otra vez');
+  tocar(f, d.querySelector('.evac-btn-green'), 'REGIST GREEN otra vez');
+  tocar(f, bv[1], 'víctima DEAD');
+  tocar(f, d.querySelector('.evac-btn-red'), 'REGIST RED');
+  T.igual('celular: orden de rescate', sc.victim_list.map(function (v) { return v.victimType + '/' + v.zoneType; }), ['LIVE/GREEN', 'LIVE/GREEN', 'DEAD/RED']);
+  medir(f, 'celular con víctimas registradas', W, TOCABLES_MANUAL);
+  tocar(f, d.querySelector('[ng-click="changeExitBonus()"]'), 'bono de salida');
+  var tecla = function (txt) { return Array.prototype.find.call(d.querySelectorAll('.time-numpad button'), function (b) { return b.textContent.trim() === txt; }); };
+  tocar(f, tecla('5'), 'tecla 5'); tocar(f, tecla('0'), 'tecla 0'); tocar(f, tecla('9'), 'tecla 9');
+  tocar(f, d.querySelector('.time-numpad .action-btn:last-child'), 'tecla borrar');
+  tocar(f, tecla('2'), 'tecla 2');
+  T.igual('celular: tiempo 05:02', [sc.minutes, sc.seconds, d.querySelector('.time-digits').textContent], [5, 2, '05:02']);
+  var navegacion = T.esperarCarga(f);
+  tocar(f, d.querySelector('.footer-action button'), 'Complete Data Entry & Submit Score');
+  await navegacion;
+  var run = (await T.api('GET', '/api/runs/line/' + runManual)).data;
+  var mapa = (await T.api('GET', '/api/maps/line/' + mapId + '?populate=true')).data;
+  var calc = RCJLocal.calculateLineScore(Object.assign({}, run, { map: mapa }));
+  T.check('celular: status 4 y score === calculateLineScore', run.status === 4 && run.score === calc.score && run.raw_score === calc.raw_score, [run.status, run.score, calc]);
+  T.check('celular: vuelve a corridas.html (return)', f.contentWindow.location.pathname === '/corridas.html');
+
+  // aprobación en el celular
+  f = await T.abrirIframe('celular', '../manual.html?run=' + runManual + '&check=true&return=' + encodeURIComponent(retorno), W + 'px', H + 'px');
+  d = f.contentDocument;
+  await T.esperarQue('check celular', function () { return d.querySelector('.calc-result') && d.querySelector('.calc-result').textContent === String(calc.score); }, 20000);
+  await T.esperar(300);
+  navegacion = T.esperarCarga(f);
+  tocar(f, d.querySelector('.btn-approve'), 'Approve & Submit Score');
+  await navegacion;
+  var aprobada = (await T.api('GET', '/api/runs/line/' + runManual)).data;
+  T.check('celular: aprobada con status 6', aprobada.status === 6 && aprobada.score === calc.score, [aprobada.status, aprobada.score]);
+
+  // detalle de corrida desde el ranking en el celular
+  f = await T.abrirIframe('celular', '../ranking.html?competition=' + cid + '&league=Line', W + 'px', H + 'px');
+  d = f.contentDocument; w = f.contentWindow;
+  await T.esperarQue('ranking celular', function () { return d.querySelectorAll('table.custom tbody tr').length === 3; }, 20000);
+  await T.esperar(300);
+  var celda = Array.prototype.filter.call(d.querySelectorAll('table.custom tbody tr')[0].querySelectorAll('td[ng-click]'), visible)[0];
+  tocar(f, celda, 'celda de puntaje normalizado (abre el detalle)');
+  await T.esperarQue('modal de detalle', function () { return d.querySelector('.swal2-popup iframe'); }, 5000);
+  await T.esperar(300);
+  var pop = d.querySelector('.swal2-popup').getBoundingClientRect();
+  T.check('celular: el detalle de corrida entra en la pantalla', pop.left >= -1 && pop.right <= w.innerWidth + 1, [pop.left, pop.right, w.innerWidth]);
+  w.Swal.close();
+
+  return {
+    runManual: runManual, puntajeManual: calc,
+    capturas: [
+      { nombre: 'movil-input-abajo', url: '../manual.html?run=' + runManual, listo: '.entry-item-compact', scroll: '.time-numpad', tamanos: [[412, 915]] },
+      { nombre: 'movil-check-abajo', url: '../manual.html?run=' + runManual + '&check=true', listo: '.calc-result', scroll: '.calc-summary', tamanos: [[412, 915]] },
+      { nombre: 'movil-ranking-tabla', url: '../ranking.html?competition=' + cid + '&league=Line', listo: 'table.custom tbody tr', scroll: 'table.custom', tamanos: [[412, 915]] }
+    ]
+  };
+});
+</script>
+</body>
+</html>

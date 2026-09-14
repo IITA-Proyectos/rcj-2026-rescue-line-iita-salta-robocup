@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Editor — Save/PUT/reapertura, calculadora, tileCount y Save As</title>
+<script src="editor-comun.js"></script>
+<script src="../local/config.js"></script>
+<script src="../local/nucleo/store.js"></script>
+<script src="../local/nucleo/pathfinder-servidor.js"></script>
+<script src="../local/nucleo/init-run.js"></script>
+<script src="../local/nucleo/score-2026.js"></script>
+<script src="../local/nucleo/copy-properties.js"></script>
+<script src="../local/nucleo/api.js"></script>
+<script src="../local/nucleo/ranking.js"></script>
+</head>
+<body>
+<h1>Save (POST) + reapertura con ?map=, PUT, calculadora (E7), tileCount entre dos mapas, Save As</h1>
+<pre id="resultado">PENDIENTE</pre>
+<script>
+function contarTipos(tiles) {
+  var c = {};
+  Object.keys(tiles).forEach(function (k) { var id = tiles[k].tileType._id; c[id] = (c[id] || 0) + 1; });
+  return c;
+}
+function subconjunto(tiles) {
+  var o = {};
+  Object.keys(tiles).sort().forEach(function (k) {
+    var t = tiles[k];
+    o[k] = [t.rot, t.tileType._id, t.items.obstacles, t.items.speedbumps, !!t.items.rampPoints, !!t.checkPoint, t.levelUp || null, t.levelDown || null];
+  });
+  return o;
+}
+function verificarTileCount(ed, propio, otro, etiqueta) {
+  var s = ed.scope;
+  var usados = contarTipos(propio), otros = contarTipos(otro);
+  var malos = [];
+  s.tileSet.tiles.filter(function (e) { return e.count > 0; }).forEach(function (e) {
+    var id = e.tileType._id;
+    var esperado = e.count - (otros[id] || 0) - (usados[id] || 0);
+    var obtenido = s.tileRemain(e);
+    if (obtenido !== esperado) malos.push({ imagen: e.tileType.image, obtenido: obtenido, esperado: esperado });
+  });
+  T.check('tileCount (' + etiqueta + '): tileRemain = count - usadas en el otro mapa - usadas en este, para todos los tipos', malos.length === 0, malos.slice(0, 5));
+  var e0 = s.tileSet.tiles.find(function (e) { return e.tileType.image === 'tile-0.png'; });
+  var badge = ed.doc.querySelector('img.toolbox-tile[tile-id="' + e0.tileType._id + '"]').closest('.tile-palette-item').querySelector('.tile-count-badge');
+  T.igual('tileCount (' + etiqueta + '): badge de tile-0 en la paleta', badge && badge.textContent.trim(),
+    String(e0.count - (otros[e0.tileType._id] || 0) - (usados[e0.tileType._id] || 0)));
+}
+
+T.correr(async function () {
+  await T.resetear();
+  await RCJLocal.semillas();
+  var comps = (await T.api('GET', '/api/competitions/')).data;
+  var cid = comps[0]._id, cnombre = comps[0].name;
+  var textoA = await T.textoFixture('fixture-mapa-oficial.min.json');
+  var fixA = JSON.parse(textoA);
+
+  var ed = await T.abrirEditor('competition=' + cid, 'nuevo');
+  var s = ed.scope, w = ed.win;
+
+  // ---------------------------------------------------------------- alerta de inicio faltante
+  T.aplicar(ed, function (s) { s.finished = true; s.startTile = { x: -1, y: -1, z: -1 }; });
+  T.check('alerta "No start tile" visible con finished y sin inicio', !!ed.doc.querySelector('.hero-actions .alert-danger'));
+  T.aplicar(ed, function (s) { s.saveMap(); });
+  await T.esperarQue('toast de error de inicio', function () { return /You must define a starting/.test(T.swalTexto(ed)); }, 5000);
+  T.check('Save sin inicio: Toast de error del CMS', true);
+  await T.esperar(300);
+  T.igual('Save sin inicio: no se creó ningún mapa', (await T.api('GET', '/api/maps/line/')).data.length, 0);
+  w.Swal.close();
+
+  // ---------------------------------------------------------------- Save (POST) y reapertura
+  await T.importar(ed, textoA, 'IITA Fixture 2026.json');
+  var indexCount = s.indexCount, evac = s.EvacuationAreaLoPIndex;
+  T.check('antes de guardar: sin alerta de inicio', !ed.doc.querySelector('.hero-actions .alert-danger'));
+  ed = await T.tras_navegar(async function () {
+    T.clic(ed, ed.doc.querySelector('.btn-hero-icon.btn-save'));
+  }, 'guardado');
+  s = ed.scope; w = ed.win;
+  var m = /\/editor\.html\?map=([0-9a-f]{24})$/.exec(w.location.pathname + w.location.search);
+  T.check('POST -> redirección a editor.html?map=<id> (RCJLocal.ruta)', !!m, w.location.href);
+  var mapA = m && m[1];
+  T.igual('reapertura: globals (competitionId sale del mapa)', [w.mapId, w.competitionId, w.pubService], [mapA, cid, false]);
+  T.igual('reapertura: competencia y liga', [s.competition && s.competition.name, s.league && s.league.league], [cnombre, 'Line']);
+  T.igual('reapertura: campos del mapa',
+    [s.name, s.width, s.length, s.height, s.duration, s.finished, s.liveV, s.deadV, s.startTile, s.startTile2, s.tileSet._id],
+    [fixA.name, fixA.width, fixA.length, fixA.height, fixA.duration, fixA.finished, fixA.victims.live, fixA.victims.dead, fixA.startTile, fixA.startTile2, fixA.tileSet]);
+  T.igual('reapertura: baldosas (rot, tipo, items, checkPoint, levelUp/Down)', subconjunto(s.tiles), subconjunto(fixA.tiles));
+  T.igual('reapertura: mismo recorrido (indexCount, EvacuationAreaLoPIndex)', [s.indexCount, s.EvacuationAreaLoPIndex], [indexCount, evac]);
+  T.check('reapertura: breadcrumb y subtítulo con la competencia', ed.doc.querySelector('.hero-subtitle').textContent.indexOf(cnombre) >= 0);
+  var piso0 = Object.keys(fixA.tiles).filter(function (k) { return k.split(',')[2] === '0'; }).length;
+  await T.checkEsperando('reapertura: baldosas del piso 0 dibujadas (' + piso0 + ')', function () {
+    return ed.doc.querySelectorAll('tile img.tile-image[src^="images/tiles/"]:not(.ng-hide)').length >= piso0;
+  }, 6000, function () { return ed.doc.querySelectorAll('tile img.tile-image[src^="images/tiles/"]:not(.ng-hide)').length; });
+  var exp = JSON.parse(T.exportar(ed).json);
+  T.igual('export después de reabrir: mismas claves de primer nivel', Object.keys(exp), Object.keys(fixA));
+  T.igual('export después de reabrir: baldosas equivalentes', subconjunto(exp.tiles), subconjunto(fixA.tiles));
+
+  // ---------------------------------------------------------------- PUT
+  T.aplicar(ed, function (s) { s.name = 'IITA Fixture 2026 v2'; });
+  T.clic(ed, ed.doc.querySelector('.btn-hero-icon.btn-save'));
+  await T.esperarQue('toast Updated map', function () { return /Updated map/.test(T.swalTexto(ed)); }, 8000);
+  T.check('PUT: Toast "Updated map"', true);
+  T.igual('PUT: nombre guardado en la base', (await T.api('GET', '/api/maps/line/' + mapA)).data.name, 'IITA Fixture 2026 v2');
+  w.Swal.close();
+  await T.esperar(300);
+
+  // ---------------------------------------------------------------- calculadora (E7)
+  T.clic(ed, ed.doc.querySelector('.calc-btn-premium'));
+  await T.esperarQue('popup de maxScore', function () { return /Line Trace Score/.test(T.swalTexto(ed)) && ed.doc.querySelectorAll('.swal2-popup table.custom td').length === 2; }, 10000);
+  var tds = Array.prototype.map.call(ed.doc.querySelectorAll('.swal2-popup table.custom td'), function (td) { return td.textContent.trim(); });
+  T.igual('calculadora: popup Line Trace Score 210 / Final Score 576', tds, ['210', '576']);
+  T.check('calculadora: popup con ícono y botón de cierre', !!ed.doc.querySelector('.swal2-popup .fa-calculator') && !!ed.doc.querySelector('.swal2-popup .swal2-close'));
+  w.Swal.close();
+
+  // reapertura con ?map= directo (sin pasar por el redireccionamiento)
+  ed = await T.abrirEditor('map=' + mapA, 'reabierto');
+  s = ed.scope;
+  T.igual('reapertura directa ?map=: nombre del PUT y baldosas', [s.name, subconjunto(s.tiles)], ['IITA Fixture 2026 v2', subconjunto(fixA.tiles)]);
+
+  // ---------------------------------------------------------------- segundo mapa del mismo tileset -> tileCount
+  var textoB = await T.textoFixture('ejemplo-01.json');
+  var fixB = JSON.parse(textoB);
+  ed = await T.abrirEditor('competition=' + cid, 'nuevoB');
+  await T.importar(ed, textoB, 'Ejemplo IITA.json');
+  ed = await T.tras_navegar(async function () { T.clic(ed, ed.doc.querySelector('.btn-hero-icon.btn-save')); }, 'guardadoB');
+  var mapB = ed.win.mapId;
+  T.check('segundo mapa guardado con otro id', /^[0-9a-f]{24}$/.test(mapB) && mapB !== mapA, mapB);
+  var tc = (await T.api('GET', '/api/maps/line/tileCount/' + mapB + '/' + fixB.tileSet)).data;
+  var t0 = tc.find(function (x) { return x.tileId === '570c27c3f5a9dabe23f3af90'; });
+  T.igual('API tileCount excluyendo B: tile-0 usada en A', t0 && t0.usedCount, contarTipos(fixA.tiles)['570c27c3f5a9dabe23f3af90']);
+  verificarTileCount(ed, fixB.tiles, fixA.tiles, 'abierto B');
+  ed = await T.abrirEditor('map=' + mapA, 'reabiertoA');
+  verificarTileCount(ed, fixA.tiles, fixB.tiles, 'abierto A');
+
+  // ---------------------------------------------------------------- Save As
+  ed = await T.abrirEditor('map=' + mapB, 'saveAs');
+  T.clic(ed, ed.doc.querySelector('[ng-click="openSaveAsModal()"]'));
+  var inputNombre = await T.esperarQue('modal Save As', function () { return ed.doc.querySelector('.modal input[ng-model="asname"]'); }, 8000);
+  await T.esperar(200);
+  T.igual('Save As: nombre sugerido <nombre>_copy', inputNombre.value, 'Ejemplo IITA_copy');
+  T.igual('Save As: competencias en el select', ed.doc.querySelectorAll('.modal select[ng-model="se_competition"] option').length, comps.length);
+  ed = await T.tras_navegar(async function () { T.clic(ed, ed.doc.querySelector('.modal [ng-click="saveAsOk()"]')); }, 'copia');
+  T.igual('Save As: abre la copia', [ed.scope.name, Object.keys(ed.scope.tiles).length], ['Ejemplo IITA_copy', Object.keys(fixB.tiles).length]);
+  T.igual('Save As: tres mapas en la base', (await T.api('GET', '/api/maps/line/')).data.length, 3);
+
+  return { mapId: mapA, mapB: mapB, competencia: cid };
+});
+</script>
+</body>
+</html>

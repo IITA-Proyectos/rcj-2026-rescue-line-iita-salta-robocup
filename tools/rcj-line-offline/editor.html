@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html style="height:100%; overflow-y:scroll;" ng-app="LineEditor" ng-init="">
+<head>
+<meta charset="utf-8">
+<title>RoboCupJunior CMS</title>
+<!--
+  [rcj-line-offline] área editor. Render a mano de views/admin/mapEditor/line_2026.pug (extends modern_layout)
+  en MODO ADMIN (ESPEC D1: pubService=false, mapId por ?map=). Todo lo común (markup, clases, estilos inline y
+  orden) sale del HTML vivo de https://intl.rcj.cloud/service/editor/line/2026. Cambios: cambios/editor.md.
+-->
+<!-- 1.A scripts comunes (common_component.pug:1-19) -->
+<script src="components/jquery/dist/jquery.min.js"></script>
+<script src="components/popper.js/dist/umd/popper.min.js"></script>
+<script src="components/bootstrap/dist/js/bootstrap.min.js"></script>
+<script src="components/angular/angular.min.js"></script>
+<script src="components/angular-animate/angular-animate.min.js"></script>
+<!-- OMITIDO (06: C, sin uso): <script src="components/alertifyjs/dist/js/ngAlertify.js"></script> -->
+<script src="components/sweetalert2/dist/sweetalert2.all.min.js"></script>
+<!-- OMITIDO (stub: lo reemplaza local/io-shim.js): <script src="components/socket.io-client/dist/socket.io.min.js"></script> -->
+<script src="components/angular-bootstrap/dist/ui-bootstrap-tpls.js"></script>
+<script src="components/angular-translate/angular-translate.min.js"></script>
+<script src="components/angular-translate-loader-static-files/angular-translate-loader-static-files.min.js"></script>
+<script src="components/angular-translate-storage-local/angular-translate-storage-local.min.js"></script>
+<script src="components/angular-translate-storage-cookie/angular-translate-storage-cookie.min.js"></script>
+<script src="components/angular-translate-handler-log/angular-translate-handler-log.min.js"></script>
+<script src="components/angular-cookies/angular-cookies.min.js"></script>
+<script src="components/angular-touch/angular-touch.min.js"></script>
+<script src="components/angular-sanitize/angular-sanitize.min.js"></script>
+<!-- OMITIDO (06: C, ningún módulo usa ui.select): <script src="components/angular-ui-select/dist/select.min.js"></script> -->
+<!-- 1.C scripts locales, parte 1 (backend local) -->
+<script src="local/config.js"></script>
+<script src="local/io-shim.js"></script>
+<script src="local/nucleo/store.js"></script>
+<script src="local/nucleo/pathfinder-servidor.js"></script>
+<script src="local/nucleo/init-run.js"></script>
+<script src="local/nucleo/score-2026.js"></script>
+<script src="local/nucleo/copy-properties.js"></script>
+<script src="local/nucleo/api.js"></script>
+<script src="local/nucleo/ranking.js"></script>
+<!-- [salidas] E8 (PNG/PDF del mapa y planilla): registra sus rutas en RCJLocal.api. Si todavía no existe, la
+     página funciona igual y "Generate" muestra el Toast de error del CMS (el backend responde 501). -->
+<script src="local/render/registrar.js"></script>
+<script>
+  // [rcj-line-offline] globales de line_2026.pug:11-15. En el CMS los inyecta routes/admin.js:520 y :540
+  // ({ competitionId, mapId, leagueId }); pubService vale false en modo admin (D1).
+  var mapId = RCJLocal.param('map');
+  var competitionId = RCJLocal.param('competition');
+  var pubService = false;
+  var leagueId = "Line";
+</script>
+<script>
+  // [rcj-line-offline] En el CMS competitionId siempre viene en la URL (/admin/<cid>/Line/mapEditor[/<id>]).
+  // Acá ?map=<id> puede llegar sin ?competition (RCJLocal.ruta). Como pug resolvía los globales ANTES de
+  // renderizar, se difiere el arranque de Angular (NG_DEFER_BOOTSTRAP, API pública de AngularJS) hasta
+  // completar competitionId desde la base: competencia del mapa; si no hay mapa, la primera competencia con
+  // liga Line (con la base vacía se crean las semillas D10). El controlador lee los globales recién después.
+  (function () {
+    if (competitionId) return;
+    var PREFIJO = 'NG_DEFER_BOOTSTRAP!';
+    var listos = false;
+    window.name = PREFIJO + window.name;
+    window.addEventListener('pagehide', function () {
+      if (window.name.indexOf(PREFIJO) === 0) window.name = window.name.slice(PREFIJO.length);
+    });
+    angular.resumeDeferredBootstrap = function () {
+      if (listos) angular.resumeBootstrap();
+    };
+    function arrancar() {
+      if (listos) return;
+      listos = true;
+      if (typeof angular.resumeBootstrap === 'function') angular.resumeBootstrap();
+    }
+    var reserva = setTimeout(function () {
+      console.warn('[rcj-line-offline] editor: la base local no respondió a tiempo; arranca sin competitionId');
+      arrancar();
+    }, 10000);
+    (async function () {
+      try {
+        if (mapId) {
+          var rm = await RCJLocal.api.request('GET', '/api/maps/line/' + encodeURIComponent(mapId));
+          if (rm.status === 200 && rm.data && rm.data.competition) competitionId = String(rm.data.competition);
+        }
+        if (!competitionId) {
+          var rc = await RCJLocal.api.request('GET', '/api/competitions/');
+          if (rc.status === 200 && Array.isArray(rc.data) && rc.data.length === 0 && RCJLocal.semillas) {
+            await RCJLocal.semillas();
+            rc = await RCJLocal.api.request('GET', '/api/competitions/');
+          }
+          var conLinea = (Array.isArray(rc.data) ? rc.data : []).filter(function (c) {
+            return (c.leagues || []).some(function (l) { return l.league === leagueId; });
+          });
+          if (conLinea.length) competitionId = String(conLinea[0]._id);
+        }
+      } catch (e) {
+        console.warn('[rcj-line-offline] editor: no se pudo completar competitionId', e);
+      }
+      clearTimeout(reserva);
+      arrancar();
+    })();
+  })();
+</script>
+<script src="javascripts/lvl-uuid.js"></script>
+<script src="javascripts/pathFinder.js"></script>
+<!--script(src="/components/bootstrap-fileinput/js/plugins/piexif.min.js")-->
+<!--script(src="/components/bootstrap-fileinput/js/plugins/sortable.min.js")-->
+<!--script(src="/components/bootstrap-fileinput/js/plugins/purify.min.js")-->
+<!-- OMITIDO (06: C, el import usa FileReader): <script src="components/bootstrap-fileinput/js/fileinput.min.js"></script> -->
+<!-- OMITIDO (06: X, soft-404 en el sitio vivo: SyntaxError en consola): components/bootstrap-fileinput/themes/fa/theme.min.js -->
+<!-- OMITIDO (06: C, requiere fileinput): <script src="components/bootstrap-fileinput/js/locales/ja.js"></script> -->
+<!-- OMITIDO (06: C, sin uso): <script src="components/html2canvas/index.js"></script> -->
+<script src="javascripts/admin/mapEditor/line_2026.js"></script>
+<!-- [editor] capa táctil (D5, flag tactil): polyfill de arrastrar y soltar + gestos. Sin pantalla táctil no hace nada. -->
+<script src="components/mobile-drag-drop/index.min.js"></script>
+<script src="components/mobile-drag-drop/scroll-behaviour.min.js"></script>
+<script src="local/tactil.js"></script>
+<script src="local/http-backend.js"></script>
+<script>RCJLocal.instalarBackend('LineEditor');</script>
+<!-- 1.B css comunes (common_component.pug:21-30) -->
+<link rel="stylesheet" href="components/bootstrap/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="stylesheets/style.css">
+<link rel="stylesheet" href="stylesheets/navbar_premium.css">
+<link href="components/font-awesome-5/css/all.min.css" rel="stylesheet">
+<link rel="stylesheet" href="components/angular-bootstrap/dist/ui-bootstrap-csp.css">
+<!-- OMITIDO (06: C, reglas solo .ui-select-*): <link rel="stylesheet" href="components/angular-ui-select/dist/select.min.css"> -->
+<!-- block page_css (line_2026.pug:28-32) -->
+<link href="stylesheets/fredrik.css" rel="stylesheet">
+<!-- OMITIDO (06: C): <link href="components/bootstrap-fileinput/css/fileinput.min.css" rel="stylesheet"> -->
+<link href="stylesheets/admin/mapEditor/maze_modern.css" rel="stylesheet">
+<link href="stylesheets/admin/mapEditor/line_modern.css" rel="stylesheet">
+<link href="components/mobile-drag-drop/default.css" rel="stylesheet"> <!-- [editor] polyfill táctil -->
+<!-- 1.D modern layout (modern_layout.pug:4-9) -->
+<link href="stylesheets/common/modern_layout.css" rel="stylesheet">
+<link href="stylesheets/common/modern_components.css" rel="stylesheet">
+<link href="stylesheets/common/modern_list.css" rel="stylesheet">
+<link href="stylesheets/common/modern_modal.css" rel="stylesheet">
+<!-- [editor] ajustes solo para pantallas angostas (< 768 px, celular): después de los CSS del CMS para poder pisarlos -->
+<link href="local/ui/movil-editor.css" rel="stylesheet">
+<!-- 1.E cola de head.pug:6-44 -->
+<script src="javascripts/translate_config.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0,minimum-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#043C78">
+<meta name="charset" content="UTF-8">
+<link rel="icon" type="image/vnd.microsoft.icon" sizes="16x16" href="images/favicon-16.ico">
+<link rel="icon" type="image/vnd.microsoft.icon" sizes="32x32" href="images/favicon-32.ico">
+<link rel="icon" type="image/vnd.microsoft.icon" sizes="96x96" href="images/favicon-96.ico">
+<link rel="apple-touch-icon" sizes="144x144" href="images/apple-touch-icon-144.png">
+<link rel="apple-touch-icon" sizes="152x152" href="images/apple-touch-icon-152.png">
+<link rel="apple-touch-icon" sizes="180x180" href="images/apple-touch-icon-180.png">
+<link rel="icon" type="image/png" sizes="196x196" href="images/favicon-196.png">
+<link rel="icon" type="image/png" sizes="32x32" href="images/favicon-32.png">
+<link rel="icon" type="image/png" sizes="128x128" href="images/favicon-128.png">
+<!-- PENDIENTE (docs): <link rel="manifest" href="manifest.webmanifest"> ; el CMS usaba /manifest.json -->
+<!-- OMITIDO (ESPEC §1, fuentes rotas en el origen): <link href="stylesheets/fonts.css" rel="stylesheet"> -->
+<script>currentWidth = -1;
+$(window).on('load resize', function(){
+if (currentWidth == window.innerWidth) {
+return;
+}
+currentWidth = window.innerWidth;
+var height = $('.navbar').height();
+$('body').css('padding-top',height+13);
+});
+
+let lastTouch = 0;
+document.addEventListener('touchend', event => {
+const now = window.performance.now();
+if (now - lastTouch <= 500) {
+event.preventDefault();
+}
+lastTouch = now;
+}, true);</script>
+</head>
+<body ng-controller="LineEditorController" style="display: flex; flex-direction: column; min-height: 100vh;">
+<nav class="navbar navbar-expand premium-navbar"><a class="navbar-brand" href="index.html"><img class="d-inline-block align-top" src="images/logo.png" alt="Logo"><span class="brand-text">&nbsp;RCJ CMS</span></a><div class="ml-auto d-flex align-items-center"><a class="nav-user-link mr-2" href="#" data-toggle="modal" data-target="#languageModal" title="{{'select_lang' | translate}}"><i class="fas fa-globe-americas"></i></a><!-- OMITIDO (offline no hay sesión: navbar.pug:13-37, menú de usuario y botón Login) --></div></nav>
+<script>
+  // [rcj-line-offline] regla 3b: el logo iba a /home (navbar.pug:4)
+  document.querySelector('.navbar-brand').setAttribute('href', RCJLocal.ruta('/home'));
+</script>
+<div class="container-fluid" style="overflow: hidden; flex-grow: 1;"><div class="maps-hero"><div class="maps-container" style="max-width: 100%;"><nav class="breadcrumb premium-breadcrumb hero-breadcrumb"><a class="breadcrumb-item" ng-click="go('/home')"><i class="fas fa-home mr-1"></i>Home</a><a class="breadcrumb-item" ng-click="go('/admin')">Admin</a><a class="breadcrumb-item" ng-click="go('/admin/'+competitionId)">{{competition.name}}</a><a class="breadcrumb-item" ng-click="go('/admin/'+competitionId + '/' + league.league + '/maps')">Line Maps</a><span class="breadcrumb-item active">Editor</span></nav><div class="hero-content-wrapper"><div class="hero-text"><div class="hero-title-container"><input class="hero-title-input" type="text" ng-model="name" placeholder="{{&quot;admin.lineMapEditor.mapName&quot; | translate}}"><i class="fas fa-pen title-edit-icon"></i></div><div class="hero-subtitle">{{competition.name}} - {{league.name}} Map Editor 2026</div></div><div class="hero-actions"><div class="action-group flex-column align-items-center" style="position: relative;"><div class="alert alert-danger small py-1 px-2 mb-0" ng-if="startNotSet()" style="position: absolute; top: -45px; left: 0; border-radius: 12px; border: none; background: #fee2e2; color: #b91c1c; white-space: nowrap; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 10;"><i class="fas fa-exclamation-circle mr-1"></i>{{"admin.lineMapEditor.noStart" | translate}}</div><span class="action-label mb-1">SAVE</span><div class="d-flex"><button class="btn-hero-icon btn-save mr-2" type="button" ng-click="saveMap()" title="{{&quot;admin.lineMapEditor.save&quot; | translate}}"><i class="fas fa-save"></i></button><button class="btn-hero-icon" type="button" ng-click="openSaveAsModal()" title="Save As"><i class="fas fa-copy"></i></button></div></div><div class="action-divider"></div><div class="action-group flex-column align-items-center"><span class="action-label mb-1">JSON</span><div class="d-flex"><button class="btn-hero-icon mr-2" type="button" ng-click="export()" uib-tooltip="Export JSON"><i class="fas fa-file-export"></i></button><button class="btn-hero-icon" type="button" onclick="$('#select').click()" uib-tooltip="Import JSON"><i class="fas fa-file-import"></i></button><input id="select" type="file" name="select" style="display:none;"></div></div></div></div></div></div><div class="maps-container mt-n4" style="max-width: 100%;"><script type="text/ng-template" id="saveAsModal_2026.html"><div class="modal-header premium-modal-header"><h3 class="modal-title"><i class="fas fa-copy mr-2"></i>{{"admin.lineMapEditor.saveAs" | translate}}</h3></div><div class="modal-body premium-modal-body"><div class="form-group"><label class="action-label text-muted mb-1">{{ 'admin.lineMapEditor.name' | translate }}</label><input class="premium-input" type="text" ng-model="asname" placeholder="{{ &quot;admin.lineMapEditor.name&quot; | translate }}"></div><div class="form-group mt-4"><label class="action-label text-muted mb-1">{{ 'admin.mazeMapEditor.saveAsModal.targetCompetition' | translate }}</label><select class="premium-select" ng-model="se_competition" ng-options="b_competitions._id as b_competitions.name for b_competitions in competitions"></select></div></div><div class="modal-footer premium-modal-footer"><button class="btn btn-light rounded-pill px-4" type="button" ng-click="saveAsCancel()">{{"common.cancel" | translate}}</button><button class="btn-hero-action btn-save" type="button" ng-click="saveAsOk()"> <i class="fas fa-save mr-2"></i>{{ 'admin.lineMapEditor.saveAs' | translate }}</button></div></script><div class="row"><div class="col-12"><div class="modern-toolbar py-2 mb-3" style="background: #f8fafc; border-radius: 8px;"><div class="row no-gutters w-100 align-items-center"><div class="col-auto px-3 border-right"><span class="small text-muted font-weight-bold"><i class="fas fa-ruler-combined mr-2"></i>{{"admin.mazeMapEditor.dimensions" | translate}}</span></div><div class="col px-2"><div class="d-flex justify-content-start ml-3 gap-4"><div class="d-flex align-items-center mr-4" title="{{&quot;admin.lineMapEditor.height&quot; | translate}}"><label class="small mb-0 mr-2 text-muted"><i class="fas fa-layer-group mr-1"></i></label><div class="dimension-spinner"><button class="btn-spin" type="button" ng-click="height = height &gt; 1 ? height - 1 : 1; sliderOptions.ceil = height - 1"><i class="fas fa-minus"></i></button><input class="spinner-input" type="number" ng-model="height" ng-change="sliderOptions.ceil = height - 1" min="1"><button class="btn-spin" type="button" ng-click="height = height + 1; sliderOptions.ceil = height - 1"><i class="fas fa-plus"></i></button></div></div><div class="d-flex align-items-center mr-4" title="{{&quot;admin.lineMapEditor.width&quot; | translate}}"><label class="small mb-0 mr-2 text-muted"><i class="fas fa-arrows-alt-h mr-1"></i></label><div class="dimension-spinner"><button class="btn-spin" type="button" ng-click="width = width &gt; 1 ? width - 1 : 1"><i class="fas fa-minus"></i></button><input class="spinner-input" type="number" ng-model="width" min="1"><button class="btn-spin" type="button" ng-click="width = width + 1"><i class="fas fa-plus"></i></button></div></div><div class="d-flex align-items-center mr-4" title="{{&quot;admin.lineMapEditor.length&quot; | translate}}"><label class="small mb-0 mr-2 text-muted"><i class="fas fa-arrows-alt-v mr-1"></i></label><div class="dimension-spinner"><button class="btn-spin" type="button" ng-click="length = length &gt; 1 ? length - 1 : 1"><i class="fas fa-minus"></i></button><input class="spinner-input" type="number" ng-model="length" min="1"><button class="btn-spin" type="button" ng-click="length = length + 1"><i class="fas fa-plus"></i></button></div></div></div></div><div class="col px-3 border-left"><div class="d-flex align-items-center justify-content-end gap-4 compact-map-settings"><div class="time-capsule" ng-class="{'expanded': showLiveVSetting}" ng-click="showLiveVSetting = !showLiveVSetting" uib-tooltip="{{&quot;admin.lineMapEditor.liveVictim&quot; | translate}}: {{liveV}}"><div class="time-capsule-icon"><i class="fas fa-heart text-danger"></i></div><div class="time-capsule-label"><span ng-if="showLiveVSetting">{{"admin.lineMapEditor.liveVictim" | translate}}</span></div><div class="dimension-spinner" ng-show="showLiveVSetting" ng-click="$event.stopPropagation()"><button class="btn-spin" type="button" ng-click="liveV = liveV &gt; 0 ? liveV - 1 : 0"><i class="fas fa-minus"></i></button><input class="spinner-input" type="number" ng-model="liveV" min="0"><button class="btn-spin" type="button" ng-click="liveV = liveV + 1"><i class="fas fa-plus"></i></button></div></div><div class="time-capsule" ng-class="{'expanded': showDeadVSetting}" ng-click="showDeadVSetting = !showDeadVSetting" uib-tooltip="{{&quot;admin.lineMapEditor.deadVictim&quot; | translate}}: {{deadV}}"><div class="time-capsule-icon"><i class="fas fa-skull text-secondary"></i></div><div class="time-capsule-label"><span ng-if="showDeadVSetting">{{"admin.lineMapEditor.deadVictim" | translate}}</span></div><div class="dimension-spinner" ng-show="showDeadVSetting" ng-click="$event.stopPropagation()"><button class="btn-spin" type="button" ng-click="deadV = deadV &gt; 0 ? deadV - 1 : 0"><i class="fas fa-minus"></i></button><input class="spinner-input" type="number" ng-model="deadV" min="0"><button class="btn-spin" type="button" ng-click="deadV = deadV + 1"><i class="fas fa-plus"></i></button></div></div><div class="time-capsule" ng-class="{'expanded': showTimeSetting}" ng-click="showTimeSetting = !showTimeSetting" uib-tooltip="{{&quot;admin.lineMapEditor.duration&quot; | translate}}: {{duration}}s"><div class="time-capsule-icon"><i class="fas fa-clock"></i></div><div class="time-capsule-label"><span ng-if="showTimeSetting">{{"admin.lineMapEditor.duration" | translate}}</span></div><div class="dimension-spinner" ng-show="showTimeSetting" ng-click="$event.stopPropagation()"><button class="btn-spin" type="button" ng-click="duration = duration &gt; 30 ? duration - 30 : 0"><i class="fas fa-minus"></i></button><input class="spinner-input" type="number" ng-model="duration" min="0" step="30"><button class="btn-spin" type="button" ng-click="duration = (duration || 0) + 30"><i class="fas fa-plus"></i></button></div></div></div></div><div class="col-auto px-3 border-left d-flex align-items-center"><div class="premium-tool-group"><button class="status-icon-toggle" type="button" ng-click="finished = !finished" ng-class="{'active': finished}" uib-tooltip="{{&quot;admin.lineMapEditor.finishedTooltip&quot; | translate}}"><i class="fas fa-clipboard-check"></i></button></div></div><div class="col-auto px-3 border-left d-flex align-items-center"><div class="premium-tool-group"><button class="calc-btn-premium" type="button" ng-click="openMaxScore()" uib-tooltip="Calculate Max Score"><i class="fas fa-calculator"></i></button></div></div></div></div><div class="row no-gutters flex-nowrap align-items-stretch" style="height: calc(100vh - 120px); min-height: 600px; margin-bottom: -20px; width: 100%;"><div class="col flex-grow-1 mr-3 h-100" style="min-width: 0;"><div class="d-flex" style="background: #e2e8f0; border-radius: 12px; border: 1px solid #cbd5e1; overflow: hidden; height: 100%; width: 100%;"><div class="floor-switcher-vertical d-flex flex-column p-2 bg-dark border-right" style="min-width: 65px;"><button class="btn btn-sm btn-outline-light mb-3 w-100" type="button" ng-click="centerMap()" uib-tooltip="Reset View"><i class="fas fa-expand-arrows-alt"></i></button><button class="btn btn-sm btn-outline-light mb-1 w-100" type="button" ng-click="undo()" uib-tooltip="Undo (Ctrl+Z)" ng-disabled="!canUndo()"><i class="fas fa-undo"></i></button><button class="btn btn-sm btn-outline-light mb-3 w-100" type="button" ng-click="redo()" uib-tooltip="Redo (Ctrl+Y)" ng-disabled="!canRedo()"><i class="fas fa-redo"></i></button><div class="flex-grow-1"></div><div class="text-center text-light pb-2 mb-2 border-bottom border-secondary" style="opacity: 0.8;"><i class="fas fa-layer-group"></i></div><div class="d-flex flex-column-reverse"><button class="btn btn-sm btn-outline-light mb-2 w-100" type="button" ng-click="changeFloor(zz)" ng-repeat="zz in range(height)" ng-class="{active: zz == z}" style="font-weight: bold; font-size: 0.75rem;">F{{zz}}</button></div></div><div class="map-container flex-grow-1" id="map-container" style="overflow: auto; background: #e2e8f0; height: 100%; width: 100%; position: relative; cursor: crosshair;" ng-mousedown="handleMapMouseDown($event)" ng-mousemove="handleMapMouseMove($event)" ng-mouseup="handleMapMouseUp($event)" ng-click="confirmPaste()"><div class="map-scroll-aligner" style="padding: 100vh 100vw; position: relative; display: inline-block; text-align: left; min-width: 100%;"><div class="selection-marquee" id="selection-marquee" ng-show="isMarqueeActive" ng-style="marqueeStyle"></div><table class="map-table-editor" style="border-collapse: collapse; width: auto; max-width: none !important; table-layout: auto; background: white; box-shadow: 0 20px 50px rgba(0,0,0,0.1);"><tr ng-repeat="r in range(length)" style="white-space: nowrap;"><td class="slot" ng-repeat="c in range(width)" ng-class="{'tile-selected': isSelected(c, r, z), 'tile-cut': isCutSource(c, r, z), 'tile-ghost-target': isInGhostRange(c, r)}" ng-mouseenter="updateMousePos(c, r)" style="padding: 0; border: none; width: 60px; height: 60px; min-width: 60px; min-height: 60px; position: relative;"><tile tile="tiles[c+','+r+','+z]" x="{{c}}" y="{{r}}" z="{{z}}" x-lvl-draggable="true" x-lvl-drop-target="true" ng-right-click="open(c,r)" ng-click="handleTileClick(c, r, $event)"></tile><div class="ghost-preview-container" ng-if="isInGhostRange(c, r)"><img ng-src="images/tiles/{{getGhostTile(c, r).tileType.image}}" style="width: 100%; height: 100%;" ng-class="'rot' + getGhostTile(c, r).rot"></div></td></tr></table></div></div></div></div><div class="col-auto h-100" style="width: 360px;"><div class="modern-card" style="height: 100%; display: flex; flex-direction: column; margin-bottom: 0;"><div class="modern-card-header py-3 px-3"><div class="d-flex justify-content-between align-items-center w-100"><span class="small font-weight-bold text-uppercase letter-spacing-1"><i class="fas fa-palette mr-2"></i>{{"admin.lineMapEditor.tileset" | translate}}</span><span class="badge badge-pill badge-primary">{{ tileSet.tiles.length }}</span></div></div><div class="p-2 border-bottom bg-light"><select class="premium-select-small" ng-model="tileSet" ng-options="set as set.name for set in tileSets" style="font-size: 0.75rem; height: 28px;"></select></div><div class="p-2 bg-white border-bottom" ng-show="hasSelection()"><div class="d-flex align-items-center justify-content-between mb-2"><span class="small font-weight-bold text-primary"><i class="fas fa-mouse-pointer mr-1"></i>{{ selectedCount() }}</span><button class="btn btn-sm btn-link text-muted p-0" ng-click="clearSelection()" style="font-size: 0.7rem;">{{"common.cancel" | translate}}</button></div><div class="btn-modern-group"><button class="btn-modern-action primary" ng-click="bulkRotate()" uib-tooltip="Rotate Group"><i class="fas fa-sync-alt"></i></button><button class="btn-modern-action info" ng-click="copySelection()" uib-tooltip="Copy Group"><i class="fas fa-copy"></i></button><button class="btn-modern-action danger" ng-click="bulkDelete()" uib-tooltip="Delete Group"><i class="fas fa-trash-alt"></i></button></div></div><div class="p-2 bg-white border-bottom" ng-show="!hasSelection()"><button class="btn btn-sm btn-block btn-outline-secondary" ng-click="togglePasteMode()" ng-disabled="!clipboard" ng-class="{'active btn-info text-white': isPasting}" style="font-size: 0.75rem;"><i class="fas fa-paste mr-1"></i>{{ isPasting ? ('common.edit' | translate) : ('common.copy' | translate) }}</button></div><div class="tileset-scroll palette-grid" style="flex: 1; overflow-y: auto; padding: 0.25rem; background: #fdfdfd;"><div class="row no-gutters"><div class="col-2 p-1" ng-repeat="tile in tileSet.tiles track by tile.tileType._id"><div class="tile-palette-item" title="{{tile.tileType.image}}" style="position: relative; border-radius: 4px; border: 1px solid #f1f5f9; background: white; transition: all 0.2s; cursor: pointer;"><div class="tile-image-wrapper" style="padding: 2px;"><img class="toolbox-tile rot0" ng-src="images/tiles/{{tile.tileType.image}}" x-lvl-draggable="true" x-lvl-drop-target="true" x-on-drop="dropped(dragEl, dropEl)" tile-id="{{tile.tileType._id}}" rotate-on-click="" rot="0" style="width: 100%; height: auto; transition: transform 0.2s;"></div><div class="tile-count-badge" ng-if="tile.count &gt; 0" style="position: absolute; top: -4px; right: -4px; background: #f1f5f9; color: #64748b; font-size: 0.5rem; padding: 0px 3px; border-radius: 3px; font-weight: bold; border: 1px solid #e2e8f0; z-index: 1;">{{tileRemain(tile)}}</div><div class="tile-zoom-preview" style="right: 110%; left: auto; top: 0; transform: translateX(-10px) scale(0.8);"><img ng-src="images/tiles/{{tile.tileType.image}}"><div class="small mt-2 text-center" style="word-break: break-all;">{{tile.tileType.image}}</div></div></div></div></div></div></div></div></div></div></div><div class="row mt-5"><div class="col-12"><div class="modern-card"><div class="modern-card-header" data-toggle="collapse" data-target="#outputCollapse" style="cursor: pointer;"><i class="fas fa-file-export mr-2"></i>{{"admin.mazeMapEditor.advancedTools" | translate}}<div class="ml-auto"><i class="fas fa-chevron-down"></i></div></div></div><div class="collapse show" id="outputCollapse"><div class="modern-card-body bg-light"><div class="print-section"><label class="section-title">{{ 'admin.mazeMapAdmin.print.outputContent' | translate }}</label><div class="option-tiles"><div class="option-tile" ng-class="{'active': pdfSettings.exportType === 'Maps'}" ng-click="pdfSettings.exportType = 'Maps'"><div class="option-visual"><i class="fas fa-map"></i></div><div class="option-label">{{ 'admin.mazeMapAdmin.print.mapImages' | translate }}</div><div class="option-check"><i class="fas fa-check-circle"></i></div></div><div class="option-tile" ng-class="{'active': pdfSettings.exportType === 'Scoresheets'}" ng-click="pdfSettings.exportType = 'Scoresheets'"><div class="option-visual"><i class="fas fa-file-signature"></i></div><div class="option-label">{{ 'admin.mazeMapAdmin.print.scoreSheets' | translate }}</div><div class="option-check"><i class="fas fa-check-circle"></i></div></div></div></div><hr><div class="row"><div class="col-md-6" ng-show="pdfSettings.exportType === 'Maps'"><label class="section-title">{{ 'admin.mazeMapAdmin.print.fileFormat' | translate }}</label><div class="premium-btn-group"><div class="btn" ng-class="{'active': pdfSettings.exportFormat === 'PDF'}" ng-click="pdfSettings.exportFormat = 'PDF'">PDF</div><div class="btn" ng-class="{'active': pdfSettings.exportFormat === 'PNG'}" ng-click="pdfSettings.exportFormat = 'PNG'">PNG</div></div></div><div class="col-md-6" ng-show="pdfSettings.exportType === 'Maps' &amp;&amp; pdfSettings.exportFormat === 'PDF'"><label class="section-title">{{ 'admin.mazeMapAdmin.print.paperSize' | translate }}</label><div class="premium-btn-group"><div class="btn" ng-class="{'active': pdfSettings.paperSize === 'A4'}" ng-click="pdfSettings.paperSize = 'A4'">A4</div><div class="btn" ng-class="{'active': pdfSettings.paperSize === 'Letter'}" ng-click="pdfSettings.paperSize = 'Letter'">Letter</div></div></div></div><div class="mt-4"><button class="btn btn-print-action w-100" ng-click="generateOutput()"><i class="fas fa-magic mr-2"></i><span ng-if="pdfSettings.exportType === 'Maps' &amp;&amp; pdfSettings.exportFormat === 'PNG'">{{ 'admin.mazeMapAdmin.print.generatePNG' | translate }}</span><span ng-if="pdfSettings.exportType !== 'Maps' || pdfSettings.exportFormat === 'PDF'">{{ 'admin.mazeMapAdmin.print.generatePDF' | translate }}</span></button></div></div></div></div></div></div>
+<footer class="footer" style="background-color: #000000; width: 100%;"><div class="d-flex justify-content-between align-items-center w-100 px-3 pt-1 pb-2 m-0"><div class="footer-text text-truncate" style="text-align:left; font-size:max(12px, min(1vw, 25px)); white-space: nowrap; color: #aaaaaa;"><i class="far fa-copyright" aria-hidden="true"></i>&nbsp;2016-2026 RoboCupJunior Rescue CMS Development SubCommittee&nbsp;-&nbsp;<i class="fas fa-code-branch" aria-hidden="true"></i>&nbsp; v26.0.2</div></div></footer>
+<!-- OMITIDO (offline no hay servidor de sesión): include login_modal (#loginModal + $.post('/api/auth/login')) -->
+<div class="modal fade" id="languageModal" tabindex="-1" role="dialog" aria-labelledby="languageModalLabel" aria-hidden="true"><div class="modal-dialog modal-dialog-centered" role="document"><div class="modal-content premium-modal-content"><div class="modal-header border-0"><button class="close" type="button" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button></div><div class="modal-body px-5 pb-5"><div class="text-center mb-5"><i class="fas fa-language fa-4x mb-3" style="color: var(--primary-color);"></i><h2 class="modal-title font-weight-bold">{{"select_lang" | translate}}</h2></div><div class="row no-gutters gap-3"><div class="col-6 pr-2"><div class="language-card" onclick="changeLanguage('en')"><div class="lang-circle bg-primary">EN</div><h4>English</h4></div></div><div class="col-6 pl-2"><div class="language-card" onclick="changeLanguage('ja')"><div class="lang-circle bg-danger">JA</div><h4>日本語</h4></div></div></div><!-- [rcj-line-offline] regla 3c: español agregado al selector --><div class="row no-gutters gap-3 mt-3"><div class="col-6 pr-2"><div class="language-card" onclick="changeLanguage('es')"><div class="lang-circle bg-success">ES</div><h4>Español</h4></div></div></div></div></div></div></div><script>function changeLanguage(langKey) {
+    try {
+        const injector = angular.element(document.body).injector();
+        const $translate = injector.get('$translate');
+        $translate.use(langKey).then(function() {
+            window.location.reload();
+        });
+    } catch (e) {
+        // Fallback for non-angular pages or if injection fails
+        console.error("Language switch failed, reloading anyway...", e);
+        window.location.reload();
+    }
+}</script>
+</body>
+</html>

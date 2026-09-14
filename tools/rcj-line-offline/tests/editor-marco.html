@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Marco de captura del editor (ancho menor a 500 px)</title>
+<!--
+  rcj-line-offline — área editor. SOLO PRUEBA. Edge headless no dibuja ventanas de menos de 500 px de ancho
+  (con --window-size=412,915 renderiza a ~500 px y recorta la imagen), así que la captura de celular se toma con
+  editor.html dentro de un iframe del tamaño real (?w=412&h=915) y tests/editor-correr.py recorta la imagen.
+  ?q=<query de editor.html> (p.ej. map=<id>&__modal=0,0), ?espera=ms de latido para IndexedDB.
+-->
+<style>
+  html, body { margin: 0; background: #111; overflow: hidden; }
+  iframe { position: fixed; left: 0; top: 0; border: 0; background: #fff; }
+</style>
+</head>
+<body>
+<iframe id="marco" title="editor"></iframe>
+<script>
+(function () {
+  var q = new URLSearchParams(location.search);
+  var ancho = +q.get('w') || 412, alto = +q.get('h') || 915, espera = +q.get('espera') || 7000;
+  var f = document.getElementById('marco');
+  f.style.width = ancho + 'px';
+  f.style.height = alto + 'px';
+  f.src = '../editor.html?' + (q.get('q') || '');
+  var vueltas = Math.max(1, Math.round(espera / 250));
+  (async function () {
+    for (var i = 0; i < vueltas; i++) {
+      try {
+        var r = await fetch('/__latido?ms=250', { cache: 'no-store' });
+        if (r.status !== 204) break;
+      } catch (e) { break; }
+    }
+  })();
+})();
+</script>
+</body>
+</html>

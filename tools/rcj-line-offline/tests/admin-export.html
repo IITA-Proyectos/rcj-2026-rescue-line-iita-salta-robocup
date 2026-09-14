@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Admin — export del mapa (T4 por la biblioteca de mapas)</title>
+<!--
+  Usada por tests/admin-correr.py --export (--dump-dom). Importa el fixture oficial (objeto y variante con tiles
+  array) con RCJLocal.ingestMap y lo exporta con RCJLocal.exportMap con el pathFinder cliente cargado, igual que
+  mapas.html. Compara con el sha256 del export oficial y, si difiere, informa la primera diferencia.
+-->
+<script src="admin-comun.js"></script>
+<script src="../local/config.js"></script>
+<script src="../local/io-shim.js"></script>
+<script src="../local/nucleo/store.js"></script>
+<script src="../local/nucleo/pathfinder-servidor.js"></script>
+<script src="../local/nucleo/init-run.js"></script>
+<script src="../local/nucleo/score-2026.js"></script>
+<script src="../local/nucleo/copy-properties.js"></script>
+<script src="../local/nucleo/api.js"></script>
+<script src="../local/nucleo/ranking.js"></script>
+<script src="../javascripts/pathFinder.js"></script>
+</head>
+<body>
+<pre id="resultado">PENDIENTE</pre>
+<script>
+function primeraDiferencia(a, b) {
+  var i = 0;
+  while (i < a.length && i < b.length && a[i] === b[i]) i++;
+  if (i === a.length && i === b.length) return null;
+  return { posicion: i, obtenido: a.slice(Math.max(0, i - 80), i + 120), esperado: b.slice(Math.max(0, i - 80), i + 120), largoObtenido: a.length, largoEsperado: b.length };
+}
+T.correr(async function () {
+  var SHA = 'df7986072ce370a1c5347ce76b2f4eacb8e9bf9de228cff0932652834de1251e';
+  var FIX = await (await fetch('admin-fixtures/fixture-mapa-oficial.min.json', { cache: 'no-store' })).text();
+  var ex = {};
+  await T.resetear();
+  await RCJLocal.semillas();
+  var cid = (await T.api('GET', '/api/competitions/')).data[0]._id;
+  var id = await RCJLocal.ingestMap(JSON.parse(FIX), { competition: cid, league: 'Line', renombrarSiExiste: true });
+  var txt = JSON.stringify(await RCJLocal.exportMap(id));
+  ex.dif = primeraDiferencia(txt, FIX);
+  T.igual('exportMap tras ingestMap: sha256 del export oficial', await T.sha256(txt), SHA);
+
+  var oficial = JSON.parse(FIX);
+  var arr = JSON.parse(FIX);
+  arr.tiles = Object.keys(oficial.tiles).map(function (k) {
+    var t = JSON.parse(JSON.stringify(oficial.tiles[k]));
+    t.tileType = t.tileType._id;
+    delete t.index; delete t.next;
+    return t;
+  });
+  var id2 = await RCJLocal.ingestMap(arr, { competition: cid, league: 'Line', renombrarSiExiste: true });
+  var obj2 = await RCJLocal.exportMap(id2);
+  obj2.name = oficial.name;
+  var txt2 = JSON.stringify(obj2);
+  ex.difArray = primeraDiferencia(txt2, FIX);
+  T.igual('tiles array: export (nombre original) = oficial', await T.sha256(txt2), SHA);
+  return ex;
+});
+</script>
+</body>
+</html>

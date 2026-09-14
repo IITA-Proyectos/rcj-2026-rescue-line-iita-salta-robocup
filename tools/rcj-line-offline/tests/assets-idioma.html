@@ -1,0 +1,58 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<base href="../">
+<title>Prueba assets: idioma preferido (regla 3c)</title>
+<script>
+  // Escenario por query string: ?guardado=en|ja|es fija la elección guardada antes de arrancar Angular;
+  // sin parámetro (o vacío) la borra. Se usa un --user-data-dir distinto por escenario.
+  window.__errores = [];
+  window.onerror = function (msg, src, linea) { __errores.push('onerror: ' + msg + ' @ ' + src + ':' + linea); };
+  (function () {
+    var ce = console.error;
+    console.error = function () { __errores.push('console.error: ' + Array.prototype.join.call(arguments, ' ')); ce.apply(console, arguments); };
+    var m = /[?&]guardado=([^&]*)/.exec(location.search);
+    var guardado = m ? decodeURIComponent(m[1]) : '';
+    try {
+      if (guardado) { localStorage.setItem('NG_TRANSLATE_LANG_KEY', guardado); } else { localStorage.removeItem('NG_TRANSLATE_LANG_KEY'); }
+    } catch (e) { __errores.push('localStorage: ' + e); }
+    window.__guardado = guardado;
+  })();
+</script>
+<script src="components/jquery/dist/jquery.min.js"></script>
+<script src="components/angular/angular.min.js"></script>
+<script src="components/angular-translate/angular-translate.min.js"></script>
+<script src="components/angular-translate-loader-static-files/angular-translate-loader-static-files.min.js"></script>
+<script src="components/angular-translate-storage-local/angular-translate-storage-local.min.js"></script>
+<script src="components/angular-translate-storage-cookie/angular-translate-storage-cookie.min.js"></script>
+<script src="components/angular-translate-handler-log/angular-translate-handler-log.min.js"></script>
+<script src="components/angular-cookies/angular-cookies.min.js"></script>
+<script>var app = angular.module('pruebaIdioma', ['pascalprecht.translate', 'ngCookies']);</script>
+<script src="javascripts/translate_config.js"></script>
+</head>
+<body>
+<div id="app" ng-controller="C"><span id="texto">{{'common.back' | translate}}</span></div>
+<pre id="resultado">PENDIENTE</pre>
+<script>
+  app.controller('C', ['$translate', function ($translate) {
+    $translate.onReady().then(function () {
+      setTimeout(function () {
+        var r = {
+          guardado: window.__guardado,
+          navegador: navigator.language,
+          use: $translate.use(),
+          preferido: $translate.preferredLanguage(),
+          common_back: $translate.instant('common.back'),
+          dom: document.getElementById('texto').textContent,
+          localStorage_despues: localStorage.getItem('NG_TRANSLATE_LANG_KEY'),
+          errores: window.__errores
+        };
+        document.getElementById('resultado').textContent = JSON.stringify(r, null, 2);
+      }, 300);
+    });
+  }]);
+  angular.bootstrap(document.getElementById('app'), ['pruebaIdioma']);
+</script>
+</body>
+</html>

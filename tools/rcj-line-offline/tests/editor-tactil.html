@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Editor — capa táctil (local/tactil.js) con TouchEvent sintéticos</title>
+<script src="editor-comun.js"></script>
+<script src="../local/config.js"></script>
+<script src="../local/nucleo/store.js"></script>
+<script src="../local/nucleo/pathfinder-servidor.js"></script>
+<script src="../local/nucleo/init-run.js"></script>
+<script src="../local/nucleo/score-2026.js"></script>
+<script src="../local/nucleo/copy-properties.js"></script>
+<script src="../local/nucleo/api.js"></script>
+<script src="../local/nucleo/ranking.js"></script>
+</head>
+<body>
+<h1>tactil.js: pulsación larga, modo selección, botones flotantes, arrastrar con el dedo (correr con --touch-events=enabled)</h1>
+<pre id="resultado">PENDIENTE</pre>
+<script>
+function tocar(ed, el, tipo, puntos) {
+  var w = ed.win;
+  var lista = puntos.map(function (p, i) {
+    return new w.Touch({ identifier: p.id || (i + 1), target: el, clientX: p.x, clientY: p.y, pageX: p.x, pageY: p.y, screenX: p.x, screenY: p.y, radiusX: 2, radiusY: 2, force: 1 });
+  });
+  var activos = (tipo === 'touchend' || tipo === 'touchcancel') ? [] : lista;
+  var ev = new w.TouchEvent(tipo, { bubbles: true, cancelable: true, composed: true, view: w, touches: activos, targetTouches: activos, changedTouches: lista });
+  el.dispatchEvent(ev);
+  return ev;
+}
+function rectTxt(el) {
+  var r = el.getBoundingClientRect();
+  return [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)];
+}
+function centro(el) {
+  var r = el.getBoundingClientRect();
+  return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+}
+function boton(ed, accion) { return ed.doc.querySelector('#rcj-tactil-barra [data-accion="' + accion + '"]'); }
+function modalAbierto(ed) { return ed.doc.querySelector('[uib-modal-window] .premium-modal-body'); }
+
+T.correr(async function () {
+  await T.resetear();
+  await RCJLocal.semillas();
+  var cid = (await T.api('GET', '/api/competitions/')).data[0]._id;
+  var fix = JSON.parse(await T.textoFixture('fixture-mapa-oficial.min.json'));
+  var mapId = await RCJLocal.ingestMap(fix, { competition: cid, league: 'Line' });
+
+  var ed = await T.abrirEditor('map=' + mapId, 'tactil', 1024, 768);
+  var s = ed.scope, d = ed.doc, w = ed.win, TT = w.RCJLocal.tactil;
+  await T.esperar(900); // centerMap (smooth) inicial
+
+  var mc0 = d.getElementById('map-container'), tabla0 = d.querySelector('.map-table-editor');
+  var rC = mc0.getBoundingClientRect(), rT = tabla0.getBoundingClientRect();
+  T.check('centerMap al abrir: la tabla queda dentro de la parte visible del mapa', mc0.scrollLeft > 0 && rT.right > rC.left && rT.left < rC.right && rT.bottom > rC.top && rT.top < rC.bottom,
+    { scroll: [mc0.scrollLeft, mc0.scrollTop], mapa: [Math.round(rC.left), Math.round(rC.top), Math.round(rC.width), Math.round(rC.height)], tabla: [Math.round(rT.left), Math.round(rT.top), Math.round(rT.width), Math.round(rT.height)] });
+  T.check('pantalla táctil emulada', 'ontouchstart' in w);
+  T.igual('tactil activo, polyfill aplicado, clase rcj-tactil', [TT.activo, TT.polyfillAplicado, d.documentElement.classList.contains('rcj-tactil')], [true, true, true]);
+  T.igual('barra flotante con 6 botones', Array.prototype.map.call(d.querySelectorAll('#rcj-tactil-barra button'), function (b) { return b.getAttribute('data-accion'); }),
+    ['seleccion', 'deshacer', 'rehacer', 'cortar', 'salirSello', 'borrar']);
+  T.igual('estado inicial de la barra (deshabilitados sin historial ni selección)',
+    ['deshacer', 'rehacer', 'cortar', 'salirSello', 'borrar'].map(function (a) { return boton(ed, a).disabled; }), [true, true, true, true, true]);
+
+  // elegir baldosas del piso 0 con imagen
+  var claves = Object.keys(fix.tiles).filter(function (k) { return /,0$/.test(k) && fix.tiles[k].tileType.paths; });
+  var k1 = claves[0].split(',').map(Number), k2 = claves[1].split(',').map(Number);
+  var el1 = T.celda(ed, k1[0], k1[1]);
+
+  // ---------------------------------------------------------------- pulsación larga = clic derecho (modal)
+  var rot1 = s.tiles[claves[0]].rot;
+  el1.scrollIntoView({ block: 'center', inline: 'center' });
+  await T.esperar(200);
+  var c1 = centro(el1);
+  tocar(ed, el1, 'touchstart', [c1]);
+  await T.esperar(250);
+  T.check('pulsación corta (250 ms): todavía sin modal', !modalAbierto(ed));
+  await T.esperar(450);
+  await T.checkEsperando('pulsación larga (~500 ms): abre el modal de propiedades (ng-right-click)', function () { return modalAbierto(ed); }, 6000);
+  var fin = tocar(ed, el1, 'touchend', [c1]);
+  T.check('touchend de la pulsación larga: preventDefault (sin clic de compatibilidad)', fin.defaultPrevented);
+  T.clic(ed, el1);
+  T.igual('el clic del mismo toque se descarta (no rota la baldosa)', s.tiles[claves[0]].rot, rot1);
+  await T.esperarQue('modal estable', function () { return d.querySelector('[uib-modal-window] .modal-content').getBoundingClientRect().top >= 0; }, 4000).catch(function () {});
+  var mc = d.querySelector('[uib-modal-window] .modal-content');
+  var pie = d.querySelector('[uib-modal-window] .modal-footer .btn-print-action');
+  var cuerpo = d.querySelector('[uib-modal-window] .premium-modal-body');
+  var rMc = mc.getBoundingClientRect(), rPie = pie.getBoundingClientRect();
+  T.check('modal en 1024x768: entra en la pantalla', rMc.top >= 0 && rMc.bottom <= w.innerHeight + 1, { top: rMc.top, bottom: rMc.bottom, alto: w.innerHeight });
+  T.check('modal en 1024x768: botón Save visible sin desplazar la página', rPie.bottom <= w.innerHeight && rPie.top >= 0, { top: rPie.top, bottom: rPie.bottom });
+  T.igual('modal: cuerpo con scroll interno', w.getComputedStyle(cuerpo).overflowY, 'auto');
+  T.clic(ed, d.querySelector('[uib-modal-window] .btn-cancel-action'));
+  await T.esperarQue('modal cerrado', function () { return !d.querySelector('[uib-modal-window]'); }, 8000);
+
+  // pulsación larga que se mueve (desplazamiento) no abre nada
+  tocar(ed, el1, 'touchstart', [c1]);
+  await T.esperar(100);
+  tocar(ed, el1, 'touchmove', [{ x: c1.x + 30, y: c1.y + 5 }]);
+  await T.esperar(700);
+  T.check('toque que se desplaza: no abre el modal', !modalAbierto(ed));
+  tocar(ed, el1, 'touchend', [{ x: c1.x + 30, y: c1.y + 5 }]);
+
+  // dos dedos (paneo): no abre modal ni marquee
+  tocar(ed, el1, 'touchstart', [c1]);
+  tocar(ed, el1, 'touchstart', [c1, { id: 2, x: c1.x + 60, y: c1.y }]);
+  await T.esperar(700);
+  T.check('dos dedos: no abre el modal ni activa el marquee', !modalAbierto(ed) && !s.isMarqueeActive);
+  tocar(ed, el1, 'touchend', [c1, { id: 2, x: c1.x + 60, y: c1.y }]);
+  await T.esperar(900);
+
+  // ---------------------------------------------------------------- tocar = rotar; deshacer / rehacer desde la barra
+  T.clic(ed, el1);
+  T.igual('toque simple: rota como el clic', s.tiles[claves[0]].rot, (rot1 + 90) % 360);
+  await T.checkEsperando('barra: Deshacer se habilita', function () { return !boton(ed, 'deshacer').disabled; });
+  boton(ed, 'deshacer').click();
+  T.igual('barra Deshacer = undo()', s.tiles[claves[0]].rot, rot1);
+  await T.checkEsperando('barra: Rehacer se habilita', function () { return !boton(ed, 'rehacer').disabled; });
+  boton(ed, 'rehacer').click();
+  T.igual('barra Rehacer = redo()', s.tiles[claves[0]].rot, (rot1 + 90) % 360);
+  el1 = T.celda(ed, k1[0], k1[1]);
+
+  // ---------------------------------------------------------------- modo selección
+  boton(ed, 'seleccion').click();
+  T.igual('Selección activa', [TT.modoSeleccion, d.documentElement.classList.contains('rcj-modo-seleccion'), boton(ed, 'seleccion').getAttribute('aria-pressed')], [true, true, 'true']);
+  var rotAntes = s.tiles[claves[0]].rot;
+  T.clic(ed, T.celda(ed, k1[0], k1[1]));
+  T.clic(ed, T.celda(ed, k2[0], k2[1]));
+  T.igual('modo selección: tocar = Ctrl+clic (selecciona, no rota)', [s.selectedCount(), s.isSelected(k1[0], k1[1], 0), s.isSelected(k2[0], k2[1], 0), s.tiles[claves[0]].rot], [2, true, true, rotAntes]);
+  T.clic(ed, T.celda(ed, k2[0], k2[1]));
+  T.igual('modo selección: segundo toque deselecciona', s.selectedCount(), 1);
+  await T.checkEsperando('barra: Cortar y Borrar habilitados con selección', function () { return !boton(ed, 'cortar').disabled && !boton(ed, 'borrar').disabled; });
+
+  // cortar + salir del sello (Esc)
+  boton(ed, 'cortar').click();
+  T.igual('barra Cortar = cutSelection()', [s.isCutting, s.isPasting, s.selectedCount()], [true, true, 0]);
+  w.Swal.close();
+  await T.checkEsperando('barra: Salir del sello habilitado', function () { return !boton(ed, 'salirSello').disabled; });
+  boton(ed, 'salirSello').click();
+  T.igual('barra Salir del sello = Esc del teclado', [s.isPasting, s.isCutting], [false, false]);
+
+  // borrar selección
+  T.clic(ed, T.celda(ed, k2[0], k2[1]));
+  T.igual('selección de una baldosa para borrar', s.selectedCount(), 1);
+  boton(ed, 'borrar').click();
+  T.igual('barra Borrar selección = bulkDelete()', [!!s.tiles[claves[1]], s.selectedCount()], [false, 0]);
+  boton(ed, 'seleccion').click();
+  T.check('Selección desactivada', TT.modoSeleccion === false && !d.documentElement.classList.contains('rcj-modo-seleccion'));
+
+  // ---------------------------------------------------------------- arrastrar con el dedo desde la paleta (mobile-drag-drop)
+  var T0 = '570c27c3f5a9dabe23f3af90';
+  var paleta = d.querySelector('img.toolbox-tile[tile-id="' + T0 + '"]');
+  var destino = T.celda(ed, k2[0], k2[1]);
+  var mc = d.getElementById('map-container');
+  var ts = d.querySelector('.tileset-scroll');
+  // Posicionamiento explícito (sin scrollIntoView): la página con el mapa arriba, la celda destino en el centro de
+  // la parte visible del mapa y la baldosa de la paleta visible dentro de su lista.
+  w.scrollTo(0, 0);
+  w.scrollTo(0, Math.max(0, Math.round(mc.getBoundingClientRect().top + w.scrollY - 10)));
+  var rd = destino.getBoundingClientRect(), rmc = mc.getBoundingClientRect();
+  var altoVisible = Math.min(rmc.bottom, w.innerHeight) - rmc.top;
+  mc.scrollLeft += Math.round((rd.left + rd.width / 2) - (rmc.left + rmc.width / 2));
+  mc.scrollTop += Math.round((rd.top + rd.height / 2) - (rmc.top + altoVisible / 2));
+  ts.scrollTop += Math.round(paleta.getBoundingClientRect().top - ts.getBoundingClientRect().top - 10);
+  await T.esperar(500);
+  var p0 = centro(paleta), p1 = centro(destino);
+  var diag = { viewport: [w.innerWidth, w.innerHeight], scrollY: Math.round(w.scrollY), mapa: rectTxt(mc), scrollMapa: [mc.scrollLeft, mc.scrollTop],
+    destino: rectTxt(destino), paleta: rectTxt(paleta), p0: p0, p1: p1 };
+  var enPunto = d.elementFromPoint(p1.x, p1.y);
+  diag.enPunto = enPunto ? enPunto.tagName.toLowerCase() + '.' + enPunto.className : null;
+  T.check('la celda destino queda bajo el punto de soltado', enPunto && enPunto.closest('tile') === destino, diag);
+  var eventos = [];
+  ['dragstart', 'dragenter', 'dragover', 'drop', 'dragend'].forEach(function (t) {
+    d.addEventListener(t, function (ev) { if (eventos.length < 30) eventos.push(t + ':' + ev.target.tagName.toLowerCase()); }, true);
+  });
+  var usadasAntes = s.usedCount[T0] || 0;
+  tocar(ed, paleta, 'touchstart', [p0]);
+  await T.esperar(450);
+  var pasos = 6;
+  for (var i = 1; i <= pasos; i++) {
+    tocar(ed, paleta, 'touchmove', [{ x: Math.round(p0.x + (p1.x - p0.x) * i / pasos), y: Math.round(p0.y + (p1.y - p0.y) * i / pasos) }]);
+    await T.esperar(60);
+  }
+  await T.esperar(300);
+  tocar(ed, paleta, 'touchend', [p1]);
+  await T.checkEsperando('dedo: paleta -> celda crea la baldosa (dragstart/drop con dataTransfer)', function () {
+    return s.tiles[claves[1]] && s.tiles[claves[1]].tileType._id === T0;
+  }, 5000, function () { return { tile: s.tiles[claves[1]] ? s.tiles[claves[1]].tileType.image : null, eventos: eventos, diag: diag }; });
+  T.igual('dedo: usedCount de tile-0 sube 1', s.usedCount[T0], usadasAntes + 1);
+  await T.esperar(500);
+  T.check('dedo: sin clases lvl-target colgadas', d.querySelectorAll('.lvl-target').length === 0);
+
+  // celda vacía no arranca arrastre y la pulsación larga muestra "Oops!"
+  var vacia = null;
+  for (var y = 0; y < s.length && !vacia; y++) for (var x = 0; x < s.width && !vacia; x++) if (!s.tiles[x + ',' + y + ',0']) vacia = [x, y];
+  if (vacia) {
+    var ev = T.celda(ed, vacia[0], vacia[1]);
+    ev.scrollIntoView({ block: 'center', inline: 'center' });
+    await T.esperar(300);
+    var cv = centro(ev);
+    tocar(ed, ev, 'touchstart', [cv]);
+    await T.esperar(750);
+    await T.checkEsperando('pulsación larga en celda vacía: swal "Oops!" como el clic derecho', function () { return /Oops!/.test(T.swalTexto(ed)); }, 4000);
+    tocar(ed, ev, 'touchend', [cv]);
+    w.Swal.close();
+  }
+
+  var inicio = fix.startTile;
+  return { mapId: mapId, modal: inicio.x + ',' + inicio.y, vacia: vacia };
+});
+</script>
+</body>
+</html>

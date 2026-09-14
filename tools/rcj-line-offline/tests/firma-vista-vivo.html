@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Vista — actualización en vivo por BroadcastChannel (vista y variante iframe)</title>
+<script src="firma-comun.js"></script>
+<script src="../local/config.js"></script>
+<script src="../local/io-shim.js"></script>
+<script src="../local/nucleo/store.js"></script>
+<script src="../local/nucleo/pathfinder-servidor.js"></script>
+<script src="../local/nucleo/init-run.js"></script>
+<script src="../local/nucleo/score-2026.js"></script>
+<script src="../local/nucleo/copy-properties.js"></script>
+<script src="../local/nucleo/api.js"></script>
+<script src="../local/nucleo/ranking.js"></script>
+</head>
+<body style="margin:0">
+<pre id="resultado">PENDIENTE</pre>
+<script>
+function navTextos(f) {
+  return Array.prototype.map.call(f.contentDocument.querySelectorAll('nav li.navbar-brand'), function (x) { return x.textContent.replace(/\s+/g, ' ').trim(); });
+}
+function logsSocket(w) { return (w.__logs || []).filter(function (x) { return x === 'Updated view from socket.io'; }).length; }
+
+T.correr(async function () {
+  try { localStorage.removeItem('rcjLocalFlags'); } catch (e) {}
+  // corrida en curso (status 2), puntuada a medias
+  var s = await T.sembrarCorrida(function (run) {
+    var fallidos = {};
+    for (var i = Math.floor(run.tiles.length / 2); i < run.tiles.length; i++) fallidos[i] = true;
+    return { showedUp: true, tiles: T.tilesPuntuadas(run, fallidos), LoPs: run.LoPs.map(function () { return 0; }), time: { minutes: 1, seconds: 10 }, status: 2 };
+  });
+  var runId = s.runId;
+
+  // la rotación del juez vive en la cookie sRotate con path /
+  document.cookie = 'sRotate=90; path=/';
+
+  var A = await T.cargarIframe('../vista.html?run=' + runId, { nombre: 'vista' });
+  await T.esperarCarga(A, 'vista');
+  var B = await T.cargarIframe('../vista.html?run=' + runId + '&iframe=true', { nombre: 'vista iframe', alto: 700 });
+  await T.esperarCarga(B, 'vista iframe');
+  var a = T.scope(A), b = T.scope(B), wa = A.contentWindow, wb = B.contentWindow, da = A.contentDocument, db = B.contentDocument;
+
+  // ---------------------------------------------------------------- vista normal
+  T.check('vista: sin doctype (quirks) y título', da.compatMode === 'BackCompat' && da.title === 'Rescue Line View');
+  T.check('vista: globales (timeIncrement=false, iframe="")', wa.timeIncrement === false && wa.iframe === '' && wa.runId === runId);
+  T.igual('vista: navbar equipo/puntaje/tiempo', navTextos(A), ['IITA Salta', s.run.score + ' puntos', '1:10']);
+  T.check('vista: navbar azul', getComputedStyle(da.querySelector('nav')).backgroundColor === 'rgb(52, 152, 219)');
+  var info = Array.prototype.map.call(da.querySelectorAll('#lops table tr'), function (tr) { return tr.querySelector('th').textContent.trim() + ' ' + tr.querySelector('td').textContent.replace(/\s+/g, ' ').trim(); });
+  T.igual('vista: Información básica', info, ['Competencia Práctica IITA 2026', 'Ronda Ronda 1', 'Pista Cancha 1', 'Equipo IITA Salta', 'Liga Line', 'Regla 2026']);
+  T.check('vista: footer y alert de puntaje/tiempo', !!da.querySelector('footer.footer') && /1 min 10 seg/.test(T.texto(A, '.container-fluid > .alert-success')), T.texto(A, '.container-fluid > .alert-success'));
+  T.check('vista: sin bloque de comentario/firmas (if user)', !da.querySelector('#sign') && !da.querySelector('textarea'));
+  T.check('vista: sRotate de la cookie del juez (90)', a.sRotate === 90, a.sRotate);
+  T.check('vista: no quedan <template> sin usar', da.querySelectorAll('template').length === 0);
+
+  // ---------------------------------------------------------------- variante iframe
+  T.check('iframe: título y globales (timeIncrement=true)', db.title === 'Rescue Line View Iframe' && wb.timeIncrement === true);
+  T.check('iframe: sRotate=0 forzado solo en esta página', b.sRotate === 0 && /(^|; )sRotate=90(;|$)/.test(document.cookie), document.cookie);
+  T.check('iframe: navbar roja por status 2 (navColor)', getComputedStyle(db.querySelector('nav')).backgroundColor === 'rgb(231, 76, 60)');
+  T.igual('iframe: navbar con "points" fijo', navTextos(B), ['IITA Salta', s.run.score + ' points', '1:10']);
+  T.check('iframe: todas las capas apiladas (width×length×height)', db.querySelectorAll('#wrapTile tile').length === s.mapa.width * s.mapa.length * s.mapa.height, db.querySelectorAll('#wrapTile tile').length);
+  T.check('iframe: sin columna de LoPs ni footer', !db.querySelector('#card_area') && !db.querySelector('footer'));
+  T.check('iframe: tile_size redefinido (el de la variante usa innerHeight-180)', /innerHeight - 180/.test(String(wb.tile_size)));
+
+  // timer local de la variante iframe (timeIncrement && status==2)
+  var s0a = a.seconds, s0b = b.seconds;
+  await T.esperar(3200);
+  T.check('iframe: el reloj avanza solo con status 2', b.seconds - s0b >= 2, [s0b, b.seconds]);
+  T.check('vista: el reloj NO avanza (timeIncrement=false)', a.seconds === s0a);
+
+  // ---------------------------------------------------------------- PUT desde el padre -> vista y variante en vivo
+  var run = (await T.api('GET', '/api/runs/line/' + runId)).data;
+  var lops = run.LoPs.map(function (_, k) { return k === s.mapa.EvacuationAreaLoPIndex ? 1 : 0; });
+  var put = await T.api('PUT', '/api/runs/line/' + runId, {
+    tiles: T.tilesPuntuadas(run, {}), LoPs: lops, exitBonus: true, time: { minutes: 2, seconds: 5 },
+    rescueOrder: [{ victimType: 'LIVE', zoneType: 'GREEN' }, { victimType: 'DEAD', zoneType: 'RED' }, { victimType: 'LIVE', zoneType: 'GREEN' }]
+  });
+  T.check('PUT desde el padre: 200', put.status === 200, put);
+  var nuevo = put.data.score;
+  await T.esperarQue(function () { return a.score === nuevo && b.score === nuevo; }, 5000, 'actualización en vivo');
+  await T.esperar(300);
+  var g = await RCJLocal.store.get('lineRuns', runId);
+  var o = T.desglose(g, s.mapa);
+  T.igual('vista en vivo: navbar', navTextos(A), ['IITA Salta', nuevo + ' puntos', '2:05']);
+  T.check('vista en vivo: raw/multiplier/LoPs/exitBonus del socket', a.raw_score === g.raw_score && a.multiplier === g.multiplier && JSON.stringify(a.LoPs) === JSON.stringify(lops) && a.exitBonus === true);
+  T.check('vista en vivo: desglose recalculado (checkTotal, bonus, elementos)', a.checkTotal() === o.inicioCliente + o.checkpoints + o.tramoFinal && a.exitBonusPoints() === o.bonus && a.raw_score - a.checkTotal() - a.exitBonusPoints() === o.elementos, [a.checkTotal(), o]);
+  T.check('vista en vivo: tabla de rescate con 3 víctimas y el ✓ de salida', da.querySelectorAll('table[border] img[width="30px"]').length === 3 && da.querySelector('.fa-check.fa-5x').offsetParent !== null);
+  T.igual('vista en vivo: fila cálculo', Array.prototype.map.call(da.querySelectorAll('.alert-warning h1'), function (x) { return x.textContent.trim(); }), [g.raw_score + ' puntos', '×', String(g.multiplier), '=', nuevo + ' puntos']);
+  T.igual('iframe en vivo: navbar', navTextos(B).slice(0, 2), ['IITA Salta', nuevo + ' points']);
+  T.check('iframe en vivo: víctimas, LoPs_total y 【 ×multiplier 】', db.querySelectorAll('.alert-info .img-thumbnail img').length === 3 && /: 1 times/.test(T.texto(B, '.alert-info .col-4')) && T.texto(B, '.alert-info').indexOf('×' + g.multiplier) >= 0, [T.texto(B, '.alert-info'), g.multiplier]);
+  T.extra.primerPut = { score: nuevo, multiplier: g.multiplier, logsVista: logsSocket(wa), handlersVista: wa.socket._handlers.data.length };
+
+  var p3 = await T.api('PUT', '/api/runs/line/' + runId, { status: 3 });
+  await T.esperarQue(function () { return b.status === 3; }, 5000, 'status 3 en iframe');
+  await T.esperar(200);
+  T.check('iframe en vivo: navbar naranja con status 3', p3.status === 200 && getComputedStyle(db.querySelector('nav')).backgroundColor === 'rgb(230, 126, 34)');
+
+  // ---------------------------------------------------------------- setInterval(launchSocketIo, 15000): handlers duplicados
+  await T.esperar(16500);
+  var handlers = wa.socket._handlers.data.length;
+  T.check('tras 16 s el setInterval original re-registró el handler (se conserva)', handlers >= 2, handlers);
+  var logsAntes = logsSocket(wa);
+  var p4 = await T.api('PUT', '/api/runs/line/' + runId, { LoPs: lops.map(function () { return 0; }), time: { minutes: 2, seconds: 30 } });
+  await T.esperarQue(function () { return a.score === p4.data.score && a.seconds === 30; }, 5000, 'actualización tras duplicar handlers');
+  await T.esperar(300);
+  T.check('con handlers duplicados la vista sigue correcta y sin errores', a.score === p4.data.score && navTextos(A)[2] === '2:30' && a.LoPs.every(function (x) { return x === 0; }));
+  T.extra.duplicados = { handlersTras16s: handlers, logsPorPut: logsSocket(wa) - logsAntes };
+  T.check('cada handler duplicado corre una vez por evento', logsSocket(wa) - logsAntes === handlers, [logsSocket(wa) - logsAntes, handlers]);
+
+  // ---------------------------------------------------------------- Back
+  T.clic(A, 'button', "getParam('return')? go(getParam('return')):go('/line/' + competition_id + '/' + league)");
+  var destino = null;
+  await T.esperarQue(function () {
+    try { var l = A.contentWindow.location; if (/corridas\.html$/.test(l.pathname)) { destino = l.pathname + l.search; return true; } } catch (e) {}
+    return false;
+  }, 8000, 'Back');
+  T.igual('Back sin ?return= -> corridas.html', destino, '/corridas.html?competition=' + s.cid + '&league=Line');
+
+  document.cookie = 'sRotate=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+  document.cookie = 'sRotate=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/vista.html';
+});
+</script>
+</body>
+</html>

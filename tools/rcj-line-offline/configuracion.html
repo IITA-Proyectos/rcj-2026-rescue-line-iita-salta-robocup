@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<!-- rcj-line-offline — área admin. Página NUEVA (no existe en el CMS): configuración, idioma, respaldo y almacenamiento,
+     con la estructura de includes/modern_layout del CMS. Lógica: local/ui/configuracion.js -->
+<html lang="es" style="height:100%; overflow-y:scroll;" ng-app="RCJConfiguracion">
+<head>
+<meta charset="utf-8">
+<title>Configuración · RCJ Rescue Line offline</title>
+<!-- 1.A scripts comunes (common_component.pug:1-19) -->
+<script src="components/jquery/dist/jquery.min.js"></script>
+<script src="components/popper.js/dist/umd/popper.min.js"></script>
+<script src="components/bootstrap/dist/js/bootstrap.min.js"></script>
+<script src="components/angular/angular.min.js"></script>
+<script src="components/angular-animate/angular-animate.min.js"></script>
+<script src="components/sweetalert2/dist/sweetalert2.all.min.js"></script>
+<script src="components/angular-bootstrap/dist/ui-bootstrap-tpls.js"></script>
+<script src="components/angular-translate/angular-translate.min.js"></script>
+<script src="components/angular-translate-loader-static-files/angular-translate-loader-static-files.min.js"></script>
+<script src="components/angular-translate-storage-local/angular-translate-storage-local.min.js"></script>
+<script src="components/angular-translate-storage-cookie/angular-translate-storage-cookie.min.js"></script>
+<script src="components/angular-translate-handler-log/angular-translate-handler-log.min.js"></script>
+<script src="components/angular-cookies/angular-cookies.min.js"></script>
+<script src="components/angular-touch/angular-touch.min.js"></script>
+<script src="components/angular-sanitize/angular-sanitize.min.js"></script>
+<!-- 1.C scripts locales, parte 1 -->
+<script src="local/config.js"></script>
+<script src="local/io-shim.js"></script>
+<script src="local/nucleo/store.js"></script>
+<script src="local/nucleo/pathfinder-servidor.js"></script>
+<script src="local/nucleo/init-run.js"></script>
+<script src="local/nucleo/score-2026.js"></script>
+<script src="local/nucleo/copy-properties.js"></script>
+<script src="local/nucleo/api.js"></script>
+<script src="local/nucleo/ranking.js"></script>
+<script src="local/ui/comun.js"></script>
+<script src="local/ui/configuracion.js"></script> <!-- crea `app` (módulo RCJConfiguracion) -->
+<script src="local/http-backend.js"></script>
+<script>RCJLocal.instalarBackend('RCJConfiguracion');</script>
+<!-- 1.B css comunes -->
+<link rel="stylesheet" href="components/bootstrap/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="stylesheets/style.css">
+<link rel="stylesheet" href="stylesheets/navbar_premium.css">
+<link href="components/font-awesome-5/css/all.min.css" rel="stylesheet">
+<link rel="stylesheet" href="components/angular-bootstrap/dist/ui-bootstrap-csp.css">
+<!-- 1.D modern layout -->
+<link href="stylesheets/common/modern_layout.css" rel="stylesheet">
+<link href="stylesheets/common/modern_components.css" rel="stylesheet">
+<link href="stylesheets/common/modern_list.css" rel="stylesheet">
+<link href="stylesheets/common/modern_modal.css" rel="stylesheet">
+<link href="local/ui/estilos.css" rel="stylesheet">
+<link href="local/ui/movil-admin.css" rel="stylesheet">
+<!-- 1.E cola de head.pug -->
+<script src="javascripts/translate_config.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0,minimum-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#043C78">
+<link rel="icon" type="image/vnd.microsoft.icon" sizes="16x16" href="images/favicon-16.ico">
+<link rel="icon" type="image/vnd.microsoft.icon" sizes="32x32" href="images/favicon-32.ico">
+<link rel="icon" type="image/vnd.microsoft.icon" sizes="96x96" href="images/favicon-96.ico">
+<link rel="apple-touch-icon" sizes="144x144" href="images/apple-touch-icon-144.png">
+<link rel="apple-touch-icon" sizes="152x152" href="images/apple-touch-icon-152.png">
+<link rel="apple-touch-icon" sizes="180x180" href="images/apple-touch-icon-180.png">
+<link rel="icon" type="image/png" sizes="196x196" href="images/favicon-196.png">
+<link rel="icon" type="image/png" sizes="32x32" href="images/favicon-32.png">
+<link rel="icon" type="image/png" sizes="128x128" href="images/favicon-128.png">
+<!-- PENDIENTE (docs): <link rel="manifest" href="manifest.webmanifest"> -->
+<script>
+  currentWidth = -1;
+  $(window).on('load resize', function(){
+  if (currentWidth == window.innerWidth) {
+  return;
+  }
+  currentWidth = window.innerWidth;
+  var height = $('.navbar').height();
+  $('body').css('padding-top',height+13);
+  });
+
+  let lastTouch = 0;
+  document.addEventListener('touchend', event => {
+  const now = window.performance.now();
+  if (now - lastTouch <= 500) {
+  event.preventDefault();
+  }
+  lastTouch = now;
+  }, true);
+</script>
+</head>
+<body ng-controller="RCJConfiguracionController" style="display: flex; flex-direction: column; min-height: 100vh;">
+  <nav class="navbar navbar-expand premium-navbar">
+    <a class="navbar-brand" href="index.html"><img class="d-inline-block align-top" src="images/logo.png" alt="Logo"><span class="brand-text">&nbsp;RCJ CMS</span><span class="env-badge">offline</span></a>
+    <div class="ml-auto d-flex align-items-center">
+      <a class="nav-user-link mr-2" href="#" data-toggle="modal" data-target="#languageModal" title="{{'select_lang' | translate}}"><i class="fas fa-globe-americas"></i></a>
+      <a class="nav-user-link" href="configuracion.html" title="Configuración"><i class="fas fa-cog"></i></a>
+    </div>
+  </nav>
+  <div class="container-fluid" style="overflow: hidden; flex-grow: 1;">
+    <div class="maps-hero">
+      <div class="maps-container">
+        <nav class="breadcrumb premium-breadcrumb hero-breadcrumb">
+          <a class="breadcrumb-item" href="index.html"><i class="fas fa-home mr-1"></i>Inicio</a>
+          <span class="breadcrumb-item active">Configuración</span>
+        </nav>
+        <div class="hero-content-wrapper">
+          <div class="hero-text">
+            <h1 class="hero-title">Configuración</h1>
+            <div class="hero-subtitle">Opciones de la app, idioma, respaldo y almacenamiento de este navegador</div>
+          </div>
+          <div class="hero-actions">
+            <a class="btn-hero-local" href="index.html"><i class="fas fa-home"></i>Inicio</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="maps-container">
+      <div class="row">
+        <div class="col-lg-8">
+          <!-- Flags -->
+          <div class="modern-card mb-4" id="tarjetaFlags">
+            <div class="modern-card-header">
+              <div class="d-flex justify-content-between align-items-center w-100">
+                <div><i class="fas fa-toggle-on"></i>Opciones de funcionamiento</div>
+                <button type="button" class="btn-tactil suave" ng-click="restablecerFlags()" ng-disabled="flagsPorDefecto()"><i class="fas fa-undo"></i>Valores por defecto</button>
+              </div>
+            </div>
+            <div class="modern-card-body">
+              <p class="small text-muted mb-1">Las opciones apagadas dejan el comportamiento del CMS oficial. Se guardan en este navegador y se aplican al abrir cada página.</p>
+              <div class="flag-fila" ng-repeat="f in FLAGS" data-flag="{{f.nombre}}">
+                <label class="interruptor mt-1" title="{{f.titulo}}">
+                  <input type="checkbox" id="flag-{{f.nombre}}" ng-model="flags[f.nombre]" ng-change="cambiarFlag(f)">
+                  <span class="riel"></span>
+                </label>
+                <div class="flag-texto">
+                  <div><label class="flag-nombre mb-0" for="flag-{{f.nombre}}">{{f.titulo}}</label> <span class="flag-codigo">{{f.nombre}}</span></div>
+                  <p class="flag-desc">{{f.desc}}</p>
+                  <div class="flag-defecto">Por defecto: {{defectos[f.nombre] ? 'encendido' : 'apagado'}} · decisión {{f.decision}}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Respaldo -->
+          <div class="modern-card mb-4" id="tarjetaRespaldo">
+            <div class="modern-card-header"><div><i class="fas fa-archive"></i>Respaldo completo</div></div>
+            <div class="modern-card-body">
+              <p class="small text-muted">El respaldo es un archivo .json con todas las competencias, mapas, equipos, rondas, pistas, corridas (con firmas) y sets de baldosas. Sirve para pasar los datos a otra tablet o guardar una copia.</p>
+              <div class="d-flex flex-wrap align-items-center mb-3" style="gap: 0.75rem;">
+                <button type="button" class="btn-tactil oscuro" id="botonExportarRespaldo" ng-click="exportarRespaldo()" ng-disabled="respaldo.ocupado"><i class="fas fa-download"></i>Exportar respaldo</button>
+                <span class="small text-muted" ng-if="respaldo.ultimo">Descargado «{{respaldo.ultimo.nombre}}» ({{bytes(respaldo.ultimo.bytes)}})</span>
+              </div>
+              <hr>
+              <div class="formulario-local">
+                <label class="d-block">Importar un respaldo</label>
+                <div class="d-flex flex-wrap align-items-center mb-2" style="gap: 0.75rem;">
+                  <label class="btn-tactil suave mb-0" style="cursor: pointer;"><i class="fas fa-folder-open"></i>Elegir archivo…<input class="input-archivo-oculto" id="archivoRespaldo" type="file" accept=".json,application/json" rcj-archivo="elegirRespaldo($archivos)"></label>
+                  <span class="small" ng-if="respaldo.elegido"><strong>{{respaldo.elegido.nombre}}</strong> · {{respaldo.elegido.fecha | date:'dd/MM/yyyy HH:mm'}}</span>
+                </div>
+                <div class="alert alert-danger" ng-if="respaldo.error">{{respaldo.error}}</div>
+                <div ng-if="respaldo.elegido">
+                  <table class="tabla-simple mb-3">
+                    <thead><tr><th>Colección</th><th class="text-right">Documentos</th></tr></thead>
+                    <tbody><tr ng-repeat="c in respaldo.elegido.conteos"><td>{{c.nombre}}</td><td class="num">{{c.cantidad}}</td></tr></tbody>
+                  </table>
+                  <div class="opcion-modo mb-3">
+                    <label ng-class="{activa: respaldo.modo === 'reemplazar'}"><input type="radio" name="modoRespaldo" value="reemplazar" ng-model="respaldo.modo"> Reemplazar todo</label>
+                    <label ng-class="{activa: respaldo.modo === 'fusionar'}"><input type="radio" name="modoRespaldo" value="fusionar" ng-model="respaldo.modo"> Fusionar con lo actual</label>
+                  </div>
+                  <button type="button" class="btn-tactil primario" id="botonImportarRespaldo" ng-click="importarRespaldo()" ng-disabled="respaldo.ocupado"><i class="fas fa-upload"></i>Importar respaldo</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Borrar -->
+          <div class="modern-card mb-4" id="tarjetaBorrar" style="border-color: #fecaca;">
+            <div class="modern-card-header"><div><i class="fas fa-exclamation-triangle text-danger"></i>Borrar todos los datos</div></div>
+            <div class="modern-card-body">
+              <p class="small text-muted">Borra todo lo guardado por la app en este navegador. Pide dos confirmaciones. Al volver al Inicio se crean de nuevo los datos semilla (competencia «Práctica IITA 2026», «Ronda 1», «Cancha 1» y el equipo «IITA Salta»).</p>
+              <button type="button" class="btn-tactil peligro" id="botonBorrarTodo" ng-click="borrarTodo()"><i class="fas fa-trash-alt"></i>Borrar todos los datos</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-lg-4">
+          <!-- Idioma -->
+          <div class="modern-card mb-4" id="tarjetaIdioma">
+            <div class="modern-card-header"><div><i class="fas fa-language"></i>Idioma</div></div>
+            <div class="modern-card-body formulario-local">
+              <select class="form-control" id="selectorIdioma" aria-label="Idioma" ng-model="idioma.actual" ng-change="cambiarIdioma()" ng-options="i.id as i.nombre for i in IDIOMAS"></select>
+              <p class="small text-muted mt-2 mb-0">Cambia los textos de las páginas del CMS. Las páginas nuevas de la app (Inicio, Configuración y los agregados locales) están en español.</p>
+            </div>
+          </div>
+
+          <!-- Almacenamiento -->
+          <div class="modern-card mb-4" id="tarjetaAlmacen">
+            <div class="modern-card-header"><div><i class="fas fa-database"></i>Almacenamiento</div></div>
+            <div class="modern-card-body">
+              <div class="alert alert-warning small" ng-if="almacen.enMemoria">IndexedDB no está disponible: los datos solo viven en memoria y se pierden al recargar.</div>
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="font-weight-bold">Persistente</span>
+                <span class="estado-pastilla" id="estadoPersistente" ng-class="almacen.persistente ? 'terminado' : 'borrador'">{{almacen.persistente === null ? 'consultando…' : (almacen.persistente ? 'sí' : 'no')}}</span>
+              </div>
+              <p class="small text-muted" ng-if="almacen.persistente === false">Sin almacenamiento persistente, el navegador podría borrar los datos si le falta espacio.</p>
+              <button type="button" class="btn-tactil suave w-100 mb-3" ng-if="almacen.persistente === false" ng-click="pedirPersistencia()"><i class="fas fa-lock"></i>Pedir almacenamiento persistente</button>
+              <div class="mb-3" ng-if="almacen.cuota">
+                <div class="d-flex justify-content-between small mb-1"><span>Uso</span><span id="usoAlmacen">{{bytes(almacen.uso)}} de {{bytes(almacen.cuota)}}</span></div>
+                <div class="barra-uso"><div ng-style="{width: porcentajeUso() + '%'}"></div></div>
+              </div>
+              <table class="tabla-simple">
+                <thead><tr><th>Datos guardados</th><th class="text-right">Cantidad</th></tr></thead>
+                <tbody><tr ng-repeat="c in almacen.conteos"><td>{{c.nombre}}</td><td class="num">{{c.cantidad}}</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Versión y créditos -->
+          <div class="modern-card mb-4" id="tarjetaCreditos">
+            <div class="modern-card-header"><div><i class="fas fa-info-circle"></i>Versión y créditos</div></div>
+            <div class="modern-card-body texto-legal">
+              <p class="mb-2"><strong id="versionApp">{{version}}</strong></p>
+              <p class="mb-2">Versión offline para tablet de las páginas de Rescue Line 2026 del <strong>RoboCupJunior Rescue CMS</strong> (<code>robocup-junior/rcj-rescue-cms</code>, commit d805502), armada por el equipo IITA Salta para practicar sin servidor.</p>
+              <p class="mb-2">El CMS se distribuye con licencia MIT: © 2016 Fredrik Löfgren y RoboCupJunior Rescue CMS Development SubCommittee. <a href="LICENSE-rcj-rescue-cms.txt" target="_blank" rel="noopener">Ver la licencia</a>.</p>
+              <p class="mb-0">Usa AngularJS, jQuery, Bootstrap, SweetAlert2, Font Awesome, angular-translate, PDFKit y otras bibliotecas con sus propias licencias; el detalle de versiones está en <code>components/VERSIONES.md</code>.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- 1.G footer.pug -->
+  <footer class="footer" style="background-color: #000000; width: 100%;">
+    <div class="d-flex justify-content-between align-items-center w-100 px-3 pt-1 pb-2 m-0">
+      <div class="footer-text text-truncate" style="text-align:left; font-size:max(12px, min(1vw, 25px)); white-space: nowrap; color: #aaaaaa;">
+        <i class="far fa-copyright" aria-hidden="true"></i>&nbsp;2016-2026 RoboCupJunior Rescue CMS Development SubCommittee&nbsp;-&nbsp;<i class="fas fa-code-branch" aria-hidden="true"></i>&nbsp; v26.0.2
+      </div>
+    </div>
+  </footer>
+  <!-- 1.F language_modal.pug con ES (regla 3c) -->
+  <div class="modal fade" id="languageModal" tabindex="-1" role="dialog" aria-labelledby="languageModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+      <div class="modal-content premium-modal-content">
+        <div class="modal-header border-0">
+          <button class="close" type="button" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+        </div>
+        <div class="modal-body px-5 pb-5">
+          <div class="text-center mb-5">
+            <i class="fas fa-language fa-4x mb-3" style="color: var(--primary-color);"></i>
+            <h2 class="modal-title font-weight-bold">{{"select_lang" | translate}}</h2>
+          </div>
+          <div class="row no-gutters gap-3">
+            <div class="col-6 pr-2">
+              <div class="language-card" onclick="changeLanguage('en')">
+                <div class="lang-circle bg-primary">EN</div>
+                <h4>English</h4>
+              </div>
+            </div>
+            <div class="col-6 pl-2">
+              <div class="language-card" onclick="changeLanguage('ja')">
+                <div class="lang-circle bg-danger">JA</div>
+                <h4>日本語</h4>
+              </div>
+            </div>
+          </div>
+          <div class="row no-gutters gap-3 mt-3">
+            <div class="col-6 pr-2">
+              <div class="language-card" onclick="changeLanguage('es')">
+                <div class="lang-circle bg-success">ES</div>
+                <h4>Español</h4>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+      function changeLanguage(langKey) {
+          try {
+              const injector = angular.element(document.body).injector();
+              const $translate = injector.get('$translate');
+              $translate.use(langKey).then(function() {
+                  window.location.reload();
+              });
+          } catch (e) {
+              console.error("Language switch failed, reloading anyway...", e);
+              window.location.reload();
+          }
+      }
+  </script>
+</body>
+</html>

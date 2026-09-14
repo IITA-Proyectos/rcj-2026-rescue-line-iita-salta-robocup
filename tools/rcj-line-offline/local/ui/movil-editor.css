@@ -1,0 +1,112 @@
+/*
+ * rcj-line-offline — área editor. Ajustes de editor.html SOLO para pantallas angostas (celular ~412 px de ancho,
+ * Chrome Android). No cambia el markup ni la lógica del CMS: reacomoda con media queries lo que en el original
+ * queda cortado o inalcanzable a ese ancho. En 768 px o más de ancho (tablet, notebook) no aplica nada.
+ *
+ * Problemas del original en 412 px que corrige:
+ *  - la fila mapa + paleta es flex-nowrap con la paleta fija en 360 px: el mapa quedaba con ~0 px de ancho;
+ *  - la barra de herramientas (dimensiones, víctimas, duración, finished, calculadora) no envuelve y se corta;
+ *  - la alerta "No start tile" está en absoluto a -45 px y tapa el título;
+ *  - el modal de propiedades es más alto que la pantalla (el pie Cancel/Save queda fuera de la vista).
+ * Los selectores de la fila mapa + paleta copian las clases del markup de line_2026.pug para no depender de ids.
+ */
+@media (max-width: 767.98px) {
+  /* ---------- hero ---------- */
+  .maps-hero .maps-container,
+  .maps-container.mt-n4 {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
+  .hero-breadcrumb {
+    flex-wrap: wrap;
+    margin-bottom: 0.5rem !important;
+  }
+  .hero-title-input {
+    font-size: 1.4rem;
+    width: 100%;
+  }
+  .hero-subtitle {
+    font-size: 0.9rem;
+  }
+  .hero-actions .action-group > .alert {
+    position: static !important;
+    white-space: normal !important;
+    margin-bottom: 0.5rem !important;
+  }
+
+  /* ---------- barra de herramientas: envuelve en filas ---------- */
+  .modern-toolbar > .row {
+    flex-wrap: wrap;
+    row-gap: 0.5rem;
+  }
+  .modern-toolbar > .row > .col {
+    flex: 1 1 100%;
+    max-width: 100%;
+  }
+  .modern-toolbar > .row > .border-left,
+  .modern-toolbar > .row > .border-right {
+    border-left: 0 !important;
+    border-right: 0 !important;
+  }
+  .modern-toolbar .d-flex.justify-content-start.ml-3 {
+    margin-left: 0 !important;
+    flex-wrap: wrap;
+    row-gap: 0.5rem;
+  }
+  .modern-toolbar .d-flex.justify-content-start.ml-3 > .mr-4 {
+    margin-right: 0.75rem !important;
+  }
+  .modern-toolbar .compact-map-settings {
+    justify-content: flex-start !important;
+    flex-wrap: wrap;
+    row-gap: 0.5rem;
+  }
+
+  /* ---------- mapa y paleta apilados ---------- */
+  .row.no-gutters.flex-nowrap.align-items-stretch {
+    flex-wrap: wrap !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin-bottom: 0 !important;
+  }
+  .row.no-gutters.flex-nowrap.align-items-stretch > .col.flex-grow-1.h-100 {
+    flex: 0 0 100%;
+    max-width: 100%;
+    margin-right: 0 !important;
+    height: 60vh !important;
+    min-height: 340px;
+  }
+  .row.no-gutters.flex-nowrap.align-items-stretch > .col-auto.h-100 {
+    flex: 0 0 100%;
+    width: 100% !important;
+    max-width: 100%;
+    height: 55vh !important;
+    min-height: 320px;
+    margin-top: 0.75rem;
+  }
+  .floor-switcher-vertical {
+    min-width: 56px !important;
+  }
+
+  /* ---------- modal de propiedades: scroll interno, pie siempre a la vista ---------- */
+  .modal-dialog {
+    margin: 0.5rem;
+  }
+  .modal-content {
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 1rem);
+    max-height: calc(100dvh - 1rem);
+  }
+  .modal-content > .premium-modal-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+  .modal-content > .modal-header,
+  .modal-content > .modal-footer {
+    flex-shrink: 0;
+  }
+}

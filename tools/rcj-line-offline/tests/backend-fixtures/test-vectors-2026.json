@@ -1,0 +1,3173 @@
+[
+  {
+    "nombre": "V01_corrida_vacia",
+    "descripcion": "Nada marcado, showedUp=false, sin victimas, sin exit bonus. 6 indices, 1 checkpoint (idx 3) sin marcar.",
+    "run": {
+      "tiles": [
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": false,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        }
+      ],
+      "LoPs": [
+        0,
+        0
+      ],
+      "rescueOrder": [],
+      "exitBonus": false,
+      "showedUp": false,
+      "map": {
+        "victims": {
+          "live": 2,
+          "dead": 1
+        },
+        "EvacuationAreaLoPIndex": 1
+      }
+    },
+    "esperado_codigo": {
+      "raw_score": 0,
+      "score": 0,
+      "multiplier": 1.0
+    },
+    "esperado_reglamento": null,
+    "nota": "score=0 -> la condicion (showedUp || score>0) es falsa, no suma 5 (2026.js:81). Equipo que no se presento."
+  },
+  {
+    "nombre": "V02_solo_showedUp",
+    "descripcion": "Solo showedUp=true (robot colocado en la baldosa de inicio).",
+    "run": {
+      "tiles": [
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": false,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        }
+      ],
+      "LoPs": [
+        0,
+        0
+      ],
+      "rescueOrder": [],
+      "exitBonus": false,
+      "showedUp": true,
+      "map": {
+        "victims": {
+          "live": 2,
+          "dead": 1
+        },
+        "EvacuationAreaLoPIndex": 1
+      }
+    },
+    "esperado_codigo": {
+      "raw_score": 5,
+      "score": 5,
+      "multiplier": 1.0
+    },
+    "esperado_reglamento": null,
+    "nota": "5 puntos del 'implicit checkpoint' de la baldosa de inicio: figura de 5.6.3 (pag. 24). 2026.js:81-83."
+  },
+  {
+    "nombre": "V03_checkpoint_0_LoPs",
+    "descripcion": "7 indices, CP1 en idx 4 marcado, LoPs=[0,0]. tileCount = 4-0 = 4 baldosas (idx 1..4, incluye la del checkpoint).",
+    "run": {
+      "tiles": [
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        }
+      ],
+      "LoPs": [
+        0,
+        0
+      ],
+      "rescueOrder": [],
+      "exitBonus": false,
+      "showedUp": true,
+      "map": {
+        "victims": {
+          "live": 2,
+          "dead": 1
+        },
+        "EvacuationAreaLoPIndex": 1
+      }
+    },
+    "esperado_codigo": {
+      "raw_score": 25,
+      "score": 25,
+      "multiplier": 1.0
+    },
+    "esperado_reglamento": null,
+    "nota": "4 x 5 = 20 + 5 inicio = 25. 1er intento = 5 pts/baldosa (5.6.3). 2026.js:27-30."
+  },
+  {
+    "nombre": "V04_checkpoint_1_LoP",
+    "descripcion": "Igual a V03 con LoPs=[1,0] (2do intento).",
+    "run": {
+      "tiles": [
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        }
+      ],
+      "LoPs": [
+        1,
+        0
+      ],
+      "rescueOrder": [],
+      "exitBonus": false,
+      "showedUp": true,
+      "map": {
+        "victims": {
+          "live": 2,
+          "dead": 1
+        },
+        "EvacuationAreaLoPIndex": 1
+      }
+    },
+    "esperado_codigo": {
+      "raw_score": 17,
+      "score": 17,
+      "multiplier": 1.0
+    },
+    "esperado_reglamento": null,
+    "nota": "4 x (5-2*1)=4 x 3 = 12 + 5 = 17."
+  },
+  {
+    "nombre": "V05_checkpoint_2_LoPs",
+    "descripcion": "Igual a V03 con LoPs=[2,0] (3er intento).",
+    "run": {
+      "tiles": [
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        }
+      ],
+      "LoPs": [
+        2,
+        0
+      ],
+      "rescueOrder": [],
+      "exitBonus": false,
+      "showedUp": true,
+      "map": {
+        "victims": {
+          "live": 2,
+          "dead": 1
+        },
+        "EvacuationAreaLoPIndex": 1
+      }
+    },
+    "esperado_codigo": {
+      "raw_score": 9,
+      "score": 9,
+      "multiplier": 1.0
+    },
+    "esperado_reglamento": null,
+    "nota": "4 x (5-4)=4 x 1 = 4 + 5 = 9."
+  },
+  {
+    "nombre": "V06_checkpoint_3_LoPs",
+    "descripcion": "Igual a V03 con LoPs=[3,0] (4to intento).",
+    "run": {
+      "tiles": [
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        }
+      ],
+      "LoPs": [
+        3,
+        0
+      ],
+      "rescueOrder": [],
+      "exitBonus": false,
+      "showedUp": true,
+      "map": {
+        "victims": {
+          "live": 2,
+          "dead": 1
+        },
+        "EvacuationAreaLoPIndex": 1
+      }
+    },
+    "esperado_codigo": {
+      "raw_score": 5,
+      "score": 5,
+      "multiplier": 1.0
+    },
+    "esperado_reglamento": null,
+    "nota": "4 x (5-6) = -4 -> Math.max(-4,0)=0. Solo quedan los 5 del inicio. 'Beyond the 3rd attempt = 0 points/tile'."
+  },
+  {
+    "nombre": "V07_checkpoint_7_LoPs_con_gap",
+    "descripcion": "LoPs=[7,0] (mas de 3). En idx 2 hay un gap marcado (se logro en un intento posterior). CP1 idx 4 marcado.",
+    "run": {
+      "tiles": [
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "gap",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        }
+      ],
+      "LoPs": [
+        7,
+        0
+      ],
+      "rescueOrder": [],
+      "exitBonus": false,
+      "showedUp": true,
+      "map": {
+        "victims": {
+          "live": 2,
+          "dead": 1
+        },
+        "EvacuationAreaLoPIndex": 1
+      }
+    },
+    "esperado_codigo": {
+      "raw_score": 15,
+      "score": 15,
+      "multiplier": 1.0
+    },
+    "esperado_reglamento": null,
+    "nota": "Baldosas: 4 x (5-14) = -36 -> 0. Gap 10 independiente de los LoPs (5.5.5.a permite seguir sumando elementos no ganados). 10 + 5 = 15."
+  },
+  {
+    "nombre": "V08_dos_checkpoints_LoPs_distintos",
+    "descripcion": "9 indices, CP1 idx 2 y CP2 idx 6 marcados, LoPs=[0,2,0], sin exit bonus.",
+    "run": {
+      "tiles": [
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        }
+      ],
+      "LoPs": [
+        0,
+        2,
+        0
+      ],
+      "rescueOrder": [],
+      "exitBonus": false,
+      "showedUp": true,
+      "map": {
+        "victims": {
+          "live": 2,
+          "dead": 1
+        },
+        "EvacuationAreaLoPIndex": 2
+      }
+    },
+    "esperado_codigo": {
+      "raw_score": 19,
+      "score": 19,
+      "multiplier": 1.0
+    },
+    "esperado_reglamento": null,
+    "nota": "CP1: 2x5=10. CP2: (6-2)=4 x 1 = 4. +5 = 19. Tramo final (idx 7-8) no suma sin exitBonus."
+  },
+  {
+    "nombre": "V09_salto_de_checkpoint_tras_3_LoPs",
+    "descripcion": "8 indices. CP1 (idx 3) NO marcado: tras 3 LoPs el robot fue llevado a CP1 (5.5.5). CP2 (idx 6) marcado. LoPs=[3,0,0].",
+    "run": {
+      "tiles": [
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": false,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        }
+      ],
+      "LoPs": [
+        3,
+        0,
+        0
+      ],
+      "rescueOrder": [],
+      "exitBonus": false,
+      "showedUp": true,
+      "map": {
+        "victims": {
+          "live": 2,
+          "dead": 1
+        },
+        "EvacuationAreaLoPIndex": 2
+      }
+    },
+    "esperado_codigo": {
+      "raw_score": 20,
+      "score": 20,
+      "multiplier": 1.0
+    },
+    "esperado_reglamento": null,
+    "nota": "CP1 no marcado -> 0, pero lastCheckPointTile y checkPointCount avanzan igual (2026.js:31-32). CP2: (6-3)=3 x 5 = 15. +5 = 20. Si el juez marcara CP1 daria igual (LoPs[0]=3 -> 0)."
+  },
+  {
+    "nombre": "V10_gap_y_speedbump_count2_marcados_showedUp_implicito",
+    "descripcion": "idx1: gap count=2 marcado; idx2: speedbump count=2 marcado. showedUp=false. Ningun checkpoint marcado.",
+    "run": {
+      "tiles": [
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "gap",
+              "scored": true,
+              "count": 2
+            }
+          ]
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "speedbump",
+              "scored": true,
+              "count": 2
+            }
+          ]
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": false,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        }
+      ],
+      "LoPs": [
+        0,
+        0
+      ],
+      "rescueOrder": [],
+      "exitBonus": false,
+      "showedUp": false,
+      "map": {
+        "victims": {
+          "live": 2,
+          "dead": 1
+        },
+        "EvacuationAreaLoPIndex": 1
+      }
+    },
+    "esperado_codigo": {
+      "raw_score": 25,
+      "score": 25,
+      "multiplier": 1.0
+    },
+    "esperado_reglamento": null,
+    "nota": "gap y speedbump IGNORAN count (2026.js:35 y :44): 10 + 10 = 20. score>0 -> +5 implicito = 25. Reglamento: 10 por baldosa con uno o mas gaps / speed bumps (5.6.1)."
+  },
+  {
+    "nombre": "V11_interseccion_count2_obstaculo_count2",
+    "descripcion": "idx1: intersection count=2 marcado; idx2: obstacle count=2 marcado; idx3: intersection count=1 SIN marcar; idx4: obstacle count=1 SIN marcar. showedUp=true.",
+    "run": {
+      "tiles": [
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "intersection",
+              "scored": true,
+              "count": 2
+            }
+          ]
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "obstacle",
+              "scored": true,
+              "count": 2
+            }
+          ]
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "intersection",
+              "scored": false,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "obstacle",
+              "scored": false,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": false,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        }
+      ],
+      "LoPs": [
+        0,
+        0
+      ],
+      "rescueOrder": [],
+      "exitBonus": false,
+      "showedUp": true,
+      "map": {
+        "victims": {
+          "live": 2,
+          "dead": 1
+        },
+        "EvacuationAreaLoPIndex": 1
+      }
+    },
+    "esperado_codigo": {
+      "raw_score": 65,
+      "score": 65,
+      "multiplier": 1.0
+    },
+    "esperado_reglamento": null,
+    "nota": "intersection 10*count = 20 (2026.js:38), obstacle 20*count = 40 (2026.js:41), no marcados 0. +5 = 65. Coincide con 5.6.1 ('10 per intersection/dead end', '20 per obstacle'); el Summary dice 'on a tile' (ambiguo)."
+  },
+  {
+    "nombre": "V12_rampa_de_3_baldosas_y_seesaw",
+    "descripcion": "idx1,2,3: ramp (3 baldosas consecutivas) con idx1 e idx2 marcados e idx3 no; idx4 seesaw marcado; idx5 speedbump no; idx6 gap no.",
+    "run": {
+      "tiles": [
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "ramp",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "ramp",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "ramp",
+              "scored": false,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "seesaw",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "speedbump",
+              "scored": false,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "gap",
+              "scored": false,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": false,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        }
+      ],
+      "LoPs": [
+        0,
+        0
+      ],
+      "rescueOrder": [],
+      "exitBonus": false,
+      "showedUp": true,
+      "map": {
+        "victims": {
+          "live": 2,
+          "dead": 1
+        },
+        "EvacuationAreaLoPIndex": 1
+      }
+    },
+    "esperado_codigo": {
+      "raw_score": 45,
+      "score": 45,
+      "multiplier": 1.0
+    },
+    "esperado_reglamento": null,
+    "nota": "Regla 2026 (no Entry): cada baldosa de rampa suma 10 (3.7.4; la frase 'A ramp as a hazard accounts for all inclined tiles' se borro en 5.6.1). 10+10+0 + seesaw 20 + 5 = 45. En 2026E initRunData.js:87-101 fusiona rampas consecutivas y solo quedaria la ultima (idx3, no marcada)."
+  },
+  {
+    "nombre": "V13_todos_los_elementos_sin_marcar",
+    "descripcion": "Hay gap, intersection(2), obstacle(2), ramp, seesaw, speedbump y checkpoint pero nada marcado; showedUp=false.",
+    "run": {
+      "tiles": [
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "gap",
+              "scored": false,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "intersection",
+              "scored": false,
+              "count": 2
+            }
+          ]
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "obstacle",
+              "scored": false,
+              "count": 2
+            }
+          ]
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "ramp",
+              "scored": false,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "seesaw",
+              "scored": false,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "speedbump",
+              "scored": false,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": false,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        }
+      ],
+      "LoPs": [
+        0,
+        0
+      ],
+      "rescueOrder": [],
+      "exitBonus": false,
+      "showedUp": false,
+      "map": {
+        "victims": {
+          "live": 2,
+          "dead": 1
+        },
+        "EvacuationAreaLoPIndex": 1
+      }
+    },
+    "esperado_codigo": {
+      "raw_score": 0,
+      "score": 0,
+      "multiplier": 1.0
+    },
+    "esperado_reglamento": null,
+    "nota": "Todo multiplica por scored=false -> 0; score=0 -> sin +5."
+  },
+  {
+    "nombre": "V14_baldosas_despues_del_ultimo_cp_sin_exit",
+    "descripcion": "8 indices, CP1 idx 3 marcado, gap idx 5 marcado (tramo final), meta idx 7. exitBonus=false, LoPs=[0,0].",
+    "run": {
+      "tiles": [
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "gap",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        }
+      ],
+      "LoPs": [
+        0,
+        0
+      ],
+      "rescueOrder": [],
+      "exitBonus": false,
+      "showedUp": true,
+      "map": {
+        "victims": {
+          "live": 2,
+          "dead": 1
+        },
+        "EvacuationAreaLoPIndex": 1
+      }
+    },
+    "esperado_codigo": {
+      "raw_score": 30,
+      "score": 30,
+      "multiplier": 1.0
+    },
+    "esperado_reglamento": null,
+    "nota": "CP1 3x5=15 + gap 10 + 5 = 30. Las 4 baldosas del tramo final (idx 4..7) solo cuentan con exitBonus (2026.js:73-77). El gap del tramo final SI cuenta aunque no haya exit bonus."
+  },
+  {
+    "nombre": "V15_llega_a_meta_pero_no_5s",
+    "descripcion": "Mismo run que V14 (exitBonus=false) pero el robot SI se detuvo en la meta y se acabo el tiempo antes de los 5 s.",
+    "run": {
+      "tiles": [
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "gap",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        }
+      ],
+      "LoPs": [
+        0,
+        0
+      ],
+      "rescueOrder": [],
+      "exitBonus": false,
+      "showedUp": true,
+      "map": {
+        "victims": {
+          "live": 2,
+          "dead": 1
+        },
+        "EvacuationAreaLoPIndex": 1
+      }
+    },
+    "esperado_codigo": {
+      "raw_score": 30,
+      "score": 30,
+      "multiplier": 1.0
+    },
+    "esperado_reglamento": {
+      "raw_score": 50,
+      "score": 50,
+      "multiplier": 1.0
+    },
+    "nota": "AMBIGUO/DIFIERE: 5.6.3 da puntos por baldosa 'when a robot reaches a checkpoint tile or stops on the goal tile', mientras que el exit bonus (5.6.11) exige detenerse >5 s. El CMS ata los puntos del tramo final al exitBonus, asi que no hay forma de dar 4x5=20 sin dar tambien el bonus. Con la lectura literal: 30 + 20 = 50."
+  },
+  {
+    "nombre": "V16_baldosas_despues_del_ultimo_cp_con_exit",
+    "descripcion": "Mismo recorrido que V14 con exitBonus=true y LoPs=[0,1] (1 LoP en el tramo final).",
+    "run": {
+      "tiles": [
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "gap",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        }
+      ],
+      "LoPs": [
+        0,
+        1
+      ],
+      "rescueOrder": [],
+      "exitBonus": true,
+      "showedUp": true,
+      "map": {
+        "victims": {
+          "live": 2,
+          "dead": 1
+        },
+        "EvacuationAreaLoPIndex": 1
+      }
+    },
+    "esperado_codigo": {
+      "raw_score": 97,
+      "score": 97,
+      "multiplier": 1.0
+    },
+    "esperado_reglamento": null,
+    "nota": "CP1 15 + gap 10 + exit max(60-5*1,0)=55 + tramo final tileCount=8-3-1=4 x (5-2)=12 + 5 = 97."
+  },
+  {
+    "nombre": "V17_victimas_orden_correcto_sin_LoPs",
+    "descripcion": "course9 (CP idx 3 y 6 marcados), LoPs=[0,0,0], zona en tramo 1, rescate VIVA-verde, VIVA-verde, MUERTA-roja, exitBonus.",
+    "run": {
+      "tiles": [
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        }
+      ],
+      "LoPs": [
+        0,
+        0,
+        0
+      ],
+      "rescueOrder": [
+        {
+          "victimType": "LIVE",
+          "zoneType": "GREEN"
+        },
+        {
+          "victimType": "LIVE",
+          "zoneType": "GREEN"
+        },
+        {
+          "victimType": "DEAD",
+          "zoneType": "RED"
+        }
+      ],
+      "exitBonus": true,
+      "showedUp": true,
+      "map": {
+        "victims": {
+          "live": 2,
+          "dead": 1
+        },
+        "EvacuationAreaLoPIndex": 1
+      }
+    },
+    "esperado_codigo": {
+      "raw_score": 105,
+      "score": 288,
+      "multiplier": 2.744
+    },
+    "esperado_reglamento": null,
+    "nota": "raw: 15 + 15 + 60 + tramo final (9-6-1)=2 x 5 = 10 + 5 = 105. mult = 1400^3/1000^3 = 2.744. 105*2.744 = 288.12 -> 288."
+  },
+  {
+    "nombre": "V18_muerta_primero",
+    "descripcion": "Como V17 pero el orden es MUERTA-roja, VIVA-verde, VIVA-verde.",
+    "run": {
+      "tiles": [
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        }
+      ],
+      "LoPs": [
+        0,
+        0,
+        0
+      ],
+      "rescueOrder": [
+        {
+          "victimType": "DEAD",
+          "zoneType": "RED"
+        },
+        {
+          "victimType": "LIVE",
+          "zoneType": "GREEN"
+        },
+        {
+          "victimType": "LIVE",
+          "zoneType": "GREEN"
+        }
+      ],
+      "exitBonus": true,
+      "showedUp": true,
+      "map": {
+        "victims": {
+          "live": 2,
+          "dead": 1
+        },
+        "EvacuationAreaLoPIndex": 1
+      }
+    },
+    "esperado_codigo": {
+      "raw_score": 105,
+      "score": 206,
+      "multiplier": 1.96
+    },
+    "esperado_reglamento": null,
+    "nota": "La muerta se saltea porque liveCount(0) != map.victims.live(2) (2026.js:63). 1.4*1.4 = 1.96. 105*1.96 = 205.8 -> 206. Coincide con 5.6.6 (SDVR solo si ambas vivas ya fueron evacuadas). OJO UI: el juez solo puede registrar 1 muerta (line_2026.js:477), asi que si luego la vuelve a depositar bien tiene que borrar la entrada vieja."
+  },
+  {
+    "nombre": "V19_viva_en_zona_roja",
+    "descripcion": "Rescate VIVA-roja, VIVA-verde, MUERTA-roja.",
+    "run": {
+      "tiles": [
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        }
+      ],
+      "LoPs": [
+        0,
+        0,
+        0
+      ],
+      "rescueOrder": [
+        {
+          "victimType": "LIVE",
+          "zoneType": "RED"
+        },
+        {
+          "victimType": "LIVE",
+          "zoneType": "GREEN"
+        },
+        {
+          "victimType": "DEAD",
+          "zoneType": "RED"
+        }
+      ],
+      "exitBonus": true,
+      "showedUp": true,
+      "map": {
+        "victims": {
+          "live": 2,
+          "dead": 1
+        },
+        "EvacuationAreaLoPIndex": 1
+      }
+    },
+    "esperado_codigo": {
+      "raw_score": 105,
+      "score": 147,
+      "multiplier": 1.4
+    },
+    "esperado_reglamento": null,
+    "nota": "VIVA-roja no multiplica (2026.js:61) y no incrementa liveCount; la muerta ve liveCount=1 != 2 y se saltea. 105*1.4 = 147. Coincide con 5.6.7. OJO: la UI del juez (judge/line_2026.js:419-426) y la de firma (sign/line_2026.js:324-331) cuentan TODAS las vivas previas sin mirar zona y le muestran x1.4 a la muerta: la pantalla no coincide con el servidor."
+  },
+  {
+    "nombre": "V20_muerta_en_zona_verde",
+    "descripcion": "Rescate VIVA-verde, VIVA-verde, MUERTA-verde.",
+    "run": {
+      "tiles": [
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        }
+      ],
+      "LoPs": [
+        0,
+        0,
+        0
+      ],
+      "rescueOrder": [
+        {
+          "victimType": "LIVE",
+          "zoneType": "GREEN"
+        },
+        {
+          "victimType": "LIVE",
+          "zoneType": "GREEN"
+        },
+        {
+          "victimType": "DEAD",
+          "zoneType": "GREEN"
+        }
+      ],
+      "exitBonus": true,
+      "showedUp": true,
+      "map": {
+        "victims": {
+          "live": 2,
+          "dead": 1
+        },
+        "EvacuationAreaLoPIndex": 1
+      }
+    },
+    "esperado_codigo": {
+      "raw_score": 105,
+      "score": 206,
+      "multiplier": 1.96
+    },
+    "esperado_reglamento": null,
+    "nota": "MUERTA-verde no multiplica (2026.js:62). 105*1.96 = 205.8 -> 206."
+  },
+  {
+    "nombre": "V21_un_LoP_en_tramo_de_zona",
+    "descripcion": "Orden correcto, LoPs=[0,1,0], zona en tramo 1.",
+    "run": {
+      "tiles": [
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        }
+      ],
+      "LoPs": [
+        0,
+        1,
+        0
+      ],
+      "rescueOrder": [
+        {
+          "victimType": "LIVE",
+          "zoneType": "GREEN"
+        },
+        {
+          "victimType": "LIVE",
+          "zoneType": "GREEN"
+        },
+        {
+          "victimType": "DEAD",
+          "zoneType": "RED"
+        }
+      ],
+      "exitBonus": true,
+      "showedUp": true,
+      "map": {
+        "victims": {
+          "live": 2,
+          "dead": 1
+        },
+        "EvacuationAreaLoPIndex": 1
+      }
+    },
+    "esperado_codigo": {
+      "raw_score": 94,
+      "score": 231,
+      "multiplier": 2.460375
+    },
+    "esperado_reglamento": null,
+    "nota": "raw: 15 + CP2 3x3=9 + exit 55 + final 10 + 5 = 94. Cada factor = max(1400-50,1250)=1350 -> 1.35^3 = 2.460375. 94*2.460375 = 231.27525 -> 231. EZLP = -0.05 por LoP (5.6.8)."
+  },
+  {
+    "nombre": "V21b_dos_LoPs_en_tramo_de_zona",
+    "descripcion": "Orden correcto, LoPs=[0,2,0].",
+    "run": {
+      "tiles": [
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        }
+      ],
+      "LoPs": [
+        0,
+        2,
+        0
+      ],
+      "rescueOrder": [
+        {
+          "victimType": "LIVE",
+          "zoneType": "GREEN"
+        },
+        {
+          "victimType": "LIVE",
+          "zoneType": "GREEN"
+        },
+        {
+          "victimType": "DEAD",
+          "zoneType": "RED"
+        }
+      ],
+      "exitBonus": true,
+      "showedUp": true,
+      "map": {
+        "victims": {
+          "live": 2,
+          "dead": 1
+        },
+        "EvacuationAreaLoPIndex": 1
+      }
+    },
+    "esperado_codigo": {
+      "raw_score": 83,
+      "score": 182,
+      "multiplier": 2.197
+    },
+    "esperado_reglamento": null,
+    "nota": "raw: 15 + 3x1=3 + exit 50 + 10 + 5 = 83. 1.30^3 = 2.197. 83*2.197 = 182.351 -> 182."
+  },
+  {
+    "nombre": "V22_tres_LoPs_en_zona_piso_1_25",
+    "descripcion": "Orden correcto, LoPs=[0,3,0].",
+    "run": {
+      "tiles": [
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        }
+      ],
+      "LoPs": [
+        0,
+        3,
+        0
+      ],
+      "rescueOrder": [
+        {
+          "victimType": "LIVE",
+          "zoneType": "GREEN"
+        },
+        {
+          "victimType": "LIVE",
+          "zoneType": "GREEN"
+        },
+        {
+          "victimType": "DEAD",
+          "zoneType": "RED"
+        }
+      ],
+      "exitBonus": true,
+      "showedUp": true,
+      "map": {
+        "victims": {
+          "live": 2,
+          "dead": 1
+        },
+        "EvacuationAreaLoPIndex": 1
+      }
+    },
+    "esperado_codigo": {
+      "raw_score": 75,
+      "score": 146,
+      "multiplier": 1.953125
+    },
+    "esperado_reglamento": null,
+    "nota": "raw: 15 + 0 + exit 45 + 10 + 5 = 75. Factor = max(1400-150,1250) = 1250 -> 1.25^3 = 1.953125. 75*1.953125 = 146.484375 -> 146."
+  },
+  {
+    "nombre": "V23_cinco_LoPs_en_zona_piso_1_25",
+    "descripcion": "Orden correcto, LoPs=[0,5,0].",
+    "run": {
+      "tiles": [
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        }
+      ],
+      "LoPs": [
+        0,
+        5,
+        0
+      ],
+      "rescueOrder": [
+        {
+          "victimType": "LIVE",
+          "zoneType": "GREEN"
+        },
+        {
+          "victimType": "LIVE",
+          "zoneType": "GREEN"
+        },
+        {
+          "victimType": "DEAD",
+          "zoneType": "RED"
+        }
+      ],
+      "exitBonus": true,
+      "showedUp": true,
+      "map": {
+        "victims": {
+          "live": 2,
+          "dead": 1
+        },
+        "EvacuationAreaLoPIndex": 1
+      }
+    },
+    "esperado_codigo": {
+      "raw_score": 65,
+      "score": 127,
+      "multiplier": 1.953125
+    },
+    "esperado_reglamento": null,
+    "nota": "raw: 15 + 0 + exit 35 + 10 + 5 = 65. Factor = max(1150,1250)=1250 (piso por factor). 65*1.953125 = 126.953125 -> 127. Lectura alternativa de 5.6.9 (piso sobre el producto): 1.15^3 = 1.520875 -> 98.86; se descarta porque 5.6.9 habla de 'multipliers earned for successful victim rescues' (cada SVR)."
+  },
+  {
+    "nombre": "V24_LoPs_en_otro_tramo_no_tocan_multiplicador",
+    "descripcion": "Orden correcto, LoPs=[2,0,0] (los LoPs estan en el tramo 0, la zona en el 1).",
+    "run": {
+      "tiles": [
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        }
+      ],
+      "LoPs": [
+        2,
+        0,
+        0
+      ],
+      "rescueOrder": [
+        {
+          "victimType": "LIVE",
+          "zoneType": "GREEN"
+        },
+        {
+          "victimType": "LIVE",
+          "zoneType": "GREEN"
+        },
+        {
+          "victimType": "DEAD",
+          "zoneType": "RED"
+        }
+      ],
+      "exitBonus": true,
+      "showedUp": true,
+      "map": {
+        "victims": {
+          "live": 2,
+          "dead": 1
+        },
+        "EvacuationAreaLoPIndex": 1
+      }
+    },
+    "esperado_codigo": {
+      "raw_score": 83,
+      "score": 228,
+      "multiplier": 2.744
+    },
+    "esperado_reglamento": null,
+    "nota": "raw: CP1 3x1=3 + 15 + exit 50 + 10 + 5 = 83. Multiplicador intacto 2.744 (solo cuenta LoPs[EvacuationAreaLoPIndex]). 83*2.744 = 227.752 -> 228."
+  },
+  {
+    "nombre": "V25_exit_bonus_con_13_LoPs_no_negativo",
+    "descripcion": "course9, LoPs=[4,4,5] (13 totales), sin victimas, exitBonus, showedUp.",
+    "run": {
+      "tiles": [
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        }
+      ],
+      "LoPs": [
+        4,
+        4,
+        5
+      ],
+      "rescueOrder": [],
+      "exitBonus": true,
+      "showedUp": true,
+      "map": {
+        "victims": {
+          "live": 2,
+          "dead": 1
+        },
+        "EvacuationAreaLoPIndex": 1
+      }
+    },
+    "esperado_codigo": {
+      "raw_score": 5,
+      "score": 5,
+      "multiplier": 1.0
+    },
+    "esperado_reglamento": null,
+    "nota": "CP1 3x(5-8)->0, CP2 0, exit max(60-65,0)=0, final 2x(5-10)->0, +5 = 5. Sin victimas el multiplicador es 1.0: el piso 1.25 NO aplica sin rescates (la skill robocup-junior del repo dice 'x1.25 con 0 victimas': es incorrecto)."
+  },
+  {
+    "nombre": "V26_exit_bonus_12_LoPs_sin_showedUp",
+    "descripcion": "course9, LoPs=[4,4,4] (12), exitBonus=true, showedUp=false, sin victimas.",
+    "run": {
+      "tiles": [
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        }
+      ],
+      "LoPs": [
+        4,
+        4,
+        4
+      ],
+      "rescueOrder": [],
+      "exitBonus": true,
+      "showedUp": false,
+      "map": {
+        "victims": {
+          "live": 2,
+          "dead": 1
+        },
+        "EvacuationAreaLoPIndex": 1
+      }
+    },
+    "esperado_codigo": {
+      "raw_score": 0,
+      "score": 0,
+      "multiplier": 1.0
+    },
+    "esperado_reglamento": {
+      "raw_score": 5,
+      "score": 5,
+      "multiplier": 1.0
+    },
+    "nota": "DIFIERE (borde): todo da 0 y el +5 implicito exige score>0 (2026.js:81). Un robot que llego a la meta estuvo en la baldosa de inicio -> reglamento 5. El confirm() del juez solo avisa si score>0 (judge/line_2026.js:785), asi que aqui no avisa."
+  },
+  {
+    "nombre": "V27_solo_victimas_sin_showedUp",
+    "descripcion": "course9 sin checkpoints marcados, sin exit, showedUp=false, zona en tramo 0, rescate VIVA-verde.",
+    "run": {
+      "tiles": [
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": false,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": false,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        }
+      ],
+      "LoPs": [
+        0,
+        0,
+        0
+      ],
+      "rescueOrder": [
+        {
+          "victimType": "LIVE",
+          "zoneType": "GREEN"
+        }
+      ],
+      "exitBonus": false,
+      "showedUp": false,
+      "map": {
+        "victims": {
+          "live": 2,
+          "dead": 1
+        },
+        "EvacuationAreaLoPIndex": 0
+      }
+    },
+    "esperado_codigo": {
+      "raw_score": 0,
+      "score": 0,
+      "multiplier": 1.4
+    },
+    "esperado_reglamento": {
+      "raw_score": 5,
+      "score": 7,
+      "multiplier": 1.4
+    },
+    "nota": "DIFIERE (borde): el multiplicador se calcula (1.4) pero raw=0 porque no hay nada de linea y showedUp=false -> 0*1.4 = 0. Por reglamento el robot estuvo en el inicio (5) -> 5*1.4 = 7. Solo pasa si el juez no marca showedUp."
+  },
+  {
+    "nombre": "V28_KIT_en_rescueOrder",
+    "descripcion": "course9 con CPs marcados, sin exit, showedUp, rescueOrder=[KIT-verde] (enum legado lineRun.js:16).",
+    "run": {
+      "tiles": [
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        }
+      ],
+      "LoPs": [
+        0,
+        0,
+        0
+      ],
+      "rescueOrder": [
+        {
+          "victimType": "KIT",
+          "zoneType": "GREEN"
+        }
+      ],
+      "exitBonus": false,
+      "showedUp": true,
+      "map": {
+        "victims": {
+          "live": 2,
+          "dead": 1
+        },
+        "EvacuationAreaLoPIndex": 1
+      }
+    },
+    "esperado_codigo": {
+      "raw_score": 35,
+      "score": 49,
+      "multiplier": 1.4
+    },
+    "esperado_reglamento": {
+      "raw_score": 35,
+      "score": 35,
+      "multiplier": 1.0
+    },
+    "nota": "DIFIERE: 'KIT' no es LIVE ni DEAD, pasa los 3 filtros (2026.js:61-63) y multiplica x1.4. El rescue kit no existe en 2026. La UI no permite cargarlo (solo via API). El port debe aceptar solo LIVE/DEAD."
+  },
+  {
+    "nombre": "V29_tres_vivas_via_API",
+    "descripcion": "course9 con CPs, showedUp, rescueOrder=[VIVA-verde x3] con map.victims.live=2.",
+    "run": {
+      "tiles": [
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        }
+      ],
+      "LoPs": [
+        0,
+        0,
+        0
+      ],
+      "rescueOrder": [
+        {
+          "victimType": "LIVE",
+          "zoneType": "GREEN"
+        },
+        {
+          "victimType": "LIVE",
+          "zoneType": "GREEN"
+        },
+        {
+          "victimType": "LIVE",
+          "zoneType": "GREEN"
+        }
+      ],
+      "exitBonus": false,
+      "showedUp": true,
+      "map": {
+        "victims": {
+          "live": 2,
+          "dead": 1
+        },
+        "EvacuationAreaLoPIndex": 1
+      }
+    },
+    "esperado_codigo": {
+      "raw_score": 35,
+      "score": 96,
+      "multiplier": 2.744
+    },
+    "esperado_reglamento": {
+      "raw_score": 35,
+      "score": 69,
+      "multiplier": 1.96
+    },
+    "nota": "DIFIERE (entrada invalida): el servidor no limita la cantidad de vivas (el tope esta solo en la UI, judge/line_2026.js:474). 35*2.744 = 96.04 -> 96. Reglamento: hay exactamente 2 vivas (3.10.4) -> 1.96 -> 68.6 (69 con el Math.round del CMS)."
+  },
+  {
+    "nombre": "V30_redondeo_x_5_hacia_arriba",
+    "descripcion": "4 indices, CP1 idx 1 marcado (1 baldosa), LoPs=[0,3], zona en tramo 1, rescate VIVA-verde, showedUp, sin exit.",
+    "run": {
+      "tiles": [
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        }
+      ],
+      "LoPs": [
+        0,
+        3
+      ],
+      "rescueOrder": [
+        {
+          "victimType": "LIVE",
+          "zoneType": "GREEN"
+        }
+      ],
+      "exitBonus": false,
+      "showedUp": true,
+      "map": {
+        "victims": {
+          "live": 2,
+          "dead": 1
+        },
+        "EvacuationAreaLoPIndex": 1
+      }
+    },
+    "esperado_codigo": {
+      "raw_score": 10,
+      "score": 13,
+      "multiplier": 1.25
+    },
+    "esperado_reglamento": null,
+    "nota": "raw 5+5 = 10; mult max(1400-150,1250)/1000 = 1.25; 10*1.25 = 12.5 -> Math.round = 13 (JS redondea .5 hacia +inf). Python round(12.5) = 12 (bancario): el port NO debe usar round(). El reglamento no define redondeo (valor exacto 12.5)."
+  },
+  {
+    "nombre": "V31_redondeo_hacia_abajo",
+    "descripcion": "Igual a V30 pero CP1 sin marcar (raw 5).",
+    "run": {
+      "tiles": [
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": false,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        }
+      ],
+      "LoPs": [
+        0,
+        3
+      ],
+      "rescueOrder": [
+        {
+          "victimType": "LIVE",
+          "zoneType": "GREEN"
+        }
+      ],
+      "exitBonus": false,
+      "showedUp": true,
+      "map": {
+        "victims": {
+          "live": 2,
+          "dead": 1
+        },
+        "EvacuationAreaLoPIndex": 1
+      }
+    },
+    "esperado_codigo": {
+      "raw_score": 5,
+      "score": 6,
+      "multiplier": 1.25
+    },
+    "esperado_reglamento": null,
+    "nota": "5*1.25 = 6.25 -> 6. raw_score se guarda SIN multiplicar (2026.js:88)."
+  },
+  {
+    "nombre": "V32_figura_oficial_serpentina",
+    "descripcion": "Figura de 5.6.3 (pag. 24): 1 inicio + 7 celestes (2do intento) + 17 verdes (1er) + 8 rosas (3er, tramo con zona) + 2 turquesa (1er, tramo final). CPs en idx 7, 24, 32; meta idx 34. LoPs=[1,0,2,0], exitBonus, sin victimas.",
+    "run": {
+      "tiles": [
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        }
+      ],
+      "LoPs": [
+        1,
+        0,
+        2,
+        0
+      ],
+      "rescueOrder": [],
+      "exitBonus": true,
+      "showedUp": true,
+      "map": {
+        "victims": {
+          "live": 2,
+          "dead": 1
+        },
+        "EvacuationAreaLoPIndex": 2
+      }
+    },
+    "esperado_codigo": {
+      "raw_score": 174,
+      "score": 174,
+      "multiplier": 1.0
+    },
+    "esperado_reglamento": null,
+    "nota": "Baldosas: 7x3=21 + 17x5=85 + 8x1=8 + (35-32-1)=2x5=10 + inicio 5 = 129 (= suma de la leyenda de la figura). Exit 60-5*3 = 45. 129+45 = 174."
+  },
+  {
+    "nombre": "V33_figura_oficial_serpentina_con_victimas",
+    "descripcion": "V32 + rescate VIVA-verde, VIVA-verde, MUERTA-roja (tramo de zona con 2 LoPs).",
+    "run": {
+      "tiles": [
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        }
+      ],
+      "LoPs": [
+        1,
+        0,
+        2,
+        0
+      ],
+      "rescueOrder": [
+        {
+          "victimType": "LIVE",
+          "zoneType": "GREEN"
+        },
+        {
+          "victimType": "LIVE",
+          "zoneType": "GREEN"
+        },
+        {
+          "victimType": "DEAD",
+          "zoneType": "RED"
+        }
+      ],
+      "exitBonus": true,
+      "showedUp": true,
+      "map": {
+        "victims": {
+          "live": 2,
+          "dead": 1
+        },
+        "EvacuationAreaLoPIndex": 2
+      }
+    },
+    "esperado_codigo": {
+      "raw_score": 174,
+      "score": 382,
+      "multiplier": 2.197
+    },
+    "esperado_reglamento": null,
+    "nota": "Factor = 1400-100 = 1300 -> 1.3^3 = 2.197. 174*2.197 = 382.278 -> 382."
+  },
+  {
+    "nombre": "V34_figura_oficial_lineal",
+    "descripcion": "Figura inferior de 5.6.3: inicio, baldosa, CP1 (idx 2), baldosa con 2 gaps (idx 3), baldosa, CP2 (idx 5), ... LoPs=[0,0,0], sin exit.",
+    "run": {
+      "tiles": [
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "gap",
+              "scored": true,
+              "count": 2
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        }
+      ],
+      "LoPs": [
+        0,
+        0,
+        0
+      ],
+      "rescueOrder": [],
+      "exitBonus": false,
+      "showedUp": true,
+      "map": {
+        "victims": {
+          "live": 2,
+          "dead": 1
+        },
+        "EvacuationAreaLoPIndex": 2
+      }
+    },
+    "esperado_codigo": {
+      "raw_score": 40,
+      "score": 40,
+      "multiplier": 1.0
+    },
+    "esperado_reglamento": null,
+    "nota": "Figura: 5 por el inicio + '2 tiles' x5 = 10 + '10 points for the tile with 2 gaps' + '3 tiles' x5 = 15 -> 40. Confirma que el conteo incluye la baldosa del checkpoint y excluye la de partida (tileCount = i - lastCheckPointTile)."
+  },
+  {
+    "nombre": "V35_combinacion_completa_realista",
+    "descripcion": "20 indices, 3 CPs (idx 4, 10, 14), zona en tramo 2. Elementos: interseccion, gap, obstaculo, rampa de 2 baldosas, speed bump fallado, seesaw, dead end (count 2), gap. LoPs=[0,1,2,1]. Rescate VIVA-verde, MUERTA-roja (antes de tiempo), VIVA-verde. exitBonus.",
+    "run": {
+      "tiles": [
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "intersection",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "gap",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "obstacle",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "ramp",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "ramp",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "speedbump",
+              "scored": false,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "seesaw",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "intersection",
+              "scored": true,
+              "count": 2
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "gap",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        }
+      ],
+      "LoPs": [
+        0,
+        1,
+        2,
+        1
+      ],
+      "rescueOrder": [
+        {
+          "victimType": "LIVE",
+          "zoneType": "GREEN"
+        },
+        {
+          "victimType": "DEAD",
+          "zoneType": "RED"
+        },
+        {
+          "victimType": "LIVE",
+          "zoneType": "GREEN"
+        }
+      ],
+      "exitBonus": true,
+      "showedUp": true,
+      "map": {
+        "victims": {
+          "live": 2,
+          "dead": 1
+        },
+        "EvacuationAreaLoPIndex": 2
+      }
+    },
+    "esperado_codigo": {
+      "raw_score": 212,
+      "score": 358,
+      "multiplier": 1.69
+    },
+    "esperado_reglamento": null,
+    "nota": "Baldosas: CP1 4x5=20, CP2 6x3=18, CP3 4x1=4, final (20-14-1)=5x3=15 -> 57. Elementos: 10+10+20+10+10+0+20+20+10 = 110. Exit 60-5*4 = 40. Inicio 5. raw = 212. Victimas: 1300, muerta salteada (liveCount 1), 1300 -> 1.69. 212*1.69 = 358.28 -> 358."
+  },
+  {
+    "nombre": "V36_puntaje_maximo_del_mapa",
+    "descripcion": "V35 con TODO marcado, LoPs=[0,0,0,0], rescate perfecto y exitBonus, showedUp=false (como GET /api/maps/line/:id/maxScore, lineMaps.js:197-209 + initRunData.js scored=true).",
+    "run": {
+      "tiles": [
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "intersection",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "gap",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "obstacle",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "ramp",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "ramp",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "speedbump",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "seesaw",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "intersection",
+              "scored": true,
+              "count": 2
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "gap",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        }
+      ],
+      "LoPs": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "rescueOrder": [
+        {
+          "victimType": "LIVE",
+          "zoneType": "GREEN"
+        },
+        {
+          "victimType": "LIVE",
+          "zoneType": "GREEN"
+        },
+        {
+          "victimType": "DEAD",
+          "zoneType": "RED"
+        }
+      ],
+      "exitBonus": true,
+      "showedUp": false,
+      "map": {
+        "victims": {
+          "live": 2,
+          "dead": 1
+        },
+        "EvacuationAreaLoPIndex": 2
+      }
+    },
+    "esperado_codigo": {
+      "raw_score": 280,
+      "score": 768,
+      "multiplier": 2.744
+    },
+    "esperado_reglamento": null,
+    "nota": "Baldosas 20+30+20+25 = 95. Elementos 120. Exit 60. Inicio implicito 5. raw 280. 280*2.744 = 768.32 -> 768."
+  },
+  {
+    "nombre": "V37_LoPs_mas_largo_que_checkpoints",
+    "descripcion": "5 indices, 1 CP (idx 2), LoPs=[0,0,4] (una entrada de mas, posible via PUT: lineRuns.js:537-539). exitBonus, sin victimas.",
+    "run": {
+      "tiles": [
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        }
+      ],
+      "LoPs": [
+        0,
+        0,
+        4
+      ],
+      "rescueOrder": [],
+      "exitBonus": true,
+      "showedUp": true,
+      "map": {
+        "victims": {
+          "live": 2,
+          "dead": 1
+        },
+        "EvacuationAreaLoPIndex": 1
+      }
+    },
+    "esperado_codigo": {
+      "raw_score": 65,
+      "score": 65,
+      "multiplier": 1.0
+    },
+    "esperado_reglamento": {
+      "raw_score": 85,
+      "score": 85,
+      "multiplier": 1.0
+    },
+    "nota": "DIFIERE (entrada invalida): la entrada extra no afecta baldosas (el tramo final usa LoPs[1]) pero SI el total del exit bonus: 60-20 = 40. raw = 10 + 40 + (5-2-1)=2x5=10 + 5 = 65. Con LoPs validos [0,0] el exit bonus seria 60 -> 85. El port debe validar len(LoPs) == checkpoints+1."
+  },
+  {
+    "nombre": "V38_zona_en_el_ultimo_tramo",
+    "descripcion": "course9, zona en el tramo final (EvacuationAreaLoPIndex=2), LoPs=[0,0,2], rescate VIVA-verde x2, exitBonus.",
+    "run": {
+      "tiles": [
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": [
+            {
+              "item": "checkpoint",
+              "scored": true,
+              "count": 1
+            }
+          ]
+        },
+        {
+          "scoredItems": []
+        },
+        {
+          "scoredItems": []
+        }
+      ],
+      "LoPs": [
+        0,
+        0,
+        2
+      ],
+      "rescueOrder": [
+        {
+          "victimType": "LIVE",
+          "zoneType": "GREEN"
+        },
+        {
+          "victimType": "LIVE",
+          "zoneType": "GREEN"
+        }
+      ],
+      "exitBonus": true,
+      "showedUp": true,
+      "map": {
+        "victims": {
+          "live": 2,
+          "dead": 1
+        },
+        "EvacuationAreaLoPIndex": 2
+      }
+    },
+    "esperado_codigo": {
+      "raw_score": 87,
+      "score": 147,
+      "multiplier": 1.69
+    },
+    "esperado_reglamento": null,
+    "nota": "raw: 15 + 15 + exit 50 + final 2x1=2 + 5 = 87. 1300*1300/1e6 = 1.69. 87*1.69 = 147.03 -> 147."
+  }
+]

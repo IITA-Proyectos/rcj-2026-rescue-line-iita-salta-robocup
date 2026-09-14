@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Backend — contexto hijo del io-shim</title>
+<script src="../local/config.js"></script>
+<script src="../local/io-shim.js"></script>
+</head>
+<body>
+<script>
+var q = new URLSearchParams(location.search);
+var run = q.get('run'), cid = q.get('cid');
+window.recibidos = { data: [], changed: 0, statusChanged: 0, lchanged: 0, conectado: false };
+
+// como sign/line_2026.js:114-121
+var socket = io(window.location.origin, { transports: ['websocket'] });
+socket.emit('subscribe', 'runs/' + run);
+socket.on('data', function (d) { recibidos.data.push(d); });
+
+// como ranking/line_2026.js:110-123
+var socket2 = io({ transports: ['websocket'] }).connect(window.location.origin);
+socket2.on('connect', function () {
+  recibidos.conectado = true;
+  socket2.emit('subscribe', 'runs/line/' + cid);
+  parent.postMessage({ tipo: 'hijo-listo' }, '*');
+});
+socket2.on('changed', function () { recibidos.changed++; });
+
+// como line_competition.js:52-60 (escucha StatusChanged, que el servidor nunca emite)
+var socket3 = io(window.location.origin, { transports: ['websocket'] });
+socket3.emit('subscribe', 'runs/line/' + cid + '/status');
+socket3.on('StatusChanged', function () { recibidos.statusChanged++; });
+socket3.on('LChanged', function () { recibidos.lchanged++; });
+
+window.desuscribir = function () { socket.emit('unsubscribe', 'runs/' + run); };
+</script>
+</body>
+</html>

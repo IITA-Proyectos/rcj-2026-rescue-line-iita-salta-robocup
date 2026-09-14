@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Salidas — PDF de mapa, planilla del editor, scoresheet2 y export</title>
+<script src="salidas-comun.js"></script>
+<script src="../local/config.js"></script>
+<script src="../local/io-shim.js"></script>
+<script src="../local/nucleo/store.js"></script>
+<script src="../local/nucleo/pathfinder-servidor.js"></script>
+<script src="../local/nucleo/init-run.js"></script>
+<script src="../local/nucleo/score-2026.js"></script>
+<script src="../local/nucleo/copy-properties.js"></script>
+<script src="../local/nucleo/api.js"></script>
+<script src="../local/nucleo/ranking.js"></script>
+<script src="../local/render/registrar.js"></script>
+</head>
+<body>
+<h1>PDF: mapa, planillas y export</h1>
+<pre id="resultado">PENDIENTE</pre>
+<script>
+function esPDF(nombre, r, paginas, cajas) {
+  var i = T.pdfInfo(r.data);
+  T.check(nombre + ': 200 con %PDF-1.3 ... %%EOF', r.status === 200 && i.cabecera.indexOf('%PDF-1.3') === 0 && i.eof, { status: r.status, info: i, data: typeof r.data === 'string' ? r.data.slice(0, 200) : undefined });
+  T.igual(nombre + ': páginas', i.paginas, paginas);
+  if (cajas) T.check(nombre + ': MediaBox', i.mediaBoxes.length === paginas && i.mediaBoxes.every(function (m) { return cajas.indexOf(m) >= 0; }), i.mediaBoxes);
+  return i;
+}
+
+T.correr(async function () {
+  var s = await T.sembrar();
+  var fx = s.fx;
+  T.check('pdfkit todavía no está cargado', typeof window.PDFDocument === 'undefined');
+  function cuerpoMapa(tam) {
+    return {
+      name: fx.name, height: fx.height, width: fx.width, length: fx.length, tiles: fx.tiles,
+      startTile: fx.startTile, startTile2: fx.startTile2, competitionName: 'Práctica IITA 2026',
+      leagueName: 'Line', paperSize: tam, EvacuationAreaLoPIndex: 2
+    };
+  }
+  var tiempos = {};
+
+  // 1) map-image-pdf A4 y Letter (lineMaps.js:650-685 + lineMapPDF.js)
+  var t0 = performance.now();
+  var a4 = await T.api('POST', '/api/maps/line/map-image-pdf', cuerpoMapa('A4'));
+  tiempos.mapaA4ConCargaDePdfkit = Math.round(performance.now() - t0);
+  T.check('pdfkit se cargó bajo demanda', typeof window.PDFDocument === 'function');
+  T.igual('mapa A4: Content-Type', T.header(a4, 'Content-Type'), 'application/pdf');
+  T.igual('mapa A4: Content-Disposition (lineMapPDF.js:52)', T.header(a4, 'Content-Disposition'),
+    "inline; filename=\"bulk-maps.pdf\"; filename*=UTF-8''" + encodeURIComponent('maps-Práctica IITA 2026-Line.pdf'));
+  var iA4 = esPDF('mapa A4', a4, 1, ['0 0 595.28 841.89', '0 0 841.89 595.28']);
+  T.check('mapa A4: tiene la imagen del mapa', iA4.imagenes >= 1, iA4);
+  await T.guardar('mapa-A4.pdf', a4.data);
+  var letter = await T.api('POST', '/api/maps/line/map-image-pdf', cuerpoMapa('Letter'));
+  esPDF('mapa Letter', letter, 1, ['0 0 612 792', '0 0 792 612']);
+  await T.guardar('mapa-Letter.pdf', letter.data);
+  var otro = await T.api('POST', '/api/maps/line/map-image-pdf', cuerpoMapa('B5'));
+  esPDF('mapa con paperSize desconocido cae a A4', otro, 1, ['0 0 595.28 841.89', '0 0 841.89 595.28']);
+  var sinTiles = await T.api('POST', '/api/maps/line/map-image-pdf', { name: 'x' });
+  T.igual('mapa sin tiles => 400 Invalid map data', [sinTiles.status, sinTiles.data], [400, { msg: 'Invalid map data' }]);
+
+  // 2) scoresheet desde el editor (L26:830-844): sin _id => sin QR, título "Competition" (C6)
+  t0 = performance.now();
+  var pe = await T.api('POST', '/api/maps/line/scoresheet', Object.assign(cuerpoMapa('A4'), { rule: '2026', noQR: undefined }));
+  tiempos.planillaEditor = Math.round(performance.now() - t0);
+  var iPe = esPDF('planilla editor', pe, 1, ['0 0 841.89 595.28']);
+  T.igual('planilla editor: sin Content-Type (doc.pipe(res) sin setHeader)', T.header(pe, 'Content-Type'), undefined);
+  T.check('planilla editor: fondo + logo + mapa + miniaturas', iPe.imagenes >= 4, iPe);
+  await T.guardar('planilla-editor.pdf', pe.data);
+
+  // 3) scoresheet2 de las 2 corridas (lineRuns.js:663-745): una página por corrida, QR "L;<runId>"
+  t0 = performance.now();
+  var p2 = await T.api('GET', '/api/runs/line/scoresheet2?competition=' + s.cid);
+  tiempos.planillas2Corridas = Math.round(performance.now() - t0);
+  var iP2 = esPDF('scoresheet2 competencia', p2, 2, ['0 0 841.89 595.28']);
+  await T.guardar('planillas-corridas.pdf', p2.data);
+  var p1 = await T.api('GET', '/api/runs/line/scoresheet2?run=' + s.runs[0] + '&offset=-180');
+  esPDF('scoresheet2 una corrida con offset', p1, 1, ['0 0 841.89 595.28']);
+  await T.guardar('planilla-corrida-1.pdf', p1.data);
+  var rango = await T.api('GET', '/api/runs/line/scoresheet2?competition=' + s.cid + '&startTime=' + Date.UTC(2026, 8, 13, 18, 0) + '&offset=0');
+  esPDF('scoresheet2 filtrado por startTime (solo la 2ª corrida)', rango, 1, ['0 0 841.89 595.28']);
+  var nada = await T.api('GET', '/api/runs/line/scoresheet2');
+  T.igual('scoresheet2 sin parámetros => next() => 404 (app.js:280-282)', [nada.status, nada.data], [404, { message: '404 Not found' }]);
+  var vacia = await T.api('GET', '/api/runs/line/scoresheet2?competition=000000000000000000000000');
+  esPDF('scoresheet2 sin corridas => PDF sin páginas', vacia, 0);
+
+  // 4) export (lineMaps.js:737-787)
+  var base = '/api/maps/line/export?competition=' + s.cid + '&league=Line&ids=' + s.mapId;
+  var ex1 = await T.api('GET', base + '&type=scoresheets&rule=2026');
+  esPDF('export scoresheets (noQR)', ex1, 1, ['0 0 841.89 595.28']);
+  await T.guardar('export-planillas.pdf', ex1.data);
+  var ex2 = await T.api('GET', base + '&type=maps');
+  esPDF('export maps PDF', ex2, 1, ['0 0 595.28 841.89', '0 0 841.89 595.28']);
+  await T.guardar('export-mapas.pdf', ex2.data);
+  var ex3 = await T.api('GET', base + '&type=maps&format=png');
+  var pk = new Uint8Array(ex3.data, 0, 4);
+  T.check('export maps PNG => ZIP', ex3.status === 200 && pk[0] === 0x50 && pk[1] === 0x4B && pk[2] === 3 && pk[3] === 4, ex3.status);
+  T.igual('export maps PNG: headers de res.attachment', [T.header(ex3, 'Content-Type'), T.header(ex3, 'Content-Disposition')], ['application/zip', 'attachment; filename="maps.zip"']);
+  await T.guardar('export-mapas.zip', ex3.data);
+  var ex4 = await T.api('GET', base + '&type=otro');
+  T.igual('export tipo inválido => 400 texto', [ex4.status, ex4.data], [400, 'Invalid export type']);
+  var ex5 = await T.api('GET', '/api/maps/line/export?type=maps');
+  T.igual('export sin selección => 400 Missing selection', [ex5.status, ex5.data], [400, { msg: 'Missing selection' }]);
+  var ex6 = await T.api('GET', '/api/maps/line/export?ids=000000000000000000000000&type=maps');
+  T.igual('export sin mapas => 404 No maps found', [ex6.status, ex6.data], [404, { msg: 'No maps found' }]);
+  var porComp = await T.api('GET', '/api/maps/line/export?competition=' + s.cid + '&league=Line&type=scoresheets');
+  esPDF('export por competencia+liga', porComp, 1, ['0 0 841.89 595.28']);
+
+  // 5) casos borde de la planilla del editor
+  var vacio = await T.api('POST', '/api/maps/line/scoresheet', { name: 'vacío', height: 1, width: 2, length: 2, tiles: {}, rule: '2026' });
+  esPDF('planilla de mapa vacío', vacio, 1, ['0 0 841.89 595.28']);
+
+  return { tiempos: tiempos, cid: s.cid, mapId: s.mapId, runs: s.runs, puntajes: s.puntajes, planillas2: iP2 };
+});
+</script>
+</body>
+</html>
