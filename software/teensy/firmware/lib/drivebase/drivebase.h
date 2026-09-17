@@ -48,7 +48,7 @@
 // diagnostico mide EL ROBOT ACTUAL, que es de lo que hay que sacar el veredicto.
 // El fix se enciende explicitamente con el entorno `diagnostico_fix`.
 #ifndef FIX_LAZO_MOTOR
-#define FIX_LAZO_MOTOR 0
+#define FIX_LAZO_MOTOR 1
 #endif
 
 // PWM de arranque: lo que hace falta para vencer la friccion estatica.

@@ -13,567 +13,349 @@
 #include <NewPing.h>
 #include <Wire.h>
 #include <VL53L0X.h>
-#include "priority_fix_flags.h"
 #include <telemetria.h>
 
 // ============================================================================
-//  MODO_DIAGNOSTICO va ACA ARRIBA porque de el dependen las macros DBG_*, que
-//  se usan en todo el archivo. Lo define el entorno `diagnostico` por -D.
+//
+//   RescueBot IITA Salta  -  FIRMWARE DE COMPETENCIA DEL TEENSY 4.1
+//   RoboCupJunior Rescue Line 2026
+//
+//   ESTE ES EL BINARIO QUE VA A LA PISTA. Se compila y se flashea asi, PELADO,
+//   sin variables de entorno y sin elegir entorno:
+//
+//       pio run --target upload
+//
+//   Hasta el 2026-09-06 hacia falta esto ANTES de cada flasheo:
+//       set PLATFORMIO_BUILD_FLAGS=-D LINE_STEER_GAIN=1.0 -D LINE_ROT_EXP=0.85
+//            -D LINE_PIVOTE_ENTRA=1.01 -D LINE_RECTA_FACTOR=0.8
+//            -D LINE_FRENO_DELANTERO=1 -D LINE_FRENO_STEER=0.70 -D LINE_FRENO_VEL=55
+//   Esos siete valores ya son los DEFAULT del panel de abajo. El binario que
+//   sale hoy es identico byte a byte al que salia con esa linea, verificado
+//   funcion por funcion sobre el .elf. Si algun dia volves a usar la variable
+//   de entorno, acordate de borrarla despues (`Remove-Item Env:PLATFORMIO_BUILD_FLAGS`):
+//   en PowerShell queda pegada a esa consola y contamina todo build posterior.
+//
+//   ------------------------------------------------------------------------
+//   MAPA DEL ARCHIVO  (en este orden)
+//
+//     1. PANEL DE CONFIGURACION ....... aca abajo. TODO lo que se toca.
+//     2. Estado de la recuperacion de linea y del GAP
+//     3. Objetos de hardware: servos, garra, IMU, motores, DriveBase
+//     4. Estado global del robot y protocolo con la Raspberry
+//     5. Sensores: ultrasonidos, ToF, color (APDS9960)
+//     6. Serial con la Raspberry (serialEvent5)
+//     7. Primitivas de movimiento: runTime / runAngle / runDistance
+//     8. Evacuacion: colores, esquive, finales de carrera
+//     9. Anti-atasco (loma de burro) y traccion en rampa
+//    10. Telemetria JSON hacia la ESP32
+//    11. setup()
+//    12. loop()  ->  idle / arranque / lazo de linea / rescate / evacuacion
+//
+//   >>> QUE TRAE EL BINARIO QUE SE FLASHEA, Y POR QUE SORPRENDE <<<
+//
+//   El entorno `competencia` define MODO_DIAGNOSTICO = 1 y TELEMETRIA = 0.
+//   O sea que el robot que corre en pista lleva el REGISTRADOR CSV DE 200 Hz
+//   PRENDIDO y la TELEMETRIA A LA ESP32 APAGADA. No es un descuido: es el
+//   binario con el que se tuneo toda la configuracion de movimiento que hoy
+//   funciona (hasta el 2026-09-06 se flasheaba como `-e diagnostico_fix`).
+//
+//   Y NO ES GRATIS: DIAG_TICK() hace una lectura I2C del BNO055 a 50 Hz, que
+//   son ~2 ms cada 20 ms, alrededor del 10 % del lazo. Apagar el registrador
+//   haria el lazo MAS RAPIDO, o sea que el robot reaccionaria a la camara mas
+//   seguido: es un cambio de comportamiento, no una limpieza. Si se hace, se
+//   vuelve a probar en pista.
+//
+//   Para ver el robot en vivo por WiFi esta el entorno `telemetria`, que es el
+//   intercambio inverso. NO es el binario tuneado.
+//
+//   COMO ANDA, EN UNA FRASE. La Raspberry manda por Serial5 una trama de 8
+//   bytes con velocidad, angulo, un codigo de tarea y el plateado. El Teensy es
+//   REACTIVO: traduce ese angulo a consignas de rueda con el PID de encoder de
+//   drivebase, y ejecuta las maniobras (verde, 180, esquive, rescate) cuando el
+//   codigo de tarea se lo pide. La camara decide QUE hacer; el Teensy, COMO.
+//
+//   ARCHIVOS HERMANOS
+//     lib/drivebase/     steer(), el PID por rueda y la geometria del chasis
+//     lib/claw/          la garra
+//     src/diagnostico.h  registrador CSV de 200 Hz (SI entra en el binario que
+//                        se flashea: ver el aviso de abajo)
+//     platformio.ini     entornos de compilacion
+//
 // ============================================================================
-// ============================================================================
-//  FIX_CURVA_CONTINUA - saca el escalon de `rotation` del case 7
-//
-//  EL PROBLEMA (medido con las constantes del propio case 7):
-//    camara 23,3 deg -> steerCmd 0,350 -> rama `curva`       -> rotation 0,350
-//                       rueda interna = 26 * (1-2*0,350) =  +7,8 rpm  ADELANTE
-//    camara 23,4 deg -> steerCmd 0,351 -> rama `curva dura`  -> rotation 0,800
-//                       rueda interna = 22 * (1-2*0,800) = -13,2 rpm  REVERSA
-//  UNA DECIMA DE GRADO de camara da vuelta la rueda interna: un salto de 21 rpm.
-//  Con las omni traseras eso se absorbia deslizando de costado. Con 4 fijas de
-//  silicona se convierte en un escalon de par contra la friccion estatica: el
-//  robot se carga sin girar y despues gira de golpe.
-//
-//  QUE HACE EL FIX: `rotation` pasa a ser una funcion CONTINUA de steerCmd, y la
-//  velocidad tambien. No hay ningun punto donde un cambio infinitesimal del
-//  angulo produzca un cambio finito del comando.
-//
-//  Y SACA steerAxleBias: pedirle 55% al eje delantero no lo hace girar mas
-//  despacio -eso lo impone la geometria del chasis rigido-, sino que hace que su
-//  RPM medida supere a la pedida. Como el PID solo ve magnitudes, le baja el PWM
-//  y el eje delantero queda sin par. Es el mismo mecanismo del problema central,
-//  aplicado a mano.
-//
-//  0 por defecto: no cambia el binario de competencia. Lo enciende el entorno
-//  `diagnostico_fix` para poder comparar la MISMA curva con y sin el.
-// ============================================================================
-#ifndef FIX_CURVA_CONTINUA
-#define FIX_CURVA_CONTINUA 0
-#endif
 
-// ============================================================================
-//  CONSTANTES DEL SEGUIMIENTO DE LINEA (case 7)
-//
-//  Estaban declaradas DENTRO del case 7, y eso tenia dos costos que se pagaron
-//  el 22-ago: no se podian barrer desde `build_flags` -habia que editar, volver
-//  a compilar y volver a flashear entre corrida y corrida, con la pista ocupada-
-//  y sobre todo `diagProcedencia()` no las veia, asi que ningun CSV decia con
-//  que ganancia ni con que umbral se habia grabado. Se grabaron diez CSV ese dia
-//  y despues NO se pudo atribuir ninguna diferencia a ninguna constante.
-//
-//  Ahora salen en la cabecera de cada CSV y se pueden barrer SIN EDITAR CODIGO,
-//  que es lo que hace falta con la pista ocupada y el reloj corriendo.
-//
-//  Git Bash / Linux:
-//      PLATFORMIO_BUILD_FLAGS="-D LINE_PIVOTE_DWELL_MS=300UL" pio run -e diagnostico_fix -t upload
-//
-//  PowerShell -que es lo que se usa en esta maquina- NO acepta esa sintaxis:
-//      $env:PLATFORMIO_BUILD_FLAGS = "-D LINE_PIVOTE_DWELL_MS=300UL"
-//      pio run -e diagnostico_fix -t upload
-//      Remove-Item Env:PLATFORMIO_BUILD_FLAGS      <-- ESTA LINEA NO SE OLVIDA
-//
-//  La ultima linea importa de verdad: en PowerShell la variable QUEDA PEGADA a
-//  esa consola y contamina todo build posterior. Y el binario de competencia NO
-//  emite procedencia -diagProcedencia() vive entera dentro del #if
-//  MODO_DIAGNOSTICO- asi que podria salir a la pista con un dwell puesto y NADA
-//  lo registraria. Lo mas seguro: una consola nueva por cada valor del barrido.
-//
-//  (verificado que la bandera llega al compilador con `pio run -v`, y que SE
-//   SUMA a las del entorno en vez de reemplazarlas. NO existe `--project-option`
-//   en esta version de pio.)
-//
-//  Y como la constante viaja en la procedencia, el CSV de esa corrida dice solo
-//  con que valor se grabo. Ese es el punto: que un archivo explique su binario.
-// ============================================================================
 
-// Ganancia de la camara al comando. Con 1.80 el cabeceo empeoro de -11,8 a
-// -20,3 grados y la banda media de rotation cayo de 32% a 22%: satura antes.
+// ############################################################################
+// #                                                                          #
+// #                      1.  PANEL DE CONFIGURACION                          #
+// #                                                                          #
+// #  Todo lo que se toca para cambiar como se mueve el robot esta aca.        #
+// #  Cada constante va detras de un #ifndef, asi que ademas se puede pisar    #
+// #  desde platformio.ini o con PLATFORMIO_BUILD_FLAGS sin editar el fuente.  #
+// #                                                                          #
+// ############################################################################
+
+// ----------------------------------------------------------------------------
+//  1.1  SEGUIMIENTO DE LINEA  (case 7 del switch de loop())
+//
+//  LA CADENA COMPLETA, de la camara a las ruedas:
+//
+//      byte angle (0..180)                        lo manda la Pi
+//        -> steer = (angle - 90) / 90             -1.0 .. +1.0
+//        -> steerCmd = constrain(steer * LINE_STEER_GAIN, -1, 1)
+//        -> absSteer = |steerCmd|                 0.0 .. 1.0  SIEMPRE
+//        -> rot      = absSteer ^ LINE_ROT_EXP    cuanto se cierra la curva
+//        -> vel      = rampa cuadratica entre la velocidad base y LINE_PIVOT_SPEED
+//        -> robot.steer(vel, FORWARD, +-rot)      o la rama de curva cerrada
+//
+//  DE DONDE SALE EL RADIO:  R = b_eff * (1 - rot) / (2 * rot),  con b_eff = 20,9 cm.
+//  La VELOCIDAD NO APARECE en esa formula: ir mas lento NO cierra la curva.
+//  Medido en pista el 26-ago-2026 (la corrida freno_ctrl_1 subio la curva a 55 y
+//  dio igual que la base en las cinco columnas). Lo unico que cierra el radio es
+//  subir `rot`.
+//  Y el robot ABRE un 15 % respecto de lo que pide: medido en banco el 22-ago
+//  sobre las 4 ruedas al piso, R_real / R_pedido = 1,15 constante en todo el rango.
+// ----------------------------------------------------------------------------
+
+// GANANCIA DE LA CAMARA AL COMANDO. Amplifica el angulo antes de decidir `rot`.
+// En 1.0 el angulo pasa tal cual. Con 1.80 el cabeceo empeoro de -11,8 a -20,3
+// grados y la banda media de rotation cayo de 32 % a 22 %: satura antes.
 #ifndef LINE_STEER_GAIN
-#define LINE_STEER_GAIN 1.35
+#define LINE_STEER_GAIN 1.0
 #endif
 
-// Exponente de la rampa de rotation. 1.0 = la rampa lineal historica.
+// EXPONENTE DE LA RAMPA DE ROTATION:  rot = absSteer ^ LINE_ROT_EXP
+//
+// Es LA palanca del radio. La distancia que el robot recorre POR CADA GRADO que
+// gira vale (1-rot)/(k*rot), y eso NO depende de la velocidad (verificado
+// comparando dos corridas a 29 y 37 rpm: 0,49 contra 0,44 cm/grado). En la curva
+// de 90 grados que fallaba: rot 0,30 -> 44 cm recorridos mientras gira;
+// rot 0,87 -> 3,6 cm. Y el robot ve unos 2-3 cm de piso.
+//
+// MAS CHICO = MAS AGRESIVO (la curva se cierra antes). 1.0 es la rampa lineal.
 #ifndef LINE_ROT_EXP
-#define LINE_ROT_EXP 0.50
+#define LINE_ROT_EXP 0.85
 #endif
 
-// Histeresis del pivote: entra alto y no sale hasta alinearse.
+// >>> EL PIVOTE (giro sobre el eje) ESTA APAGADO, Y ES A PROPOSITO. <<<
+//
+// `absSteer` no puede pasar de 1.0 NUNCA -sale de un constrain(...,-1,1) antes
+// del fabs-, asi que con el umbral de entrada en 1.01 la maquina de estados del
+// pivote no se dispara jamas. Es un interruptor, no un descuido.
+//
+// POR QUE SE APAGO (medido el 30-ago-2026): con el pivote enganchado el robot se
+// pasaba el 29,7 % del tiempo girando SIN AVANZAR (rot = 1 => v_centro = 0).
+// Apagandolo eso cayo al 7,8 % y el robot empezo a tomar los codos. Es la razon
+// principal por la que la configuracion actual funciona.
+//
+// PARA VOLVER A PRENDERLO: poner 0.60 aca. Toda la maquinaria de histeresis
+// (LINE_PIVOTE_SALE / _CONFIRMA_MS / _MAX_MS) esta escrita mas abajo, intacta y
+// esperando. Con 1.01 esa maquinaria se compila pero no se ejecuta nunca.
 #ifndef LINE_PIVOTE_ENTRA
-#define LINE_PIVOTE_ENTRA 0.60
+#define LINE_PIVOTE_ENTRA 1.01
 #endif
+
+// Umbral para SALIR del pivote (solo aplica si LINE_PIVOTE_ENTRA <= 1.0).
+// Entra alto y sale bajo: sin esa histeresis el robot picoteaba el giro
+// (3,6 entradas y salidas por segundo, 8 grados por episodio).
 #ifndef LINE_PIVOTE_SALE
 #define LINE_PIVOTE_SALE 0.15
 #endif
 
-// Tope de seguridad del pivote. OJO: medido el 23-ago sobre tramos SOSTENIDOS,
-// la tasa de giro satura en ~39 grados/s, asi que 90 grados cuestan 2,3 s y
-// estos 2500 ms estan sobre el filo, no con margen.
-#ifndef LINE_PIVOTE_MAX_MS
-#define LINE_PIVOTE_MAX_MS 2500UL
-#endif
-
-// Confirmacion de alineacion sostenida antes de soltar el pivote.
-//
-// EN 0, Y NO ES UN DESCUIDO: 0 reproduce la histeresis simple que REALMENTE
-// corrio el 22-ago, y que el banco de replay valida al 94,1% de rama igual.
-// Estuvo escrita en 300 desde el 22-ago a la noche, se compilo y NUNCA se
-// flasheo. Medido el 23-ago sobre los 6 CSV, ES INALCANZABLE: las rachas
-// continuas de absSteer <= LINE_PIVOTE_SALE duran 50-75 ms de mediana y solo
-// el 1,2-7,7% llega a 300 ms.
-//
-// O sea que con 300 el pivote NO SALE NUNCA por alineacion: sale por el tope de
-// MAX_MS. Simulado sobre el rxsteer real, el 75-100% de los episodios termina
-// asi, con mediana de 2505 ms. Y en pivote `rot` vale 1,0, o sea que el avance
-// es CERO por diseno: el robot gira en el lugar 2,5 segundos, suelta, y vuelve
-// a enganchar. Eso es Lack of Progress delante del arbitro.
-//
-// Para probarla hay que hacerlo en una corrida EXPLICITA del barrido, no como
-// valor por defecto:
-//     PLATFORMIO_BUILD_FLAGS="-D LINE_PIVOTE_CONFIRMA_MS=300UL" pio run ...
+// Cuanto tiene que SOSTENERSE la alineacion antes de soltar el pivote.
+// En 0 = histeresis simple. OJO si lo subis: medido sobre 6 CSV, las rachas
+// continuas de absSteer <= LINE_PIVOTE_SALE duran 50-75 ms de mediana, asi que
+// con 300 ms el pivote NO sale nunca por alineacion -sale por el tope de tiempo-
+// y el robot gira 2,5 s en el lugar. Eso es Lack of Progress delante del arbitro.
 #ifndef LINE_PIVOTE_CONFIRMA_MS
 #define LINE_PIVOTE_CONFIRMA_MS 0UL
 #endif
 
-// Velocidad del pivote. Medido el 23-ago sobre tramos de signo constante de mas
-// de 150 ms: ls 0-22 da 19,6 grados/s, ls 32-42 da 39,3 y ls 42-60 da 39,2. O
-// sea que subir de 20 a 35 DUPLICA el giro y de 35 a 50 no compra nada.
+// Tope de seguridad del pivote. Medido el 23-ago sobre tramos sostenidos, la
+// tasa de giro satura en ~39 grados/s: 90 grados cuestan 2,3 s, asi que estos
+// 2500 ms estan sobre el filo, no con margen.
+#ifndef LINE_PIVOTE_MAX_MS
+#define LINE_PIVOTE_MAX_MS 2500UL
+#endif
+
+// VELOCIDAD EN LA PARTE MAS CERRADA DE LA CURVA, en rpm. Es el techo de la rampa
+// cuadratica de velocidad: en recta manda la velocidad base y hacia la curva
+// sube hasta aca. Medido el 23-ago sobre tramos de signo constante de mas de
+// 150 ms: 20 rpm dan 19,6 grados/s, 35 dan 39,3 y 50 dan 39,2. O sea que subir
+// de 20 a 35 DUPLICA el giro y de 35 a 50 no compra nada.
 #ifndef LINE_PIVOT_SPEED
 #define LINE_PIVOT_SPEED 50
 #endif
 
-// DWELL MINIMO DEL SIGNO DEL PIVOTE, en ms. Ver el comentario largo en el
-// case 7, arriba de donde se usa. 0 = comportamiento historico byte por byte.
-#ifndef LINE_PIVOTE_DWELL_MS
-#define LINE_PIVOTE_DWELL_MS 0UL
+// VELOCIDAD EN RECTA, como fraccion de la velocidad base. 1.0 = sin cambio.
+//
+// Benjamin, 26-ago: "tiene que ir mas lento normalmente como un 50 % y de ahi
+// girar brusco". Con 0.8 el robot va a 36 rpm en recta y salta a 55 en la curva
+// cerrada (ver LINE_FRENO_VEL).
+//
+// OJO CON LO QUE ESTO NO HACE: bajar la velocidad NO cierra el radio (ver la
+// formula de arriba: `vel` no aparece). LO QUE SI HACE es dar TIEMPO DE
+// REACCION: a la mitad de velocidad el robot recorre la mitad de centimetros por
+// frame, o sea el doble de frames por centimetro de pista. Con el lazo de vision
+// a ~50 fps y el lag comando->giro de 60-70 ms medido, es el doble de margen
+// para corregir antes de llegar al codo.
+#ifndef LINE_RECTA_FACTOR
+#define LINE_RECTA_FACTOR 0.8
 #endif
 
-// DWELL DEL SIGNO EN TODO EL CASE 7, no solo dentro del pivote.
+// ----------------------------------------------------------------------------
+//  1.2  RAMA DE CURVA CERRADA  ("freno delantero")
 //
-// POR QUE. `signoCmd` se aplica SIEMPRE -la ultima linea del case 7 es
-// robot.steer(vel, FORWARD, signoCmd > 0 ? rot : -rot)- pero el dwell solo lo
-// protegia con `s_en_pivote`. Medido el 26-ago en pista: en el tramo del codo
-// el robot esta en pivote el 15-20 % del tiempo, asi que el otro 80 % el signo
-// se reescribia cada trama sin freno. Por eso LINE_PIVOTE_DWELL_MS=250 no
-// movio nada: ratio giro_abs/giro_neto 5,6x contra 2,8-5,8x de la base.
+//  >>> LEER ESTO ANTES DE TOCAR NADA DE ESTE BLOQUE. <<<
 //
-// EL NUMERO QUE LO MOTIVA: 88 episodios de curva en 6 corridas, con TRES leyes
-// de vision distintas (atan2, CTRL=lineal, cadena CAMINO/MONO).
-//     giro neto por episodio: p50=15  p90=30  p95=40  MAXIMO=55 grados
-//     episodios que llegan a >= 60 grados: 0 de 88.
-// El robot NUNCA giro mas de 55 grados seguidos. Un codo de 90 no lo puede
-// tomar ninguna ley SIN MEMORIA: a mitad del codo la linea vuelve al centro
-// del cuadro, la ley dice "ya estas bien", y suelta.
+//  EL NOMBRE MIENTE: HOY NO FRENA NINGUNA RUEDA. LINE_FRENO_FACTOR vale
+//  DriveBase::kFrenoComoSteer, que es el CENTINELA DEL CONTROL NEGATIVO del
+//  experimento: con ese valor, steerFrenoDelantero() reparte exactamente igual
+//  que steer() (drivebase.cpp, la rama `if (frenoInterna >= kFrenoComoSteer)`).
 //
-// NO ES UN DETECTOR DE CODO. No hay que saber que es un codo: alcanza con no
-// invertir el signo antes de que la inversion se gane su ventana. Por eso no
-// necesita el dataset etiquetado que freno los dos intentos anteriores, y por
-// eso no toca la cadena ni el esqueleto.
+//  ENTONCES, QUE HACE HOY ESTA RAMA? UNA SOLA COSA: cuando |steer| pasa de
+//  LINE_FRENO_STEER, la velocidad deja de ser `vel * LINE_RECTA_FACTOR` y pasa a
+//  ser LINE_FRENO_VEL fija. Es el escalon de velocidad recta->curva que pidio
+//  Benjamin, y nada mas. (Tambien marca la rama 7 en la telemetria.)
 //
-// Sigue INHIBIDO EN RAMPA por la misma razon de siempre: con pitch alto las
-// traseras se pisan a marcha recta DESPUES del steer, y sostener el signo
-// mientras las traseras lo contrarrestan es peor que no sostenerlo.
+//  Con los valores de hoy, en llano, el escalon en el umbral es:
+//      absSteer 0,6999  ->  rot 0,7384 , velocidad 36
+//      absSteer 0,7000  ->  rot 0,7385 , velocidad 55        (+53 % de golpe)
+//  `rot` es continuo; la velocidad NO. Esta anotado a proposito: si algun dia
+//  aparece un tiron entrando a la curva, empezar por aca.
 //
-// FALSADOR, preregistrado y en numeros:
-//   1. tiene que aparecer AL MENOS UN episodio de >= 80 grados netos. Hoy son
-//      0 de 88. Si siguen siendo 0, el fix no hace lo que dice.
-//   2. el ratio giro_abs/giro_neto de los ultimos 3 s tiene que BAJAR de 2,0.
-//      Hoy vale 2,8 / 4,4 / 5,8.
-//   3. SE APAGA si corta una curva que hoy toma, o si aparece giro sostenido
-//      sin avanzar (eso es Lack of Progress delante del arbitro).
-//   4. control positivo: la cabecera del CSV tiene que decir dwell_glob=1.
-//      Sin eso la corrida no vale.
-//
-// 0 = comportamiento historico byte por byte.
-#ifndef LINE_DWELL_GLOBAL
-#define LINE_DWELL_GLOBAL 0
-#endif
+//  POR QUE SE DEJO ASI Y NO SE BORRO: el escalon de velocidad es parte de la
+//  configuracion que anda, y la funcion steerFrenoDelantero() es el unico camino
+//  para probar el freno de verdad sin volver a escribirla. Para probarlo:
+//      pio run -t upload  con  -D LINE_FRENO_FACTOR=-1.0   (delantera interna en
+//      reversa, que es lo unico que cierra el radio de verdad: 3,48 cm contra
+//      10,45 cm con la rueda quieta o al 50 %)
+//  CUIDADO CON LA SILICONA: -1.0 es el mayor scrub de todo lo probado. Mirar las
+//  ruedas entre pasadas.
+// ----------------------------------------------------------------------------
 
-// FRENAR LA RUEDA DELANTERA INTERNA EN LAS CURVAS. Apagado por defecto.
-//
-// Idea de Benjamin, 26-ago: "al girar que una de las ruedas frontales se frene
-// y que gire con las otras 3", de la epoca de 2 fijas + 2 omni atras, donde
-// giraban con rotation ~0,7 y speed 55 en curva y 40 en el resto.
-//
-// LA FISICA ESTA EN drivebase.h, Y HAY QUE LEERLA: con 4 fijas la posicion
-// LONGITUDINAL del centro de giro NO se puede imponer por consigna, porque FL
-// y BL comparten posicion lateral y por lo tanto velocidad de rodadura. Con
-// las omni atras si se podia. Lo que queda con 4 fijas es correrlo por
-// DINAMICA, y eso se BARRE, no se calcula.
-//
-// POR QUE PUEDE IMPORTAR: si el centro de giro queda debajo de la camara, la
-// camara ROTA SIN TRASLADARSE. Hoy el robot gira, la camara se corre de
-// costado, la linea salta en la imagen por traslacion y el control corrige al
-// reves. Medido el 26-ago en pista: 88 episodios de curva sobre 6 corridas y
-// TRES leyes de vision distintas, y NINGUNO pasa de 55 grados netos.
-//
-// EL BARRIDO. `LINE_FRENO_FACTOR` es la velocidad de la delantera interna
-// como fraccion de LINE_FRENO_VEL, CON SIGNO respecto de la marcha:
-//
-//     DriveBase::kFrenoComoSteer  control negativo: identico a steer()  [default]
-//                           0.0   quieta
-//                          -0.5   reversa a media velocidad
-//                          -1.0   reversa a velocidad completa
-//
-// Y ACA ESTA EL PUNTO, con vel 40 y rot 0,5 (calculado, no estimado):
-//     las 4 iguales por lado ....... R = 10,45 cm
-//     traseras al 50 % ............. R = 10,45 cm   el factor SE CANCELA
-//     delantera interna QUIETA ..... R = 10,45 cm   tampoco lo mueve
-//     delantera interna EN REVERSA . R =  3,48 cm   <- lo unico que cierra
-//
-// Cerrar el radio necesita AUMENTAR la diferencia entre lados, y eso pide
-// signo opuesto, no velocidad cero. Por eso 0.0 no cambio nada en pista el
-// 26-ago, y por eso bajarle a las dos traseras tampoco lo haria: R = v_c/omega
-// y escalar los dos lados por k multiplica los dos por k.
-//
-// FALSADOR, el mismo que el resto de los intentos del codo:
-//   1. tiene que aparecer AL MENOS UN episodio de >= 80 grados netos.
-//      Hoy son 0 de 88. Es una base dura de batir por casualidad.
-//   2. el ratio giro_abs/giro_neto de los ultimos 3 s baja de 2,0 (hoy 2,8-5,8).
-//   3. SE APAGA si corta una curva que hoy toma, o si gira sin avanzar (LoP).
-//   4. control positivo: la cabecera del CSV tiene que decir freno_del=1.
-//
-// CUIDADO CON LA SILICONA: -1.0 es scrub maximo con las 4 fijas. Benjamin
-// verifico el 26-ago que no se sale, pero mirar las ruedas entre pasadas.
+// 1 = la rama de curva cerrada existe. 0 = una sola ley para todo el rango.
 #ifndef LINE_FRENO_DELANTERO
-#define LINE_FRENO_DELANTERO 0
+#define LINE_FRENO_DELANTERO 1
 #endif
-// Desde que |steer| se frena la delantera interna. 0,50 es lo que pidio
-// Benjamin, y coincide con el punto donde steer() deja la interna en CERO:
-// v_int = vel*(1 - 2*rot) se hace 0 justo en rot = 0,5.
+
+// Desde que |steer| se entra a la curva cerrada.
 #ifndef LINE_FRENO_STEER
-#define LINE_FRENO_STEER 0.50
+#define LINE_FRENO_STEER 0.70
 #endif
-// Velocidad en la curva cerrada. 55 es la que usaban con la traccion anterior.
-// El resto del tiempo se sigue usando la que manda la Pi.
+
+// Velocidad FIJA dentro de la curva cerrada, en rpm. Es la que usaban con la
+// traccion anterior (2 fijas + 2 omni): 40 de base y 55 en la curva.
 #ifndef LINE_FRENO_VEL
 #define LINE_FRENO_VEL 55
 #endif
-// Consigna de la delantera interna, como fraccion de la que le tocaria.
+
+// Consigna de la rueda DELANTERA INTERNA, como fraccion de LINE_FRENO_VEL:
+//     DriveBase::kFrenoComoSteer   igual que steer()  <- CONTROL NEGATIVO, el de hoy
+//                           0.0    quieta
+//                          -0.5    reversa a media velocidad
+//                          -1.0    reversa a velocidad completa
 #ifndef LINE_FRENO_FACTOR
 #define LINE_FRENO_FACTOR DriveBase::kFrenoComoSteer
 #endif
 
-// MULTIPLICADOR DE rot DENTRO DE LA RAMA DEL FRENO. 1.0 = sin cambio.
-//
-// POR QUE. El banco del 26-ago (banco_freno) midio que con la delantera
-// interna QUIETA el centro de giro se corre adelante -esa rueda recorre 0,1 cm
-// contra 5,0 de la trasera interna- pero el radio se ABRE: 9,56 cm contra 6,50
-// del control. Se gana el centro de giro y se pierde cierre.
-//
-// Con la delantera quieta el radio vale
-//     R = b_eff * (3 - 2*rot) / (2 * (1 + 2*rot))
-// asi que subiendo `rot` SOLO en esta rama se cierra la curva sin sacar la
-// rueda de su lugar. Con b_eff = 20,9 y la delantera quieta:
-//     rot 0,74  ->  R = 6,4 cm      (lo que da hoy con ROT_EXP 0,85 y steer 0,70)
-//     rot 0,86  ->  R = 4,9 cm
-//     rot 0,96  ->  R = 3,8 cm
-//     rot 1,00  ->  R = 3,5 cm
-//
-// Va aparte de LINE_ROT_EXP a proposito: el exponente toca TODO el rango,
-// incluida la recta, y bajarlo trajo cabeceo. Esto toca solo la curva cerrada.
+// Multiplicador de `rot` SOLO dentro de la curva cerrada. 1.0 = sin cambio.
+// Va aparte de LINE_ROT_EXP a proposito: el exponente toca TODO el rango
+// -incluida la recta, donde bajarlo trajo cabeceo- y esto toca solo la curva.
 #ifndef LINE_FRENO_ROT_MULT
 #define LINE_FRENO_ROT_MULT 1.0
 #endif
 
-// VELOCIDAD EN RECTA, como fraccion de la que manda la Pi. 1.0 = sin cambio.
-//
-// Benjamin, 26-ago: "tiene que ir mas lento normalmente como un 50 % y de ahi
-// girar brusco". Es como corrian con la traccion anterior: 40 de base y 55 en
-// la curva.
-//
-// OJO CON LO QUE ESTO NO HACE: bajar la velocidad NO cierra el radio. Eso es
-// algebra -R = b_eff*(1-rot)/(2*rot), y `vel` no aparece-. Ya se confirmo en
-// pista el 26-ago: la corrida freno_ctrl_1 subia la curva a 55 y dio igual que
-// la base en las cinco columnas.
-//
-// LO QUE SI HACE, y es la razon: mas TIEMPO DE REACCION. A la mitad de
-// velocidad el robot recorre la mitad de centimetros por frame, o sea el doble
-// de frames por centimetro de pista. Con el lazo de vision a ~50 fps y el lag
-// comando->giro de 60-70 ms medido, eso es el doble de margen para corregir
-// antes de llegar al codo.
-//
-// Y ADEMAS separa los dos regimenes que Benjamin describe: lento y estable en
-// la recta, fuerte y rapido en la curva. Hoy el robot usa la misma velocidad
-// para las dos cosas.
-#ifndef LINE_RECTA_FACTOR
-#define LINE_RECTA_FACTOR 1.0
-#endif
+// ----------------------------------------------------------------------------
+//  1.3  QUIEN DECIDE EL PLATEADO (entrada a la zona de evacuacion)
+// ----------------------------------------------------------------------------
 
-// ===========================================================================
-//  MANIOBRA DE CODO. Apagada por defecto.
-//
-//  POR QUE EXISTE. El video del 26-ago muestra que el codo donde el robot se
-//  sale es una L de 90 grados con ESQUINA VIVA -sin radio de acuerdo-. Para
-//  una esquina viva NO EXISTE el radio correcto: un robot que traza un arco
-//  se sale por afuera o corta por adentro. Toda la tarde del 26 se estuvo
-//  moviendo el radio -rot, freno delantero, factor, velocidad- y ninguna de
-//  esas palancas puede resolverlo, porque el problema no es que numero: es
-//  que la MANIOBRA es otra.
-//
-//  Y lo confirma la medicion: 88 episodios de curva, 6 corridas, TRES leyes de
-//  vision distintas, y NINGUNO pasa de 55 grados netos. El robot nunca
-//  completo un codo porque nunca intento la maniobra que un codo necesita.
-//
-//  QUE HACE. Una maquina de estados con TRES cosas que el pivote de hoy no
-//  tiene:
-//
-//   1. EL SIGNO SE CONGELA al disparar. Ese es el fix de fondo: hoy el signo
-//      se rescribe cada trama y el giro se cancela solo -giro absoluto 64-144
-//      grados para un neto de 14-30-. Aca el signo del disparo manda hasta el
-//      final de la maniobra.
-//   2. SALE POR CENTRADO SOSTENIDO, no instantaneo. El pivote de hoy suelta
-//      apenas la imagen dice "centrado" un frame. Medido sobre las corridas
-//      del 26-ago: las rachas de centrado duran 45 ms de MEDIANA, asi que un
-//      frame no significa nada. Con 120 ms se filtra el 80 % y el 19 % de las
-//      rachas sigue pasando. (Con 300 ms no pasa casi ninguna: ya esta medido
-//      que el pivote saldria siempre por tiempo, y eso es LoP.)
-//   3. TOPE POR IMU. Grados reales del BNO, no tiempo. Si el codo se completo
-//      antes, sale por centrado; si la vision no opina, sale por grados; y si
-//      todo falla, por tiempo. Nunca se queda girando.
-//
-//  Y UN MINIMO DE GRADOS antes de poder salir por centrado, para que un
-//  centrado espurio de los primeros frames no aborte la maniobra.
-//
-//  INHIBIDA EN RAMPA, por lo mismo que el dwell: con pitch alto las traseras
-//  se pisan a marcha recta DESPUES del steer.
-//
-//  FALSADOR, preregistrado:
-//    1. tiene que aparecer AL MENOS UN episodio de >= 80 grados netos. Al
-//       26-ago son 0 de 88. Es una base durisima de batir por casualidad.
-//    2. el ratio giro_abs/giro_neto de los ultimos 3 s baja de 2,0 (hoy 2,8-5,8).
-//    3. SE APAGA si dispara en una curva normal y la corta: mirar que no
-//       aparezcan giros de 90 donde la pista solo dobla un poco.
-//    4. SE APAGA si el robot queda girando en el lugar de forma repetida:
-//       eso es Lack of Progress delante del arbitro.
-//    5. control positivo: la cabecera del CSV dice codo=1, y la rama 8 tiene
-//       que aparecer en la columna `ram` durante los codos.
-// ===========================================================================
-#ifndef LINE_CODO
-#define LINE_CODO 0
-#endif
-// EL DISPARO, y por que NO hace falta que sea preciso.
-//
-// Simulado sobre las 7 corridas de pista del 26-ago (65,5 s de robot andando),
-// barriendo la banda entera:
-//
-//   ENTRA_MS |  0.45      0.55      0.65      0.75      (disparos/min, y entre
-//      150   | 30.2 (7)  25.6 (6)  21.1 (6)  15.6 (6)    parentesis en cuantas
-//      250   | 17.4 (7)  13.7 (6)   7.3 (4)   3.7 (3)    de las 7 corridas
-//      300   | 12.8 (7)   9.2 (5)   5.5 (3)   1.8 (2)    dispara al menos una)
-//      400   |  7.3 (3)   4.6 (3)   0.9 (1)   0.9 (1)
-//
-// 0,45 con 300 ms es el UNICO punto que dispara en las 7 corridas con una tasa
-// manejable. Arriba de 300 ms la cobertura se cae a 5, 3 y 1.
-//
-// 12,8/min TIENE FALSOS POSITIVOS y no se puede saber cuantos: sin un dataset
-// de codos etiquetados esto mide TASA DE DISPARO, no precision. Ese es el muro
-// que freno los dos intentos anteriores de detector.
-//
-// LA DIFERENCIA ES QUE ACA NO IMPORTA. La maniobra SALE SOLA cuando la vision
-// dice que la linea esta centrada y eso SE SOSTIENE:
-//    falso positivo (curva suave) -> gira 25-30 grados, la linea se centra,
-//                                    sale. Costo: casi nada.
-//    codo real                    -> la linea NO se centra hasta los 90, asi
-//                                    que sigue hasta completarlo.
-// Por eso LINE_CODO_MIN_GRADOS es BAJO (25) y no alto: es lo que acota el
-// dano de un disparo de mas. Un minimo alto convertiria cada falso positivo
-// en un giro de 45 grados en medio de una recta.
-//
-// El armado tambien se resetea si el signo cambia: en un codo el steer apunta
-// para un solo lado, en una oscilacion alterna. Eso solo no alcanza -baja de
-// 26,6 a 25,6/min-, pero no cuesta nada y saca los casos peores.
-#ifndef LINE_CODO_ENTRA
-#define LINE_CODO_ENTRA 0.45
-#endif
-// Cuanto tiene que SOSTENERSE ese absSteer para disparar. Sin esto un pico de
-// un frame arrancaria un giro de 90 grados en medio de una recta.
-#ifndef LINE_CODO_ENTRA_MS
-#define LINE_CODO_ENTRA_MS 300UL
-#endif
-// Centrado SOSTENIDO para dar el codo por terminado. 120 ms: ver arriba.
-#ifndef LINE_CODO_SALE_MS
-#define LINE_CODO_SALE_MS 120UL
-#endif
+// 1 = manda el APDS9960, y la camara NO opina. El sensor va pegado al piso y
+// calibrado sobre la pista real; ademas se exigen 4 ventanas filtradas seguidas
+// (cada una promedia 3 muestras) antes de mandar el ACK, para que un reflejo
+// aislado no meta al robot en rescate en medio de la linea.
+// El byte `silver_line` del protocolo se sigue recibiendo por compatibilidad
+// pero NO tiene autoridad.
+// EN 0 el robot NUNCA entra a la zona de evacuacion. Es el interruptor de panico
+// si el APDS empieza a dar falsos positivos en la sede.
+#define PLATEADO_TEENSY     1
 
-// GUARD DE FRAME CIEGO. Apagado por defecto.
+// ----------------------------------------------------------------------------
+//  1.4  SENSORES: cuanto cuesta preguntarles
 //
-// EL BUG, reconstruido al milisegundo sobre 2026-08-26_codo_1.csv:
-//
-//   t=62,500  arranca el disparo 1 (yaw 75,7)
-//   t=62,780  la vision cambia de signo; el signo congelado la ignora: bien
-//   t=63,050  rxsteer pasa a 0 EXACTO con girado = 44,4 grados, y se queda
-//             en 0 exacto 19 frames seguidos = 430 ms
-//   t=63,170  exactamente 120 ms despues -LINE_CODO_SALE_MS, la constante
-//             apareciendo sola en el log- la maniobra SALE con 57,0 grados,
-//             rot cae a 0 y el robot sigue derecho. El contragiro posterior
-//             le devuelve +42,9 y el neto queda en -14,1.
-//
-// El disparo 2 tambien tuvo frames en cero, pero cayeron con girado = 24,9,
-// un pelo por debajo de LINE_CODO_MIN_GRADOS = 25,0, asi que no contaron.
-// Corrio hasta el tope: 108,5 grados netos, ratio 1,00.
-//
-// LA DIFERENCIA ENTRE 57 Y 108,5 FUE SI APARECIO O NO UNA RACHA CIEGA DESPUES
-// DEL GRADO 25.
-//
-// POR QUE `steer == 0` NO ES "ESTOY CENTRADO". En EN_EL_ROBOT/main.py, que es
-// el que corre de verdad, con la mascara vacia el angulo sale del atan2 de
-// (0,0) y se manda el byte 90, que llega como steer = 0,000 EXACTO. No es la
-// cola de una distribucion alrededor del centrado: en codo_1 hay 136 frames
-// en 0 exacto contra 3 en +-11 y 2 en +-22. Es un pico de asignacion dura.
-// Y de las 6 ventanas de salida de >=120 ms de ese archivo, LAS 6 son 100 %
-// ceros: ninguna tiene un solo frame informativo.
-//
-// QUE HACE EL GUARD: un frame ciego NO TERMINA la maniobra y TAMPOCO REINICIA
-// el contador de centrado. No dice nada, ni a favor ni en contra.
-//
-// La version ingenua -mandar el cero al `else`- reinicia el contador, y eso,
-// medido sobre las 9 corridas, mata 11 de 29 salidas tempranas (38 %). La
-// salida temprana es la valvula de seguridad: es lo que hace que un falso
-// positivo cueste 25-30 grados en vez de 110. Esta version mata las 9
-// ventanas 100 % ciegas y no toca ninguna de las otras 20.
-//
-// Se usa `g_rx_steer` y NO `steer`: `steer` es una global que otras partes del
-// firmware pisan; `g_rx_steer` es la copia que el propio codigo documenta como
-// "nadie mas la toca".
-//
-// FALSADOR:
-//   CONTROL (asercion): ningun disparo puede terminar con una racha de
-//     rxsteer == 0 de >=120 ms inmediatamente antes.
-//   PRIMARIO: >=1 episodio de >=80 grados netos en >=2 de 4 pasadas, y la
-//     mediana de grados netos por disparo sube respecto de CIEGO=0.
-//   DEL COSTO, y este decide si va a la pista: si CERO disparos terminan por
-//     vision, la maniobra dejo de ser realimentada y es un giro a lazo abierto
-//     de 110 grados. Eso NO es este fix: es otra politica. Se apaga.
-//   Control positivo: la cabecera dice codo_ciego=1.
-//
-// HONESTIDAD: la tasa base de este modo de falla es 1 de 2 disparos, n=2. Los
-// episodios ciegos de >=120 ms fuera de codo_1 son 3 en 154,6 s = 1,2/min.
-// Puede ser que el pivote ciego a 90-100 grados/s sea lo que se saca la linea
-// del ROI -y entonces el peligro vuelve cada vez que LINE_CODO=1- o puede ser
-// que codo_1 fuera una corrida con peor luz. n=1 no lo puede decidir.
-//
-// Con LINE_CODO_CIEGO = 0 el binario queda IDENTICO al de hoy.
-#ifndef LINE_CODO_CIEGO
-#define LINE_CODO_CIEGO 0
-#endif
-// Grados minimos antes de poder salir por centrado.
-#ifndef LINE_CODO_MIN_GRADOS
-#define LINE_CODO_MIN_GRADOS 25.0
-#endif
-// Tope por IMU. 110 para un codo de 90 deja margen sin pasarse de largo.
-#ifndef LINE_CODO_MAX_GRADOS
-#define LINE_CODO_MAX_GRADOS 110.0
-#endif
-// Tope duro de tiempo. A ~130 d/s son 195 grados: nunca deberia llegar aca.
-// Si llega, es que el robot NO esta girando y hay que mirarlo.
-#ifndef LINE_CODO_MAX_MS
-#define LINE_CODO_MAX_MS 1500UL
-#endif
-#ifndef LINE_CODO_VEL
-#define LINE_CODO_VEL 55
-#endif
-// Bloqueo de re-entrada, para no encadenar dos codos seguidos.
-#ifndef LINE_CODO_COOLDOWN_MS
-#define LINE_CODO_COOLDOWN_MS 600UL
-#endif
+//  El lazo de linea corria a 30 ms de periodo (p50 sobre 7673 vueltas, con un
+//  segundo modo en 65 ms) y la Pi manda a 66-86 Hz: tres de cada cuatro tramas
+//  de vision se descartaban. La causa eran dos lecturas bloqueantes por vuelta.
+//  Estas constantes son lo que quedo de arreglarlo.
+// ----------------------------------------------------------------------------
 
-// Elige QUE barrido corre en MODO_BANCO. 0 = el de siempre (rotation y
-// velocidad). 1 = el del FRENO DELANTERO. Va aca arriba y no dentro del
-// #if MODO_BANCO porque la cabecera del CSV lo emite siempre.
-#ifndef BANCO_FRENO
-#define BANCO_FRENO 0
-#endif
+// PING FRONTAL. `NewPing::ping_cm()` BLOQUEA hasta el timeout cuando no hay eco,
+// y en linea el caso normal ES no tener nada adelante: se pagaban 8578 us por
+// vuelta para que la unica pregunta del lazo -`front_distance < 12`- diera
+// siempre "no hay nada". Con 30 cm de techo sobra el doble y el timeout cae a
+// 1738 us. El valor va EXPLICITO en cada llamada porque set_max_distance()
+// PERSISTE en el objeto, y evacuacion necesita el rango largo.
+static const unsigned int PING_LINEA_CM = 30;    // el lazo de linea pregunta < 12
+static const unsigned int PING_LARGO_CM = 150;   // evacuacion pregunta < 120
 
-// ===========================================================================
-//  LEY DE REPARTO POR SUMA/RESTA. Apagada por defecto.
-//
-//  Es la ley que usa Airborne 2025, un equipo que corre LA MISMA TRACCION que
-//  este robot: 4 motores, 4 ruedas de silicona caseras. Su codigo es publico.
-//
-//      Airborne                     Este robot (steer)
-//      m1 = base + u                v_ext = vel
-//      m2 = base - u                v_int = vel * (1 - 2*rot)
-//
-//      v_centro = base              v_centro = vel * (1 - rot)
-//        CONSTANTE                    CAE A CERO en rot = 1
-//
-//  AIRBORNE NUNCA PIVOTA. Suma a un lado y resta al otro, asi que la velocidad
-//  hacia adelante se mantiene sin importar cuanto gire. Este robot hace lo
-//  contrario: cuanto mas gira, menos avanza, y en rot = 1 se planta.
-//
-//  Eso atraviesa toda la sesion del 26-ago: "gira sin avanzar", "avanza muy de
-//  a poco", el pivote que no progresa, y el 79,7 % del tiempo con avance CERO
-//  en la corrida de pivote sostenido. NO es un bug: es la formula.
-//
-//  EL RADIO:  R = b_eff / (2*u)   -y tampoco depende de la velocidad-
-//      u 0,50 -> 20,9 cm    u 1,00 -> 10,5 cm (un lado QUIETO)
-//      u 1,50 ->  7,0 cm    u 2,00 ->  5,2 cm (un lado en reversa)
-//
-//  `u` se calcula como absSteer * LINE_SUMA_K, y PUEDE PASAR DE 1: ahi el lado
-//  interno se invierte, que es como se cierra el radio SIN dejar de avanzar.
-//
-//  FALSADOR, preregistrado y en dos niveles:
-//
-//   NIVEL 0 - el mecanismo. Sobre el CSV, la velocidad del centro reconstruida
-//   de los encoders tiene que quedar PLANA contra el |steer| pedido. Hoy cae:
-//   la correlacion entre |steer| y v_centro es fuertemente negativa. Si con la
-//   ley nueva sigue cayendo, el flag NO esta actuando y no se interpreta nada.
-//
-//   NIVEL 1 - la pista, la misma vara que el resto del proyecto:
-//     1. tiene que aparecer AL MENOS UN episodio de >= 80 grados netos.
-//        Al 26-ago son 0 de 88.
-//     2. el ratio giro_abs/giro_neto de los ultimos 3 s baja de 2,0
-//        (hoy 2,8-5,8).
-//     3. SE APAGA si corta curvas que hoy toma.
-//     4. control positivo: la cabecera dice ley_suma=1.
-//
-//  OJO CON LA SATURACION: el lado externo pide base*(1+u) y el tope es 159.
-//  Con la velocidad de la Pi (40) y u hasta 2,0 son 120: hay margen. Si se
-//  sube LINE_SUMA_VEL, verificar que no sature, porque ahi el radio real se
-//  abre respecto del pedido.
-// ===========================================================================
-#ifndef LINE_LEY_SUMA
-#define LINE_LEY_SUMA 0
-#endif
-// Cuanto vale `u` para steer = 1. Con 1,5 el steer maximo pide R = 7,0 cm.
-#ifndef LINE_SUMA_K
-#define LINE_SUMA_K 1.5
-#endif
-// Velocidad base. 0 = usar la que manda la Pi (lo normal).
-#ifndef LINE_SUMA_VEL
-#define LINE_SUMA_VEL 0
-#endif
+// Y no en cada vuelta: a 30 cm/s el robot avanza 1,2 cm en 40 ms, un decimo del
+// umbral de 12 cm.
+static const unsigned long PING_FRONTAL_PERIODO_MS = 40;
 
-// ============================================================================
-//  MODO_BANCO - barrido automatico de actuacion. SIN pista y SIN vision.
-//
-//  QUE MIDE: como responde el tren motriz a cada valor de `rotation`, que es
-//  el discriminador entre las dos hipotesis que compiten:
-//    - si el giro real MEJORA hacia rotation = 1 -> PID CIEGO AL SIGNO. En
-//      rotation = 1 la consigna de la rueda interna es la velocidad COMPLETA,
-//      asi que el lazo no puede colapsar (haria falta que el chasis avance mas
-//      rapido que la rueda de afuera).
-//    - si EMPEORA hacia rotation = 1 -> TECHO DE PAR. rotation = 1 es el caso
-//      de scrub MAXIMO: si ahi no gira, la silicona es el limite y no hay
-//      firmware que lo arregle.
-//  Las dos hipotesis predicen ORDENES OPUESTOS. Por eso este barrido decide.
-//
-//  POR QUE NO HACE FALTA PISTA: el radio de giro es track*(1-r)/(2r), asi que
-//  todo el barrido entra en un circulo de ~25 cm. El robot pivotea en el lugar
-//  y alcanza con un cable USB corto.
-//
-//  SEGURIDAD: se corta apenas se apaga el switch, en cualquier punto.
-// ============================================================================
-#ifndef MODO_BANCO
-#define MODO_BANCO 0
-#endif
+// Presupuesto de medicion de los VL53L0X. El default del sensor es 33 ms y el
+// minimo admitido 20 ms; antes nunca se llamaba.
+// OJO: hoy NADIE LEE LOS ToF. leer_tof() solo se llamaba desde el seguimiento de
+// pared, que esta fuera del binario. Los dos sensores se inicializan y publican
+// 0 mm en la telemetria: ese 0 significa "nadie pregunto", NO "sensor tapado".
+static const uint32_t TOF_PRESUPUESTO_US = 20000;
 
+// ----------------------------------------------------------------------------
+//  1.5  WATCHDOG DE COMUNICACION CON LA RASPBERRY
+//
+//  Si la Pi se cuelga, el Teensy NO se entera solo: seguiria ejecutando el
+//  ultimo `steer` para siempre y el robot se va de la pista creyendo que
+//  obedece. Medido en una corrida grabada: 49 % de las muestras con mas de 1 s
+//  sin trama nueva, una ventana continua de 17,1 s sobre el mismo comando y un
+//  maximo de 27,0 s.
+// ----------------------------------------------------------------------------
+
+// Sin trama valida por mas de esto, el comando se considera rancio.
+static const unsigned long WATCHDOG_MS = 400;
+
+// Y ademas tiene que SOSTENERSE, porque durante runAngle/runTime nadie lee el
+// serial y al volver de un esquive el comando viene legitimamente viejo (p50
+// 1849 ms, max 4677 ms durante maniobra).
+// La confirmacion es por TIEMPO y no por vueltas del lazo: el periodo del lazo
+// bajo de ~30 ms a menos de 10 al sacar los ToF, y un criterio de seguridad no
+// puede cambiar de significado porque se toque otra cosa.
+static const unsigned long WATCHDOG_CONFIRMA_MS = 300;
+
+// ----------------------------------------------------------------------------
+//  1.6  SERIAL DURANTE LAS MANIOBRAS  (decision de diseno, no hay constante)
+//
+//  runTime / runAngle / runDistance / runDistanceEvacuacion NO parsean el serial
+//  mientras corren: leen UN byte por vuelta y LO TIRAN, solo para que el buffer
+//  de Serial5 no se desborde. O sea que una maniobra empezada SE TERMINA, y el
+//  robot no cambia de idea a mitad de un giro de 90 grados por una trama nueva.
+//
+//  El precio, y hay que saberlo: al volver de la maniobra el parser arranca
+//  desincronizado y el watchdog puede ver el comando como fresco cuando tiene
+//  segundos. Se resincroniza solo en el siguiente byte de sync (255/254/253/252).
+// ----------------------------------------------------------------------------
+
+// ----------------------------------------------------------------------------
+//  1.7  INTERRUPTORES DE COMPILACION
+// ----------------------------------------------------------------------------
+
+// MODO_DIAGNOSTICO: registrador CSV de 200 Hz por USB. LO ENCIENDE EL ENTORNO
+// `competencia`, o sea que ESTA PRENDIDO EN EL ROBOT QUE CORRE EN PISTA.
+// Ver src/diagnostico.h y el aviso de la cabecera del archivo.
+// Va ACA ARRIBA porque de el dependen las macros DBG_*, que se usan en todo el
+// archivo: en modo diagnostico el USB transporta UNICAMENTE el CSV, y cualquier
+// print suelto se mete adentro de una linea de datos y la corrompe en silencio.
 #ifndef MODO_DIAGNOSTICO
 #define MODO_DIAGNOSTICO 0
 #endif
 
-// En modo diagnostico el USB transporta UNICAMENTE el CSV: cualquier print
-// suelto se mete adentro de una linea de datos y la corrompe en silencio.
-// Por eso los prints de depuracion se apagan enteros, no se reordenan.
 #if MODO_DIAGNOSTICO
   #define DBG_PRINT(...)   do { } while (0)
   #define DBG_PRINTLN(...) do { } while (0)
@@ -582,114 +364,136 @@
   #define DBG_PRINTLN(...) Serial.println(__VA_ARGS__)
 #endif
 
-// ============================================================================
-#define INVERTIR_VERDES     false   // D1.1 / 2025: verde izq<->der
-#define MODO_DOBLE_VERDE    0       // 0=180(normal) | 1=ignorar/seguir recto (D1.2)
-#define MODO_ROJO           0       // 0=parar(meta) | 1=girar180(profe) | 2=simple180/doble-parar sensor(2025)
-// PLATEADO_TEENSY - la Teensy dispara la zona de evacuacion por su cuenta con el
-// sensor de color, ademas de lo que mande la camara (silver_line).
-// APAGADO A PROPOSITO. No es un bug: el sensor de color da falsos positivos sobre
-// superficies brillantes y meterse solo en evacuacion en medio de la pista cuesta
-// la corrida entera. Con esto en 0 el disparo de evacuacion queda 100% en la
-// camara, que es la que puede confirmar con contexto.
-// Estuvo cableado a `false` directamente en las dos ramas de deteccion, y asi
-// parecia un error: el 2026-08-22 alguien lo "restauro" a true justamente por eso.
-// Como bandera con nombre queda claro que es una decision y se prende en un lugar.
-#define PLATEADO_TEENSY     0       // 0=solo la camara decide | 1=la Teensy tambien
-// VERDE_RECHEQUEO - volver a preguntar por el verde DESPUES de avanzar 800 ms.
-// APAGADO. El case 6 y el case 5 hacian esto:
-//     runTime(20, FORWARD, 0, 800);   avanzar 800 ms
-//     serialEvent5();                 releer el serial
-//     if (green_state == 1) runAngle(...);
-// Despues de avanzar 800 ms el cuadrado verde YA SALIO del campo de la camara,
-// asi que la Raspberry esta mandando green_state = 0 y el giro no se ejecuta
-// nunca. Sintoma en pista: el robot baja la velocidad -eso es el runTime- y
-// despues sigue derecho sin doblar. Reportado el 2026-08-22.
-// El propio codigo ya lo sospechaba: telemGreenResultado() lleva la cuenta de
-// g_act (giro) contra g_kill (matado por el re-chequeo).
-// La decision YA se tomo cuando se puso action = 6; volver a preguntarla
-// despues de moverse es preguntar otra cosa. Si hace falta filtrar verdes
-// espurios, hay que confirmarlos ANTES de avanzar, no despues.
-#define VERDE_RECHEQUEO     0       // 0=gira siempre | 1=vuelve a preguntar (viejo)
+// ----------------------------------------------------------------------------
+//  1.8  RECUPERACION DE LINEA PERDIDA  (green_state = 4)
+//
+//  La Raspberry manda GS=4 cuando confirmo que se quedo sin linea, y en el MISMO
+//  byte `angle` de esa trama pone el ultimo rumbo confiable de su cadena
+//  CAMINO+MONO (convertido a la convencion historica: derecha negativa).
+//
+//  LA MANIOBRA, y es UN EPISODIO, no un nivel que se pueda repetir sin fin:
+//    1. RETROCEDER una sola vez.       La linea no desaparece por casualidad:
+//       desaparece porque el robot se paso. Un segundo antes la tenia abajo.
+//       Retroceder rehace el camino; girar a ciegas puede alejarlo mas.
+//    2. QUEDARSE QUIETO y volver a mirar, para que CAMINO opine desde la pose
+//       nueva. Todo rumbo visto MIENTRAS retrocedia se descarta.
+//    3. PIVOTAR una sola vez hacia el lado que dijo CAMINO, con el signo
+//       CONGELADO. Si no hay rumbo fresco, no inventa lado: se queda quieto.
+//    4. Si la Pi sigue mandando 4 despues de eso, NO repite: espera.
+//
+//  Los cinco archivos de la cadena CAMINO+MONO tienen que estar en la Pi o esto
+//  falla en silencio (el Teensy se queda esperando un rumbo que no llega).
+// ----------------------------------------------------------------------------
+#define LINEA_PERDIDA_GS          4       // el codigo que manda la Raspberry
+#define RECUP_VEL                25       // rpm, despacio: se esta yendo a ciegas
+#define RECUP_MS                400       // retroceso: gana campo visual antes de decidir el lado
+#define RECUP_STEER_MIN          0.10     // 9 grados de CAMINO: debajo no se elige lado
+#define RECUP_GIRO_VEL           35       // velocidad del pivote de busqueda
+#define RECUP_PIVOTE_ROT         1.00     // giro sobre el eje: no consume zona mientras se orienta
+#define RECUP_GIRO_BASE_GRADOS   28.0f    // base estable: el test de 45 deg funciono bien
+#define RECUP_GIRO_CAMINO_K      0.22f    // 2026-09-12: un poco menos agresivo; BASE=28 intacta
+#define RECUP_GIRO_DER_EXTRA_GRADOS 0.0f  // solo recovery DERECHA. 0 = igual que completo_auth_1; probar 10 en banco
+#define RECUP_GIRO_MIN_GRADOS    35.0f    // nunca corregir menos que esto
+#define RECUP_GIRO_MAX_GRADOS    58.0f    // evita los pivotes exagerados de 70-90 deg
+#define RECUP_GIRO_MAX_MS        1600UL   // failsafe del pivote dirigido
+#define RECUP_REANALISIS_MS      120UL    // quieto despues de retroceder, para que CAMINO mire
+#define RECUP_REANALISIS_EDAD_MS 180UL    // solo se acepta rumbo recibido DESPUES del retroceso
+#define RECUP_REARME_TEENSY_MS   300UL    // GS=0 continuo exigido antes de permitir otro episodio
+#define RECUP_WAIT_ACTION        21       // accion interna: GS4 no habilitado -> quieto
 
-// RECUPERACION DE LINEA PERDIDA (idea de Benjamin, 2026-08-22).
-// La Raspberry manda green_state = 4 cuando se quedo sin linea. El robot
-// RETROCEDE un paso corto y vuelve a mirar. Si sigue perdida, la Raspberry
-// manda 4 de nuevo y retrocede otro paso.
-//
-// POR QUE RETROCEDER Y NO BUSCAR GIRANDO: la linea no desaparece por
-// casualidad, desaparece porque el robot se paso. Un segundo antes la tenia
-// abajo. Retroceder rehace el camino y la devuelve al cuadro; girar a ciegas
-// puede alejarlo mas. Y una vez que reaparece -aunque sea en un borde- el
-// control normal gira hacia ella solo, asi que el 'alinearse' sale gratis.
-//
-// EN PASOS CORTOS, con la vision en el lazo, no en una maniobra larga a
-// ciegas: cada paso son ~2 cm y despues se vuelve a mirar.
-//
-// Lo que main.py hacia hasta hoy al perder la linea era mandar angle = 0, o
-// sea SEGUIR DERECHO, que es la peor opcion posible.
-#define LINEA_PERDIDA_GS    4       // el codigo que manda la Raspberry
-#define RECUP_VEL          25       // rpm, despacio: se esta yendo a ciegas
-#define RECUP_MS          400       // retroceso mas largo: gana campo visual antes de decidir el lado
-#define RECUP_MAX_PASOS    20       // tope absoluto de retrocesos seguidos
+// ----------------------------------------------------------------------------
+//  1.9  GAP (linea cortada) Y FAIL-SAFE
+//  Pi -> Teensy: GS 18 = avanzar recto buscando el otro lado del gap
+//                GS 19 = fail-safe, parar
+//  Teensy -> Pi: los cuatro ACK de abajo
+// ----------------------------------------------------------------------------
+#define GAP_BUSQUEDA_GS          18
+#define PERDIDA_FAILSAFE_GS      19
+#define GAP_ACTION               22       // accion interna del switch
+#define PERDIDA_FAILSAFE_ACTION  23       // accion interna del switch
+#define GAP_VEL                  25
+#define GAP_MAX_CM               50       // el reglamento da gaps de hasta 20 cm
+#define GAP_MAX_MS               8000UL
+#define GAP_ORIGIN_MARGIN_CM     1
+#define TEENSY_ACK_GAP_ORIGIN    238      // 0xEE  ya paso el punto donde perdio la linea
+#define TEENSY_ACK_RETRO_DONE    239      // 0xEF  termino de retroceder
+#define TEENSY_ACK_GAP_TIMEOUT   240      // 0xF0  se acabo el margen del gap
+#define TEENSY_ACK_RESCATE_APDS  241      // 0xF1  el APDS confirmo plateado
+#define TEENSY_ACK_PIVOTE_DONE   237      // 0xED  termino el pivote de recuperacion (COMPLETAR_GIRO en la Pi)
 
-// RECUPERACION DIRIGIDA CON CAMINO+MONO 2026-08-30
-// La Pi corre CAMINO+MONO en SHADOW mientras el control normal sigue intacto.
-// Cuando confirma perdida, CONGELA el ultimo `heading` confiable de la cadena y
-// lo manda en el byte `angle` de la MISMA trama cuyo green_state vale 4.
-//
-// CAMINO internamente usa DER+; la Pi lo convierte antes de transmitir para que
-// el byte angle conserve la convencion historica del protocolo (derecha negativa).
-// Teensy NO reutiliza el steer normal de case 7 para decidir recovery: toma solo
-// el angle asociado a GS=4, congela SU SIGNO y no lo cambia durante el episodio.
-// Si no hay heading fresco/casi recto, solo retrocede; no inventa un lado.
-#define RECUP_STEER_MIN          0.10    // 9 grados de CAMINO: debajo no elegimos lado
-#define RECUP_MEMORIA_MAX_MS     500UL   // la direccion debe venir de una trama reciente
-#define RECUP_GIRO_VEL           35      // se conserva: solo cambia la geometria del giro
-#define RECUP_PIVOTE_ROT         1.00    // giro sobre el eje: no consume zona avanzando mientras se orienta
-#define RECUP_GIRO_BASE_GRADOS   28.0f   // base estable: el test de 45 deg funciono bien
-#define RECUP_GIRO_CAMINO_K       0.26f   // CAMINO modula intensidad, no manda yaw 1:1
-#define RECUP_GIRO_MIN_GRADOS    35.0f   // nunca corregir menos que esto
-#define RECUP_GIRO_MAX_GRADOS    58.0f   // evita los pivotes exagerados de 70-90 deg
-#define RECUP_GIRO_MAX_MS        1600UL  // failsafe del pivote dirigido
-#define RECUP_REANALISIS_MS       120UL  // quieto despues de retroceder: deja a CAMINO mirar desde la nueva posicion
-#define RECUP_REANALISIS_EDAD_MS  180UL  // solo aceptar rumbo recibido despues del retroceso y muy reciente
-#define RECUP_MAX_GIROS          3       // maximo de intentos dentro del mismo episodio GS4
-#ifndef RECUP_GIRO_DIRIGIDO
-#define RECUP_GIRO_DIRIGIDO       1       // 0 = comportamiento viejo: solo retrocede
-#endif
+// Antes de entrar a rescate, el APDS mira SOLO la ultima recuperacion FISICA.
+// Si fue lateral reciente: deshace LA MITAD del giro real, en sentido contrario.
+// Si fue RECTA/GAP, no hubo recovery reciente, o la memoria vencio: NO gira.
+#define SILVER_REC_MEMORY_MS       5000UL
+#define SILVER_REC_UNDO_FACTOR     0.50f
+#define SILVER_REC_UNDO_VEL        25
+#define SILVER_REC_UNDO_MAX_MS     1400UL
 
-static int g_recup_pasos = 0;             // retrocesos del episodio actual
-static int g_recup_giros = 0;             // giros de busqueda del episodio actual
+// SALIDA DE EVACUACION POR EL NEGRO (accionNegro). El robot va pegado a una
+// pared cuando el APDS ve la cinta negra de salida, y por eso queda torcido
+// respecto de la cinta. Al verla, gira NEGRO_SALIDA_GIRO_GRADOS hacia el lado
+// CONTRARIO a la pared.
+// DE QUE LADO ESTABA LA PARED lo dice una MEMORIA que se refresca durante toda
+// la evacuacion con los ultrasonidos: el ultimo lado que tuvo pared a menos de
+// _PARED_MAX_CM. NO se decide con la lectura del instante del negro: justo en
+// la salida la pared se abre donde esta la cinta y ese ultrasonido ve vacio.
+// Si la memoria tiene mas de _MEMORIA_MS, o nunca hubo pared, no gira.
+// 0 = comportamiento anterior (recto, sin giro).
+#define NEGRO_SALIDA_GIRO          1
+#define NEGRO_SALIDA_GIRO_GRADOS   30.0
+#define NEGRO_SALIDA_PARED_MAX_CM  60
+#define NEGRO_SALIDA_MEMORIA_MS    5000UL
+#define NEGRO_SALIDA_MUESTREO_MS   100UL     // en el lazo recto inicial, que no lee ultrasonidos
+
+// Memoria de pared en evacuacion: -1 izquierda, +1 derecha, 0 nunca vio pared.
+static int g_evac_pared_lado = 0;
+static unsigned long g_evac_pared_ms = 0;
+
+// ############################################################################
+// #              2.  ESTADO DE LA RECUPERACION Y DEL GAP                     #
+// ############################################################################
+
 static int g_recup_signo = 0;             // -1/+1, CONGELADO al perder la linea
-static double g_recup_ultimo_steer = 0.0; // diagnostico: ultima orden NORMAL de case 7
-static unsigned long g_recup_ultimo_steer_ms = 0;
-// Cuando llega una trama GS=4, el byte angle YA NO es control normal: la Pi
-// coloca ahi el heading congelado de CAMINO+MONO convertido a la convencion
-// historica del protocolo (derecha negativa). Esta copia es la UNICA fuente
-// para elegir el lado del giro de recuperacion.
+// Cuando llega una trama GS=4 el byte `angle` YA NO es control normal: es el
+// heading congelado de CAMINO+MONO. Esta copia es la UNICA fuente para elegir el
+// lado del giro de recuperacion; el steer normal del case 7 no se reutiliza.
 static double g_recup_rumbo_camino_rx = 0.0;
 static unsigned long g_recup_rumbo_camino_rx_ms = 0;
 
-// ANTIFALSOS / ANTI-RETRIGGER. GS4 no es un nivel que pueda disparar maniobras
-// infinitas: es un EPISODIO. Se acepta una primera vez, se mantiene mientras la
-// Pi siga mandando 4 y, cuando vuelve a 0, exige una ventana estable antes de
-// permitir otro episodio. La Pi hace el filtro fuerte de linea; esto es la
-// segunda barrera en Teensy contra frames viejos o rebotes del serial.
-#define RECUP_REARME_TEENSY_MS 300UL
-#define RECUP_WAIT_ACTION      21
+// ANTIFALSOS / ANTI-RETRIGGER. La Pi hace el filtro fuerte de linea; esto es la
+// SEGUNDA barrera, del lado del Teensy, contra frames viejos o rebotes del serial.
 static bool g_recup_episodio_activo = false;
 static bool g_recup_habilitada = false;
 static unsigned long g_recup_gs0_desde = 0;
-// Fases fisicas del MISMO episodio. Evitan repetir el retroceso/giro
+// Fases fisicas del MISMO episodio: evitan repetir el retroceso o el giro
 // mientras la Raspberry siga mandando GS4.
 static bool g_recup_retroceso_hecho = false;
 static bool g_recup_giro_hecho = false;
-#define ESQUIVE_POR_PARIDAD false   // D2.2: par=izq, impar=der (false=random normal)
-#define CONTAR_VERDES       false   // D2.1: habilita el contador de verdes
-#define INVERTIR_DEPOSITO   false   // D2.3: impar invierte zonas (necesita CONTAR_VERDES)
-#define SUPERTEAM           0       // SUPER TEMA: 1=puente con ESP32-MINI por Serial8 | 0=corrida normal
-#ifndef TELEMETRIA          // el entorno `diagnostico` la apaga por -D
+
+static bool g_gap_activo = false;
+static bool g_gap_origen_enviado = false;
+static bool g_gap_timeout_enviado = false;
+static long g_gap_retro_pulsos = 0;
+static long g_gap_inicio_fl = 0;
+static long g_gap_inicio_fr = 0;
+static unsigned long g_gap_inicio_ms = 0;
+
+// Memoria PERSISTENTE para la entrada al plateado.
+// No se borra cuando GS0 cierra el episodio de recovery: justamente debe
+// sobrevivir hasta que el APDS encuentre el plateado unos instantes despues.
+enum SilverRecKind : int8_t {
+    SILVER_REC_NONE = 0,
+    SILVER_REC_RECTA = 1,
+    SILVER_REC_LATERAL = 2
+};
+static SilverRecKind g_silver_rec_kind = SILVER_REC_NONE;
+static int g_silver_rec_pivot_sign = 0;       // signo FISICO usado por robot.steer()
+static float g_silver_rec_actual_deg = 0.0f;  // yaw realmente recorrido, no objetivo teorico
+static unsigned long g_silver_rec_ms = 0;
+
+static long gapPulsosDesdeInicio();
+static void resetGapState();
+#ifndef TELEMETRIA          // el entorno `competencia` la APAGA por -D
 #define TELEMETRIA          1
 #endif       // TELEMETRIA: 1=envia TODOS los valores por Serial8 a la ESP32-MINI (AP+GUI) | 0=off
 #define TELEMETRIA_DEBUG_USB 0      // DIAGNOSTICO: 1=imprime por USB (COM del Teensy) cuantos frames salieron por Serial8. Util si la GUI queda en "MODO DEMO".
@@ -699,12 +503,12 @@ static bool g_recup_giro_hecho = false;
 //  control. Es 100% NO INTRUSIVA: escribe una linea JSON por Serial8 a 10 Hz y,
 //  si el buffer TX no tiene lugar, DESCARTA el frame (nunca frena el control).
 //  Firmware ESP32 + GUI: software/esp32/telemetria/  (ver README ahi).
-//  NOTA: TELEMETRIA y SUPERTEAM comparten Serial8 -> no activar ambos a la vez.
+//  Serial8 es SOLO telemetria: si el enlace muere, el control ni se entera.
 // ============================================================================
 // ============================================================================
 //  GLOBALES DE DIAGNOSTICO - fuera de cualquier #if.
 //  Los usan TANTO la telemetria JSON (entorno normal) COMO el registrador CSV
-//  de alta frecuencia (entorno `diagnostico`, que apaga TELEMETRIA). Si viven
+//  de alta frecuencia (que es el que corre en pista y apaga TELEMETRIA). Si viven
 //  adentro de #if TELEMETRIA, el binario de diagnostico no compila.
 // ============================================================================
 // DIAGNOSTICO DE CURVAS: que rama del case 7 se ejecuto en la ultima vuelta.
@@ -722,11 +526,6 @@ int g_line_branch = 0;
 // ultimo `steer` para siempre y el robot se va derecho creyendo que obedece.
 // Con esto, en la telemetria se ve al instante si el comando esta rancio.
 unsigned long g_last_rx_ms = 0;
-// Cuantas veces se drenaron tramas viejas al volver de una maniobra
-// bloqueante (fix (6) de priority_fix_flags.h). Si esto es 0 en una
-// corrida entera, el fix nunca actuo y no puede haber cambiado nada.
-unsigned long g_serial_drenados = 0;
-int  g_wd_vueltas = 0;      // OBSOLETO, se dejo por compatibilidad
 unsigned long g_wd_stale_ms = 0;  // desde cuando la trama esta vieja (0 = no)
 unsigned long g_wd_ref_ms = 0;    // referencia si NUNCA llego una trama
 bool g_wd_activo  = false;  // el watchdog esta frenando
@@ -741,23 +540,6 @@ double g_rx_steer = 0;
 // se quedan con la ultima consigna. El pico es lo que delata esos parones.
 unsigned long g_loop_dt = 0, g_loop_dt_max = 0;
 
-// En MODO_BANCO el BNO055 deja de ser obligatorio: si no responde, el barrido
-// corre igual y esto queda en 1. La columna de giro va a salir en cero, pero
-// la de colapso de la rueda interna -que es la que decide- sigue valiendo, y
-// el analizador ya sabe degradar. Antes esto era un while(1) mudo.
-int g_banco_sin_imu = 0;
-
-#if SUPERTEAM && TELEMETRIA
-#error "SUPERTEAM y TELEMETRIA comparten Serial8: activar solo uno (poner el otro en 0)."
-#endif
-
-// Con DIAG_PUERTO=1 el CSV del registrador sale por Serial8, que es el MISMO
-// cable por el que la telemetria manda su JSON. Los dos flujos se entrelazan y
-// el resultado no es ni un CSV ni un JSON: es basura que ninguna herramienta
-// avisa que esta mal. Se rompe el build antes de que pase.
-#if defined(DIAG_PUERTO) && DIAG_PUERTO && TELEMETRIA
-#error "DIAG_PUERTO=1 y TELEMETRIA=1 comparten Serial8: los dos flujos se mezclan. Dejar uno solo."
-#endif
 #if TELEMETRIA
 // ============================================================================
 //  VELOCIDAD DEL ENLACE Teensy -> ESP32  (Serial8)
@@ -883,27 +665,20 @@ inline void telemGreenResultado(int, int) {}
 #define PRIM(nombre) ((void)0)
 #endif
 
-// ============================================================================
-//  SUPER TEMA — puente Teensy <-> ESP32-MINI por Serial8 (RX=pin34 / TX=pin35, 3.3V)
-//  Cableado: TX8(35)->ESP RX ; RX8(34)<-ESP TX ; GND comun. Sin level shifter.
-//  Teensy -> ESP32 (salientes):  'L'=verde izq  'R'=verde der  'D'=doble  'X'=fin(rojo)
-//  ESP32  -> Teensy (entrante):  'S'=start (arranque del companiero por BLE/BT)
-//  OJO: serialEvent8() se llama A MANO (igual que serialEvent5): el loop se bloquea
-//       en los while largos y el callback automatico casi nunca corre.
-// ============================================================================
-#if SUPERTEAM
-const uint8_t SUPER_VERDE_IZQ   = 'L';
-const uint8_t SUPER_VERDE_DER   = 'R';
-const uint8_t SUPER_VERDE_DOBLE = 'D';
-const uint8_t SUPER_FIN_ROJO    = 'X';
-const uint8_t SUPER_START       = 'S';
-const uint8_t SUPER_REARM       = 'B';  // Teensy reinicio (LoP/stop) -> que la C3 reenvie el start
-bool superStart        = false;   // true cuando el companiero mando 'S'
-bool super_fin_enviado = false;   // one-shot del aviso de rojo/fin
-void serialEvent8();
-#endif
 
-
+// ############################################################################
+// #                                                                          #
+// #  3.  HARDWARE: servos, garra, IMU, motores, tren motriz                  #
+// #                                                                          #
+// #  Los 4 motores son FIT0441 con encoder. El reparto entre ruedas y el PID #
+// #  por rueda viven en lib/drivebase/. `DriveBase robot(&fl,&fr,&bl,&br)` es#
+// #  el unico objeto por el que pasa TODO el movimiento del robot.           #
+// #                                                                          #
+// #  TRACCION: 4 ruedas FIJAS de silicona (antes eran 2 fijas + 2 omni atras).#
+// #  Con 4 fijas el centro de giro NO se puede correr por consigna: FL y BL  #
+// #  comparten posicion lateral y por lo tanto velocidad de rodadura. Solo se#
+// #  puede correr por DINAMICA, y eso se mide, no se calcula.                #
+// ############################################################################
 
 // SERVOS
 DFServo sort(23, 540, 2390, 274);
@@ -922,11 +697,7 @@ Claw claw(&lift, &left, &right, &sort, &deposit);
 #define SWITCH 32         // Definicion de PIN SWITCH
 #define FCL 40
 #define FCR 41
-elapsedMillis steertimer; // Cuenta el tiempo transcurrido
-bool contador = false;    // Para saber si estamos contando el tiempo o no
-bool retroceder = false;  // Para saber si debe retroceder
 bool rescateAvisado = false;
-bool verde_accion = false;
 // INITIALISE BNO055 //
 Adafruit_BNO055 bno = Adafruit_BNO055(55, 0x28);
 // INITIALISE ACTUATORS //
@@ -935,14 +706,60 @@ Moto fl(7, 6, 5, "FL");
 Moto br(36, 37, 38, "BR");
 Moto fr(4, 3, 2, "FR");
 DriveBase robot(&fl, &fr, &bl, &br);
+
+static long gapPulsosDesdeInicio()
+{
+    const long dfl = labs((long)fl.pulseCount - g_gap_inicio_fl);
+    const long dfr = labs((long)fr.pulseCount - g_gap_inicio_fr);
+    return (dfl + dfr) / 2;
+}
+
+static void resetGapState()
+{
+    g_gap_activo = false;
+    g_gap_origen_enviado = false;
+    g_gap_timeout_enviado = false;
+    g_gap_inicio_fl = (long)fl.pulseCount;
+    g_gap_inicio_fr = (long)fr.pulseCount;
+    g_gap_inicio_ms = 0;
+}
+// ############################################################################
+// #                                                                          #
+// #  4.  ESTADO GLOBAL Y PROTOCOLO CON LA RASPBERRY                          #
+// #                                                                          #
+// #  PROTOCOLO Serial5, 115200 baud, 8 bytes por trama:                      #
+// #                                                                          #
+// #      [255, speed] [254, angle] [253, green_state] [252, silver_line]     #
+// #                                                                          #
+// #    speed        0..100   NO SE USA: el case 7 arranca de VELOCIDAD_BASE_LINEA#
+// #    angle        0..180   la Pi manda angulo+90; aca vuelve a -1.0 .. +1.0#
+// #    green_state  0..20    QUE hacer (ver la tabla de abajo)               #
+// #    silver_line  0..1     NO tiene autoridad: el plateado lo decide el APDS#
+// #                                                                          #
+// #  Los bytes 252..255 son SYNC y no pueden aparecer como dato.             #
+// #                                                                          #
+// #  TABLA DE green_state (lo que manda la Pi -> que hace el Teensy):        #
+// #     0  linea normal                    -> case 7, seguimiento            #
+// #     1  marca verde a la IZQUIERDA      -> case 6, avanza 800 ms y gira -60#
+// #     2  marca verde a la DERECHA        -> case 5, avanza 800 ms y gira +60#
+// #     3  DOBLE verde                     -> case 14, media vuelta          #
+// #     4  linea PERDIDA                   -> case 4, retroceso + pivote dirigido#
+// #     6  pelota negra (en evacuacion)    -> secuencia de garra             #
+// #     7  pelota plateada (en evacuacion) -> secuencia de garra             #
+// #     8  triangulo ROJO de deposito      -> deposita a la izquierda        #
+// #     9  triangulo VERDE de deposito     -> deposita a la derecha          #
+// #    14  interseccion                    -> case 12, se realinea con la IMU#
+// #    15/16/17  respuesta de la Pi al case 12 (izq / der / recto)           #
+// #    18  buscar el otro lado de un GAP   -> avanza recto acotado           #
+// #    19  fail-safe: parar                                                  #
+// #                                                                          #
+// #  De vuelta (Teensy -> Pi): 0xF9 arranque, 0xFA listo, 0xF7 evacuacion,   #
+// #  0xF8 depositando, y los cinco ACK del panel (0xED..0xF1).               #
+// ############################################################################
+
 // STATE VARIABLES & FLAGS //
 String color_detected;
-unsigned long tiemporescate=0;
-static unsigned long lastTurn = 0;           // persiste entre iteraciones
-const unsigned long turnCooldown = 600;      // ms (ajusta)
-int counter = 0;
 
-int laststeer = 0;
 int serial5state = 0;  // serial code e.g. 255
 double speed;          // speed (0 to 100)
 double steer;          // angle (0 to 180 deg, will -90 later)
@@ -964,23 +781,12 @@ constexpr int SERIAL_MAX_SILVER_LINE = 1;
 unsigned long serial_bytes_rx = 0;
 unsigned long serial_frames_rx = 0;
 elapsedMillis serialTelemetryTimer;
-int servo = 0;
 int action =7;            // action to take (part of a task)
 bool taskDone = false; // if true, update current_task
-int angle0;            // initial IMU reading
 bool startUp = false;
-float frontUSReading;
-bool verde_stop=false;
 int RanNumber;
 String rutina = "linea";
-bool first_rescate = 1;
-String wall = "right";
-bool esquinas_negro[3];
-bool final_rescate = 1;
 String lado_plateado="";
-bool lectura =0;
-int cccounter,
-    leftLidarReading, rightLidarReading;
 VL53L0X left_tof;  // Sensor 1
 VL53L0X right_tof; // Sensor 2
 int distance_left_tof;
@@ -988,15 +794,12 @@ int distance_right_tof;
 float angulo_rescate = 0;
 float centrar = 0;
 String pared="";
-bool alineado=false;
 bool depositando=false;
 int veces_deposit=2;
 int ball_counter=1;
 bool evacuacion_iniciada=false;
 bool evacuacion_straight=false;
 bool silver_latch=false;  // true mientras seguimos "sobre" un plateado ya atendido (evita repetir la accion)
-int last_right_distance = 0;
-int right_jump_counter = 0;
 
 // Máquina de Estados para Rescate (No Bloqueante)
 bool color_sensor_ok = true;
@@ -1008,119 +811,18 @@ void runTime(int speed, int dir, double steer, unsigned long long time);
 void runAngle(int speed, int dir, double angle);
 void runDistance(int speed, int dir, int Distance);
 
-bool fixIssue57Enabled()
-{
-    return priority_fix_flags::kEnableAllPriorityFixes ||
-           priority_fix_flags::kFixIssue57RescueWallTurnDirection;
-}
 
-bool fixIssue58Enabled()
-{
-    return priority_fix_flags::kEnableAllPriorityFixes ||
-           priority_fix_flags::kFixIssue58Case12ControlFlow;
-}
-
-bool fixIssue59Enabled()
-{
-    return priority_fix_flags::kEnableAllPriorityFixes ||
-           priority_fix_flags::kFixIssue59ServiceStateMachinesDuringMotion;
-}
-
-bool fixIssue60Enabled()
-{
-    return priority_fix_flags::kEnableAllPriorityFixes ||
-           priority_fix_flags::kFixIssue60RunDistanceTimeout;
-}
-
-bool fixIssue61Enabled()
-{
-    return priority_fix_flags::kEnableAllPriorityFixes ||
-           priority_fix_flags::kFixIssue61ColorSensorTimeout;
-}
-
-bool fixIssue62Enabled()
-{
-    return priority_fix_flags::kEnableAllPriorityFixes ||
-           priority_fix_flags::kFixIssue62VisibleSensorInitFailures;
-}
-
-bool fixIssue63Enabled()
-{
-    return priority_fix_flags::kEnableAllPriorityFixes ||
-           priority_fix_flags::kFixIssue63KeepSerialDuringMotions;
-}
-
-bool fixIssue74Enabled()
-{
-    return priority_fix_flags::kEnableAllPriorityFixes ||
-           priority_fix_flags::kFixIssue74ValidateSerialPayloads;
-}
-
-bool fixIssue75Enabled()
-{
-    return priority_fix_flags::kEnableAllPriorityFixes ||
-           priority_fix_flags::kFixIssue75SerialTelemetry;
-}
-
-bool fixIssue112Enabled()
-{
-    return priority_fix_flags::kEnableAllPriorityFixes ||
-           priority_fix_flags::kFixIssue112RunAngleTimeout;
-}
-
-bool fixLazoLineaSensoresBloqueantesEnabled()
-{
-    return priority_fix_flags::kEnableAllPriorityFixes ||
-           priority_fix_flags::kFixLazoLineaSensoresBloqueantes;
-}
-
-bool fixWatchdogComunicacionEnabled()
-{
-    return priority_fix_flags::kEnableAllPriorityFixes ||
-           priority_fix_flags::kFixWatchdogComunicacion;
-}
-
-bool fixVelocidadDesdeVisionEnabled()
-{
-    return priority_fix_flags::kEnableAllPriorityFixes ||
-           priority_fix_flags::kFixVelocidadDesdeVision;
-}
-
-bool fixPingFrontalCortoEnabled()
-{
-    return priority_fix_flags::kEnableAllPriorityFixes ||
-           priority_fix_flags::kFixPingFrontalCorto;
-}
-
-bool fixPingFrontalPeriodicoEnabled()
-{
-    return priority_fix_flags::kEnableAllPriorityFixes ||
-           priority_fix_flags::kFixPingFrontalPeriodico;
-}
-
-bool fixI2cRapidoEnabled()
-{
-    return priority_fix_flags::kEnableAllPriorityFixes ||
-           priority_fix_flags::kFixI2cRapido;
-}
-
-bool fixTofPresupuestoEnabled()
-{
-    return priority_fix_flags::kEnableAllPriorityFixes ||
-           priority_fix_flags::kFixTofPresupuesto;
-}
-
-// Velocidad base de linea. Por defecto la de siempre; si la vision manda un
-// valor CREIBLE se le hace caso. Un byte perdido no puede frenar el robot.
-int velocidadBaseDeLinea()
-{
-    const int porDefecto = 45;
-    if (!fixVelocidadDesdeVisionEnabled()) return porDefecto;
-    const int v = (int)speed;
-    if (v < priority_fix_flags::kVelVisionMin) return porDefecto;
-    if (v > priority_fix_flags::kVelVisionMax) return porDefecto;
-    return v;
-}
+// VELOCIDAD BASE DEL SEGUIMIENTO DE LINEA, en rpm.
+//
+// FIJA, y NO la manda la Raspberry. El byte `speed` del protocolo se recibe y se
+// valida en serialEvent5(), pero el case 7 no lo usa: se probo usarlo y se apago
+// el 25-ago-2026 porque la anticipacion de curva que lo justificaba no resistio
+// el re-analisis con placebo (lift 1,26x contra el 1,5 preregistrado).
+//
+// Es el PUNTO DE PARTIDA de dos ajustes que vienen despues:
+//   ajustarVelocidadPorPendiente()  la deja en 40 en llano y la sube a 45 en rampa
+//   la rampa cuadratica del case 7  la lleva hasta LINE_PIVOT_SPEED en la curva
+static const int VELOCIDAD_BASE_LINEA = 45;
 
 void blinkVisibleError(unsigned long onMs, unsigned long offMs, int cycles)
 {
@@ -1151,380 +853,33 @@ void fatalSensorInitLoop()
 void handleBnoInitFailure()
 {
     DBG_PRINT("No BNO055 detected ... Check your wiring or I2C ADDR!");
-    if (fixIssue62Enabled())
-    {
-        fatalSensorInitLoop();
-    }
-    while (1)
-        ;
+    fatalSensorInitLoop();   // no vuelve nunca: parpadeo + chicharra para siempre
 }
 
+// Sensor OPCIONAL que no arranco (hoy: el APDS9960). NO es fatal -el robot puede
+// seguir la linea sin color- pero tiene que NOTARSE antes de largar la corrida.
 void notifyOptionalSensorWarning()
 {
-    if (fixIssue62Enabled())
-    {
-        blinkVisibleError(120, 120, 3);
-    }
+    blinkVisibleError(120, 120, 3);
 }
 
 
 // ============================================================================
-//  MODO_DIAGNOSTICO - registrador de alta frecuencia de la REACCION DE MOTORES
-//
-//  QUE ES: un SEGUNDO BINARIO construido desde ESTE MISMO archivo (entorno
-//  `diagnostico` en platformio.ini). A proposito NO es una copia de main.cpp:
-//  una copia se despega del original en una semana y ahi el diagnostico deja de
-//  describir al robot que compite. Con MODO_DIAGNOSTICO=0 (el entorno normal)
-//  nada de esto entra al binario.
-//
-//  POR QUE HACE FALTA: la telemetria JSON manda a 10 Hz. El PID corre a 50 Hz
-//  (SampleTime = 20 ms) y el desplome de PWM de la rueda interna dura decenas
-//  de milisegundos. Muestrear a 10 Hz es submuestrear el fenomeno: se ve el
-//  antes y el despues, nunca el momento en que pasa. Aca se muestrea a 200 Hz,
-//  cuatro veces el lazo de control.
-//
-//  COMO NO PIERDE MUESTRAS EN LOS GIROS: runTime/runAngle/runDistance son
-//  bucles BLOQUEANTES - el loop() no vuelve a correr hasta que terminan. Por eso
-//  el muestreo se engancha ADEMAS en serviceMotionBackgroundTasks(), que es el
-//  unico punto por el que pasan los cinco bucles bloqueantes. Y si aun asi
-//  quedara un hueco NO se disimula: cada linea lleva su `dt` real medido y hay
-//  un contador `drop` de muestras perdidas por anillo lleno.
-//
-//  SALIDA: una linea CSV por muestra, con cabecera, para que el archivo se
-//  explique solo. Se graba con tools/registrar_diagnostico.py.
+//  REGISTRADOR CSV DE 200 Hz - herramienta de banco, NO entra en competencia.
+//  Va ACA y no arriba con el resto de los #include porque lee las globales que
+//  se declaran mas arriba en este mismo archivo. Ver el banner de diagnostico.h.
+//  OJO: en el binario que se flashea MODO_DIAGNOSTICO vale 1, asi que esto SI
+//  se compila y SI cuesta tiempo de lazo. Ver el aviso de la cabecera.
 // ============================================================================
-#if MODO_DIAGNOSTICO
-
-// Puerto de salida:
-//   0 = USB del Teensy (por defecto). No hay que cablear nada y no hay limite de
-//       ancho de banda: es el que conviene para el banco de motores.
-//   1 = Serial8 a DIAG_BAUD, para correr SUELTO en la pista con un adaptador
-//       USB-TTL colgado del TX. OJO: la ESP32 de telemetria espera JSON y esto
-//       es CSV, asi que en modo diagnostico la ESP32 no se usa.
-#ifndef DIAG_PUERTO
-#define DIAG_PUERTO 0
-#endif
-#define DIAG_BAUD       921600
-#define DIAG_HZ         200
-#define DIAG_PERIODO_US (1000000UL / DIAG_HZ)
-#define DIAG_RING       1024     // 1024 a 200 Hz = 5 s. Mas margen que antes porque
-
-#if DIAG_PUERTO
-  #define DIAG_OUT Serial8
-#else
-  #define DIAG_OUT Serial
-#endif
-
-struct DiagMuestra {
-    uint32_t us;          // micros() de la muestra
-    uint16_t dt;          // us desde la muestra anterior (delata los huecos)
-    int16_t  rxsteer;     // el ANGULO que llego de la RPi, x1000
-    uint8_t  rxspeed;
-    int16_t  rxage;       // ms desde la ultima trama completa (-1 = nunca llego)
-    uint32_t rxf;         // contador de tramas completas (uint16 daba la vuelta a los ~22 min)
-    int16_t  rot;         // DriveBase::_rotation x1000
-    int16_t  ls, rs;      // consignas por lado, ya calculadas
-    uint8_t  ddir;        // direccion pedida
-    int16_t  ram;         // rama del case 7. TIENE QUE SER CON SIGNO: vale -1
-                          // cuando el giro lo pidio un runAngle/runTime y no la
-                          // vision. Con uint8_t el -1 llegaba como 255 y el
-                          // analizador no reconocia ninguno de los dos casos.
-    uint8_t  dir[4];      // FL FR BL BR - sentido COMANDADO
-    int16_t  set[4];      // consigna de RPM por rueda
-    int16_t  rpm[4];      // RPM medida (MAGNITUD: el encoder no informa sentido)
-    uint8_t  pwm[4];      // esfuerzo aplicado
-    int32_t  enc[4];      // pulseCount
-    uint32_t tog[4];      // toggles del pin de direccion. uint16 daba la vuelta
-                          // en ~33 s a la frecuencia del loop, y un delta negativo
-                          // apagaba la deteccion C justo en la rueda que oscila.
-    uint32_t raw[4];      // flancos CRUDOS: movimiento fisico sin suposiciones
-    int16_t  yaw, pit;    // x10
-    int16_t  gx, gy, gz;  // velocidad angular REAL x10
-    uint32_t drop;        // perdidas AL MOMENTO DE LA MUESTRA. Antes se leia la
-                          // global al DRENAR, hasta 2,5 s despues: la columna
-                          // quedaba estampada sobre la fila equivocada.
-};
-
-// el DRENAJE depende de que el lazo principal lo visite, y el lazo de linea
-// puede tardar decenas de ms por vuelta.
-DMAMEM DiagMuestra diagRing[DIAG_RING];
-IntervalTimer diagTimer;
-// Productor unico (el ISR del timer) escribe diagCabeza; consumidor unico
-// (diagDrenar, desde el lazo) escribe diagCola. Con indices de 16 bits
-// alineados eso es atomico en un Cortex-M7: no hace falta candado.
-volatile uint16_t diagCabeza = 0, diagCola = 0;
-volatile unsigned long diagDropIsr = 0;
-unsigned long diagDrop = 0;
-static uint32_t diagUltimaUs = 0;
-// Cache de la IMU: la lectura es I2C (~2 ms) y NO puede correr a 200 Hz. El
-// BNO055 se actualiza a 100 Hz internamente, asi que refrescarla a 50 Hz no
-// pierde informacion y saca el I2C del camino del muestreo.
-static int16_t diagYaw = 0, diagPit = 0, diagGx = 0, diagGy = 0, diagGz = 0;
-
-static inline int16_t diagSat(double v)
-{
-    if (isnan(v) || isinf(v)) return 0;
-    if (v >  32000.0) return  32000;
-    if (v < -32000.0) return -32000;
-    return (int16_t)v;
-}
-
-void diagRefrescarImu()
-{
-    static unsigned long ult = 0;
-    if (millis() - ult < 20) return;   // 50 Hz
-    ult = millis();
-    sensors_event_t ev;
-    bno.getEvent(&ev);
-    diagYaw = diagSat(ev.orientation.x * 10.0);
-    diagPit = diagSat(ev.orientation.y * 10.0);
-    imu::Vector<3> g = bno.getVector(Adafruit_BNO055::VECTOR_GYROSCOPE);
-    diagGx = diagSat(g.x() * 10.0);
-    diagGy = diagSat(g.y() * 10.0);
-    diagGz = diagSat(g.z() * 10.0);
-}
-
-// Toma una foto si ya paso el periodo. SOLO copia valores que ya estan en RAM:
-// nada de I2C ni de cuentas, para que el costo sea despreciable y no altere el
-// comportamiento que estamos tratando de medir.
-// ============================================================================
-//  MUESTREO POR TIMER DE HARDWARE - NO colgado del lazo.
-//
-//  POR QUE: el seguimiento de linea corre dentro de un while(rutina=="linea")
-//  que esta ADENTRO de loop(), y el case 7 NO llama a
-//  serviceMotionBackgroundTasks(). O sea que ningun enganche del lazo se
-//  alcanzaba durante una curva: el registrador grababa CERO muestras justo
-//  del fenomeno que se quiere medir. Con el timer, 200 Hz pase lo que pase.
-//
-//  Este ISR SOLO COPIA valores que ya estan en RAM: nada de I2C, nada de
-//  formateo, nada que pueda bloquear. Formatear y escribir al puerto sigue
-//  en el lazo (diagDrenar), que es donde puede esperar.
-//
-//  Lectura rota de un double mientras el lazo lo escribe: posible. Da un
-//  valor absurdo que diagSat acota. Es dato de diagnostico, no de control:
-//  se prefiere eso a frenar el lazo con noInterrupts() 200 veces por segundo.
-// ============================================================================
-void diagMuestrear()
-{
-    uint32_t ahora = micros();
-    if (diagUltimaUs && (ahora - diagUltimaUs) < DIAG_PERIODO_US) return;
-    uint32_t dt = diagUltimaUs ? (ahora - diagUltimaUs) : 0;
-    diagUltimaUs = ahora;
-
-    uint16_t sig = (uint16_t)((diagCabeza + 1) % DIAG_RING);
-    if (sig == diagCola) { diagDropIsr++; return; }   // anillo lleno: se anota, no se miente
-
-    DiagMuestra &m = diagRing[diagCabeza];
-    m.us = ahora;
-    m.dt = (dt > 65535UL) ? 65535 : (uint16_t)dt;
-    m.rxsteer = diagSat(g_rx_steer * 1000.0);   // lo que MANDO la RPi, no la global pisada
-    m.rxspeed = (uint8_t)constrain(speed, 0.0, 255.0);
-    long edad = g_last_rx_ms ? (long)(millis() - g_last_rx_ms) : -1L;
-    m.rxage = (edad > 32000L) ? 32000 : (int16_t)edad;
-    m.rxf = (uint32_t)serial_frames_rx;
-    m.rot = diagSat(robot._rotation * 1000.0);
-    m.ls = diagSat(robot._leftspeed);
-    m.rs = diagSat(robot._rightspeed);
-    m.ddir = (uint8_t)robot._direction;
-    m.ram = (int16_t)g_line_branch;
-    Moto *mt[4] = { &fl, &fr, &bl, &br };
-    for (int i = 0; i < 4; i++)
-    {
-        m.dir[i] = (uint8_t)mt[i]->_dir;
-        m.set[i] = diagSat(mt[i]->_rpm);
-        m.rpm[i] = diagSat(mt[i]->_realrpm);
-        m.pwm[i] = (uint8_t)constrain(mt[i]->_pwmTotal, 0.0, 255.0);   // el que sale por el pin
-        m.enc[i] = (int32_t)mt[i]->pulseCount;
-        m.tog[i] = (uint32_t)mt[i]->dirToggles;
-        m.raw[i] = (uint32_t)mt[i]->pulsesRaw;
-    }
-    m.yaw = diagYaw; m.pit = diagPit;
-    m.gx = diagGx; m.gy = diagGy; m.gz = diagGz;
-    m.drop = diagDrop + diagDropIsr;
-    diagCabeza = sig;
-}
-
-// Vacia el anillo hacia el puerto SIN bloquear: escribe solo mientras haya lugar
-// en el buffer de salida. Si no lo hay, la muestra espera en el anillo. Nunca
-// frena el control - misma regla que la telemetria JSON.
-// SENAL FISICA de que el registro esta vivo: el LED de la placa parpadea con
-// cada volcado. Sin esto, un USB sin nadie leyendo deja availableForWrite() en 0,
-// el anillo se llena, diagDrop sube y NO SE GRABA NADA - con el robot corriendo
-// normal y sin ninguna pista hasta abrir el archivo a la noche.
-// Si ademas se estan perdiendo muestras, el parpadeo pasa a ser rapido.
-void diagLatido(bool perdiendo)
-{
-    static unsigned long ult = 0;
-    static bool on = false;
-    unsigned long periodo = perdiendo ? 60 : 400;
-    if (millis() - ult < periodo) return;
-    ult = millis();
-    on = !on;
-    digitalWriteFast(LED_BUILTIN, on);
-}
-
-void diagDrenar()
-{
-    // 384 = el largo maximo de una linea. Comparar contra un numero magico mas
-    // chico dejaba pasar escrituras que despues bloqueaban, o -con el buffer de
-    // 40 B de un Serial de Teensy 4- no dejaba pasar ninguna.
-    unsigned long escritas = 0;
-    while (diagCola != diagCabeza && DIAG_OUT.availableForWrite() >= 384)
-    {
-        const DiagMuestra &m = diagRing[diagCola];
-        char l[384];   // peor caso medido ~321 B: con 256 truncaba en silencio
-        int n = snprintf(l, sizeof(l),
-            "%lu,%u,%lu,%d,%u,%d,%lu,%d,%d,%d,%u,%d,"
-            "%u,%d,%d,%u,%ld,%lu,%lu,"
-            "%u,%d,%d,%u,%ld,%lu,%lu,"
-            "%u,%d,%d,%u,%ld,%lu,%lu,"
-            "%u,%d,%d,%u,%ld,%lu,%lu,"
-            "%d,%d,%d,%d,%d\n",
-            (unsigned long)m.us, m.dt, (unsigned long)m.drop, m.rxsteer, m.rxspeed, m.rxage,
-            (unsigned long)m.rxf, m.rot, m.ls, m.rs, m.ddir, m.ram,
-            m.dir[0], m.set[0], m.rpm[0], m.pwm[0], (long)m.enc[0], (unsigned long)m.tog[0], (unsigned long)m.raw[0],
-            m.dir[1], m.set[1], m.rpm[1], m.pwm[1], (long)m.enc[1], (unsigned long)m.tog[1], (unsigned long)m.raw[1],
-            m.dir[2], m.set[2], m.rpm[2], m.pwm[2], (long)m.enc[2], (unsigned long)m.tog[2], (unsigned long)m.raw[2],
-            m.dir[3], m.set[3], m.rpm[3], m.pwm[3], (long)m.enc[3], (unsigned long)m.tog[3], (unsigned long)m.raw[3],
-            m.yaw, m.pit, m.gx, m.gy, m.gz);
-        if (n > 0 && n < (int)sizeof(l)) DIAG_OUT.write((const uint8_t *)l, n);
-        else diagDrop++;   // no entro: se cuenta como perdida, no se pierde callado
-        diagCola = (uint16_t)((diagCola + 1) % DIAG_RING);
-        escritas++;
-    }
-    static unsigned long dropPrev = 0;
-    unsigned long dropAhora = diagDrop + diagDropIsr;
-    diagLatido(dropAhora != dropPrev);
-    dropPrev = dropAhora;
-}
-
-// La cabecera se REEMITE cada 2 s: asi el stream se explica solo desde
-// cualquier punto en el que uno se enganche. Cuesta ~300 B cada 2 s contra los
-// 40 kB/s de datos (0,4%). Abrir el USB no resetea un Teensy 4.1, asi que sin
-// esto el que arranca el registrador tarde se pierde la unica cabecera que hubo.
-static const char *DIAG_CABECERA =
-    "us,dt,drop,rxsteer,rxspeed,rxage,rxf,rot,ls,rs,ddir,ram,"
-    "fl_dir,fl_set,fl_rpm,fl_pwm,fl_enc,fl_tog,fl_raw,"
-    "fr_dir,fr_set,fr_rpm,fr_pwm,fr_enc,fr_tog,fr_raw,"
-    "bl_dir,bl_set,bl_rpm,bl_pwm,bl_enc,bl_tog,bl_raw,"
-    "br_dir,br_set,br_rpm,br_pwm,br_enc,br_tog,br_raw,"
-    "yaw,pit,gx,gy,gz";
-
-// Reemite cabecera + procedencia. El `ult` se actualiza DESPUES del guard:
-// si no habia lugar en el buffer, se reintenta en el proximo tick en vez de
-// quemar la ventana entera de 2 s.
-// La procedencia viaja CON cada cabecera. Si solo se emitiera al arrancar, el
-// que engancha el registrador tarde graba un CSV sin saber con que binario se
-// hizo, y entonces no sirve para comparar historico contra fix.
-// Emite TODOS los flags que cambian comportamiento. Antes solo salia `lazo=`,
-// asi que dos CSV podian diferir en el arbol del case 7, en las ganancias del
-// feedforward o en el puerto y parecer perfectamente comparables. Un A/B entre
-// corridas que difieren en mas de una cosa no es atribuible.
-void diagProcedencia()
-{
-    DIAG_OUT.print("# hz="); DIAG_OUT.print(DIAG_HZ);
-    DIAG_OUT.print(" ticks_vuelta="); DIAG_OUT.print(TICKS_VUELTA);
-    DIAG_OUT.print(" fix_lazo="); DIAG_OUT.print(FIX_LAZO_MOTOR);
-    DIAG_OUT.print(" fix_curva="); DIAG_OUT.print(FIX_CURVA_CONTINUA);
-    DIAG_OUT.print(" ks="); DIAG_OUT.print(MOTO_KS, 2);
-    DIAG_OUT.print(" kv="); DIAG_OUT.print(MOTO_KV, 3);
-    DIAG_OUT.print(" piso="); DIAG_OUT.print(MOTO_PISO, 2);
-    DIAG_OUT.print(" anticoast="); DIAG_OUT.print(MOTO_PWM_ANTICOAST, 1);
-    DIAG_OUT.print(" diag_puerto="); DIAG_OUT.print(DIAG_PUERTO);
-    // si la IMU no arranco, la columna de giro va a estar en cero y NO significa
-    // que el robot no giro. Queda escrito en el archivo para no confundirlo.
-    DIAG_OUT.print(" sin_imu="); DIAG_OUT.print(g_banco_sin_imu);
-    // `lazo=` se mantiene por compatibilidad con los CSV ya grabados
-    DIAG_OUT.print(" lazo="); DIAG_OUT.print(FIX_LAZO_MOTOR ? "nuevo" : "historico");
-    // Las constantes del case 7. Sin esto, dos CSV grabados con ganancias o
-    // umbrales distintos son indistinguibles: el 22-ago se grabaron diez y
-    // despues no se pudo atribuir ninguna diferencia a ninguna constante.
-    DIAG_OUT.print(" gain="); DIAG_OUT.print(LINE_STEER_GAIN, 2);
-    DIAG_OUT.print(" rot_exp="); DIAG_OUT.print(LINE_ROT_EXP, 2);
-    DIAG_OUT.print(" piv_entra="); DIAG_OUT.print(LINE_PIVOTE_ENTRA, 2);
-    DIAG_OUT.print(" piv_sale="); DIAG_OUT.print(LINE_PIVOTE_SALE, 2);
-    DIAG_OUT.print(" piv_vel="); DIAG_OUT.print(LINE_PIVOT_SPEED);
-    DIAG_OUT.print(" piv_max_ms="); DIAG_OUT.print(LINE_PIVOTE_MAX_MS);
-    DIAG_OUT.print(" piv_confirma_ms="); DIAG_OUT.print(LINE_PIVOTE_CONFIRMA_MS);
-    DIAG_OUT.print(" piv_dwell_ms="); DIAG_OUT.print(LINE_PIVOTE_DWELL_MS);
-    DIAG_OUT.print(" dwell_glob="); DIAG_OUT.print(LINE_DWELL_GLOBAL);
-    DIAG_OUT.print(" freno_del="); DIAG_OUT.print(LINE_FRENO_DELANTERO);
-    DIAG_OUT.print(" freno_f="); DIAG_OUT.print(LINE_FRENO_FACTOR, 2);
-    DIAG_OUT.print(" freno_rm="); DIAG_OUT.print(LINE_FRENO_ROT_MULT, 2);
-    DIAG_OUT.print(" freno_st="); DIAG_OUT.print(LINE_FRENO_STEER, 2);
-    DIAG_OUT.print(" freno_vel="); DIAG_OUT.print(LINE_FRENO_VEL);
-    DIAG_OUT.print(" recta_f="); DIAG_OUT.print(LINE_RECTA_FACTOR, 2);
-    DIAG_OUT.print(" codo="); DIAG_OUT.print(LINE_CODO);
-    DIAG_OUT.print(" banco_freno="); DIAG_OUT.print(BANCO_FRENO);
-    DIAG_OUT.print(" ley_suma="); DIAG_OUT.print(LINE_LEY_SUMA);
-    DIAG_OUT.print(" suma_k="); DIAG_OUT.print(LINE_SUMA_K, 2);
-    DIAG_OUT.print(" codo_ent="); DIAG_OUT.print(LINE_CODO_ENTRA, 2);
-    DIAG_OUT.print(" codo_min="); DIAG_OUT.print(LINE_CODO_MIN_GRADOS, 0);
-    DIAG_OUT.print(" codo_max="); DIAG_OUT.print(LINE_CODO_MAX_GRADOS, 0);
-    // Sin estos cuatro, dos corridas con parametros distintos son
-    // INDISTINGUIBLES en el archivo. Paso el 26-ago con ENTRA_MS.
-    DIAG_OUT.print(" codo_ent_ms="); DIAG_OUT.print(LINE_CODO_ENTRA_MS);
-    DIAG_OUT.print(" codo_sale_ms="); DIAG_OUT.print(LINE_CODO_SALE_MS);
-    DIAG_OUT.print(" codo_vel="); DIAG_OUT.print(LINE_CODO_VEL);
-    DIAG_OUT.print(" codo_ciego="); DIAG_OUT.print(LINE_CODO_CIEGO);
-    DIAG_OUT.print(" commit=");
-#ifdef TLM_COMMIT
-    DIAG_OUT.println(TLM_COMMIT);
-#else
-    DIAG_OUT.println("nogit");
-#endif
-}
-
-void diagCabeceraPeriodica()
-{
-    static unsigned long ult = 0;
-    if (millis() - ult < 2000) return;
-    // 520 y no 420: la procedencia ya son ~378 B y los campos del codo suman
-    // ~58 mas. Con 420 la cabecera periodica dejaria de emitirse EN SILENCIO
-    // y se perderia la procedencia a mitad de corrida.
-    if (DIAG_OUT.availableForWrite() < 520) return;   // cabecera + procedencia
-    ult = millis();
-    diagProcedencia();
-    DIAG_OUT.println(DIAG_CABECERA);
-}
-
-void diagInicio()
-{
-#if DIAG_PUERTO
-    DIAG_OUT.begin(DIAG_BAUD);
-    // El buffer TX por defecto de un Serial de Teensy 4 son 40 bytes: con eso
-    // el guard de diagDrenar NUNCA se cumple y no se escribe una sola linea.
-    static uint8_t txbuf[4096];
-    DIAG_OUT.addMemoryForWrite(txbuf, sizeof(txbuf));
-#endif
-    DIAG_OUT.println("# RescueBot IITA - diagnostico de reaccion de motores");
-    diagProcedencia();
-    DIAG_OUT.println(DIAG_CABECERA);
-    // 200 Hz DE VERDAD, independientes de donde este parado el programa.
-    diagTimer.begin(diagMuestrear, DIAG_PERIODO_US);
-    diagTimer.priority(200);   // por debajo de las ISR de encoder, que son EL dato
-}
-
-// El muestreo NO esta aca: lo hace diagTimer a 200 Hz reales. Aca queda lo que
-// SI puede esperar y lo que NO puede correr en un ISR (I2C de la IMU, formateo
-// de texto, escritura al puerto).
-#define DIAG_TICK()  do { diagRefrescarImu(); diagCabeceraPeriodica(); diagDrenar(); } while (0)
-#else
-#define DIAG_TICK()  do { } while (0)
-#endif // MODO_DIAGNOSTICO
+#include "diagnostico.h"
 
 void serviceMotionBackgroundTasks()
 {
     DIAG_TICK();   // muestreo de alta frecuencia DURANTE las maniobras bloqueantes
-    // Telemetria primero: asi sigue fluyendo aunque el fix59 este desactivado y
-    // durante TODAS las maniobras bloqueantes (runTime/runAngle/runDistance...).
-    // Es rate-limited y no bloqueante: costo despreciable.
+    // Telemetria primero, asi sigue fluyendo durante TODAS las maniobras
+    // bloqueantes (runTime/runAngle/runDistance/...). Es rate-limited y no
+    // bloqueante: costo despreciable.
     enviarTelemetria();
-
-    if (!fixIssue59Enabled())
-    {
-        return;
-    }
 
     claw.update();
     actualizarRescate();
@@ -1551,6 +906,26 @@ unsigned long computeRunAngleTimeoutMs(double angle)
     return max(1500UL, angleDeg * 35UL + 1000UL);
 }
 
+// ============================================================================
+//  MAQUINA DE ESTADOS DE RESCATE (garra)  -  HOY NO SE EJECUTA NUNCA.
+//
+//  LEER ESTO ANTES DE CREER QUE ESTA ES LA QUE CORRE. `rescateState` arranca en
+//  RESCATE_IDLE y NADA lo saca de ahi: las dos funciones que lo hacian
+//  (iniciarRecoleccionNegra / iniciarRecoleccionPlateada) no tenian un solo
+//  llamador y se borraron el 2026-09-06. O sea que actualizarRescate() se llama
+//  en cada vuelta del lazo y en cada vuelta de runTime/runAngle/runDistance,
+//  pero siempre cae en `case RESCATE_IDLE: break;`.
+//
+//  EL RESCATE QUE SI CORRE es el codigo en linea del lazo de evacuacion:
+//  procesarColorEvacuacion() -> accionNegro() / accionPlateado(), y las
+//  secuencias de garra de los green_state 6 y 7 dentro de `rutina == "rescate"`.
+//
+//  SE DEJA porque la secuencia de garra esta bien escrita y sirve como plan B no
+//  bloqueante. PARA REVIVIRLA alcanza con poner, desde donde corresponda:
+//      rescateState = RESCATE_NEGRA_STEP1;  rescateLastTime = millis();
+//  (o RESCATE_PLATEADA_STEP1). En la telemetria el campo `resc` es este estado:
+//  mientras esto no se toque, ese campo vale 0 siempre y eso NO es un fallo.
+// ============================================================================
 enum RescateState {
     RESCATE_IDLE = 0,          // Estado inactivo
     RESCATE_NEGRA_STEP1,       // Baja garra
@@ -1574,21 +949,7 @@ RescateState rescateState = RESCATE_IDLE;  // Estado actual de la máquina de re
 unsigned long rescateLastTime = 0;         // Timestamp del último paso
 const unsigned long RESCATE_STEP_DELAY = 1000;  // Delay entre pasos en ms
 
-// Función para iniciar recolección de pelota negra
-void iniciarRecoleccionNegra() {
-    if (rescateState == RESCATE_IDLE) {
-        rescateState = RESCATE_NEGRA_STEP1;
-        rescateLastTime = millis();
-    }
-}
 
-// Función para iniciar recolección de pelota plateada
-void iniciarRecoleccionPlateada() {
-    if (rescateState == RESCATE_IDLE) {
-        rescateState = RESCATE_PLATEADA_STEP1;
-        rescateLastTime = millis();
-    }
-}
 
 // Función para actualizar la máquina de estados de rescate (llamar en loop())
 void actualizarRescate() {
@@ -1738,6 +1099,29 @@ int front_distance;
 int left_distance;
 int right_distance;
 
+// ############################################################################
+// #                                                                          #
+// #  5.  SENSORES: ultrasonidos, ToF, color (APDS9960)                       #
+// #                                                                          #
+// #  ULTRASONIDOS (HC-SR04, NewPing): frente / izquierda / derecha. Son      #
+// #  BLOQUEANTES: ping_cm() espera hasta el timeout cuando no hay eco. Por eso#
+// #  el lazo de linea usa leer_ultrasonido_frontal(), con techo corto y      #
+// #  periodico, y no leer_ultrasonidos(). Ver el punto 1.4 del panel.        #
+// #                                                                          #
+// #  ToF VL53L0X (izq/der, uno por bus I2C): SE INICIALIZAN Y NADIE LOS LEE. #
+// #  leer_tof() solo se llamaba desde el seguimiento de pared, que no esta en#
+// #  este binario. La telemetria publica 0 mm: eso significa "nadie pregunto".#
+// #                                                                          #
+// #  COLOR APDS9960: es el que decide el plateado (entrada a evacuacion) y el#
+// #  rojo (fin de la corrida). Muestreo NO BLOQUEANTE con promedio movil de 3#
+// #  muestras. Tres formas de preguntarle, y la diferencia importa:          #
+// #     get_color_fast()   devuelve la ultima clasificacion, sin esperar.    #
+// #                        "Desconocido" = no hay dato fresco todavia.       #
+// #     get_color_fresh()  espera hasta 35 ms una muestra NUEVA. Es la que se#
+// #                        usa para CONFIRMAR antes de actuar.               #
+// #     confirmarPlateadoLinea()  4 ventanas filtradas seguidas (12 muestras).#
+// ############################################################################
+
 // -----------  FUNCTIONS  -----------
 // ULTRASONIDOS FRENTE IZQ DER
 void leer_ultrasonidos()
@@ -1745,17 +1129,49 @@ void leer_ultrasonidos()
     // Rango LARGO explicito: si el lazo de linea corrio con kPingLineaCm, el
     // objeto quedo con ese techo -set_max_distance() persiste- y evacuacion
     // necesita 120 cm (`front_distance < 120`).
-    const unsigned int largo = fixPingFrontalCortoEnabled()
-                             ? priority_fix_flags::kPingLargoCm : 0;
+    const unsigned int largo = PING_LARGO_CM;
     front_distance = sonar[0].ping_cm(largo);
     left_distance = sonar[1].ping_cm(largo);
     right_distance = sonar[2].ping_cm(largo);
 }
 
-// Solo el frontal. Es el unico que el lazo de linea consulta en cada vuelta
-// (obstaculo a menos de 12 cm); left/right_distance los reelen por su cuenta
-// las ramas que los usan. Ahorra dos ping bloqueantes por frame.
-// Ver kFixLazoLineaSensoresBloqueantes en priority_fix_flags.h.
+// MEMORIA DE PARED EN EVACUACION. Se llama despues de cada leer_ultrasonidos()
+// del lazo de evacuacion: si un lateral ve pared cerca, recuerda ese lado.
+// Cuando la pared desaparece (salida, esquina abierta) la memoria NO se borra:
+// eso es justamente lo que accionNegro() necesita saber.
+void memoriaParedEvacuacion()
+{
+    const bool izqOk = (left_distance  > 0 && left_distance  <= NEGRO_SALIDA_PARED_MAX_CM);
+    const bool derOk = (right_distance > 0 && right_distance <= NEGRO_SALIDA_PARED_MAX_CM);
+    if (izqOk && (!derOk || left_distance < right_distance))
+    {
+        g_evac_pared_lado = -1;
+        g_evac_pared_ms = millis();
+    }
+    else if (derOk && (!izqOk || right_distance < left_distance))
+    {
+        g_evac_pared_lado = +1;
+        g_evac_pared_ms = millis();
+    }
+}
+
+// Version con muestreo propio, para el lazo recto inicial de evacuacion que no
+// lee los ultrasonidos por su cuenta. Lee cada NEGRO_SALIDA_MUESTREO_MS.
+void memoriaParedEvacuacionPeriodica()
+{
+    static unsigned long t_ultimo = 0;
+    const unsigned long ahora = millis();
+    if (t_ultimo != 0 && (ahora - t_ultimo) < NEGRO_SALIDA_MUESTREO_MS)
+        return;
+    t_ultimo = ahora;
+    leer_ultrasonidos();
+    memoriaParedEvacuacion();
+}
+
+// SOLO EL FRONTAL. Es el unico ultrasonido que el lazo de linea consulta en
+// cada vuelta (obstaculo a menos de 12 cm); las ramas que usan left/right lo
+// vuelven a pedir por su cuenta con leer_ultrasonidos(). Ahorra dos ping
+// bloqueantes por frame. Ver el punto 1.4 del panel de configuracion.
 void leer_ultrasonido_frontal()
 {
     // TIMEOUT CORTO. `ping_cm()` bloquea hasta el timeout cuando NO hay eco, y
@@ -1763,31 +1179,17 @@ void leer_ultrasonido_frontal()
     // peor caso. El lazo solo pregunta `front_distance < 12`, asi que 30 cm de
     // techo sobra el doble y el timeout cae de 8578 a 1738 us.
     // El valor va EXPLICITO porque set_max_distance() persiste en el objeto.
-    if (fixPingFrontalCortoEnabled())
-    {
-        // PERIODICO. A 30 cm/s el robot avanza 1,2 cm en 40 ms, un decimo del
-        // umbral de 12. No hace falta pingear en cada vuelta del lazo.
-        if (fixPingFrontalPeriodicoEnabled())
-        {
-            static unsigned long t_ping = 0;
-            unsigned long ahora = millis();
-            if (t_ping != 0 &&
-                (unsigned long)(ahora - t_ping) < priority_fix_flags::kPingFrontalPeriodoMs)
-                return;                       // se conserva la lectura anterior
-            t_ping = ahora;
-        }
-        front_distance = sonar[0].ping_cm(priority_fix_flags::kPingLineaCm);
-        return;
-    }
-    front_distance = sonar[0].ping_cm();
+    // Y NO EN CADA VUELTA. A 30 cm/s el robot avanza 1,2 cm en 40 ms, un decimo
+    // del umbral de 12 cm: un obstaculo no puede aparecer entre dos pings.
+    static unsigned long t_ping = 0;
+    unsigned long ahora = millis();
+    if (t_ping != 0 &&
+        (unsigned long)(ahora - t_ping) < PING_FRONTAL_PERIODO_MS)
+        return;                       // se conserva la lectura anterior
+    t_ping = ahora;
+    front_distance = sonar[0].ping_cm(PING_LINEA_CM);
 }
 
-void imprimir_ultrasonidos()
-{
-    DBG_PRINT("|D: ");
-    DBG_PRINT(right_distance);
-    //DBG_PRINTLN("cm ");
-}
 
 // TOF
 void leer_tof()
@@ -1927,34 +1329,46 @@ String classify_color(uint16_t r, uint16_t g, uint16_t b, uint16_t c)
 
     String detected = "Desconocido";
 
+    // CALIBRACION REAL 2026-09-05 (APDS montado a altura de trabajo).
+    // Rojo medido: C~371..817, R/C~0.301..0.501, R/G~1.144..1.979,
+    // R/B~0.921..1.798. Se deja margen minimo sin invadir blanco/plateado.
     bool esRojo =
         (
-            c >= 380 && c <= 900 &&
-            ratio_rc >= 0.32f &&
+            c >= 340 && c <= 900 &&
+            ratio_rc >= 0.295f &&
             ratio_rg >= 1.10f &&
-            ratio_rb >= 1.00f
-        )
-        ||
-        (
-            c > 900 && c <= 1300 &&
-            ratio_rc >= 0.255f &&
-            ratio_rg >= 0.75f &&
-            ratio_rb >= 0.67f
+            ratio_rb >= 0.90f
         );
 
-bool esPlateado =
-    (
-        c >= 1300 &&
-        ratio_rc >= 0.246f &&
-        ratio_rc <= 0.290f
-    );
+    // PLATEADO ROBUSTO 2026-09-05.
+    // Datos reales del APDS montado:
+    //   plateado estable: R/C~0.247..0.260, R/G~0.64..0.67, R/B~0.63..0.68
+    //   blanco estable:   R/C~0.219..0.235, R/G~0.57..0.60
+    // La calibracion anterior (R/C>=0.240) recuperaba bordes 0.243..0.245 pero
+    // quedo demasiado permisiva y produjo rescates falsos. Para LINEA preferimos
+    // perder una lectura de borde y confirmar el nucleo espectral real del plata.
+    // B y G tambien deben quedar proximos: en las muestras de plata validas |B-G|
+    // queda dentro de ~17, con margen hasta 30.
+    bool esPlateado =
+        (
+            c >= 1500 &&
+            ratio_rc >= 0.245f &&
+            ratio_rc <= 0.268f &&
+            ratio_rg >= 0.645f &&
+            ratio_rg <= 0.700f &&
+            ratio_rb >= 0.615f &&
+            ratio_rb <= 0.700f &&
+            abs(diff_bg) <= 30
+        );
 
-bool esBlanco =
-    (
-        c >= 430 &&
-        ratio_rc >= 0.195f &&
-        ratio_rc <  0.246f
-    );
+    // Blanco medido: R/C~0.219..0.235. Dejamos una zona muerta 0.235..0.245
+    // antes del plateado en vez de forzar una clasificacion dudosa.
+    bool esBlanco =
+        (
+            c >= 430 &&
+            ratio_rc >= 0.195f &&
+            ratio_rc < 0.245f
+        );
 
     if (esRojo)
     {
@@ -2000,8 +1414,7 @@ bool esBlanco =
 }
 bool update_color_nonblocking(bool force_poll = false)
 {
-    if ((fixIssue61Enabled() || fixIssue62Enabled()) && !color_sensor_ok)
-        return false;
+    if (!color_sensor_ok) return false;   // el APDS no arranco: no hay color
 
     unsigned long now = millis();
     if (!force_poll && (now - last_color_status_poll_ms) < APDS_COLOR_STATUS_POLL_MS)
@@ -2033,10 +1446,6 @@ get_color_fresh(unsigned long timeoutMs = APDS_COLOR_FRESH_TIMEOUT_MS)
             return last_color_detected;
 
         serviceMotionBackgroundTasks();
-        if (Serial5.available() > 0 && fixIssue63Enabled())
-        {
-            serialEvent5();
-        }
         delay(1);
     }
 
@@ -2051,137 +1460,8 @@ String get_color_fast()
     return "Desconocido";
 }
 
-String get_color_old()
-{
-    if ((fixIssue61Enabled() || fixIssue62Enabled()) && !color_sensor_ok)
-    {
-        return "Desconocido";
-    }
 
-    uint16_t r, g, b, c;
-    unsigned long waitStart = millis();
 
-    // Esperar a que los datos de color estén listos
-    while (!apds.colorDataReady())
-    {
-        if (fixIssue61Enabled() && (millis() - waitStart) > 50)
-        {
-            return "Desconocido";
-        }
-        delay(5);
-    }
-
-    // Obtener los datos del sensor
-    apds.getColorData(&r, &g, &b, &c);
-
-    // Calcular el color más cercano utilizando mínimos cuadrados
-    String closest_color = "Desconocido";
-    uint32_t min_error = UINT32_MAX;
-
-    for (size_t i = 0; i < sizeof(known_colors) / sizeof(known_colors[0]); i++)
-    {
-        uint32_t error = pow(known_colors[i].r - r, 2) +
-                         pow(known_colors[i].g - g, 2) +
-                         pow(known_colors[i].b - b, 2) +
-                         pow(known_colors[i].c - c, 2);
-        if (error < min_error)
-        {
-            min_error = error;
-            closest_color = known_colors[i].name;
-        }
-    }
-
-    // Imprimir los valores de R, G, B y Clear
-    /*
-    DBG_PRINT("red: ");
-    DBG_PRINT(r);
-    DBG_PRINT(" green: ");
-    DBG_PRINT(g);
-    DBG_PRINT(" blue: ");
-    DBG_PRINT(b);
-    DBG_PRINT(" clear: ");
-    //DBG_PRINTLN(c);
-    */
-
-    return closest_color;
-}
-
-String get_color_blocking_legacy()
-{
-    if ((fixIssue61Enabled() || fixIssue62Enabled()) && !color_sensor_ok)
-        return "Desconocido";
-
-    uint16_t r_sum = 0, g_sum = 0, b_sum = 0, c_sum = 0;
-    const int muestras = 5;
-
-    for (int i = 0; i < muestras; i++)
-    {
-        uint16_t r, g, b, c;
-        unsigned long waitStart = millis();
-        while (!apds.colorDataReady())
-        {
-            if (fixIssue61Enabled() && (millis() - waitStart) > 50)
-                return "Desconocido";
-            delay(5);
-        }
-        apds.getColorData(&r, &g, &b, &c);
-        r_sum += r; g_sum += g; b_sum += b; c_sum += c;
-    }
-
-    uint16_t r = r_sum / muestras;
-    uint16_t g = g_sum / muestras;
-    uint16_t b = b_sum / muestras;
-    uint16_t c = c_sum / muestras;
-
-    float ratio_rc = c > 0 ? (float)r / (float)c : 0.0f;
-    float ratio_rg = g > 0 ? (float)r / (float)g : 0.0f;
-    float ratio_rb = b > 0 ? (float)r / (float)b : 0.0f;
-
-    // Print siempre antes de los returns
-    static unsigned long lastPrint = 0;
-    if (millis() - lastPrint > 500)
-    {
-        DBG_PRINT("R: "); DBG_PRINT(r);
-        DBG_PRINT(" | B: "); DBG_PRINT(b);
-        DBG_PRINT(" | G: "); DBG_PRINT(g);
-        DBG_PRINT(" | C: "); DBG_PRINT(c);
-        DBG_PRINT(" | R/C: "); DBG_PRINT(ratio_rc, 3);
-        DBG_PRINT(" | R/G: "); DBG_PRINT(ratio_rg, 3);
-        DBG_PRINT(" | R/B: "); DBG_PRINT(ratio_rb, 3);
-
-        DBG_PRINT(" | -> ");
-        if      (c > 1950 && ratio_rc > 0.234)                          DBG_PRINTLN("Plateado");
-        else if (c > 1500 && ratio_rc <= 0.235)                         DBG_PRINTLN("Blanco");
-        else if (c >= 300 && c <= 600 && ratio_rg > 1.6f && ratio_rb > 1.5f) DBG_PRINTLN("Rojo");
-        else if (c < 600)                                                DBG_PRINTLN("Negro");
-        else                                                             DBG_PRINTLN("Verde");
-        lastPrint = millis();
-    }
-    // Returns en el mismo orden que el print
-    if (c > 1700 && ratio_rc > 0.234)        return "Plateado";
-    if (c > 1500 && ratio_rc <= 0.235)       return "Blanco";
-    if (c >= 300 && c <= 600 && ratio_rg > 1.62f && ratio_rc > 0.440f) return "Rojo";
-
-    // Negro y Verde por mínimos cuadrados
-    String closest_color = "Desconocido";
-    uint32_t min_error = UINT32_MAX;
-    for (size_t i = 0; i < sizeof(known_colors) / sizeof(known_colors[0]); i++)
-    {
-        if (known_colors[i].name == "Blanco" || known_colors[i].name == "Plateado")
-            continue;
-        uint32_t error = pow(known_colors[i].r - r, 2) +
-                         pow(known_colors[i].g - g, 2) +
-                         pow(known_colors[i].b - b, 2) +
-                         pow(known_colors[i].c - c, 2);
-        if (error < min_error) { min_error = error; closest_color = known_colors[i].name; }
-    }
-    return closest_color;
-}
-
-String get_color()
-{
-    return get_color_fast();
-}
 
 // ISR for updating motor pulses
 void ISR1() { bl.updatePulse(); }
@@ -2191,11 +1471,6 @@ void ISR4() { fr.updatePulse(); }
 
 bool serialPayloadOutOfRange(const char *field, int value, int maxValue)
 {
-    if (!fixIssue74Enabled())
-    {
-        return false;
-    }
-
     if (value >= 0 && value <= maxValue)
     {
         return false;
@@ -2210,10 +1485,7 @@ bool serialPayloadOutOfRange(const char *field, int value, int maxValue)
 
 void maybePrintSerialTelemetry()
 {
-    if (!fixIssue75Enabled() || serialTelemetryTimer < 5000)
-    {
-        return;
-    }
+    if (serialTelemetryTimer < 5000) return;
 
     DBG_PRINT("[TLM] serial_bytes_rx=");
     DBG_PRINT(serial_bytes_rx);
@@ -2222,73 +1494,48 @@ void maybePrintSerialTelemetry()
     serialTelemetryTimer = 0;
 }
 
+// ############################################################################
+// #                                                                          #
+// #  6.  SERIAL CON LA RASPBERRY                                             #
+// #                                                                          #
+// #  serialEvent5() se llama A MANO desde donde haga falta escuchar: el      #
+// #  callback automatico de Arduino casi nunca corre, porque el lazo se bloquea#
+// #  adentro de los while largos de las maniobras.                           #
+// #                                                                          #
+// #  El parser es una maquina de 4 estados guiada por los bytes de sync. Si se#
+// #  pierde un byte, el framing se recupera solo en el siguiente sync.       #
+// ############################################################################
+
 // Read Data from Raspberry by Serial TX-RX
 void serialEvent5()
 {
     // ------------------------------------------------------------------
-    //  TRAMA VIEJA SELLADA COMO FRESCA  (fix (6), apagado por defecto)
+    //  LIMITACION CONOCIDA, ANOTADA A PROPOSITO: LA TRAMA VIEJA SE SELLA
+    //  COMO FRESCA.
     //
-    //  Cuando el robot entra en una maniobra bloqueante nadie llama a
-    //  serialEvent5() -kFixIssue63KeepSerialDuringMotions esta en false-, y
-    //  los bytes de la Raspberry se apilan en el buffer de Serial5. Al volver
-    //  al lazo, la PRIMERA trama que se termina de parsear ejecuta
+    //  Durante una maniobra bloqueante nadie llama a serialEvent5(), asi que
+    //  los bytes de la Pi se apilan en el buffer de Serial5. Al volver al lazo,
+    //  la PRIMERA trama que se termina de parsear ejecuta
+    //      g_last_rx_ms = millis();
+    //  o sea que sella con la hora de AHORA un comando emitido ANTES de la
+    //  maniobra. El watchdog de comunicacion mide `millis() - g_last_rx_ms`,
+    //  asi que durante una vuelta ve "fresco" algo que puede tener segundos.
     //
-    //      g_last_rx_ms = millis();   // main.cpp, mas abajo
+    //  MEDIDO: durante maniobra el comando llega con p50 1849 ms y max 4677 ms
+    //  de atraso. En el peor caso el robot obedece UNA trama vieja antes de que
+    //  llegue la siguiente (la Pi manda a 66-86 Hz: ~15 ms despues).
     //
-    //  sellando con la hora de AHORA un comando que se emitio ANTES de la
-    //  maniobra. El watchdog de comunicacion (main.cpp:3227) mide
-    //  `millis() - g_last_rx_ms` y por lo tanto ve "fresco" algo que puede
-    //  tener segundos. Es el tercer problema que marco ChatGPT y que seguia
-    //  sin arreglar.
-    //
-    //  QUE HACE EL FIX: si paso demasiado tiempo desde la ultima vez que se
-    //  leyo el serial, todo lo que este en el buffer es anterior a ese hueco
-    //  -> se descarta y se resincroniza el parser, SIN tocar g_last_rx_ms.
-    //  Asi el watchdog sigue viendo el comando viejo como viejo hasta que
-    //  llegue una trama de verdad nueva. Es "exigir trama nueva
-    //  post-maniobra" sin cambiar el protocolo ni el lado de la Pi.
-    //
-    //  EL UMBRAL SALE DE LOS DATOS, no de la intuicion. Periodo del lazo
-    //  medido sobre las 6 corridas de pista del 22-ago (n = 4264 periodos,
-    //  intervalo entre cambios de ls/rs):
-    //
-    //      p50  35 ms     p90  95 ms     p99  445 ms     max 1640 ms
-    //
-    //      periodos > 100 ms   7,5 %
-    //      periodos > 150 ms   5,4 %
-    //      periodos > 250 ms   2,6 %      <- el default
-    //      periodos > 500 ms   0,8 %      <- estos son maniobras seguro
-    //
-    //  250 ms queda MUY por encima del lazo normal (p90 = 95) y por debajo de
-    //  las maniobras. Un falso positivo cuesta descartar una o dos tramas: la
-    //  Pi manda a 66-86 Hz, asi que la siguiente llega en ~15 ms y refresca
-    //  todo. Un falso negativo cuesta el watchdog ciego. La asimetria de
-    //  costos justifica pecar de sensible.
-    //
-    //  OJO: Serial5.clear() puede cortar una trama por la mitad, por eso hay
-    //  que resincronizar `serial5state`. El framing se recupera solo en el
-    //  siguiente byte de sync (255/254/253/252).
-    if (priority_fix_flags::kFixWatchdogTramaFresca)
-    {
-        static unsigned long ultimaLectura = 0;
-        const unsigned long ahora = millis();
-        if (ultimaLectura != 0 &&
-            (ahora - ultimaLectura) > priority_fix_flags::kSerialCiegoMs)
-        {
-            Serial5.clear();
-            serial5state = 0;      // el clear puede cortar una trama al medio
-            g_serial_drenados++;   // para verlo en la telemetria
-        }
-        ultimaLectura = ahora;
-    }
-
+    //  SE PROBO ARREGLARLO descartando el buffer si el serial estuvo ciego mas
+    //  de 250 ms. Nunca se valido en pista y se saco el 2026-09-06: el
+    //  falsador que se habia preregistrado -que el contador de descartes fuera
+    //  mayor que cero en una corrida con maniobras- era INOBSERVABLE, porque
+    //  ese contador no salia en la telemetria. Si se vuelve a intentar, lo
+    //  primero es publicarlo.
+    // ------------------------------------------------------------------
     while (Serial5.available() > 0)
     {
-        int data = Serial5.read(); // read serial code
-        if (fixIssue75Enabled())
-        {
-            serial_bytes_rx++;
-        }
+        int data = Serial5.read();
+        serial_bytes_rx++;
          
         if (data == SERIAL_SYNC_SPEED) // speed incoming
             serial5state = 0;
@@ -2339,10 +1586,7 @@ void serialEvent5()
             if (serialPayloadOutOfRange("silver_line", data, SERIAL_MAX_SILVER_LINE))
                 continue;
             silver_line = data;
-            if (fixIssue75Enabled())
-            {
-                serial_frames_rx++;
-            }
+            serial_frames_rx++;
             g_last_rx_ms = millis();   // trama completa: el comando esta fresco
         }
     }
@@ -2350,19 +1594,25 @@ void serialEvent5()
     maybePrintSerialTelemetry();
 }
 
-#if SUPERTEAM
-// SUPER TEMA: lee el comando de arranque del companiero (llega por la ESP32-MINI).
-// Se llama A MANO donde haga falta escuchar (igual criterio que serialEvent5).
-void serialEvent8()
-{
-    while (Serial8.available() > 0)
-    {
-        int data = Serial8.read();
-        if (data == SUPER_START)
-            superStart = true;
-    }
-}
-#endif
+// ############################################################################
+// #                                                                          #
+// #  7.  PRIMITIVAS DE MOVIMIENTO (bloqueantes)                              #
+// #                                                                          #
+// #  runTime      avanza/gira durante N ms                                   #
+// #  runAngle     gira hasta un angulo del BNO055, con timeout               #
+// #  runDistance  avanza N cm contando pulsos de encoder, con timeout        #
+// #  runDistanceEvacuacion  igual, pero corta si aparece una pared a <=18 cm #
+// #                                                                          #
+// #  LAS CUATRO SON BLOQUEANTES: el loop() no vuelve a correr hasta que      #
+// #  terminan. Por eso todas llaman a serviceMotionBackgroundTasks() en cada #
+// #  vuelta, que es el unico punto por donde siguen fluyendo la telemetria, la#
+// #  garra y el registrador de diagnostico mientras el robot maniobra.       #
+// #                                                                          #
+// #  Y NINGUNA PARSEA EL SERIAL: drenan un byte y lo tiran. Una maniobra     #
+// #  empezada se termina. Ver el punto 1.6 del panel.                        #
+// #                                                                          #
+// #  TODAS cortan si se apaga el switch (pin 32), en cualquier punto.        #
+// ############################################################################
 
 // HELPER FUNCTIONS //
 
@@ -2377,17 +1627,18 @@ void runTime(int speed, int dir, double steer, unsigned long long time)
         robot.steer(speed, dir, steer);
         serviceMotionBackgroundTasks();
         digitalWrite(13, HIGH);
+        // DRENA UN BYTE POR VUELTA Y LO TIRA: NO parsea la trama. Durante una
+        // maniobra el robot NO obedece comandos nuevos, a proposito. Ver
+        // "SERIAL DURANTE LAS MANIOBRAS" en el panel de configuracion.
         if (Serial5.available() > 0)
         {
-            if (fixIssue63Enabled() )
-            {
-                serialEvent5();
-            }
-            else
-            {
-                int lecturas = Serial5.read();
-                DBG_PRINT(lecturas);
-            }
+            // OJO: la lectura va en su PROPIA sentencia y NO adentro del
+            // DBG_PRINT. Con MODO_DIAGNOSTICO=1 la macro es `do {} while(0)` y
+            // DESCARTA SUS ARGUMENTOS: metida adentro, Serial5.read() no se
+            // llamaria y el buffer de Serial5 no se drenaria nunca.
+            const int lecturas = Serial5.read();
+            DBG_PRINT(lecturas);
+            (void)lecturas;
         }
 
         if (digitalRead(32) == 1)
@@ -2421,11 +1672,7 @@ void runAngle(int speed, int dir, double angle)
         bno.getEvent(&event);
         float currentAngle = event.orientation.x;
         serviceMotionBackgroundTasks();
-        if (Serial5.available() > 0 && fixIssue63Enabled())
-        {
-            serialEvent5();
-        }
-        if (fixIssue112Enabled() && (millis() - startTime) >= timeoutMs)
+        if ((millis() - startTime) >= timeoutMs)
         {
             DBG_PRINTLN("[WARN] runAngle timeout");
             break;
@@ -2519,13 +1766,12 @@ void runDistance(int speed, int dir, int Distance) {
     runTime(30,FORWARD,0,20);
     reset_enconder();
     int32_t  encoder = 25*Distance;
-    bool stopOnExit = fixIssue60Enabled();
     unsigned long startTime = millis();
     unsigned long timeoutMs = computeRunDistanceTimeoutMs(speed, Distance);
-   
+
     if (dir == FORWARD) {
         while (true) {
-            if (fixIssue60Enabled() && (millis() - startTime) >= timeoutMs) break;
+            if ((millis() - startTime) >= timeoutMs) break;   // no llego: se corta igual
             int32_t frCount = fr.pulseCount;
             int32_t flCount = fl.pulseCount;
             if (frCount >= encoder || flCount >= encoder) break;
@@ -2539,16 +1785,10 @@ void runDistance(int speed, int dir, int Distance) {
             digitalWrite(13, HIGH);
             delay(10);
            
-            if (Serial5.available() > 0) {
-                if (fixIssue63Enabled())
-                {
-                    serialEvent5();
-                }
-                else
-                {
-                    int lecturas = Serial5.read();
-                    DBG_PRINT(lecturas);
-                }
+            if (Serial5.available() > 0) {   // drena y tira: ver runTime()
+                const int lecturas = Serial5.read();
+                DBG_PRINT(lecturas);
+                (void)lecturas;
             }
            
             if (digitalRead(32) == 1) { // switch is off
@@ -2559,7 +1799,7 @@ void runDistance(int speed, int dir, int Distance) {
     }else{
          while (true)
         {
-            if (fixIssue60Enabled() && (millis() - startTime) >= timeoutMs) break;
+            if ((millis() - startTime) >= timeoutMs) break;   // no llego: se corta igual
             int32_t frCount = fr.pulseCount;
             int32_t flCount = fl.pulseCount;
 
@@ -2571,16 +1811,10 @@ void runDistance(int speed, int dir, int Distance) {
             DBG_PRINT(frCount);
             //DBG_PRINTLN(fr.pulseCount);
             delay(10);
-            if (Serial5.available() > 0) {
-                if (fixIssue63Enabled())
-                {
-                    serialEvent5();
-                }
-                else
-                {
-                    int lecturas = Serial5.read();
-                    DBG_PRINT(lecturas);
-                }
+            if (Serial5.available() > 0) {   // drena y tira: ver runTime()
+                const int lecturas = Serial5.read();
+                DBG_PRINT(lecturas);
+                (void)lecturas;
             }
            
             if (digitalRead(32) == 1) { // switch is off
@@ -2592,10 +1826,7 @@ void runDistance(int speed, int dir, int Distance) {
          
     }
 
-    if (stopOnExit)
-    {
-        robot.steer(0, dir, 0);
-    }
+    robot.steer(0, dir, 0);   // se frena SIEMPRE al salir, se haya llegado o no
 }
 
 
@@ -2605,12 +1836,11 @@ void runDistanceEvacuacion(int speed, int Distance) {
     runTime(30, FORWARD, 0, 20);
     reset_enconder();
     int32_t encoder = 25 * Distance;
-    bool stopOnExit = fixIssue60Enabled();
     unsigned long startTime = millis();
     unsigned long timeoutMs = computeRunDistanceTimeoutMs(speed, Distance);
 
     while (true) {
-        if (fixIssue60Enabled() && (millis() - startTime) >= timeoutMs) break;
+        if ((millis() - startTime) >= timeoutMs) break;   // no llego: se corta igual
         int32_t frCount = fr.pulseCount;
         int32_t flCount = fl.pulseCount;
         if (frCount >= encoder || flCount >= encoder) break;   // llego a la distancia pedida
@@ -2620,13 +1850,14 @@ void runDistanceEvacuacion(int speed, int Distance) {
         serviceMotionBackgroundTasks();
         delay(10);
 
-        if (Serial5.available() > 0) {
-            if (fixIssue63Enabled())
-                serialEvent5();
-            else {
-                int lecturas = Serial5.read();
-                DBG_PRINT(lecturas);
-            }
+        if (Serial5.available() > 0) {   // drena y tira: ver runTime()
+            // OJO: la lectura va en su PROPIA sentencia y NO adentro del
+            // DBG_PRINT. Con MODO_DIAGNOSTICO=1 la macro es `do {} while(0)` y
+            // DESCARTA SUS ARGUMENTOS: metida adentro, Serial5.read() no se
+            // llamaria y el buffer de Serial5 no se drenaria nunca.
+            const int lecturas = Serial5.read();
+            DBG_PRINT(lecturas);
+            (void)lecturas;
         }
 
         if (digitalRead(32) == 1) { // switch off
@@ -2635,8 +1866,7 @@ void runDistanceEvacuacion(int speed, int Distance) {
         }
     }
 
-    if (stopOnExit)
-        robot.steer(0, FORWARD, 0);
+    robot.steer(0, FORWARD, 0);   // se frena SIEMPRE al salir
 }
 
 // non-blocking delay that keeps processing serial and claw state
@@ -2652,7 +1882,32 @@ void nonBlockingDelay(unsigned long ms)
 }
 
 void accionNegro() {
+#if NEGRO_SALIDA_GIRO
+    // De que lado ESTUVO la pared antes de ver el negro: la memoria que se
+    // refresco durante toda la evacuacion. -1 = izquierda, +1 = derecha, 0 = no.
+    // La lectura del instante NO sirve: en la salida la pared se abre justo
+    // donde esta la cinta y el ultrasonido de ese lado ve vacio.
+    int ladoPared = 0;
+    if (g_evac_pared_lado != 0 &&
+        (millis() - g_evac_pared_ms) <= NEGRO_SALIDA_MEMORIA_MS)
+        ladoPared = g_evac_pared_lado;
+    DBG_PRINT("[EVAC] NEGRO salida: pared memoria=");
+    DBG_PRINT(g_evac_pared_lado);
+    DBG_PRINT(" edad_ms=");
+    DBG_PRINT(g_evac_pared_ms ? (long)(millis() - g_evac_pared_ms) : -1L);
+    DBG_PRINT(" -> lado=");
+    DBG_PRINTLN(ladoPared);
+#endif
     runDistance(30, FORWARD, 5);
+#if NEGRO_SALIDA_GIRO
+    // Giro hacia el lado CONTRARIO a la pared. runAngle: POSITIVO = derecha,
+    // NEGATIVO = izquierda (misma convencion que los verdes, case 5 / case 6).
+    if (ladoPared < 0)
+        runAngle(30, FORWARD,  NEGRO_SALIDA_GIRO_GRADOS);   // pared izq -> derecha
+    else if (ladoPared > 0)
+        runAngle(30, FORWARD, -NEGRO_SALIDA_GIRO_GRADOS);   // pared der -> izquierda
+    robot.steer(0, FORWARD, 0);
+#endif
     Serial5.write(249);
     reset_color_history();
     digitalWrite(RELAY, LOW);
@@ -2682,44 +1937,14 @@ void accionNegro() {
 }
 
 void accionPlateado() {
-    runDistance(30, FORWARD,3);
-    Serial5.write(249);
-    reset_color_history();
-    digitalWrite(RELAY, LOW);
-
-    // 1) romper la inercia (jiggle corto, como hace runDistance al arrancar)
-    runTime(20, BACKWARD, 0, 300);
-    runTime(20, FORWARD, 0, 300);
-
-    // 2) quedarse QUIETO leyendo serial mientras la RPi sale de evacuacion y
-    //    arranca la vision de linea (teardown ~1-2 s). Asi no se mueve con datos viejos.
-
+    runDistance(30, BACKWARD, 10);
+    runAngle(30, FORWARD, 90);
+    runDistanceEvacuacion(30, 30);   // avanza 30 cm pero corta si hay pared a <=18 cm
     robot.steer(0, FORWARD, 0);
-    unsigned long t0 = millis();
-    while (millis() - t0 < 800) {
-        serialEvent5();
-    }
-
-    // 3) limpiar lo stale de evacuacion para arrancar linea derecho
-
-    green_state = 0;
-    action = 7;
-    steer = 0;
-    speed = 0;
-    taskDone = true;
-
-    rutina = "linea";
+    reset_color_history();  // descarta muestras previas para no re-disparar con color stale
 }
 
-bool detectarNegro() {
-    color_detected = get_color_fresh();
-    return (color_detected == "Negro");
-}
 
-bool detectarPlateado() {
-    color_detected = get_color_fresh();
-    return (color_detected == "Plateado");
-}
 
 // Lecturas frescas consecutivas necesarias para confirmar un color antes de
 // actuar en evacuacion. Subir si hay falsos positivos; bajar si queda lento.
@@ -2732,6 +1957,35 @@ bool confirmarColor(const String &objetivo)
     for (uint8_t i = 0; i < EVAC_COLOR_CONFIRM_SAMPLES; i++)
     {
         if (get_color_fresh() != objetivo)
+            return false;
+    }
+    return true;
+}
+
+// Plateado en evacuacion: misma robustez temporal que el plateado de LINEA.
+// El primer get_color_fast() ya vio Plateado; exigimos 3 lecturas FRESCAS
+// adicionales consecutivas antes de ejecutar accionPlateado().
+constexpr uint8_t EVAC_PLATEADO_CONFIRM_SAMPLES = 3;
+bool confirmarPlateadoEvacuacion()
+{
+    for (uint8_t i = 0; i < EVAC_PLATEADO_CONFIRM_SAMPLES; i++)
+    {
+        if (get_color_fresh() != "Plateado")
+            return false;
+    }
+    return true;
+}
+
+// En LINEA el plateado tiene autoridad fisica. Exigimos TRES lecturas FRESCAS
+// adicionales al primer get_color_fast() que lo detecto: 4 ventanas filtradas
+// consecutivas en total. Cada ventana ya promedia 3 muestras APDS, por lo que
+// un reflejo aislado no puede mandar 0xF1. La camara no participa.
+constexpr uint8_t LINE_PLATEADO_CONFIRM_SAMPLES = 3;
+bool confirmarPlateadoLinea()
+{
+    for (uint8_t i = 0; i < LINE_PLATEADO_CONFIRM_SAMPLES; i++)
+    {
+        if (get_color_fresh() != "Plateado")
             return false;
     }
     return true;
@@ -2752,13 +2006,14 @@ bool procesarColorEvacuacion()
 
     if (color_detected == "Negro" && confirmarColor("Negro"))
     {
-        return false;
+        accionNegro();
+        return true;
     }
 
-    if (color_detected == "Plateado" && !silver_latch && confirmarColor("Plateado"))
+    if (color_detected == "Plateado" && !silver_latch && confirmarPlateadoEvacuacion())
     {
-        DBG_PRINTLN("[EVAC] Plateado confirmado -> accionPlateado");
-        accionNegro();
+        Serial.println("[EVAC] Plateado confirmado -> accionPlateado");
+        accionPlateado();
         silver_latch = true;  // ya atendido; no repetir hasta despegarse del plateado
         return true;
     }
@@ -2766,13 +2021,18 @@ bool procesarColorEvacuacion()
     return false;
 }
 
+// ############################################################################
+// #                                                                          #
+// #  8.  EVACUACION: colores, esquive, finales de carrera                    #
+// #                                                                          #
+// ############################################################################
+
 #define TARGET_DISTANCE 70.0 // distancia deseada en cm
 #define KP_DISTANCE 0.05     // constante proporcional para la distancia
 #define KP_ANGLE 0.05        // constante proporcional para el ángulo de rotación
 #define MAX_STEER 1          // valor máximo de steer permitido
 #define ANGLE_THRESHOLD 2.0  // umbral de inclinación en grados (yaw)
 #define TARGET_ANGLE 0       // ángulo objetivo (robot paralelo a la pared)
-float yaw = 0;               // Ángulo de rotación (yaw)
 float pitch=0;
 float leer_yaw()
 {
@@ -2788,11 +2048,6 @@ float leer_pitch()
 
     pitch = event.orientation.y; // eje que estás usando para inclinación
     return pitch;
-}
-void imprimir_yaw()
-{
-    DBG_PRINT("Yaw: ");
-    //DBG_PRINTLN(yaw);
 }
 int ajustarVelocidadPorPendiente(int velocidadBase)
 {
@@ -2831,6 +2086,60 @@ float calcularDiferenciaAngulo(float anguloActual, float anguloObjetivo)
     return error;
 }
 
+
+// Decide la correccion ANTES de action 2 usando la recuperacion que REALMENTE
+// hizo la Teensy, no intentando volver a ver la linea despues del plateado.
+void corregirEntradaPlateadoDesdeRecovery()
+{
+    const unsigned long ahora = millis();
+    const unsigned long edad = g_silver_rec_ms ? (ahora - g_silver_rec_ms)
+                                               : 0xFFFFFFFFUL;
+
+    // RECTA/GAP, sin recovery, o recovery viejo: ya venia bien orientado.
+    if (g_silver_rec_kind != SILVER_REC_LATERAL ||
+        g_silver_rec_pivot_sign == 0 ||
+        g_silver_rec_actual_deg < 5.0f ||
+        edad > SILVER_REC_MEMORY_MS)
+    {
+        robot.steer(0, FORWARD, 0);
+        return;
+    }
+
+    // "La mitad al sentido inverso": usamos la mitad del YAW FISICO realmente
+    // recorrido por el recovery. Asi un timeout o deslizamiento no se supone.
+    float objetivo = g_silver_rec_actual_deg * SILVER_REC_UNDO_FACTOR;
+    objetivo = constrain(objetivo, 0.0f, 30.0f);
+
+    const int signoCorreccion = -g_silver_rec_pivot_sign;
+    const float yaw0 = leer_yaw();
+    const unsigned long t0 = millis();
+
+    robot.steer(0, FORWARD, 0);
+    while (digitalRead(SWITCH) == 0)
+    {
+        serviceMotionBackgroundTasks();
+        if (Serial5.available() > 0)
+            serialEvent5();
+
+        const float girado = fabs(calcularDiferenciaAngulo(yaw0, leer_yaw()));
+        if (girado >= objetivo)
+            break;
+        if ((millis() - t0) >= SILVER_REC_UNDO_MAX_MS)
+            break;
+
+        robot.steer(SILVER_REC_UNDO_VEL, FORWARD,
+                    signoCorreccion > 0 ? RECUP_PIVOTE_ROT : -RECUP_PIVOTE_ROT);
+    }
+
+    robot.steer(0, FORWARD, 0);
+
+    // Consumir la memoria: este plateado ya fue corregido.
+    g_silver_rec_kind = SILVER_REC_NONE;
+    g_silver_rec_pivot_sign = 0;
+    g_silver_rec_actual_deg = 0.0f;
+    g_silver_rec_ms = 0;
+}
+
 void resetear_bno()
 {
     if (!bno.begin())
@@ -2841,68 +2150,10 @@ void resetear_bno()
     delay(200);
 }
 
-void avance_recto(String pared)
-{
-    leer_yaw();
-    leer_tof();
-    imprimir_tof();
-    // Calcular el error de ángulo correctamente con la función circular
-    float angle_error = calcularDiferenciaAngulo(yaw, TARGET_ANGLE); // Diferencia angular ajustada
 
-    // Si el ángulo de giro es mayor que el umbral, ignorar el ultrasonido y corregir el ángulo
-    if (abs(angle_error - TARGET_ANGLE) > ANGLE_THRESHOLD)
-    {
-        steer = KP_ANGLE * (-angle_error); // Invertir el signo del error angular
-        // Limitar el valor de steer entre [-MAX_STEER, MAX_STEER]
-        if (steer > MAX_STEER)
-            steer = MAX_STEER;
-        if (steer < -MAX_STEER)
-            steer = -MAX_STEER;
 
-        // Mover el robot con la corrección de ángulo
-        robot.steer(45, FORWARD, steer);
-
-        // Imprimir para depuración
-        DBG_PRINT("Corrigiendo con ángulo. Steer: ");
-        //DBG_PRINTLN(steer);
-    }
-    else
-    {
-        // El ángulo está alineado, utilizar sensores TOF para mantener la distancia
-        float distance_error = TARGET_DISTANCE - (pared == "left" ? distance_left_tof : distance_right_tof);
-
-        steer = KP_DISTANCE * -distance_error;
-
-        // Error de distancia a la pared
-
-        // Calcular la corrección para el steer basada en la distancia
-
-        steer = constrain(steer, -MAX_STEER, MAX_STEER); // Limitar steer
-
-        // Mover el robot utilizando la corrección de distancia
-        robot.steer(45, FORWARD, steer);
-
-        // Imprimir para depuración
-        DBG_PRINT("Corrigiendo con TOF. Steer: ");
-        //DBG_PRINTLN(steer);
-    }
-}
-
-void lado_pared()
-{
-    if (left_distance != 0 && right_distance != 0 && right_distance < left_distance)
-    {
-        wall = "right";
-    }
-    else
-    {
-        wall = "left";
-    }
-}
-void pelotita()
-{
-
-}
+// Prototipo: la funcion se define mas abajo, pero maniobraEsquive() la usa antes.
+bool retrocederHastaFinales(int velocidad);
 
 // Decide si hay que esquivar en evacuacion. Dos casos separados:
 //  - Esquina de deposito: la camara ve triangulo rojo/verde (green_state 8/9)
@@ -2926,105 +2177,35 @@ void maniobraEsquive()
     runAngle(30, FORWARD, 90);
     runDistance(30, FORWARD, 27);
     runAngle(30, FORWARD, 90);
-    while (rutina == "evacuacion" && digitalRead(32) == 0) {
-        robot.steer(30, BACKWARD, 0);
-        serialEvent5();
-        if (digitalRead(FCL) == 1 && digitalRead(FCR) == 1)
-            break;
-    }
+
+    // Finales de carrera con pull-down + antirrebote de 50 ms.
+    // Si no se confirman antes del timeout, no continuar la maniobra.
+    if (!retrocederHastaFinales(20))
+        return;
+
     runAngle(30, FORWARD, -90);
 }
 
 
-// ============================================================================
-//  TOOLKIT CHALLENGE — funciones para las FLAGS de arriba (ver PLAYBOOK)
-// ============================================================================
-// --- Contador de verdes + paridad (D2.1) ---
-#define DOBLE_CUENTA_COMO 2     // un doble verde, suma 2 o 1? (preguntar al arbitro)
+// CONTADOR DE MARCAS VERDES.
+// HOY QUEDA SIEMPRE EN 0: el contador que lo incrementaba era del desafio de
+// Roboliga (paridad de verdes para elegir el lado del esquive e invertir las
+// zonas de deposito) y se saco el 2026-09-06 junto con el resto de ese modo.
+// Se conserva la variable porque la telemetria la publica en el campo `verd`,
+// y porque el case 6 y el case 5 la miran: con el contador apagado esa
+// comparacion da siempre la rama normal.
 int  verdes_total = 0;
-bool verde_estaba = false;
 
-bool esMarcaVerde(int gs)
-{
-    return (gs == 1 || gs == 2 || gs == 3);
-}
+// Cooldown despues de cruzar la linea roja, para que un rebote del sensor no
+// vuelva a disparar la parada.
+unsigned long rojo_ignorar_hasta = 0;
 
-// Devuelve 1, 2 o 3 si el verde se mantiene confirmado.
-// Devuelve 0 si fue falso, cambió o desapareció.
-int confirmarMarcaVerde(unsigned long tiempoMs = 120)
-{
-    int gsInicial = green_state;
 
-    if (!esMarcaVerde(gsInicial))
-        return 0;
-
-    unsigned long inicio = millis();
-
-    while (millis() - inicio < tiempoMs)
-    {
-        serialEvent5();   // vuelve a leer el serial de la Raspberry
-
-        if (green_state == 0)
-            return 0;
-        if (green_state != gsInicial)
-            return 0;
-
-        delay(5);
-    }
-
-    return gsInicial;
-}
-
-void actualizarContadorVerdes()
-{
-    serialEvent5();
-
-    if (green_state == 0)
-    {
-        verde_estaba = false;
-        return;
-    }
-
-    int verde_confirmado = confirmarMarcaVerde();
-
-    if (esMarcaVerde(verde_confirmado) && !verde_estaba)
-    {
-        verdes_total += (verde_confirmado == 3) ? DOBLE_CUENTA_COMO : 1;
-        verde_estaba = true;
-
-#if SUPERTEAM
-        // SUPER TEMA: avisar el verde confirmado al companiero (via ESP32-MINI)
-        if      (verde_confirmado == 1) Serial8.write(SUPER_VERDE_IZQ);
-        else if (verde_confirmado == 2) Serial8.write(SUPER_VERDE_DER);
-        else if (verde_confirmado == 3) Serial8.write(SUPER_VERDE_DOBLE);
-#endif
-
-        DBG_PRINT("[VERDE CONTADO] gs=");
-        DBG_PRINT(verde_confirmado);
-        DBG_PRINT(" total=");
-        DBG_PRINTLN(verdes_total);
-
-        digitalWrite(BUZZER, HIGH);
-        delay(40);
-        digitalWrite(BUZZER, LOW);
-    }
-}
-bool verdesPar()   { return (verdes_total % 2) == 0; }
-bool verdesImpar() { return (verdes_total % 2) == 1; }
-// --- Lado de esquive por paridad (D2.2) ---
-int ladoEsquiveParidad() { return verdesPar() ? 1 : 2; }   // 1=izq, 2=der
-// --- Invertir zonas de deposito (D2.3) ---
-int trianguloEfectivo(int gs, bool invertir)
-{
-    if (!invertir) return gs;
-    if (gs == 8) return 9;
-    if (gs == 9) return 8;
-    return gs;
-}
-// --- Linea roja simple vs doble por MOVIMIENTO (MODO_ROJO==2) ---
-unsigned long rojo_ignorar_hasta = 0;   // cooldown anti-oscilacion tras el giro 180
-// ============================================================================
-
+// ############################################################################
+// #                                                                          #
+// #  9.  ANTI-ATASCO (loma de burro) Y TRACCION EN RAMPA                     #
+// #                                                                          #
+// ############################################################################
 
 // ============================================================================
 //  DETECCION DE ATASCO — loma de burro (palos sobre la linea).
@@ -3076,21 +2257,6 @@ bool chequearAtasco(int comandoVel)
         long flD = labs(flNow - stuck_lastFl);   // giro rueda IZQUIERDA en ~100 ms
         stuck_lastFr = frNow; stuck_lastFl = flNow;
         long minRueda = min(frD, flD);
-
-        // telemetria de las TRASERAS (para ver si el boost las mueve en la rampa)
-        static long stuck_lastBl = 0, stuck_lastBr = 0;
-        long blNow = (long)bl.pulseCount, brNow = (long)br.pulseCount;
-        long blD = labs(blNow - stuck_lastBl);
-        long brD = labs(brNow - stuck_lastBr);
-        stuck_lastBl = blNow; stuck_lastBr = brNow;
-
-        // [CAL] atasco silenciado (rampa ya entendida) — reactivar si hace falta
-        // DBG_PRINT("[CAL] frD="); DBG_PRINT(frD);
-        // DBG_PRINT(" flD="); DBG_PRINT(flD);
-        // DBG_PRINT(" blD="); DBG_PRINT(blD);
-        // DBG_PRINT(" brD="); DBG_PRINT(brD);
-        // DBG_PRINT(" min="); DBG_PRINT(minRueda);
-        // DBG_PRINT(" pitch="); DBG_PRINTLN(pitch, 1);
 
         // las DOS ruedas giran (recta/curva/pivote) -> avanza bien -> reinicio el timer
         if (minRueda >= UMBRAL_RUEDA)
@@ -3149,6 +2315,15 @@ static float sanef(float v)
 {
     return (isnan(v) || isinf(v)) ? 0.0f : v;
 }
+
+// ############################################################################
+// #                                                                          #
+// #  10.  TELEMETRIA JSON HACIA LA ESP32 (Serial8, 10 Hz)                    #
+// #                                                                          #
+// #  NO INTRUSIVA POR DISENIO: si el buffer TX no tiene lugar, DESCARTA el   #
+// #  frame. Nunca frena el control. La telemetria MIRA, no toca: por eso aca no#
+// #  se llama a getSpeed(), que le corromperia el promedio movil al PID.     #
+// ############################################################################
 
 void enviarTelemetria()
 {
@@ -3385,12 +2560,22 @@ void delayTelemetria(unsigned long ms)
 inline void delayTelemetria(unsigned long ms) { delay(ms); }
 #endif
 
+// ############################################################################
+// #                                                                          #
+// #  11.  setup()  -  arranque y verificacion de sensores                    #
+// #                                                                          #
+// #  SI EL BNO055 NO ARRANCA, EL ROBOT NO ARRANCA: parpadeo + chicharra para #
+// #  siempre. Es deliberado. Sin IMU no hay runAngle, y sin runAngle el robot#
+// #  no puede hacer ninguna maniobra: es mejor que se note en el banco de    #
+// #  pruebas que a mitad de la corrida.                                      #
+// #  Si el que no arranca es el APDS (color), el robot SI arranca: avisa con 3#
+// #  parpadeos y sigue. Se puede seguir la linea sin color; lo que se pierde es#
+// #  la entrada a evacuacion y la deteccion del rojo final.                  #
+// ############################################################################
+
 void setup()
 {
-#if MODO_DIAGNOSTICO
-    Serial.begin(115200);
-    diagInicio();
-#endif
+    DIAG_SETUP();   // registrador CSV de 200 Hz: VACIO en competencia (ver diagnostico.h)
 
     robot.steer(0, 0, 0);
     // claw.lift();  // Moved to begin()
@@ -3407,9 +2592,6 @@ void setup()
     pinMode(RELAY, OUTPUT);          
 //Serial1.begin(57600);          // for reading IMU
     Serial5.begin(115200);         // for reading data from rpi and state
-#if SUPERTEAM
-    Serial8.begin(115200);         // SUPER TEMA: puente con la ESP32-MINI (RX=pin34 / TX=pin35)
-#endif
 #if TELEMETRIA
     telemetria.begin(TLM_BAUD);    // TELEMETRIA: abre Serial8 hacia la ESP32-MINI (AP + GUI)
 #endif
@@ -3418,41 +2600,15 @@ void setup()
     // Initialise BNO055
     if (!bno.begin())
     {
-#if MODO_BANCO
-        // NO se cuelga: el barrido no necesita la IMU para decidir.
-        g_banco_sin_imu = 1;
-#else
         handleBnoInitFailure();
-#endif
     }
-#if MODO_BANCO
-    if (!g_banco_sin_imu)
-#endif
     bno.setExtCrystalUse(true);
 
-#if !MODO_BANCO   // el barrido no usa color, ni ToF, ni garra, ni el 0xFA
     // Initialise APDS9960 Color Sensor
     color_sensor_ok = apds.begin();
     if (!color_sensor_ok)
     {
-        if (fixIssue62Enabled())
-        {
-            notifyOptionalSensorWarning();
-        }
-    }
-    else
-    {
-        //DBG_PRINTLN("Device initialized!");
-    }
-
-    // enable color sensign mode
-    if (fixIssue61Enabled() || fixIssue62Enabled())
-    {
-        if (color_sensor_ok)
-        {
-            apds.enableColor(true);
-            apds.enableProximity(true);
-        }
+        notifyOptionalSensorWarning();   // 3 parpadeos + chicharra, y sigue igual
     }
     else
     {
@@ -3483,16 +2639,13 @@ void setup()
     // apagado y puerto mudo, en la pista y delante del arbitro.
     // Regla general: un setTimeout() se configura en el mismo bloque donde se
     // construye el objeto, nunca despues de la primera llamada bloqueante.
-    // I2C a 400 kHz. Sin esto el bus corre al default de Wire.begin() en
-    // Teensy 4.x, que es 100 kHz, y TODO lo que cuelga del bus lo paga: las dos
-    // lecturas del BNO055 por telemetria, el colorDataReady() del APDS9960 y
-    // los dos ToF. APAGADO POR DEFECTO: los pull-up internos del Teensy 4.1 son
-    // debiles y hay tres esclavos en el bus. Ver priority_fix_flags.h.
-    if (fixI2cRapidoEnabled())
-    {
-        Wire.setClock(priority_fix_flags::kI2cHz);
-    }
-
+    // EL BUS I2C CORRE A 100 kHz (el default de Wire.begin() en Teensy 4.x) y se
+    // deja asi A PROPOSITO. Subirlo a 400 kHz dividiria por 4 el costo del
+    // BNO055, del APDS9960 y de los dos ToF, PERO los pull-up internos del
+    // Teensy 4.1 son debiles y hay TRES esclavos colgados del bus. Nunca se
+    // midio en banco: un bus lento anda, un bus que se cuelga deja al robot
+    // mudo en la pista. Si algun dia se prueba, es un Wire.setClock(400000UL)
+    // aca, y hay que mirar 10 minutos que ningun sensor devuelva basura.
     left_tof.setTimeout(500);
     right_tof.setTimeout(500);
 
@@ -3501,215 +2654,99 @@ void setup()
     // admitido 20 ms; nunca se habia llamado. En linea los ToF ya no se leen,
     // asi que esto NO cambia el periodo del seguimiento de linea: importa en
     // seguimiento de pared, que si los relee.
-    if (fixTofPresupuestoEnabled())
-    {
-        left_tof.setMeasurementTimingBudget(priority_fix_flags::kTofBudgetUs);
-    }
+    left_tof.setMeasurementTimingBudget(TOF_PRESUPUESTO_US);
     left_tof.startContinuous();
 
     right_tof.init();
-    if (fixTofPresupuestoEnabled())
-    {
-        right_tof.setMeasurementTimingBudget(priority_fix_flags::kTofBudgetUs);
-    }
+    right_tof.setMeasurementTimingBudget(TOF_PRESUPUESTO_US);
     right_tof.startContinuous();
-#endif   // !MODO_BANCO
-    pinMode(FCL, INPUT);
-    pinMode(FCR, INPUT);
+    pinMode(FCL, INPUT_PULLDOWN);
+    pinMode(FCR, INPUT_PULLDOWN);
 
     // Inicializar la garra después de setup
-#if !MODO_BANCO
     claw.begin();
     for (int i = 0; i < 20; i++)
     {
         Serial5.write(0xFA);
         delay(100);
     }
-#endif   // !MODO_BANCO: la garra y los 2 s de 0xFA no hacen falta en el barrido
 
 }
 
 
-
-#if MODO_BANCO
-// Marcas que van a la columna `ram` del CSV para que el analizador sepa que
-// tramo es cual. 0 = pausa entre segmentos.
-#define BANCO_ROT   50   // barrido de rotation a velocidad fija
-#define BANCO_VEL   60   // barrido de velocidad a rotation = 1
-#define BANCO_FRENO_MARCA 70   // barrido del freno delantero
-
-static bool bancoTerminado = false;
-
-// Mantiene una consigna `ms` milisegundos, drenando el registrador y cortando
-// si se apaga el switch. Devuelve false si hubo que cortar.
-bool bancoSostener(int vel, double rot, int marca, unsigned long ms)
+bool retrocederHastaFinales(int velocidad)
 {
-    g_line_branch = marca;
-    unsigned long t0 = millis();
-    while (millis() - t0 < ms)
+    const unsigned long CONFIRMACION_MS = 50;
+    const unsigned long TIMEOUT_MS = 20000;
+
+    unsigned long inicio = millis();
+    unsigned long ambosDesde = 0;
+
+    while (digitalRead(SWITCH) == 0)
     {
-        if (digitalRead(SWITCH) == 1)      // switch apagado: parar YA
+        robot.steer(velocidad, BACKWARD, 0);
+        serialEvent5();
+
+        bool fcl = (digitalRead(FCL) == HIGH);
+        bool fcr = (digitalRead(FCR) == HIGH);
+
+        // Los DOS tienen que permanecer presionados continuamente.
+        if (fcl && fcr)
         {
-            robot.steer(0, FORWARD, 0);
-            g_line_branch = 0;
-            return false;
-        }
-        robot.steer(vel, FORWARD, rot);
-        DIAG_TICK();
-    }
-    return true;
-}
-
-bool bancoPausa(unsigned long ms)
-{
-    return bancoSostener(0, 0.0, 0, ms);
-}
-
-// Banco del FRENO DELANTERO. Lo pidio Benjamin el 26-ago: "necesito probar si
-// se puede girar una rueda delantera y mover las otras 3".
-//
-// QUE CONTESTA, y por que hace falta un banco y no una pasada de pista:
-// con 4 ruedas fijas la posicion LONGITUDINAL del centro de giro NO se puede
-// imponer por consigna -FL y BL comparten posicion lateral, asi que comparten
-// velocidad de rodadura-. Solo se puede correr por DINAMICA, cambiando donde
-// estan las fuerzas de friccion. Eso NO es calculable sin conocer peso, reparto
-// y agarre: hay que MEDIRLO. Y en pista no se puede, porque la vision mete
-// ruido y el robot no repite dos veces la misma entrada.
-//
-// EL BARRIDO. Con `rotation` FIJO y velocidad FIJA, se barre solo la consigna
-// de la rueda DELANTERA INTERNA:
-//     kFrenoComoSteer  = steer() exacto              <- CONTROL NEGATIVO
-//     +1.0  adelante a velocidad completa
-//      0.0  quieta                                   <- lo que pidio Benjamin
-//     -0.5  reversa a media velocidad
-//     -1.0  reversa a velocidad completa
-// Los dos signos de giro, dos pasadas, para ver si es simetrico.
-//
-// QUE SE MIDE DESPUES, con los CSV:
-//   * grados/s reales (gz del BNO) para cada factor -> cuanto gira
-//   * avance del centro por los encoders            -> cuanto avanza
-//   * radio = avance/giro                           -> el radio que traza
-//   * y comparando avance de FL contra BL: si el centro de giro se corrio
-//     adelante, la delantera interna recorre MENOS que la trasera interna.
-//     ESE es el numero que dice si la idea funciona.
-//
-// SEGURIDAD: las 4 ruedas en el piso y espacio libre. Con factor -1.0 la
-// delantera interna va en reversa contra el piso: es el mayor scrub de todo
-// lo que se probo. Mirar la silicona entre segmentos. El switch corta.
-void bancoFrenoDelantero()
-{
-    static const double FACT[] = { DriveBase::kFrenoComoSteer, 1.0, 0.0, -0.5, -1.0 };
-    const double ROT = 0.60;          // rotation fijo, curva cerrada tipica
-    const int    VEL = 55;            // la velocidad de curva que se usa hoy
-    const unsigned long SOSTEN = 1500, PAUSA = 1000;
-
-    for (int rep = 0; rep < 2; rep++)
-    {
-        for (unsigned i = 0; i < sizeof(FACT) / sizeof(FACT[0]); i++)
-        {
-            for (int sg = 0; sg < 2; sg++)
+            if (ambosDesde == 0)
             {
-                double rot = (sg == 0) ? ROT : -ROT;
-                if (!bancoPausa(PAUSA)) return;
-                g_line_branch = BANCO_FRENO_MARCA;
-                unsigned long t0 = millis();
-                while (millis() - t0 < SOSTEN)
-                {
-                    if (digitalRead(SWITCH) == 1)
-                    {
-                        robot.steer(0, FORWARD, 0);
-                        g_line_branch = 0;
-                        return;
-                    }
-                    robot.steerFrenoDelantero(VEL, FORWARD, rot, FACT[i]);
-                    DIAG_TICK();
-                }
-                g_line_branch = 0;
+                ambosDesde = millis();
+            }
+
+            if (millis() - ambosDesde >= CONFIRMACION_MS)
+            {
+                robot.steer(0, FORWARD, 0);
+                return true;
             }
         }
-    }
-    robot.steer(0, FORWARD, 0);
-    g_line_branch = 0;
-    bancoTerminado = true;
-}
-
-void bancoBarrido()
-{
-    // Cada segmento: 1,5 s de consigna + 1,0 s quieto. Los dos signos, porque
-    // una asimetria izquierda/derecha es en si misma un hallazgo (rueda en el
-    // aire, un motor distinto, la trocha mal repartida).
-    static const double ROTS[] = { 0.40, 0.50, 0.60, 0.70, 0.85, 1.00 };
-    // 26-ago: se extendio de {25,35,45,55,70} a llegar hasta 110.
-    //
-    // POR QUE. La fase 2 pregunta si el giro SATURA al subir la velocidad. Con
-    // el tope en 70 la respuesta medida fue "no satura": la constante da 1,69 a
-    // 1,86 grados/s por rpm en TODO el rango, y el PWM medio en el punto mas
-    // exigido llego a 157 de 255 -o sea que al motor le sobraba el 38 %-.
-    //
-    // Asi que la pregunta quedo abierta ARRIBA de 70, que es justo donde
-    // importa: a 70 rpm el robot gira a 123-128 grados/s, y hace falta saber si
-    // eso sigue escalando o si ahi aparece el scrub de las 4 fijas de silicona.
-    //
-    // SEGURIDAD: esto es MODO_BANCO, no toca el firmware de competencia. El
-    // switch corta en cualquier punto. Si el robot chilla, huele raro o la
-    // bateria se hunde, apagar y anotar hasta donde llego: ESE es el dato.
-    static const int    VELS[] = { 25, 35, 45, 55, 70, 90, 110 };
-    const int VEL_BASE = 45;
-    const unsigned long SOSTEN = 1500, PAUSA = 1000;
-
-    for (int rep = 0; rep < 2; rep++)          // dos pasadas: repetibilidad
-    {
-        for (unsigned i = 0; i < sizeof(ROTS) / sizeof(ROTS[0]); i++)
+        else
         {
-            if (!bancoPausa(PAUSA)) return;
-            if (!bancoSostener(VEL_BASE,  ROTS[i], BANCO_ROT, SOSTEN)) return;
-            if (!bancoPausa(PAUSA)) return;
-            if (!bancoSostener(VEL_BASE, -ROTS[i], BANCO_ROT, SOSTEN)) return;
+            // Si cualquiera se suelta, empieza a contar de nuevo.
+            ambosDesde = 0;
+        }
+
+        // Seguridad por si un final nunca llega.
+        if (millis() - inicio >= TIMEOUT_MS)
+        {
+            robot.steer(0, FORWARD, 0);
+            return false;
         }
     }
-    // Fase 2: a rotation = 1, barrer la velocidad. Si los grados por segundo se
-    // APLANAN al subir la velocidad, el techo es de par y el problema es mecanico.
-    for (int rep = 0; rep < 2; rep++)
-    {
-        for (unsigned i = 0; i < sizeof(VELS) / sizeof(VELS[0]); i++)
-        {
-            if (!bancoPausa(PAUSA)) return;
-            if (!bancoSostener(VELS[i], 1.0, BANCO_VEL, SOSTEN)) return;
-        }
-    }
+
     robot.steer(0, FORWARD, 0);
-    g_line_branch = 0;
-    bancoTerminado = true;
+    return false;
 }
-#endif   // MODO_BANCO
+
+// ############################################################################
+// #                                                                          #
+// #  12.  loop()  -  idle / arranque / linea / rescate / evacuacion          #
+// #                                                                          #
+// #  TRES ESTADOS SEGUN EL SWITCH (pin 32):                                  #
+// #                                                                          #
+// #    switch APAGADO (==1)  -> lazo de IDLE: motores en cero, garra arriba, #
+// #       LED y luz roja parpadeando, y se resetea TODO el estado de la corrida.#
+// #       Es tambien el modo de CALIBRACION: la telemetria y el sensor de color#
+// #       siguen fluyendo, asi que se pueden mirar los valores del APDS sin  #
+// #       riesgo de que el robot se mueva.                                   #
+// #                                                                          #
+// #    switch RECIEN ENCENDIDO (==0 y !startUp) -> arranque: dos sacudones   #
+// #       cortos para romper la inercia y avisar 0xF9 a la Pi.               #
+// #                                                                          #
+// #    switch ENCENDIDO -> las tres rutinas, en este orden:                  #
+// #         rutina == "linea"       seguimiento + maniobras (el grueso)      #
+// #         rutina == "rescate"     zona de evacuacion, garra                #
+// #         rutina == "evacuacion"  busqueda de pared y deposito             #
+// #                                                                          #
+// #  EL SWITCH CORTA EN CUALQUIER PUNTO: todos los while largos lo miran.    #
+// ############################################################################
 
 void loop()
 {
-#if MODO_BANCO
-    // El barrido REEMPLAZA al programa normal: no hay maquina de estados, no hay
-    // vision, no hay serial de la RPi. Solo consignas al tren motriz y registro.
-    DIAG_TICK();
-    if (digitalRead(SWITCH) == 0 && !bancoTerminado)
-    {
-#if BANCO_FRENO
-        bancoFrenoDelantero();
-#else
-        bancoBarrido();
-#endif
-    }
-    else
-    {
-        robot.steer(0, FORWARD, 0);
-        if (bancoTerminado)
-        {
-            // terminado: LED fijo. Apagar y prender el switch para repetir.
-            digitalWriteFast(LED_BUILTIN, HIGH);
-            if (digitalRead(SWITCH) == 1) bancoTerminado = false;
-        }
-    }
-    return;
-#endif
-
     DIAG_TICK();
     // DIAGNOSTICO: periodo del loop y su pico (se resetea al mandar el frame).
     {
@@ -3732,30 +2769,22 @@ void loop()
         claw.lift();
         claw.sortLeft();
         Serial5.clear();
-        esquinas_negro[0] = 0;
-        esquinas_negro[1] = 0;
-        esquinas_negro[2] = 0;
-        first_rescate = 1;
-        final_rescate = 1;
         evacuacion_iniciada = false;
         evacuacion_straight = false;
         silver_latch = false;
         action = 7;
         startUp = false;
-        g_recup_pasos = 0;
-        g_recup_giros = 0;
         g_recup_signo = 0;
-        g_recup_ultimo_steer = 0.0;
-        g_recup_ultimo_steer_ms = 0;
         g_recup_rumbo_camino_rx = 0.0;
         g_recup_rumbo_camino_rx_ms = 0;
         g_recup_episodio_activo = false;
         g_recup_habilitada = false;
         g_recup_gs0_desde = 0;
-        verde_stop=false;
-        last_right_distance = 0;
-        right_jump_counter = 0;
-        verdes_total = 0; verde_estaba = false; rojo_ignorar_hasta = 0;   // === CHALLENGE: reset al reiniciar ===
+        g_gap_retro_pulsos = 0;
+        resetGapState();
+        rojo_ignorar_hasta = 0;
+        g_evac_pared_lado = 0;
+        g_evac_pared_ms = 0;
         taskDone = true;
         Serial5.write(255);
         verdes_total=0;
@@ -3806,21 +2835,6 @@ void loop()
     }
     else if (digitalRead(32) == 0 && !startUp)
     {
-#if SUPERTEAM
-        // SUPER TEMA: ya en modo funcionamiento, esperar el 'start' del companiero
-        // (BLE desde el Spike / BT clasico desde la ESP32). Parpadea el LED rojo.
-        super_fin_enviado = false;
-        Serial8.clear();                    // descartar 'S' viejos del buffer (evita auto-start tras LoP)
-        Serial8.write(SUPER_REARM);         // re-arm: pedir a la C3 que reenvie el start
-        while (!superStart && digitalRead(32) == 0) {
-            serialEvent8();                 // escuchar la ESP32 a mano (el loop se bloquea)
-            digitalWrite(LED_ROJO, HIGH);
-            delay(120);
-            digitalWrite(LED_ROJO, LOW);
-            delay(120);
-        }
-        superStart = false;                 // consumir el comando para la proxima corrida
-#endif
         digitalWrite(LED_BUILTIN, LOW);
         digitalWrite(BUZZER, LOW);
         digitalWrite(LED_ROJO, LOW);
@@ -3834,10 +2848,15 @@ void loop()
         evacuacion_straight = false;
         silver_latch = false;
         rescateAvisado = false;
+        g_evac_pared_lado = 0;
+        g_evac_pared_ms = 0;
+        g_silver_rec_kind = SILVER_REC_NONE;
+        g_silver_rec_pivot_sign = 0;
+        g_silver_rec_actual_deg = 0.0f;
+        g_silver_rec_ms = 0;
         claw.lift();
         claw.depositCenter();
         action = 7;
-        verde_accion=false;
         Serial5.write(249);
 
 
@@ -3848,140 +2867,86 @@ void loop()
         digitalWrite(LED_BUILTIN, HIGH);
         digitalWrite(BUZZER, LOW);
         digitalWrite(LED_ROJO, HIGH);
-        // int lectura = ultrasonic.read();
-        /*if(steer<30 or steer>150){
-            counter++;
-        }
-        if(laststeer<30 and steer>30 and counter>15){
-            runTime(20,1,0.5,500);
-            counter=0;
-        }
-        if(laststeer>150 and steer<150 and counter>15){
-            runTime(20,1,-0.5,500);
-            counter=0;
-        }
-        */
         while (rutina == "linea" && digitalRead(32) == 0)
         {
             serialEvent5();
 
             // WATCHDOG DE COMUNICACION. Si la Raspberry dejo de hablar, frenar.
             // Ejecutar una orden vieja indefinidamente es peor que quedarse
-            // quieto: el robot se va de la pista solo. Ver priority_fix_flags.h.
-            if (fixWatchdogComunicacionEnabled())
+            // quieto: el robot se va de la pista solo. Ver el punto 1.5 del panel.
+            // Si NUNCA llego una trama, `g_last_rx_ms` vale 0. Ese es el caso
+            // MAS peligroso -la Pi muerta desde el arranque, el robot ejecutando
+            // el default- asi que la cuenta arranca al entrar al lazo de linea.
+            if (g_wd_ref_ms == 0)
+                g_wd_ref_ms = millis();
+            const unsigned long ref = g_last_rx_ms ? g_last_rx_ms : g_wd_ref_ms;
+            const long edadRx = (long)(millis() - ref);
+            if ((unsigned long)edadRx > WATCHDOG_MS)
             {
-                // Si NUNCA llego una trama, `g_last_rx_ms` vale 0. La version
-                // anterior calculaba edadRx = -1 en ese caso y la comparacion
-                // `edadRx >= 0` lo dejaba pasar: con la Raspberry muerta DESDE
-                // EL ARRANQUE -que es el caso mas peligroso, porque el robot
-                // nunca recibe nada y ejecuta el default- el watchdog no
-                // disparaba nunca. Se cuenta desde la entrada al lazo de linea.
-                // (Auditoria de ChatGPT, 25-ago.)
-                if (g_wd_ref_ms == 0)
-                    g_wd_ref_ms = millis();
-                const unsigned long ref = g_last_rx_ms ? g_last_rx_ms
-                                                       : g_wd_ref_ms;
-                const long edadRx = (long)(millis() - ref);
-                if ((unsigned long)edadRx > priority_fix_flags::kWatchdogMs)
-                {
-                    if (g_wd_stale_ms == 0)
-                        g_wd_stale_ms = millis();
-                }
-                else
-                {
-                    g_wd_stale_ms = 0;
-                }
+                if (g_wd_stale_ms == 0)
+                    g_wd_stale_ms = millis();
+            }
+            else
+            {
+                g_wd_stale_ms = 0;
+            }
 
-                // confirmacion por TIEMPO: no depende del periodo del lazo,
-                // que el otro fix de priority_fix_flags.h cambia a proposito
-                if (g_wd_stale_ms != 0 &&
-                    (millis() - g_wd_stale_ms)
-                        >= priority_fix_flags::kWatchdogConfirmaMs)
+            // La confirmacion es por TIEMPO y no por vueltas del lazo: al sacar
+            // los ToF el periodo del lazo bajo de ~30 ms a menos de 10, y un
+            // criterio de seguridad no puede cambiar de significado porque se
+            // toque otra cosa.
+            if (g_wd_stale_ms != 0 &&
+                (millis() - g_wd_stale_ms)
+                    >= WATCHDOG_CONFIRMA_MS)
+            {
+                if (!g_wd_activo)
                 {
-                    if (!g_wd_activo)
-                    {
-                        g_wd_activo = true;
-                        DBG_PRINT("[WD] sin tramas hace ");
-                        DBG_PRINT(edadRx);
-                        DBG_PRINTLN(" ms: FRENO");
-                    }
-                    robot.steer(0, FORWARD, 0);
-                    digitalWrite(LED_BUILTIN, (millis() / 150) % 2);
-                    continue;          // no se decide nada con datos rancios
+                    g_wd_activo = true;
+                    DBG_PRINT("[WD] sin tramas hace ");
+                    DBG_PRINT(edadRx);
+                    DBG_PRINTLN(" ms: FRENO");
                 }
-                if (g_wd_activo)
-                {
-                    g_wd_activo = false;
-                    DBG_PRINTLN("[WD] volvieron las tramas: sigo");
-                }
+                robot.steer(0, FORWARD, 0);
+                digitalWrite(LED_BUILTIN, (millis() / 150) % 2);
+                continue;          // no se decide nada con datos rancios
+            }
+            if (g_wd_activo)
+            {
+                g_wd_activo = false;
+                DBG_PRINTLN("[WD] volvieron las tramas: sigo");
             }
 
             DIAG_TICK();   // drenaje del registrador DURANTE el seguimiento de linea
             enviarTelemetria();   // TELEMETRIA (seguimiento de linea)
             bool plateadoDetectado = false;
             color_detected = get_color_fast();
-            if (fixLazoLineaSensoresBloqueantesEnabled())
-            {
-                // Los ToF NO se leen aca a proposito: nadie los consume durante
-                // el seguimiento de linea, y costaban ~30 ms de espera activa
-                // por vuelta. De los ultrasonidos solo hace falta el frontal.
-                // Ver el comentario largo en priority_fix_flags.h.
-                leer_ultrasonido_frontal();
-            }
-            else
-            {
-                leer_tof();
-                leer_ultrasonidos();
-            }
-            if (CONTAR_VERDES || SUPERTEAM) actualizarContadorVerdes();   // === CHALLENGE D2.1 / SUPER TEMA ===
-           
-            if (color_detected == "Plateado") {   // confirmo 2 lecturas -> filtra brillos aislados
+            // Los ToF NO se leen aca a proposito: nadie los consume durante el
+            // seguimiento de linea y costaban ~30 ms de espera activa POR VUELTA
+            // (readRangeContinuousMillimeters bloquea hasta tener muestra nueva).
+            // De los tres ultrasonidos solo hace falta el frontal.
+            leer_ultrasonido_frontal();
 
-                    plateadoDetectado = PLATEADO_TEENSY;   // apagado a proposito, ver el #define
-
+#if PLATEADO_TEENSY
+            if (color_detected == "Plateado" && confirmarPlateadoLinea()) {
                     if (!rescateAvisado) {
-                        Serial5.write(241);
+                        // RECTO => 0 grados. LATERAL => mitad del giro real,
+                        // en sentido inverso. No usamos camara sobre plateado.
+                        corregirEntradaPlateadoDesdeRecovery();
+                        Serial5.write(TEENSY_ACK_RESCATE_APDS);
                         rescateAvisado = true;
                     }
+                    plateadoDetectado = true;
             }
-
-            // === CHALLENGE: rojo segun MODO_ROJO ===
-            if (color_detected == "Rojo" && millis() >= rojo_ignorar_hasta) {
-#if SUPERTEAM
-                // SUPER TEMA: avisar al companiero que llego al rojo / termino (one-shot)
-                if (!super_fin_enviado) { Serial8.write(SUPER_FIN_ROJO); super_fin_enviado = true; }
 #endif
-                if (MODO_ROJO == 0) {
-                    runTime(0, FORWARD, 0, 10000);     // parar (meta normal)
-                    break;
-                }
-                else if (MODO_ROJO == 1) {
-                    runAngle(30, FORWARD, 180);        // girar 180 (profe)
-                    runTime(30, FORWARD, 0, 800);         // avanzar (meta)
-                }
-                else { 
-                    unsigned long tcruce = millis();
-                    while (get_color_fresh() == "Rojo" && millis() - tcruce < 2000) {
-                        robot.steer(30, FORWARD, 0);
-                    }
-                    unsigned long inicio = millis();
-                    bool doble = false;
-                    while (millis() - inicio < 2500) {
-                        robot.steer(30, FORWARD, 0);
-                        if (get_color_fresh() == "Rojo") { doble = true; break; }  
-                    }
-                    unsigned long avanzado = millis() - inicio;
-                    robot.steer(0, FORWARD, 0);
-                    // 3) decido
-                    if (doble) {
-                        runTime(0, FORWARD, 0, 5000);          // DOBLE -> meta (parar)
-                        break;
-                    } else {
-                        runTime(30, BACKWARD, 0, avanzado);    // SIMPLE -> retrocedo lo que avance
-                        runAngle(30, FORWARD, 180);            // y giro 180
-                        rojo_ignorar_hasta = millis() + 1500;  // cooldown anti-oscilacion
-                    }
-                }
+
+            // LINEA ROJA = FIN DE LA CORRIDA. El robot para 10 s y se sale del
+            // lazo de linea. Es lo que pide Rescue Line: la roja marca la meta.
+            // (Habia dos politicas mas -girar 180, y distinguir roja simple de
+            //  doble por movimiento- que eran de Roboliga; se sacaron el
+            //  2026-09-06 y estan en el historial de git.)
+            if (color_detected == "Rojo" && millis() >= rojo_ignorar_hasta) {
+                runTime(0, FORWARD, 0, 10000);
+                break;
             }
            
             if (taskDone)
@@ -3999,6 +2964,9 @@ void loop()
                 {
                     action = 7;
 
+                    if (g_gap_activo)
+                        resetGapState();
+
                     if (g_recup_episodio_activo)
                     {
                         // La Pi confirmo que la linea volvio. Cerrar el episodio,
@@ -4007,8 +2975,6 @@ void loop()
                         g_recup_episodio_activo = false;
                         g_recup_habilitada = false;
                         g_recup_gs0_desde = millis();
-                        g_recup_pasos = 0;
-                        g_recup_giros = 0;
                         g_recup_signo = 0;
                         g_recup_retroceso_hecho = false;
                         g_recup_giro_hecho = false;
@@ -4033,7 +2999,12 @@ void loop()
                     g_recup_gs0_desde = 0;
                     g_recup_rumbo_camino_rx = 0.0;
                     g_recup_rumbo_camino_rx_ms = 0;
-                    action = (verdes_total < 4) ? 6 : 20;
+                    // Verde a la IZQUIERDA. (Habia una guarda `verdes_total < 4`
+                    // que despues de 4 verdes mandaba action = 20, y NO EXISTE un
+                    // case 20: el verde se ignoraba en silencio. Venia del
+                    // contador de Roboliga, que hoy deja verdes_total en 0, asi
+                    // que la guarda nunca disparaba. Se saco el 2026-09-06.)
+                    action = 6;
                 }
                 if (green_state == 2)
                 {
@@ -4042,7 +3013,7 @@ void loop()
                     g_recup_gs0_desde = 0;
                     g_recup_rumbo_camino_rx = 0.0;
                     g_recup_rumbo_camino_rx_ms = 0;
-                    action = (verdes_total < 4) ? 5 : 20;
+                    action = 5;   // verde a la DERECHA. Ver el case de arriba.
                 }
 
                 if (green_state == LINEA_PERDIDA_GS)
@@ -4069,6 +3040,41 @@ void loop()
                         action = RECUP_WAIT_ACTION;
                     }
                 }
+                if (green_state == GAP_BUSQUEDA_GS)
+                {
+                    g_recup_habilitada = false;
+                    g_recup_episodio_activo = false;
+                    g_recup_gs0_desde = 0;
+                    g_recup_signo = 0;
+                    g_recup_rumbo_camino_rx = 0.0;
+                    g_recup_rumbo_camino_rx_ms = 0;
+                    if (!g_gap_activo)
+                    {
+                        g_gap_activo = true;
+                        g_gap_origen_enviado = false;
+                        g_gap_timeout_enviado = false;
+                        g_gap_inicio_fl = (long)fl.pulseCount;
+                        g_gap_inicio_fr = (long)fr.pulseCount;
+                        g_gap_inicio_ms = millis();
+
+                        // Pi clasifico RECTA/GAP: si enseguida aparece plateado,
+                        // NO hay nada que "deshacer".
+                        g_silver_rec_kind = SILVER_REC_RECTA;
+                        g_silver_rec_pivot_sign = 0;
+                        g_silver_rec_actual_deg = 0.0f;
+                        g_silver_rec_ms = millis();
+                    }
+                    action = GAP_ACTION;
+                }
+
+                if (green_state == PERDIDA_FAILSAFE_GS)
+                {
+                    g_recup_habilitada = false;
+                    g_recup_episodio_activo = false;
+                    resetGapState();
+                    action = PERDIDA_FAILSAFE_ACTION;
+                }
+
                 if (green_state == 3)
                 {
                     g_recup_habilitada = false;
@@ -4078,18 +3084,21 @@ void loop()
                     g_recup_rumbo_camino_rx_ms = 0;
                     action = 14;
                 }
-                if (front_distance != 0 && front_distance < 12)
+                if (front_distance != 0 && front_distance < 2)
                 {
                 get_color_fast();
-            if (color_detected == "Plateado" && confirmarColor("Plateado")) {   // confirmo 2 lecturas -> filtra brillos aislados
-
-                    plateadoDetectado = PLATEADO_TEENSY;   // apagado a proposito, ver el #define
-
+#if PLATEADO_TEENSY
+            if (color_detected == "Plateado" && confirmarPlateadoLinea()) {
                     if (!rescateAvisado) {
-                        Serial5.write(241);
+                        // RECTO => 0 grados. LATERAL => mitad del giro real,
+                        // en sentido inverso. No usamos camara sobre plateado.
+                        corregirEntradaPlateadoDesdeRecovery();
+                        Serial5.write(TEENSY_ACK_RESCATE_APDS);
                         rescateAvisado = true;
                     }
+                    plateadoDetectado = true;
             }
+#endif
                     action = 1;
                 }
                
@@ -4097,10 +3106,9 @@ void loop()
                 {
                     action = 12;
                 }
-                if (silver_line == 1)
-                {
-                    action = 2;
-                }
+                // `silver_line` de Raspberry se conserva en el protocolo por
+                // compatibilidad, pero NO tiene autoridad de rescate. Plateado se
+                // decide unicamente por APDS (`plateadoDetectado`).
                 if (plateadoDetectado) {
                     action = 2;
                 }
@@ -4113,14 +3121,18 @@ void loop()
                     delay(100);
                     digitalWrite(BUZZER, LOW);
 
-                    
-                        // === CHALLENGE D2.2: esquive por paridad ===
-                        if (ESQUIVE_POR_PARIDAD) {
-                            RanNumber = ladoEsquiveParidad();   // par->izq(1), impar->der(2)
-                        } else {
-                            RanNumber = random(3);
-                            RanNumber = random(1, 3);
-                        }
+                        // DE QUE LADO SE ESQUIVA EL OBSTACULO: AL AZAR, 1=izq 2=der.
+                        // Al azar y no fijo para que dos intentos seguidos no
+                        // repitan el mismo error si de ese lado no habia lugar.
+                        //
+                        // EL PRIMER random(3) PARECE UN RESTO Y NO SE PUEDE SACAR:
+                        // su resultado se pisa en la linea siguiente, pero la
+                        // llamada AVANZA EL GENERADOR. Como nadie llama a
+                        // randomSeed(), la secuencia es la MISMA en cada
+                        // encendido, asi que borrarlo cambiaria de que lado
+                        // esquiva el robot en cada obstaculo de la corrida.
+                        RanNumber = random(3);
+                        RanNumber = random(1, 3);
                         if (RanNumber == 1)
                         {
                             runAngle(25, FORWARD, -95);
@@ -4163,9 +3175,8 @@ void loop()
                     digitalWrite(RELAY,HIGH);
                     ball_counter=0;
                     veces_deposit = 0;
-                    alineado=false;
                     depositando=false;
-                    runTime(30, BACKWARD, 0,800);
+                    runTime(30, FORWARD, 0,800);
                     runTime(0, FORWARD, 0, 1000);
                     leer_ultrasonidos();
                     if(left_distance>right_distance){
@@ -4231,7 +3242,6 @@ void loop()
                         pared="derecha";
                     }*/
                     runTime(0,FORWARD,0,3000);
-                    tiemporescate=millis();
                     break;
                 case 4:   // LINEA PERDIDA: UN SOLO RETROCESO -> REANALIZA -> PIVOTE
                 {
@@ -4247,11 +3257,21 @@ void loop()
                         g_recup_rumbo_camino_rx = 0.0;
                         g_recup_rumbo_camino_rx_ms = 0;
                         g_recup_signo = 0;
-                        g_recup_pasos++;
                         g_line_branch = 14;
+                        const long retroFl0 = (long)fl.pulseCount;
+                        const long retroFr0 = (long)fr.pulseCount;
                         runTime(RECUP_VEL, BACKWARD, 0, RECUP_MS);
+                        const long retroFl = labs((long)fl.pulseCount - retroFl0);
+                        const long retroFr = labs((long)fr.pulseCount - retroFr0);
+                        // Si uno de los dos encoders delanteros no dio una referencia
+                        // minima, NO inventar la pose original: sin ACK 0xEE el GAP
+                        // termina por fail-safe en vez de aceptar la linea vieja.
+                        g_gap_retro_pulsos = (retroFl >= 10 && retroFr >= 10)
+                            ? (retroFl + retroFr) / 2
+                            : 0;
                         serialEvent5();
                         g_recup_retroceso_hecho = true;
+                        Serial5.write(TEENSY_ACK_RETRO_DONE);
 
                         // Todo heading visto mientras se movia hacia atras se descarta:
                         // queremos decidir con la pose NUEVA y ya quieta.
@@ -4295,7 +3315,6 @@ void loop()
 
                     g_recup_signo = (g_recup_rumbo_camino_rx > 0.0) ? 1 : -1;
 
-#if RECUP_GIRO_DIRIGIDO
                                         // ANGULO ESCALADO: CAMINO conserva lado + intensidad, pero NO
                     // se interpreta 1:1 como grados fisicos de yaw.
                     // Ej.: 20->35, 30->37.4, 45->41.6, 60->45.8, 90->54.2 grados.
@@ -4303,13 +3322,22 @@ void loop()
                         (float)(fabs(g_recup_rumbo_camino_rx) * 90.0);
                     float objetivoGiro = RECUP_GIRO_BASE_GRADOS
                                          + RECUP_GIRO_CAMINO_K * headingCaminoDeg;
+
+                    // Asimetria FISICA observada 2026-09-12: a la derecha el robot gira
+                    // menos de lo pedido (video completo_auth_1, ~43 pedidos: DER 33-42,
+                    // IZQ 45-48). OJO SIGNO: g_recup_signo < 0 es la DERECHA (rx negativo
+                    // -> rot negativo -> drivebase gira a la derecha). La version del
+                    // 12-sep tenia "> 0" y sumaba el extra a la IZQUIERDA.
+                    // Con el extra en 0 el pivote es identico al de completo_auth_1.
+                    if (g_recup_signo < 0)
+                        objetivoGiro += RECUP_GIRO_DER_EXTRA_GRADOS;
+
                     objetivoGiro = constrain(objetivoGiro,
                                              RECUP_GIRO_MIN_GRADOS,
                                              RECUP_GIRO_MAX_GRADOS);
 
                     const float yaw0 = leer_yaw();
                     const unsigned long tg0 = millis();
-                    g_recup_giros++;
 
                     while (digitalRead(32) == 0)
                     {
@@ -4334,13 +3362,24 @@ void loop()
                     }
 
                     robot.steer(0, FORWARD, 0);
+                    // Aviso a la Pi: desde aca puede COMPLETAR EL GIRO si la cinta quedo
+                    // de frente. Una Pi sin ese parche ignora el byte.
+                    Serial5.write(TEENSY_ACK_PIVOTE_DONE);
+
+                    // Guardar lo que FISICAMENTE giro este recovery. El APDS puede
+                    // aparecer inmediatamente despues, cuando la Pi ya haya vuelto
+                    // a GS0 y g_recup_signo normalmente se borra.
+                    g_silver_rec_kind = SILVER_REC_LATERAL;
+                    g_silver_rec_pivot_sign = g_recup_signo;
+                    g_silver_rec_actual_deg =
+                        fabs(calcularDiferenciaAngulo(yaw0, leer_yaw()));
+                    g_silver_rec_ms = millis();
+
                     g_recup_giro_hecho = true;
                     serialEvent5();
 
                     if (green_state != LINEA_PERDIDA_GS)
                     {
-                        g_recup_pasos = 0;
-                        g_recup_giros = 0;
                         g_recup_signo = 0;
                         g_recup_rumbo_camino_rx = 0.0;
                         g_recup_rumbo_camino_rx_ms = 0;
@@ -4350,9 +3389,44 @@ void loop()
                         g_recup_retroceso_hecho = false;
                         g_recup_giro_hecho = false;
                     }
-#endif
                     break;
                 }
+                case GAP_ACTION:
+                {
+                    if (!g_gap_activo)
+                    {
+                        g_gap_activo = true;
+                        g_gap_inicio_fl = (long)fl.pulseCount;
+                        g_gap_inicio_fr = (long)fr.pulseCount;
+                        g_gap_inicio_ms = millis();
+                    }
+                    const long avanzados = gapPulsosDesdeInicio();
+                    const long origenObjetivo = g_gap_retro_pulsos + 25L * GAP_ORIGIN_MARGIN_CM;
+                    if (!g_gap_origen_enviado && g_gap_retro_pulsos > 0 && avanzados >= origenObjetivo)
+                    {
+                        Serial5.write(TEENSY_ACK_GAP_ORIGIN);
+                        g_gap_origen_enviado = true;
+                    }
+                    const bool limiteDist = avanzados >= (25L * GAP_MAX_CM);
+                    const bool limiteTiempo = (g_gap_inicio_ms != 0 && (millis() - g_gap_inicio_ms) >= GAP_MAX_MS);
+                    if (limiteDist || limiteTiempo)
+                    {
+                        robot.steer(0, FORWARD, 0);
+                        if (!g_gap_timeout_enviado)
+                        {
+                            Serial5.write(TEENSY_ACK_GAP_TIMEOUT);
+                            g_gap_timeout_enviado = true;
+                        }
+                        action = PERDIDA_FAILSAFE_ACTION;
+                        break;
+                    }
+                    robot.steer(GAP_VEL, FORWARD, 0);
+                    break;
+                }
+                case PERDIDA_FAILSAFE_ACTION:
+                    robot.steer(0, FORWARD, 0);
+                    break;
+
                 case RECUP_WAIT_ACTION:
                     // GS4 no habilitado: NO retrocede, NO gira y NO reutiliza
                     // la accion anterior. Solo espera una trama valida nueva.
@@ -4363,185 +3437,119 @@ void loop()
                 case 6:
                     runTime(20, FORWARD, 0, 800);
                     serialEvent5();
-                    telemGreenResultado(1, green_state);   // TELEMETRIA: giro o matado por re-chequeo
-                    if (!VERDE_RECHEQUEO || green_state == 1)
-                    {
-                        runAngle(35, FORWARD, INVERTIR_VERDES ? 60 : -60);   // === CHALLENGE D1.1 ===
-                    }
+                    telemGreenResultado(1, green_state);   // solo cuenta, no decide
+                    // GIRA SIEMPRE. NO se vuelve a preguntar por el verde despues
+                    // de avanzar: a los 800 ms el cuadrado YA salio del cuadro de
+                    // la camara, la Pi manda green_state = 0 y el giro no se
+                    // ejecutaba nunca. El sintoma en pista era que el robot
+                    // bajaba la velocidad -eso es el runTime- y despues seguia
+                    // derecho sin doblar. La decision se tomo al poner action = 6;
+                    // volver a preguntarla despues de moverse es preguntar otra
+                    // cosa. Si hay verdes espurios, se confirman ANTES de avanzar.
+                    //
+                    // SIGNO: NEGATIVO gira a la IZQUIERDA. Si algun dia la camara
+                    // queda espejada, se invierten los signos del case 6 y del 5.
+                    runAngle(35, FORWARD, -60);
                     break;
                 case 5:
                     runTime(20, FORWARD, 0, 800);
                     serialEvent5();
-                    telemGreenResultado(2, green_state);   // TELEMETRIA: giro o matado por re-chequeo
-                    if (!VERDE_RECHEQUEO || green_state == 2)
-                    {
-                        runAngle(25, FORWARD, INVERTIR_VERDES ? -60 : 60);   // === CHALLENGE D1.1 ===
-                    }
+                    telemGreenResultado(2, green_state);   // solo cuenta, no decide
+                    runAngle(25, FORWARD, 60);   // POSITIVO = derecha. Ver el case 6.
                     break;
                 case 7: // linetrack
                     // Guardamos el steer normal solo para diagnostico. La direccion
                     // de recovery YA NO sale de aca: sale del angle recibido junto
                     // con GS=4, que la Raspberry llena con CAMINO+MONO.
-                    g_recup_ultimo_steer = g_rx_steer;
-                    g_recup_ultimo_steer_ms = millis();
-                    g_recup_pasos = 0;
-                    g_recup_giros = 0;
                     g_recup_signo = 0;
                
-                    {int velocidadAjustada = ajustarVelocidadPorPendiente(velocidadBaseDeLinea());
+                    {int velocidadAjustada = ajustarVelocidadPorPendiente(VELOCIDAD_BASE_LINEA);
 
                      if (chequearAtasco(velocidadAjustada)) {   // obstaculo alto: no avanza -> recupero
                          g_line_branch = 9;
                          recuperarAtasco();
                          break;
                      }
-                    // Cuanto amplifica el angulo de la camara antes de decidir la
-                    // rotation. Subirlo hace que el robot SE COMPROMETA ANTES con la
-                    // curva. Medido ese dia: con la rampa continua ya puesta, el robot
-                    // pasaba curvas que antes no pasaba pero se seguia yendo, y la
-                    // vision SATURABA en 14 episodios de hasta 325 ms: llegaba tarde y
-                    // la linea se le iba del cuadro. Con el arbol de ramas viejo subir
-                    // esto habria sido peligroso -empujaba el steerCmd sobre el umbral
-                    // del salto de 0,35 a 0,80- pero con la rampa ya no hay salto.
-                    const double LINE_CURVE_STEER = 0.08;
-                    const double LINE_HARD_CURVE_STEER = 0.35;
-                    const double LINE_PIVOT_STEER = 0.92;
-                    // absSteer = |steer * LINE_STEER_GAIN|, o sea 0,60 aca equivale a
-                    // steer ~0,44 de la Raspberry. El codigo original pivoteaba con
-                    // steer > 0,7 (absSteer ~0,95). 0,30 hacia pivotear casi toda la
-                    // corrida -el absSteer esta en la banda media el 32% del tiempo- y
-                    // el robot casi no avanzaria. 1.1 desactiva el pivote.
-                    const double LINE_HARD_ROTATION_MIN = 0.8;
-                    const double LINE_HARD_ROTATION_MAX = 0.90;
-                    const double LINE_TURN_FRONT_SCALE = 0.55;
-                    const double LINE_TURN_REAR_SCALE = 1.00;
-                    const int LINE_CURVE_SPEED = 26;
-                    const int LINE_HARD_CURVE_SPEED = 32;   // [EXPERIMENTO 2026-08-22] era 22
-                    // CONTRAINTUITIVO Y A PROPOSITO. Medido en pista ese dia: el giro
-                    // logrado se clava en ~25 d/s de rot=0,5 en adelante por mas que se
-                    // pida mas, y el rendimiento cae de 0,84 a 0,64. Pero la fase 2 del
-                    // banco midio que a rotation=1 el giro ESCALA con la velocidad
-                    // (25 rpm -> 44,8 d/s, 70 rpm -> 127,8 d/s, rendimiento 0,9 sostenido).
-                    // La curva corria a 20 rpm, la velocidad mas baja de todo el rango.
-                    // Si el techo viene de que a esa velocidad no hay con que vencer el
-                    // scrub de las 4 fijas de silicona, ir MAS RAPIDO da MAS giro.
+                    // ----------------------------------------------------------
+                    //  UMBRALES DE LA TELEMETRIA (y uno de control)
+                    //
+                    //  Los dos primeros SOLO clasifican la rama para el campo
+                    //  `ram` del JSON y del CSV: no deciden nada del movimiento.
+                    //  LINE_PIVOT_STEER SI decide, y en dos lugares: es el techo
+                    //  puntual de `rot` y el denominador de la rampa de velocidad.
+                    //  Si alguien lo "limpia", se lleva puesta la rampa entera.
+                    // ----------------------------------------------------------
+                    const double LINE_CURVE_STEER = 0.08;       // solo telemetria
+                    const double LINE_HARD_CURVE_STEER = 0.35;  // solo telemetria
+                    const double LINE_PIVOT_STEER = 0.92;       // CONTROL: ver abajo
 
                     double steerCmd = constrain(steer * LINE_STEER_GAIN, -1.0, 1.0);
                     double absSteer = fabs(steerCmd);
 
-#if FIX_CURVA_CONTINUA
-                    // --- rotation CONTINUA: identidad hasta la curva dura, y de ahi una rampa
-                    //     hasta el pivote. Vale 0,350 en 0,350 y 1,000 en 0,920, asi que empalma
-                    //     por los dos lados sin escalon.
-                    // RAMPA CONCAVA, y es la palanca que importa.
+                    // ----------------------------------------------------------
+                    //  DE ANGULO A `rot`  ->  rot = absSteer ^ LINE_ROT_EXP
                     //
-                    // La distancia que el robot recorre POR CADA GRADO que gira
-                    // vale (1-rot)/(k*rot). La VELOCIDAD SE CANCELA: frenar lo
-                    // hace ir mas lento pero recorre la misma distancia mientras
-                    // completa el giro. Verificado el 2026-08-22 comparando dos
-                    // corridas de pista a 29 y 37 rpm:
-                    //   rot 0,20-0,40   0,49 cm/grado (lenta) contra 0,44 (rapida)
-                    //   rot 0,60-0,80   0,10          contra 0,11
-                    // Practicamente iguales. Lo unico que reduce esa distancia es
-                    // subir ROT, y ahi el efecto es enorme: de rot 0,30 a 0,87 el
-                    // numero cae 12 veces.
+                    //  ES UNA RAMPA CONCAVA, Y ESA ES LA PALANCA QUE IMPORTA.
+                    //  La distancia que el robot recorre POR CADA GRADO que gira
+                    //  vale (1-rot)/(k*rot), y la VELOCIDAD SE CANCELA: frenar lo
+                    //  hace ir mas lento pero recorre los mismos centimetros
+                    //  mientras completa el giro. Verificado el 22-ago-2026
+                    //  comparando dos corridas a 29 y 37 rpm:
+                    //      rot 0,20-0,40   0,49 cm/grado (lenta) vs 0,44 (rapida)
+                    //      rot 0,60-0,80   0,10                  vs 0,11
+                    //  Lo UNICO que reduce esa distancia es subir `rot`, y ahi el
+                    //  efecto es enorme: de rot 0,30 a 0,87 cae 12 veces.
                     //
-                    // En la curva de 90 grados que falla:
-                    //   rot 0,30 -> 44 cm recorridos mientras gira
-                    //   rot 0,87 -> 3,6 cm
-                    // Y el robot ve unos 2-3 cm de piso. Con la rampa lineal, un
-                    // angulo de camara moderado (absSteer 0,20) pedia rot 0,20 y
-                    // se comia 75 cm de pista girando: perdia la linea seguro.
+                    //  En la curva de 90 grados que se le escapaba:
+                    //      rot 0,30 -> 44 cm recorridos mientras gira
+                    //      rot 0,87 -> 3,6 cm
+                    //  y el robot ve unos 2-3 cm de piso por delante. Con una
+                    //  rampa LINEAL un angulo moderado (absSteer 0,20) pedia
+                    //  rot 0,20 y se comia 75 cm de pista girando: perdia la
+                    //  linea seguro. Con el exponente por debajo de 1 la rampa
+                    //  sube rapido al principio y sigue llegando a 1 en el
+                    //  extremo. LINE_ROT_EXP = 1.0 vuelve a la rampa lineal.
+                    // ----------------------------------------------------------
+
+                    // ----------------------------------------------------------
+                    //  PIVOTE CON HISTERESIS  -  HOY NO SE EJECUTA (ver el panel 1.1)
                     //
-                    // La raiz cuadrada sube rapido al principio -absSteer 0,20 pasa
-                    // a pedir rot 0,45, o sea 23 cm en vez de 75- y sigue llegando
-                    // a 1 en el extremo. LINE_ROT_EXP la ajusta: mas chico = mas
-                    // agresivo; 1,0 vuelve exactamente a la rampa lineal anterior.
-                    // GIRAR SOBRE EL EJE Y DESPUES AVANZAR, en vez de avanzar
-                    // girando. Idea de Benjamin, y es el caso limite de la cuenta
-                    // de arriba: en rot = 1 las dos ruedas van iguales y opuestas,
-                    // el avance es CERO y cm/grado tambien. Girando sobre el eje
-                    // es imposible perder la linea por haberse ido de largo.
+                    //  `s_en_pivote` NO PUEDE VOLVERSE true con la configuracion
+                    //  actual: absSteer sale de un constrain(...,-1,1) antes del
+                    //  fabs, asi que su techo es 1.0, y LINE_PIVOTE_ENTRA vale
+                    //  1.01. Es un interruptor deliberado, no un descuido, y esta
+                    //  todo el bloque escrito para poder volver a prenderlo
+                    //  bajando ese umbral a 0.60.
                     //
-                    // Arriba del umbral: pivote puro. Abajo: arco suave para
-                    // seguir la recta. El robot alterna -pivotea, avanza,
-                    // pivotea- en vez de describir un arco que se come 44 cm de
-                    // pista con un campo visual de 2 cm.
+                    //  QUE HACIA CUANDO ESTABA PRENDIDO. Entraba con absSteer
+                    //  alto y NO SOLTABA hasta quedar alineado. La histeresis
+                    //  hacia falta porque con un solo umbral el robot picoteaba
+                    //  el giro: medido el 22-ago, 3,6 entradas y salidas POR
+                    //  SEGUNDO, episodios de 160 ms y 8 grados de mediana, y solo
+                    //  4 de 76 episodios pasaban los 45 grados. Una curva cerrada
+                    //  pide 90.
                     //
-                    // EL RIESGO, dicho de frente: puede quedar entrando y saliendo
-                    // del pivote (pivote, recto, pivote) si el angulo oscila
-                    // alrededor del umbral. Si se ve eso en el video, la solucion
-                    // es histeresis -salir del pivote con un umbral mas bajo que
-                    // el de entrada-, no bajar el umbral.
-                    // HISTERESIS: entrar en un umbral y SALIR EN OTRO MUCHO MAS BAJO.
+                    //  POR QUE SE APAGO IGUAL. Con la histeresis puesta tampoco
+                    //  alcanzaba: 284 episodios simulados sobre el rxsteer real
+                    //  dieron 210 ms y 6,0 GRADOS reales de mediana, con el 1 %
+                    //  pasando los 45. La razon de fondo es que LA CAMARA NO MIDE
+                    //  RUMBO: se mueve 7 a 9,6 grados de imagen por cada grado
+                    //  real del robot, asi que once grados de giro bastan para
+                    //  que el angulo cruce el cero y la condicion de salida se
+                    //  cumpla aunque la curva no haya terminado. La condicion
+                    //  estaba escrita sobre la variable equivocada.
+                    //  Y el costo era caro: con rot = 1 el centro no avanza, y el
+                    //  robot se pasaba el 29,7 % del tiempo girando sin avanzar.
+                    //  Apagandolo eso cayo a 7,8 % y empezo a tomar los codos.
                     //
-                    // Sin esto la condicion de entrada y la de salida eran la misma,
-                    // asi que apenas el robot giraba lo suficiente para que el angulo
-                    // bajara de 0,60 salia del pivote y avanzaba... y la curva volvia
-                    // a crecer. Medido en pista el 2026-08-22:
-                    //     3,6 entradas y salidas del pivote POR SEGUNDO
-                    //     episodios de pivote de 160 ms (mediana)
-                    //     8 GRADOS girados por episodio (mediana)
-                    //     solo 4 de 76 episodios pasaron los 45 grados
-                    // Una curva cerrada pide ~90. El robot picoteaba el giro y entre
-                    // picotazo y picotazo avanzaba, que es cuando se le va la linea.
-                    //
-                    // Con histeresis, una vez que decide pivotear NO SUELTA hasta
-                    // quedar alineado (absSteer <= 0,15).
-                    //
-                    // *** "Cada pivote completa la curva de un saque" DECIA ESTE
-                    // *** COMENTARIO, Y ES FALSO. Medido el 24-ago simulando este
-                    // *** mismo arbol con el rxsteer real de las 6 corridas, e
-                    // *** integrando el gz real (n = 284 episodios):
-                    //
-                    //       duracion mediana del pivote        210 ms
-                    //       GRADOS REALES girados                6,0
-                    //       episodios que pasan los 45 grados    1 %
-                    //
-                    // (CORREGIDO el 24-ago: la version anterior de este
-                    //  comentario decia 428 ms y 11,1 grados. Ese numero salia
-                    //  de un MODELO del case 7, no de la telemetria, y el
-                    //  modelo subestima las sueltas un 35% -36 contra 55 reales
-                    //  en la corrida que se puede verificar-. La columna `rot`
-                    //  del CSV estaba ahi todo el tiempo. Los numeros de arriba
-                    //  salen de ella, sobre 295 episodios de 6 corridas.)
-                    //
-                    // Y hay un numero que mata la idea de que el problema sea
-                    // el SIGNO: en las 6 corridas hay solo 74 inversiones de
-                    // signo DENTRO del pivote -y 39 son de la corrida que tiene
-                    // los motores parados la mitad del tiempo-. O sea 0,16 por
-                    // segundo. El dwell de abajo no puede cambiar casi nada.
-                    //
-                    // Lo que SI discrimina, medido sobre el mismo firmware y la
-                    // misma corrida (exito frames 580-679 contra falla 1354-1490
-                    // de hist.avi): que exista una mancha conexa que vaya desde
-                    // DEBAJO del robot hasta la banda LEJANA. En los giros
-                    // fuertes del caso que sale bien eso pasa el 79,7% del
-                    // tiempo; en el que se sale, el 19,0%.
-                    //
-                    // El robot no distingue "veo negro" de "se por donde sigue
-                    // la linea", y esa variable no existe en el codigo.
-                    //
-                    // La causa es que la camara NO MIDE RUMBO: se mueve 7 a 9,6
-                    // grados de imagen por cada grado real del robot. Once grados
-                    // de giro real bastan para que el angulo cruce el cero, y
-                    // `absSteer <= 0,15` se cumple aunque la curva no haya
-                    // terminado. La condicion de salida esta escrita sobre la
-                    // variable equivocada.
-                    //
-                    // NO se toco todavia: cambiar la salida es el fix de fondo y
-                    // hay que medirlo en pista antes. Ver ROBOT_TEST_PLAN.md.
-                    //
-                    // El tope de tiempo es una red: si la vision se queda pidiendo
-                    // giro para siempre -linea perdida, reflejo, un verde mal leido-
-                    // el robot no puede quedarse girando en el lugar indefinidamente.
+                    //  El tope de tiempo (LINE_PIVOTE_MAX_MS) es la red: si la
+                    //  vision se quedara pidiendo giro para siempre -linea
+                    //  perdida, un reflejo, un verde mal leido- el robot no puede
+                    //  quedarse girando en el lugar indefinidamente.
+                    // ----------------------------------------------------------
                     static bool s_en_pivote = false;
                     static unsigned long s_pivote_t0 = 0;
                     static unsigned long s_alineado_t0 = 0;
-                    // El signo del giro que se esta sosteniendo, y desde cuando.
-                    // Ver el comentario largo abajo, donde se usan.
-                    static int s_pivote_signo = 0;
-                    static unsigned long s_signo_t0 = 0;
                     if (!s_en_pivote && absSteer >= LINE_PIVOTE_ENTRA)
                     {
                         s_en_pivote = true;
@@ -4550,19 +3558,10 @@ void loop()
                     else if (s_en_pivote)
                     {
                         // NO ALCANZA CON QUE EL ANGULO BAJE UNA VEZ: hay que
-                        // SOSTENERLO. Medido en pista el 2026-08-22 con la
-                        // histeresis simple:
-                        //   absSteer entra en 0,70 y cae a 0,12 en 245 ms,
-                        //   pero el robot solo giro 11 GRADOS en ese tiempo
-                        //   y el 81% de las salidas volvian a pivotear antes
-                        //   de 400 ms (mediana 115 ms).
-                        // O sea que la alineacion era FALSA. La vision no mide
-                        // 'estoy alineado con la direccion de la linea': mide la
-                        // geometria del centroide de una mancha, y es
-                        // hipersensible cerca del centro -once grados de giro
-                        // real le desploman el angulo-.
-                        // Exigir que se sostenga 300 ms elimina esas salidas
-                        // falsas sin tocar la vision.
+                        // SOSTENERLO. Con la histeresis simple, absSteer entraba
+                        // en 0,70 y caia a 0,12 en 245 ms habiendo girado solo
+                        // 11 GRADOS, y el 81 % de las salidas volvia a pivotear
+                        // antes de 400 ms. Esa alineacion era FALSA.
                         if (absSteer > LINE_PIVOTE_SALE)
                             s_alineado_t0 = 0;              // se desalineo: reiniciar
                         else if (s_alineado_t0 == 0)
@@ -4570,125 +3569,48 @@ void loop()
 
                         bool sostenido = (s_alineado_t0 != 0 &&
                                           millis() - s_alineado_t0 >= LINE_PIVOTE_CONFIRMA_MS);
-                        // EL GAP SUELTA EL PIVOTE. Apagado por defecto; fix (9)
-                        // de priority_fix_flags.h.
-                        //
-                        // `steer == 0` exacto solo puede venir del byte 90 que
-                        // manda la Pi, y significa una de dos cosas: "linea
-                        // perfectamente centrada" o "no veo linea, esto es un
-                        // GAP". NO HACE FALTA DISTINGUIRLAS: en los dos casos
-                        // lo correcto es IR RECTO.
-                        //
-                        // CORRECCION 26-ago, la encontro un refutador y es un
-                        // error del comentario anterior: HAY UN TERCER CASO.
-                        // Cuando la Pi pierde la linea DEL TODO -black_sum por
-                        // debajo de min_line_size- NO manda 90: manda +-65 con
-                        // speed 12 (Main.py:987, `angle =
-                        // last_line_search_dir * line_lost_search_angle`).
-                        // O sea que "la Pi no ve nada" NO llega como steer 0.
-                        //
-                        // Eso NO invalida este fix -los 63 episodios de steer=0
-                        // medidos son reales, y en las corridas del 22-ago esa
-                        // rutina NUNCA se activo: rxspeed vale solo 0 o 40,
-                        // nunca 12- pero SI invalida la frase "el byte 90
-                        // significa las dos cosas". Significa DOS de TRES.
-                        // Si algun dia la rutina de linea perdida empieza a
-                        // correr, hay que volver a mirar esta condicion.
-                        //
-                        // El reglamento da gaps de hasta 20 cm y exige avanzar
-                        // recto en ciego antes de darse por perdido. Medido
-                        // sobre las 6 corridas: 63 episodios de steer=0, el
-                        // robot avanza 1,5 cm de mediana y 11,4 de maximo, y
-                        // NINGUNO pasa los 20 cm. O sea que el manejo del gap
-                        // esta bien... salvo cuando el pivote esta enganchado:
-                        // 19 de esos 63 (30 %) ocurren con rot = 1, y ahi el
-                        // robot GIRA EN EL LUGAR en vez de cruzar el gap.
-                        //
-                        // Sin esta condicion el pivote pegajoso se come la
-                        // senal de gap y el robot pierde la linea del otro lado.
-                        bool gapSueltaPivote =
-                            priority_fix_flags::kFixGapSueltaPivote &&
-                            steer == 0.0;
-                        if (sostenido || gapSueltaPivote ||
+                        if (sostenido ||
                             millis() - s_pivote_t0 > LINE_PIVOTE_MAX_MS)
                         {
                             s_en_pivote = false;
                             s_alineado_t0 = 0;
                         }
                     }
+
                     double rot;
                     if (s_en_pivote)
                     {
-                        rot = 1.0;
-                        // EL PIVOTE POR MEMORIA TRAZA EN VEZ DE GIRAR EN EL
-                        // LUGAR. Apagado por defecto; fix (8) de
-                        // priority_fix_flags.h.
-                        //
-                        // `s_en_pivote` es PEGAJOSO: entra con absSteer >=
-                        // LINE_PIVOTE_ENTRA (0,60) y no suelta hasta bajar de
-                        // LINE_PIVOTE_SALE (0,15). En el medio hay una region
-                        // -"la memoria"- donde el comando FRESCO ya pide poco
-                        // angulo pero el rot sigue clavado en 1,0, y con
-                        // rot = 1 el centro del robot no avanza nada.
-                        //
-                        // Aca, y SOLO aca, se vuelve a la rampa normal con un
-                        // piso. Cuando la vision pide angulo grande DE VERDAD
-                        // (absSteer >= ENTRA, o la regla puntual de 0,92) no
-                        // se toca nada: el giro en el lugar sigue disponible.
-                        // Eso es lo que lo diferencia del fix (5), que pone un
-                        // techo GLOBAL y toca 198,8 s de las corridas del
-                        // 22-ago contra los 44,8 s de este.
-                        if (priority_fix_flags::kFixPivoteMemoria &&
-                            absSteer < LINE_PIVOTE_ENTRA)
-                        {
-                            double r = pow(absSteer, LINE_ROT_EXP);
-                            rot = (r > priority_fix_flags::kPivoteMemoriaPiso)
-                                      ? r
-                                      : priority_fix_flags::kPivoteMemoriaPiso;
-                        }
+                        rot = 1.0;   // giro sobre el eje: el centro NO avanza
                     }
                     else
                         rot = pow(absSteer, LINE_ROT_EXP);
+                    // GIRO EN EL LUGAR PUNTUAL, y este SI corre: cuando la vision
+                    // pide fondo de escala (0,92 de 1,0) el robot pivotea. Es el
+                    // unico camino que le queda al pivote con la config de hoy.
                     if (absSteer >= LINE_PIVOT_STEER) rot = 1.0;
                     if (rot > 1.0) rot = 1.0;
 
-                    // REMAPEO COMPLETO steer -> rot. Apagado por defecto; el
-                    // razonamiento, la tabla por decil y el falsador estan en
-                    // priority_fix_flags.h, fix (7).
+                    // ----------------------------------------------------------
+                    //  VELOCIDAD: RAMPA CUADRATICA, no lineal, y a proposito.
                     //
-                    //     rot = kMapeoRotMax * sqrt(|steer|)
+                    //  La velocidad hace DOS cosas distintas segun donde este la
+                    //  curva:
+                    //    rot intermedio  el robot AVANZA mientras gira, asi que ir
+                    //                    rapido lo pasa de largo
+                    //    rot = 1         no avanza nada -las ruedas van iguales y
+                    //                    opuestas-, y la velocidad solo controla
+                    //                    que tan rapido GIRA
+                    //  Medido el 22-ago comparando dos corridas por zona:
+                    //    rot 0,40-0,60  a 29 rpm rinde 0,744/0,824  vs 0,716/0,757 a 37
+                    //    rot 0,95-1,00  a 20 rpm da 23,7 grados/s   vs 45,3 a 35 rpm
+                    //  O sea: en la zona intermedia la corrida MAS LENTA rindio
+                    //  mejor, y en el pivote el giro se duplica con mas velocidad.
                     //
-                    // Usa `steer` CRUDO -sin LINE_STEER_GAIN- a proposito: la
-                    // ganancia 1,35 es uno de los tres eslabones que empujan
-                    // el rot de mas. Y pisa TAMBIEN el pivote pegajoso, que es
-                    // el otro. Con el flag apagado nada de esto existe.
-                    if (priority_fix_flags::kFixMapeoRot)
-                    {
-                        rot = priority_fix_flags::kMapeoRotMax *
-                              sqrt(fabs(steer));
-                        if (rot > priority_fix_flags::kMapeoRotMax)
-                            rot = priority_fix_flags::kMapeoRotMax;
-                    }
-
-                    // TECHO DE ROT PARA QUE EL PIVOTE AVANCE. Apagado por
-                    // defecto; el razonamiento y el falsador estan en
-                    // priority_fix_flags.h, fix (5).
-                    //
-                    // v_centro = vel*(1 - rot): en rot = 1 el robot gira sin
-                    // avanzar, y ahi se pasa el 51 % del tiempo que gira. El
-                    // techo 0,681 traza R = 4,9 cm, que es la curva mas
-                    // cerrada del reglamento (RCJ 2.2.2).
-                    //
-                    // Va DESPUES de los dos rot = 1.0 a proposito: es un techo
-                    // sobre el resultado final, no una rama nueva. Con el flag
-                    // apagado esta linea no existe.
-                    if (priority_fix_flags::kFixPivoteAvanza &&
-                        rot > priority_fix_flags::kPivoteRotMax)
-                        rot = priority_fix_flags::kPivoteRotMax;
-
-                    // --- la velocidad tambien continua: de la de recta a la de pivote. Un
-                    //     escalon de velocidad tambien es un tiron, aunque menos grave que dar
-                    //     vuelta una rueda.
+                    //  Con k al cuadrado la velocidad se queda baja en el medio y
+                    //  sube recien cerca del fondo de escala: frena donde avanza,
+                    //  empuja donde gira. Con la rampa lineal, a mitad de curva
+                    //  daba 45 en vez de 42.
+                    // ----------------------------------------------------------
                     double k = constrain(absSteer / LINE_PIVOT_STEER, 0.0, 1.0);
                     // RAMPA CUADRATICA, no lineal, y a proposito. La velocidad
                     // hace DOS cosas distintas segun donde este la curva:
@@ -4717,197 +3639,16 @@ void loop()
                                   : (absSteer > LINE_HARD_CURVE_STEER) ? 2
                                   : (absSteer > LINE_CURVE_STEER) ? 1 : 0;
 
-                    // ------------------------------------------------------------------
-                    //  DWELL MINIMO DEL SIGNO
-                    //
-                    //  Cuando el pivote esta enganchado, `rot` vale 1,0: la MAGNITUD
-                    //  queda latcheada. Pero el SIGNO sale de `steerCmd`, o sea de la
-                    //  trama que acaba de llegar. El resultado es que el robot puede
-                    //  dar vuelta la direccion del giro cada 10-30 ms.
-                    //
-                    //  MEDIDO el 23-ago sobre las 6 corridas de pista (369 tramos de
-                    //  linetrack con |rot| >= 0,95 y signo constante):
-                    //      duracion p50            0,190 s
-                    //      grados entregados p50   4,9 grados
-                    //      tramos que llegaron a 45 grados     1 de 369
-                    //      tramos que llegaron a 90 grados     0 de 369
-                    //      tramos consecutivos que CAMBIAN de signo   32% a 87%
-                    //  Y sin embargo el robot gira 1184 a 2174 grados por MINUTO en
-                    //  bruto, y entrega neto +-20. Autoridad sobra; lo que falta es
-                    //  persistencia de direccion. Es un ciclo limite.
-                    //
-                    //  La razon de fondo esta en el comentario de mas arriba: la vision
-                    //  no mide rumbo. Once grados de giro real le desploman el angulo,
-                    //  asi que el sensor que decide el signo se mueve 7 a 9,6 grados de
-                    //  camara por cada grado real del robot -medido en las 6 corridas-.
-                    //  El motor necesita mas tiempo que eso: la tasa de giro es plana en
-                    //  ~39 grados/s arriba de 150 ms y cae a 21,6 abajo de 100 ms.
-                    //
-                    //  El fix es no dejar que el signo se de vuelta antes de que el
-                    //  motor llegue a regimen. NO hay objetivo en grados, NO se integra
-                    //  la IMU y NO hay condicion de salida nueva: el dwell solo RETRASA
-                    //  la inversion. Costo maximo de un signo equivocado = dwell * tasa;
-                    //  con 300 ms y 39 grados/s son 12 grados, la misma magnitud que un
-                    //  tramo de hoy.
-                    //
-                    //  LINE_PIVOTE_DWELL_MS = 0 deja el comportamiento historico byte
-                    //  por byte, sin git revert: es una constante, y se puede volver
-                    //  atras en la pista sin recompilar de memoria.
-                    //
-                    //  TODAVIA NO SE PROBO EN EL ROBOT. De los 369 tramos de hoy ya
-                    //  duran mas de 0,25 s el 32,0% y mas de 0,40 s el 9,8%, asi que
-                    //  250-300 ms mueve la mediana sin salirse de lo que el robot ya
-                    //  hace. El barrido previsto es 0 / 250 / 400.
-                    // ------------------------------------------------------------------
-                    //  INHIBIDO EN RAMPA, y esto no es teorico: 40 lineas mas abajo,
-                    //  con `pitch > PITCH_RAMPA`, las dos traseras se pisan a
-                    //  POTENCIA_TRASERAS en configuracion de marcha RECTA, DESPUES del
-                    //  steer. O sea que en pendiente un pivote queda con las delanteras
-                    //  girando y las traseras empujando derecho. Sostener el signo
-                    //  mientras las traseras lo contrarrestan es peor que no sostenerlo.
-                    //  En el salon el pitch paso de 12 grados el 0,0-0,7% del tiempo,
-                    //  pero en la pista de competencia hay rampa.
-                    //  CUENTA DESDE EL ULTIMO CAMBIO DE SIGNO ACEPTADO, no desde
-                    //  la entrada al pivote. La primera version contaba desde la
-                    //  entrada, y asi el dwell solo protegia la PRIMERA inversion
-                    //  de cada episodio: a partir de ahi el signo volvia a
-                    //  rescribirse cada trama, que es justo lo que se quiere
-                    //  evitar. Contando desde el ultimo cambio aceptado, cada
-                    //  inversion tiene que ganarse su ventana.
-                    int signoCmd = (steerCmd > 0) ? 1 : -1;
-#if LINE_DWELL_GLOBAL
-                    if (pitch <= PITCH_RAMPA)
-#else
-                    if (s_en_pivote && pitch <= PITCH_RAMPA)
-#endif
-                    {
-                        if (s_pivote_signo == 0)
-                        {
-                            s_pivote_signo = signoCmd;
-                            s_signo_t0 = millis();
-                        }
-                        else if (signoCmd != s_pivote_signo)
-                        {
-                            if (millis() - s_signo_t0 < LINE_PIVOTE_DWELL_MS)
-                            {
-                                signoCmd = s_pivote_signo;      // todavia no
-                            }
-                            else
-                            {
-                                s_pivote_signo = signoCmd;      // se lo gano
-                                s_signo_t0 = millis();
-                            }
-                        }
-                    }
-                    else
-                    {
-                        // Fuera del pivote -o en rampa- no hay signo sostenido, y
-                        // el static queda limpio. Sin esto, un signo de hace tres
-                        // curvas podria aplicarse al enganchar la proxima.
-                        s_pivote_signo = 0;
-                    }
-                    bool codoMando = false;
-#if LINE_CODO
-                    // ---- MANIOBRA DE CODO -------------------------------
-                    // El razonamiento completo esta arriba, con los defines.
-                    static int  s_codo_estado = 0;      // 0 inactivo, 1 girando
-                    static int  s_codo_signo  = 0;
-                    static unsigned long s_codo_t0 = 0, s_codo_arm = 0,
-                                         s_codo_cen = 0, s_codo_fin = 0;
-                    static int s_codo_arm_signo = 0;
-                    static float s_codo_yaw0 = 0.0f;
-
-                    if (s_codo_estado == 0)
-                    {
-                        if (absSteer >= LINE_CODO_ENTRA && pitch <= PITCH_RAMPA)
-                        {
-                            // El armado se resetea si el signo cambia: en un
-                            // codo el steer apunta para UN lado; en una
-                            // oscilacion alterna.
-                            if (s_codo_arm != 0 && signoCmd != s_codo_arm_signo)
-                                s_codo_arm = 0;
-                            if (s_codo_arm == 0)
-                            {
-                                s_codo_arm = millis();
-                                s_codo_arm_signo = signoCmd;
-                            }
-                            if (millis() - s_codo_arm >= LINE_CODO_ENTRA_MS &&
-                                (s_codo_fin == 0 ||
-                                 millis() - s_codo_fin >= LINE_CODO_COOLDOWN_MS))
-                            {
-                                s_codo_estado = 1;
-                                s_codo_signo  = signoCmd;   // CONGELADO
-                                s_codo_t0     = millis();
-                                s_codo_yaw0   = leer_yaw();
-                                s_codo_cen    = 0;
-                            }
-                        }
-                        else
-                            s_codo_arm = 0;
-                    }
-
-                    if (s_codo_estado == 1)
-                    {
-                        float girado = fabs(calcularDiferenciaAngulo(
-                                                s_codo_yaw0, leer_yaw()));
-                        bool terminar = false;
-                        if (girado >= LINE_CODO_MAX_GRADOS)
-                            terminar = true;
-                        else if (millis() - s_codo_t0 >= LINE_CODO_MAX_MS)
-                            terminar = true;
-                        else if (girado >= LINE_CODO_MIN_GRADOS)
-                        {
-                            // Solo despues del minimo se le hace caso a la
-                            // vision, y solo si el centrado SE SOSTIENE.
-#if LINE_CODO_CIEGO
-                            // Un frame ciego no termina la maniobra NI reinicia
-                            // el contador. Ver el bloque de defines.
-                            if (g_rx_steer != 0.0)
-#endif
-                            {
-                                if (absSteer <= LINE_PIVOTE_SALE)
-                                {
-                                    if (s_codo_cen == 0) s_codo_cen = millis();
-                                    if (millis() - s_codo_cen >= LINE_CODO_SALE_MS)
-                                        terminar = true;
-                                }
-                                else
-                                    s_codo_cen = 0;
-                            }
-                        }
-
-                        if (terminar)
-                        {
-                            s_codo_estado = 0;
-                            s_codo_arm    = 0;
-                            s_codo_fin    = millis();
-                        }
-                        else
-                        {
-                            g_line_branch = 8;   // rama 8 = maniobra de codo
-                            robot.steer(LINE_CODO_VEL, FORWARD,
-                                        s_codo_signo > 0 ? 1.0 : -1.0);
-                            codoMando = true;
-                        }
-                    }
-                    // -----------------------------------------------------
-#endif
-                    if (!codoMando)
-                    {
-#if LINE_LEY_SUMA
-                    // LEY DE REPARTO POR SUMA/RESTA. Ver el bloque de defines.
-                    // La velocidad del centro NO cae al girar.
-                    {
-                        double u = absSteer * LINE_SUMA_K;
-                        double vBase = (LINE_SUMA_VEL > 0)
-                                           ? (double)LINE_SUMA_VEL
-                                           : (double)vel * LINE_RECTA_FACTOR;
-                        g_line_branch = 10;   // rama 10 = ley de suma
-                        robot.steerSuma(vBase, FORWARD,
-                                        signoCmd > 0 ? u : -u);
-                    }
-#else
-#if LINE_FRENO_DELANTERO
+                    // SIGNO DEL GIRO: sale de la trama FRESCA, sin memoria.
+                    // (Hubo un "dwell" que retrasaba las inversiones de signo;
+                    //  se probo el 26-ago-2026 con 250 ms y no movio nada -ratio
+                    //  giro_abs/giro_neto 5,6x contra 2,8-5,8x de la base- porque
+                    //  solo actuaba dentro del pivote, y el robot esta en pivote
+                    //  el 15-20 % del tiempo. Se saco el 2026-09-06.)
+                    // OJO: con steerCmd == 0.0 exacto (byte 90 de la Pi, que es
+                    // "centrado" o "no veo linea") signoCmd da -1, porque la
+                    // comparacion es > 0. Con rot = 0 eso no mueve las ruedas.
+                    const int signoCmd = (steerCmd > 0) ? 1 : -1;
                     // CURVA CERRADA: se frena la delantera interna y se sube la
                     // velocidad. Fuera del umbral, todo sigue como hoy.
                     if (absSteer >= LINE_FRENO_STEER)
@@ -4922,45 +3663,6 @@ void loop()
                     else
                         robot.steer(vel * LINE_RECTA_FACTOR, FORWARD,
                                     signoCmd > 0 ? rot : -rot);
-#else
-                    robot.steer(vel * LINE_RECTA_FACTOR, FORWARD,
-                                signoCmd > 0 ? rot : -rot);
-#endif
-#endif
-                    }
-
-#else   // ---------------- arbol de ramas historico ----------------------
-
-                    if (absSteer > LINE_PIVOT_STEER)
-                    {
-                        g_line_branch = 3;
-                        robot.steerAxleBias(LINE_PIVOT_SPEED, FORWARD,
-                                            steerCmd > 0 ? 1.0 : -1.0,
-                                            LINE_TURN_FRONT_SCALE, LINE_TURN_REAR_SCALE);
-                    }
-                    else if (absSteer > LINE_HARD_CURVE_STEER)
-                    {
-                        g_line_branch = 2;
-                        double mix = (absSteer - LINE_HARD_CURVE_STEER) /
-                                     (LINE_PIVOT_STEER - LINE_HARD_CURVE_STEER);
-                        double rotation = LINE_HARD_ROTATION_MIN +
-                                          mix * (LINE_HARD_ROTATION_MAX - LINE_HARD_ROTATION_MIN);
-                        robot.steerAxleBias(LINE_HARD_CURVE_SPEED, FORWARD,
-                                            steerCmd > 0 ? rotation : -rotation,
-                                            LINE_TURN_FRONT_SCALE, LINE_TURN_REAR_SCALE);
-                    }
-                    else if (absSteer > LINE_CURVE_STEER)
-                    {
-                        g_line_branch = 1;
-                        robot.steer(LINE_CURVE_SPEED, FORWARD, steerCmd);
-                    }
-                    else
-                    {
-                        g_line_branch = 0;
-                        robot.steer(velocidadAjustada, FORWARD, steerCmd);
-                    }
-
-#endif
 
                     // PENDIENTE: si el pitch esta inclinado, piso las traseras a full para
                     // que agarren y no resbale (fr/br usan dir invertida, igual que en steer).
@@ -4987,10 +3689,9 @@ void loop()
                        
                         serialEvent5();
 
-                        if (fixIssue58Enabled() && (millis() - waitStart) >= 5000)
-                        {
-                            break;
-                        }
+                        // TOPE DURO: si la Pi no manda 15/16/17 en 5 s, se sale.
+                        // Sin esto el robot se queda quieto para siempre.
+                        if ((millis() - waitStart) >= 5000) break;
 
                         if (green_state == 15)
                         {
@@ -5012,17 +3713,9 @@ void loop()
                             break;
                         }
 
-                        if (!fixIssue58Enabled())
-                        {
-                            break;
-                        }
                     }
                     }
-
-                    if (fixIssue58Enabled())
-                    {
-                        break;
-                    }
+                    break;   // NO cae al case 14: la maniobra del 12 termino aca
 
                 case 14: // turn 180 deg for double green squares
                     serialEvent5();
@@ -5106,7 +3799,7 @@ void loop()
                 runTime(70,BACKWARD,0,200);
                 ball_counter++;
             }
-            if (ball_counter>=  2 && depositando==false)
+            if (ball_counter>=  3 && depositando==false)
             {
                 claw.sortCenter();
                 digitalWrite(RELAY, HIGH);
@@ -5114,21 +3807,17 @@ void loop()
                 depositando=true;
                 serialEvent5();
                 robot.steer(speed, FORWARD, steer);  
-                veces_deposit=2;
+                veces_deposit=0;
             }
-            // === CHALLENGE D2.3: invertir zonas si es impar (necesita CONTAR_VERDES) ===
-            int gs_dep = INVERTIR_DEPOSITO ? trianguloEfectivo(green_state, verdesImpar()) : green_state;
+            // Triangulo de deposito que ve la camara: 8 = rojo, 9 = verde.
+            const int gs_dep = green_state;
             if(gs_dep == 9)//verde
                 {
                     digitalWrite(RELAY, HIGH);
                     runAngle(20,FORWARD,180);
-                    while(digitalRead(32) == 0){
-                        robot.steer(20,BACKWARD,0);
-                        serialEvent5();
-                        if(digitalRead(FCL)==1 && digitalRead(FCR)==1){
-                            break;
-                        }
-                    }
+                    if (!retrocederHastaFinales(20))
+                        break;
+
                     claw.depositRight();
                     nonBlockingDelay(2000);
                     runTime(80,FORWARD,0,100);
@@ -5147,13 +3836,9 @@ void loop()
                 {
                     digitalWrite(RELAY, HIGH);
                     runAngle(20,FORWARD,180);
-                    while(digitalRead(32) == 0){
-                        robot.steer(20,BACKWARD,0);
-                        serialEvent5();
-                        if(digitalRead(FCL)==1 && digitalRead(FCR)==1){
-                            break;
-                        }
-                    }
+                    if (!retrocederHastaFinales(20))
+                        break;
+
                     claw.depositLeft();
                     nonBlockingDelay(2000);
                     runTime(80,FORWARD,0,100);
@@ -5199,24 +3884,28 @@ void loop()
             {
                 green_state = 0;
 
+                // Secuencia pre-ruedas fijas: al terminar depositos se separa de la zona
+                // y toma el angulo de entrada que ya funcionaba fisicamente.
+                runDistance(30, FORWARD, 25);
+                runAngle(30, FORWARD, -135);
                 leer_ultrasonidos();
 
                 if (front_distance != 0 && front_distance < 120) {
                     runAngle(30, FORWARD, 180);
-                    while (rutina == "evacuacion" && digitalRead(32) == 0) {
-                        robot.steer(30, BACKWARD, 0);
-                        serialEvent5();
-                        if (digitalRead(FCL) == 1 && digitalRead(FCR) == 1)
-                            break;
-                    }
+
+                    // Mismo filtro de finales usado en deposito: ambos deben
+                    // permanecer HIGH durante 50 ms continuos.
+                    if (!retrocederHastaFinales(20))
+                        break;
+
                     runAngle(30, FORWARD, -90);
 
                 }
                 else
                 {
-                    unsigned long alignStart = millis();
                     while (rutina == "evacuacion" && digitalRead(32) == 0) {
                         robot.steer(30, FORWARD, 0);
+                        memoriaParedEvacuacionPeriodica();   // para accionNegro()
                         procesarColorEvacuacion();
                         serialEvent5();
                     }
@@ -5224,32 +3913,16 @@ void loop()
                 evacuacion_straight = true;
             }
             leer_ultrasonidos();
+            memoriaParedEvacuacion();
                 while (rutina == "evacuacion" && digitalRead(32) == 0) {
                     robot.steer(30, FORWARD, 0);
                     procesarColorEvacuacion();
-                    if (rutina != "evacuacion") break;  
+                    if (rutina != "evacuacion") break;
                     serialEvent5();
                     leer_ultrasonidos();
- 
-                    // PRIORIDAD 1: esquina de deposito = camara ve triangulo (green_state
-                    // 8/9) Y el ultrasonido confirma cercania (<=31). Maniobra completa.
-                    if ((green_state == 8 || green_state == 9) && front_distance != 0 && front_distance <= 31)
-                    {
-                        DBG_PRINT("[EVAC] P1 ESQUINA gs="); DBG_PRINT(green_state);
-                        DBG_PRINT(" front="); DBG_PRINTLN(front_distance);
-                        maniobraEsquive();
-                        green_state = 0;   // evita re-disparo inmediato con valor stale de camara
-                        break;
-                    }
+                    memoriaParedEvacuacion();   // memoria de lado para accionNegro()
 
-                    // PRIORIDAD 2: pared frontal lisa = solo ultrasonido (<=18). Giro 90 y sigue.
-                    if (front_distance != 0 && front_distance <= 14)
-                    {
-                        DBG_PRINT("[EVAC] P2 PARED front="); DBG_PRINTLN(front_distance);
-                        runAngle(30, FORWARD, 90);
-                        continue;
-                    }
-                                                            // PRIORIDAD 3: lado izquierdo abierto -> girar a buscar pared.
+                    // PRIORIDAD 3 (orden pre-ruedas fijas): lado izquierdo abierto -> girar a buscar pared.
                     if (left_distance > 40 || left_distance == 0)
                     {
                         DBG_PRINT("[EVAC] P3 BUSCAR left="); DBG_PRINT(left_distance);
@@ -5262,9 +3935,29 @@ void loop()
                             procesarColorEvacuacion();
                             serialEvent5();
                             leer_ultrasonidos();
+                            memoriaParedEvacuacion();
                             if (debeEsquivar())   // corto la busqueda al toparme con esquina o pared
                                 break;
                         }
+                    }
+
+                    // PRIORIDAD 1: esquina de deposito = camara ve triangulo (green_state
+                    // 8/9) Y el ultrasonido confirma cercania (<=31). Maniobra completa.
+                    if ((green_state == 8 || green_state == 9) && front_distance != 0 && front_distance <= 34)
+                    {
+                        DBG_PRINT("[EVAC] P1 ESQUINA gs="); DBG_PRINT(green_state);
+                        DBG_PRINT(" front="); DBG_PRINTLN(front_distance);
+                        maniobraEsquive();
+                        green_state = 0;   // evita re-disparo inmediato con valor stale de camara
+                        break;
+                    }
+
+                    // PRIORIDAD 2 (pre-ruedas fijas): pared frontal lisa a <=18 cm.
+                    if (front_distance != 0 && front_distance <= 18)
+                    {
+                        DBG_PRINT("[EVAC] P2 PARED front="); DBG_PRINTLN(front_distance);
+                        runAngle(30, FORWARD, 90);
+                        continue;
                     }
 
 
