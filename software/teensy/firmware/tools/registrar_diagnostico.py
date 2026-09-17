@@ -29,6 +29,37 @@ RUEDAS = ("fl", "fr", "bl", "br")
 COLAPSO_ARRASTRE, COLAPSO_PWM = 8, 30      # mismo criterio que el analizador
 UMBRAL_CURVA = 0.35                        # idem
 CURVAS_MINIMAS = 5                         # curvas de VISION para dar la corrida por buena
+US_WRAP = 4000000000                       # micros() da la vuelta a los ~71 min: no es un reinicio
+
+
+def reconectar(ser, args, f, error):
+    """El USB desaparecio en medio de la lectura (ClearCommError en Windows).
+
+    Pasa por dos causas MUY distintas: el cable se aflojo o tiro, o la Teensy se
+    REINICIO (baja de tension al arrancar los motores, watchdog). Aca solo se
+    reabre el mismo puerto y se sigue grabando en el mismo archivo; cual de las
+    dos fue lo dice el lazo principal mirando si `us` volvio a empezar.
+    Ctrl-C mientras espera corta la grabacion normalmente.
+    """
+    t = time.strftime("%H:%M:%S")
+    print("\n!!! %s USB PERDIDO (%s). Reintentando abrir %s... (Ctrl-C para cortar)"
+          % (t, error, args.puerto))
+    f.write("# %s USB perdido: %s\n" % (t, error))
+    f.flush()
+    try:
+        ser.close()
+    except Exception:
+        pass
+    while True:
+        time.sleep(0.5)
+        try:
+            nuevo = serial.Serial(args.puerto, args.baud, timeout=0.2)
+        except (serial.SerialException, OSError):
+            continue
+        t = time.strftime("%H:%M:%S")
+        print("!!! %s USB de vuelta. Sigo grabando en el mismo archivo." % t)
+        f.write("# %s USB reconectado\n" % t)
+        return nuevo
 
 
 def main():
@@ -69,6 +100,10 @@ def main():
     curva_es_vision = False
     ult = {}
     resto = b""
+    reconexiones = 0         # veces que Windows perdio el USB
+    reinicios = 0            # veces que `us` volvio a empezar: la Teensy arranco de nuevo
+    us_ultimo = None
+    perdidas_previas = 0     # muestras perdidas antes de un reinicio (el contador vuelve a 0)
 
     with open(args.salida, "w", encoding="utf-8", newline="") as f:
         if args.nota:
@@ -80,7 +115,13 @@ def main():
                 # a 200 Hz x ~321 B son ~64.000 llamadas por segundo y el proceso
                 # no da abasto; la contrapresion llena el anillo del Teensy y sube
                 # `drop` sin que nadie sospeche del que graba.
-                trozo = ser.read(4096)
+                try:
+                    trozo = ser.read(4096)
+                except (serial.SerialException, OSError) as e:
+                    ser = reconectar(ser, args, f, e)
+                    reconexiones += 1
+                    resto = b""          # la linea cortada a la mitad no sirve
+                    continue
                 if not trozo:
                     continue
                 datos = resto + trozo
@@ -121,6 +162,19 @@ def main():
                         except ValueError:
                             return dflt
 
+                    # REINICIO DE LA TEENSY: `us` es micros() y solo vuelve a
+                    # empezar si la placa arranco de nuevo. Un cable flojo corta
+                    # el USB pero `us` sigue de largo.
+                    us = v("us")
+                    if (us_ultimo is not None and us + 1000000 < us_ultimo
+                            and us_ultimo < US_WRAP):
+                        reinicios += 1
+                        t = time.strftime("%H:%M:%S")
+                        print("!!! %s LA TEENSY SE REINICIO (us %d -> %d). No es el cable."
+                              % (t, us_ultimo, us))
+                        f.write("# %s la Teensy se reinicio (us %d -> %d)\n" % (t, us_ultimo, us))
+                    us_ultimo = us
+
                     for w in RUEDAS:
                         if (v(w + "_set") >= 1
                                 and v(w + "_rpm") - v(w + "_set") > COLAPSO_ARRASTRE
@@ -144,6 +198,11 @@ def main():
 
                     d = v("drop")
                     if drop_base is None:
+                        drop_base = drop_ultimo = d
+                    elif d < drop_ultimo:
+                        # el contador del firmware volvio a 0 (reinicio): se guarda
+                        # lo perdido hasta aca y se toma la nueva base
+                        perdidas_previas += drop_ultimo - drop_base
                         drop_base = drop_ultimo = d
                     ult = {"rot": rot, "ram": ram, "gz": v("gz"),
                            "rxage": v("rxage"), "drop": d}
@@ -184,7 +243,15 @@ def main():
         print("Llego la cabecera pero ninguna muestra. Revisar el cable/puerto.")
         return
 
-    perdidas = (drop_ultimo - drop_base) if drop_base is not None else 0
+    perdidas = perdidas_previas + ((drop_ultimo - drop_base) if drop_base is not None else 0)
+    if reconexiones or reinicios:
+        print("USB perdido y recuperado        : %d veces" % reconexiones)
+        print("reinicios de la Teensy          : %d" % reinicios)
+        if reinicios:
+            print("  -> la PLACA arranco de nuevo en medio de la corrida (tension/watchdog),")
+            print("     no es el cable. Anotar que estaba haciendo el robot en ese momento.")
+        elif reconexiones:
+            print("  -> `us` siguio de largo: fue el USB/cable, la Teensy no se reinicio.")
     print("curvas de VISION (rama >= 2)   : %d" % curvas_vision)
     print("curvas PROGRAMADAS (rama -1)   : %d" % curvas_programadas)
     print("rama maxima vista              : %d" % ram_max)
@@ -202,6 +269,8 @@ def main():
                          "las pidio" % (curvas_vision, CURVAS_MINIMAS))
     if perdidas:
         problemas.append("se perdieron %d muestras" % perdidas)
+    if reinicios:
+        problemas.append("la Teensy se reinicio %d veces durante la grabacion" % reinicios)
     if dur and n_lineas / dur < 150:
         problemas.append("%.0f Hz efectivos, por debajo de 150: hay huecos en el muestreo"
                          % (n_lineas / dur))
