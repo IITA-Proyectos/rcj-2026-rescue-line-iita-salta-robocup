@@ -15,12 +15,12 @@
 
 The IITA Salta team presents a dual-processor robot (Teensy 4.1 + Raspberry Pi 4B) for RoboCup Junior 2026 Rescue Line. The system demonstrates a remarkable level of technical ambition for the category: computer vision with YOLOv8, a custom binary serial protocol, differential kinematics with PID, and a claw mechanism with 5 servos. The team won the Argentine national championship in 2025, validating the work foundation.
 
-However, the detailed analysis of the code reveals significant structural issues that, if not resolved before Incheon, could compromise the robot's reliability in international competition. The main findings are:
+However, the detailed analysis of the code reveals significant structural problems that, if not resolved before Incheon, may compromise the robot's reliability in international competition. The main findings are:
 
-- **The Teensy firmware (main.cpp) is a monolith of ~700 lines without a formal state machine**, with hardcoded rescue logic for fixed times and angles, lacking error recovery.
-- **The Raspberry program (Main.py) mixes all logic in a single file of ~500 lines**, with global variables crossed between states and no robust exception handling.
+- **The Teensy firmware (main.cpp) is a monolith of ~700 lines without a formal state machine**, with hardcoded rescue logic based on fixed times and angles, without error recovery.
+- **The Raspberry program (Main.py) mixes all logic in a single file of ~500 lines**, with global variables crossed between states and without robust exception handling.
 - **The serial protocol lacks checksums and acknowledgments**, making it vulnerable to desynchronization under electrical noise — a common scenario in competition with DC motors.
-- **The rescue zone relies on blind timing sequences** (`runTime`) instead of sensor feedback, making it fragile to variations in battery, surface, and friction.
+- **The rescue zone relies on blind temporal sequences** (`runTime`) instead of sensor feedback, making it fragile to variations in battery, surface, and friction.
 - **There is significant duplicated code** between `Main.py`, `rescatemodelonos.py`, and `tfmodelprueba.py`, creating a risk of divergence.
 
 The robot has a solid foundation. Recommendations are prioritized according to impact on competition and feasibility before Incheon.
@@ -57,7 +57,7 @@ The robot has a solid foundation. Recommendations are prioritized according to i
 **Weaknesses:**
 - There is no second communication channel (neither I2C nor SPI backup). If the UART fails, the robot becomes completely blind.
 - There is no bidirectional watchdog mechanism: if the RPi freezes, the Teensy does not detect it (and vice versa).
-- The Teensy lacks persistent logging (neither SD card nor circular buffer), complicating post-competition diagnostics.
+- The Teensy lacks persistent logging (neither SD card nor circular buffer), making post-competition diagnostics difficult.
 
 ---
 
@@ -112,7 +112,7 @@ These sequences assume that the robot moves exactly N milliseconds to cover X di
 - The surface changes (carpet vs. wood vs. vinyl).
 - Obstacles and speed bumps alter the trajectory.
 
-The `runDistance()` function exists and uses encoders, but it is underutilized. The recommendation is to migrate all rescue sequences to `runDistance()` + `runAngle()`.
+The function `runDistance()` exists and uses encoders, but is underutilized. The recommendation is to migrate all rescue sequences to `runDistance()` + `runAngle()`.
 
 **3.2.4 — The case `action = 1` (front obstacle) uses random**
 
@@ -130,9 +130,9 @@ if (RanNumber == 2) {
 
 Choosing randomly which side to dodge an obstacle is a last-resort strategy. The lateral ToF sensors are already available and should be used to decide which side has more space. This is a simple high-impact change.
 
-**3.2.5 — The `runAngle` function has duplicated and fragile logic**
+**3.2.5 — The function `runAngle` has duplicated and fragile logic**
 
-The function attempts to handle specific angles (180, 90, -90, 45, -45) with special cases, but the general case (`else if (angle > 0)`) always turns at maximum steer=1 or -1, without proportional control. This causes overshooting. A simple P controller (`steer = constrain(Kp * error, -1, 1)`) would be more robust and eliminate all special cases.
+The function attempts to handle specific angles (180, 90, -90, 45, -45) with special cases, but the general case (`else if (angle > 0)`) always turns to maximum steer=1 or -1, without proportional control. This causes overshooting. A simple P controller (`steer = constrain(Kp * error, -1, 1)`) would be more robust and eliminate all special cases.
 
 **3.2.6 — Inconsistency in servo pins**
 
@@ -148,7 +148,7 @@ DFServo sort(12, ...);
 DFServo deposit(23, ...);
 ```
 
-The pins for `sort` and `deposit` are inverted between the main program and the test. This indicates that the test does not reflect the actual hardware, invalidating it as a diagnostic tool.
+The pins for `sort` and `deposit` are inverted between the main program and the test. This indicates that the test does not reflect the current hardware, invalidating it as a diagnostic tool.
 
 **3.2.7 — The rescue zone exit is not implemented**
 
@@ -172,7 +172,7 @@ The backlog confirms: "Exit from the rescue zone correctly — we have a base bu
 
 ### 4.1 General Structure
 
-`Main.py` is a ~500 line file that implements everything: line following by classic vision, YOLO detection for rescue, state machine, serial communication, and threading. The `modo_rescate()` function is a mega-function of ~300 lines with classes, threads, and all the rescue logic inside.
+`Main.py` is a ~500 line file that implements everything: line following by classic vision, YOLO detection for rescue, state machine, serial communication, and threading. The function `modo_rescate()` is a mega-function of ~300 lines with classes, threads, and all the rescue logic inside.
 
 ### 4.2 Critical Findings
 
@@ -193,7 +193,7 @@ estado = 'esperando'  # global
 silver_line = False    # global, modified in line, read in rescue
 ```
 
-The variable `estado` is modified both in the main loop and within `modo_rescate()` and `serial_monitor_local()`. This sharing without locks is a race condition waiting to happen, especially with rescue threads.
+The variable `estado` is modified in both the main loop and within `modo_rescate()` and `serial_monitor_local()`. This sharing without locks is a race condition waiting to happen, especially with the rescue threads.
 
 **4.2.3 — No exception handling in serial**
 
@@ -220,7 +220,7 @@ These values work in a specific lighting environment. In international competiti
 width, height = 160, 120
 ```
 
-At 160x120, each pixel covers a significant portion of the visual field. This limits the angular precision of the line follower and the detection of green squares. High-level international teams usually use 320x240 or higher.
+At 160x120, each pixel covers a significant portion of the visual field. This limits the angular precision of the line follower and the detection of green squares. High-level international teams typically use 320x240 or higher.
 
 **4.2.6 — The line angle calculation is simplistic**
 
@@ -230,7 +230,7 @@ y_resultant = np.mean(y_black)
 angle = (math.atan2(y_resultant, x_resultant) / math.pi * 180) - 90
 ```
 
-A weighted centroid of all black pixels is calculated, which works for straight lines but has problems at intersections, tight curves, and when there is noise (shadows). Techniques like look-ahead to multiple ROIs, contour segmentation, or curvature analysis are not used.
+A weighted centroid of all black pixels is calculated, which works for straight lines but has problems at intersections, tight curves, and when there is noise (shadows). Techniques such as look-ahead to multiple ROIs, contour segmentation, or curvature analysis are not used.
 
 **4.2.7 — Silver detection is fragile**
 
@@ -287,7 +287,7 @@ The multithreaded pipeline is good engineering. The separation of capture/infere
 
 **No checksum or CRC:** If a byte is corrupted by electromagnetic noise from the motors, the parser desynchronizes. For example, if the marker 255 is lost, the next speed data is interpreted as a marker, and the entire frame shifts. There is no recovery mechanism.
 
-**No acknowledgment:** The RPi sends fire-and-forget commands. If the Teensy is busy in `runTime()` (which is blocking), bytes accumulate in the serial buffer and are processed in batch upon exit, with outdated data.
+**No acknowledgment:** The RPi sends fire-and-forget commands. If the Teensy is busy in `runTime()` (which is blocking), the bytes accumulate in the serial buffer and are processed in batch upon exit, with outdated data.
 
 **Markers are valid data values:** The speed can be 252 or 253, which collide with the markers for green_state and silver_line. In the implementation, `serialEvent5()` assumes that if `data >= 252`, it is a marker. But if the actual speed were 252, it would be interpreted as a silver_line marker. This artificially limits the speed range to 0-251.
 
@@ -310,15 +310,15 @@ The multithreaded pipeline is good engineering. The separation of capture/infere
 ### 6.2 Model Concerns
 
 - **No augmentations for variable lighting in the training dataset** (pending in backlog).
-- **The model classes in Main.py and rescatemodelonos.py are different:** Main.py uses 4 classes (black, silver, red high, green high) while the test file uses 6 classes (boxgreen, boxred, black, silver, red high, green high). This indicates that the model changed but not all files were updated.
+- **The model classes in Main.py and in rescatemodelonos.py are different:** Main.py uses 4 classes (black, silver, red high, green high) while the test file uses 6 classes (boxgreen, boxred, black, silver, red high, green high). This indicates that the model changed but not all files were updated.
 - **No validation that the model loaded correctly.** If the model path is incorrect, the exception is not caught and the robot fails silently.
 - **FPS is not documented under competition conditions.** The benchmarks are external. The team needs to measure real FPS with the current model, current camera, and current resolution.
 
 ### 6.3 Tracking
 
-MOSSE (OpenCV contrib) is used as the primary tracker and a custom CentroidTracker as a fallback. MOSSE is extremely fast but fragile to sudden scale changes or occlusions. The implemented CentroidTracker is basic but functional.
+MOSSE (OpenCV contrib) is used as the primary tracker and a custom CentroidTracker as a fallback. MOSSE is extremely fast but fragile to abrupt scale changes or occlusions. The implemented CentroidTracker is basic but functional.
 
-**Concern:** The function `choose_stable_target()` selects the target closest to the last known, but does not consider the class. If a silver ball passes close to a black one, the tracker may "jump" between targets of different classes.
+**Concern:** The function `choose_stable_target()` selects the target closest to the last known one, but does not consider the class. If a silver ball passes near a black one, the tracker may "jump" between targets of different classes.
 
 ---
 
@@ -360,7 +360,7 @@ The `Claw` class controls 5 servos: lift, left, right, sort, deposit. The functi
 | No formal logging (only `print()`) | Medium | Both |
 | Magic numbers without constants | High | main.cpp (12, 0.7, 55, 3000, etc.) |
 | No exception handling in serial | High | Main.py |
-| Massive duplication of rescue code | High | Main.py, rescatemodelonos.py, tfmodelprueba.py |
+| Massive code duplication in rescue | High | Main.py, rescatemodelonos.py, tfmodelprueba.py |
 | Shared global variables between threads | High | Main.py |
 | Use of `String` in embedded firmware | High | main.cpp |
 
@@ -384,20 +384,20 @@ The repo has 4 open issues and 6 open PRs, suggesting active use of GitHub Flow.
 | Tight curves (135°) | ⚠️ In development | Pending in backlog, re-engagement system designed |
 | Inclined slopes | ⚠️ Partial | Adjusts speed by pitch, no traction control |
 | Red line (signal) | ✅ Detects | Sends green_state=10, Teensy does not process |
-| Entry to rescue (silver) | ✅ Functional | Color + contour detection |
+| Entry to rescue (silver) | ✅ Functional | Detection by color + contour |
 | Detect balls (YOLO) | ✅ Functional | 4 classes, ONNX on CPU |
 | Pick up balls | ✅ Functional | Claw with 5 servos |
-| Distinguish alive/dead | ✅ Functional | Silver vs. black by vision |
+| Distinguish live/dead | ✅ Functional | Silver vs. black by vision |
 | Deposit in correct zone | ⚠️ Partial | Zone detection works, deposit logic basic |
-| Exit rescue zone | ❌ Not functional | Recognized in backlog as unresolved |
+| Exit rescue zone | ❌ Does not work | Recognized in backlog as unresolved |
 | Ignore false victims | ⚠️ Not clear | The model should filter them, but there is no evidence of training with false |
 
 ### 9.2 Critical Gaps for International Competition
 
 1. **Exit from the rescue zone.** Without this, the robot loses all "rescue" points if it cannot continue the course.
-2. **Robustness against variable lighting.** International teams use automatic White Balance or on-the-fly calibration. Fixed thresholds will fail.
+2. **Robustness to variable lighting.** International teams use automatic White Balance or on-the-fly calibration. Fixed thresholds will fail.
 3. **Speed bumps in the rescue zone.** No specific handling.
-4. **Flashing lights/LEDs in the rescue zone.** The YOLO model is not trained for this.
+4. **Flashlights/LEDs flashing in the rescue zone.** The YOLO model is not trained for this.
 5. **Gaps in the line.** No re-engagement logic implemented (only designed in backlog).
 
 ---
@@ -420,10 +420,10 @@ Change `String routine` to `enum class Routine { LINE, RESCUE }` and the same fo
 try:
     ser.write(output)
 except serial.SerialException:
-    # attempt to reconnect or continue without serial
+    # try to reconnect or continue without serial
 ```
 
-**R5. Use the lateral ToF to decide the direction of obstacle dodge** instead of `random()`.
+**R5. Use the lateral ToF to decide the direction of obstacle dodging** instead of `random()`.
 
 ### Priority 2 — IMPORTANT (significant performance improvement)
 
@@ -464,7 +464,7 @@ void loop() {
 }
 ```
 
-**R13. Unify rescue code.** `rescatemodelonos.py` and `tfmodelprueba.py` should be parameterized variants of the same code, not divergent copies.
+**R13. Unify the rescue code.** `rescatemodelonos.py` and `tfmodelprueba.py` should be parameterized variants of the same code, not divergent copies.
 
 **R14. Add logging with timestamps** to a file on the RPi for post-competition analysis.
 
@@ -479,7 +479,7 @@ void loop() {
 | Serial desynchronization due to motor noise | High | High | R2 (checksum) |
 | Crash due to heap fragmentation in Teensy | Medium | High | R3 (eliminate String) |
 | Vision failure due to different lighting | High | High | R8 (calibration) |
-| Unable to exit rescue zone | Certainty | High | R1 (implement exit) |
+| Unable to exit the rescue zone | Certainty | High | R1 (implement exit) |
 | Rescue sequences fail due to low battery | High | Medium | R6 (use encoders) |
 | Crash of Main.py due to serial exception | Medium | High | R4 (try/except) |
 | YOLO model confused by LED flashlights | Medium | Medium | Augmentations in dataset |
@@ -491,9 +491,9 @@ void loop() {
 
 The IITA Salta team has a robot with solid foundations: good processor architecture, functional custom libraries, vision with deep learning, and above-average documentation for the category. The national championship of 2025 validates that the base system works.
 
-To compete at an international level in Incheon, the focus must be on **reliability, not on new features**. Recommendations R1 to R5 (rescue exit, serial checksum, eliminate String, try/except, and use ToF for obstacles) are limited changes that dramatically reduce the most likely failure modes.
+To compete at the international level in Incheon, the focus must be on **reliability, not on new features**. Recommendations R1 to R5 (rescue exit, serial checksum, eliminate String, try/except, and use ToF for obstacles) are limited changes that dramatically reduce the most likely failure modes.
 
-The greatest technical risk is **fragility against competition conditions different from training**: lighting, surfaces, battery level, and electromagnetic noise. Every hour invested in robustness (adaptive calibration, watchdogs, fallbacks) is worth more than an hour invested in new features.
+The greatest technical risk is **fragility to competition conditions different from training**: lighting, surfaces, battery level, and electromagnetic noise. Every hour invested in robustness (adaptive calibration, watchdogs, fallbacks) is worth more than an hour invested in new features.
 
 ---
 

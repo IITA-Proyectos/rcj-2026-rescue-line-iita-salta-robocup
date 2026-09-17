@@ -11,7 +11,7 @@ This document explains how vision works on the Raspberry Pi, how YOLO is integra
 
 ## Objective
 
-- Follow a line in real time (classic vision).
+- Follow a line in real-time (classic vision).
 - In rescue, detect balls and areas with YOLO.
 - Send commands to the Teensy via serial (see `rpi/Communication between the raspberry and the teensy.md`).
 
@@ -28,17 +28,17 @@ This document explains how vision works on the Raspberry Pi, how YOLO is integra
 - `deposit`: YOLO for deposit areas.
 - `deposit green`: sub-state for the green area.
 
-## Regulation 2026 - Rescue Area (operational summary)
+## Regulation 2026 - Rescue Zone (operational summary)
 
 Summary based on regulation 2026:
-- The **evacuation area** measures **120 cm x 90 cm** and has walls at least 10 cm high.
+- The **evacuation zone** measures **120 cm x 90 cm** and has walls at least 10 cm high.
 - The entrance has a **reflective silver tape** (25 mm x 250 mm).
 - The exit has a **black tape** (25 mm x 250 mm).
 - The **black line ends** at the entrance and **starts again** at the exit.
-- There are **two high evacuation areas**: one **red** (dead victim) and one **green** (live victims).
-- The areas are **right triangles of 30 cm x 30 cm** with **6 cm** walls and a hollow center.
-- The areas can be in any corner that is not the entrance/exit.
-- There may be **obstacles or speed bumps** within the area, but **they do not count for points**.
+- There are **two high evacuation zones**: one **red** (dead victim) and one **green** (live victims).
+- The zones are **right triangles of 30 cm x 30 cm** with **6 cm** walls and a hollow center.
+- The zones can be in any corner that is not entrance/exit.
+- There may be **obstacles or speed bumps** within the zone, but **they do not count for points**.
 - There may be **white LED lights** at the top of the walls.
 - The victims are spheres of 4-5 cm, with off-center mass (max 80 g):
   - **Live**: silver, reflective, and conductive.
@@ -75,19 +75,19 @@ Summary based on regulation 2026:
 In rescue, 4 classes are used:
 - `0`: black (black ball)
 - `1`: silver (silver ball)
-- `2`: high red (red area)
-- `3`: high green (green area)
+- `2`: high red (red zone)
+- `3`: high green (green zone)
 
 ## Models and Versions (folder `rpi/AI`)
 
 | Date | File | Notes |
 |---|---|---|
 | 11-09 | `roboliga.onnx` | First rescue tests. |
-| 11-09 | `Roboliga 2025.v5-rescate.yolov8.zip` | Exported YOLOv8 Dataset Version. |
-| 20-11 | `depositoalto.onnx` | Area tests. |
-| 20-11 | `Roboliga 2025.v12-zonas-alta.yolov8.zip` | Exported YOLOv8 Dataset Version. |
-| 23-11 | `zonasdepositoalta.onnx` | Model used in `Main.py`. |
-| 23-11 | `Roboliga 2025.v15-sinboxes-bajas.yolov8.zip` | Exported YOLOv8 Dataset Version. |
+| 11-09 | `Roboliga 2025.v5-rescue.yolov8.zip` | Exported YOLOv8 Dataset Version. |
+| 20-11 | `depositohigh.onnx` | Zone tests. |
+| 20-11 | `Roboliga 2025.v12-high-zones.yolov8.zip` | Exported YOLOv8 Dataset Version. |
+| 23-11 | `highdepositzones.onnx` | Model used in `Main.py`. |
+| 23-11 | `Roboliga 2025.v15-no-lowboxes.yolov8.zip` | Exported YOLOv8 Dataset Version. |
 
 ## Dependencies (Raspberry Pi)
 
@@ -104,26 +104,26 @@ Several options were tested (tflite, yolov8n, yolov8_ncnn, FOMO) and **ONNX Runt
 ### Precision and Quantization
 
 - The **current ONNX models are in FP32** (not INT8).
-- Attempts were made to quantize (INT8) in an environment very similar to the real one, but **precision worsened** and the results were unreliable.
+- Quantization (INT8) was attempted in a very similar environment to the real one, but **precision worsened** and the results were unreliable.
 - At this stage, **robustness and precision** were prioritized over FPS.
 
 #### Quantization
 
 Quantization reduces computation and memory costs by changing the data type:
 - **FP32**: 32 bits, more precision, more cost.
-- **FP16/INT8**: fewer bits, more speed, and less memory, but may lose precision.
+- **FP16/INT8**: fewer bits, more speed and less memory, but may lose precision.
 
 In vision, quantization can affect:
 - Edges and fine details.
-- Confidence of detections.
-- Calibration of thresholds.
+- Detection confidence.
+- Threshold calibration.
 
-That is why it was kept in FP32 until a reliable calibration set and stable behavior on the track were achieved.
+That is why it was kept in FP32 until a reliable calibration set and stable behavior on track were achieved.
 
 ### CPU-only (no accelerator)
 
 No AI accelerator is used (no NPU, no TPU, no GPU). **Everything runs on the CPU** of the Raspberry Pi.  
-This limits the maximum FPS and requires optimizing the pipeline.
+This limits the maximum FPS and forces optimization of the pipeline.
 
 ### Optimization and Multithreading
 
@@ -153,11 +153,11 @@ Below are external graphs comparing runtimes on Raspberry Pi 4B. They are not ou
 | YOLOv8n (NCNN) | Qengineering (Raspberry Pi 4 1950MHz) | ~3.1 FPS (YOLOv8n 640) |
 | FOMO | Edge Impulse (Raspberry Pi 4) | ~60 FPS (160x160, MobileNetV2 0.1) |
 
-> Note: these values **are not comparable 1:1** because models, resolutions, datasets, and configurations vary. They are used only as external reference.
+> Note: these values **are not comparable 1:1** because models, resolutions, datasets, and configurations change. They are used only as external reference.
 
-## How to Run the Raspberry Main
+## How to run the Raspberry main
 
-1. Copy the ONNX model to the Raspberry (e.g., `/home/iita/Desktop/zonasdepositoalta.onnx`).
+1. Copy the ONNX model to the Raspberry (e.g., `/home/iita/Desktop/highdepositzones.onnx`).
 2. Install Python dependencies.
 3. Run `Main.py`.
 
@@ -168,7 +168,7 @@ Below are external graphs comparing runtimes on Raspberry Pi 4B. They are not ou
 - `OMP_NUM_THREADS`: limit CPU threads.
 - `HEADLESS = True`: disables windows and increases FPS.
 
-## Checklist When Changing Model
+## Checklist when changing model
 
 - Update `MODEL_PATH` in `Main.py`.
 - Confirm `CLASS_NAMES` and class mapping.

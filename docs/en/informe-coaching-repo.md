@@ -16,14 +16,14 @@
 
 ## Objective
 
-This report is a technical-professional review of the repository and the project's status, focusing on:
+This report is a technical-professional review of the repository and the project status, focusing on:
 
 - **Competition**: RoboCupJunior Rescue Line (baseline: rules 2025; note: drafts for 2026 exist).
 - **Competitive performance**: robustness, repeatability, timing, and failure control.
 - **TDP / Documentation**: evidence and typical artifacts required by templates/rubrics (TDP, BOM, technical video, poster).
 - **Best practices**: what strong teams tend to do (engineering + testing + traceability).
 
-> Important: this audit is based on what is visible at the time of the review (2026-02-23). If files were added later (e.g., in `hardware/` or `testing/`), this report must be updated.
+> Important: this audit is based on what is visible at the time of review (2026-02-23). If files were added later (e.g., in `hardware/` or `testing/`), this report should be updated.
 
 ---
 
@@ -33,7 +33,7 @@ According to the README and `AI-INSTRUCTIONS.md`, the documentation is organized
 
 - `docs/es/`: source documentation in Spanish (truth).
 - `docs/en/`: auto-generated mirror in English (**do not edit**).
-- Suggested convention for file names: **kebab-case** in lowercase (e.g.: `yolo-raspberry.md`).
+- Suggested convention for file names: **kebab-case** in lowercase (e.g., `yolo-raspberry.md`).
 - Change process: **every change should originate from an Issue** and enter via PR (see `CONTRIBUTING.md` and `AI-INSTRUCTIONS.md`).
 
 **Recommended name and location for this report:**
@@ -47,10 +47,10 @@ According to the README and `AI-INSTRUCTIONS.md`, the documentation is organized
 1. **Repository with clear ICRS structure** (software/hardware/docs/testing/journal/research/competition/project).  
 2. **Well-defined dual processor architecture**: Teensy (real-time) + Raspberry Pi (vision/AI).  
 3. **Useful existing technical documentation** (RPi↔Teensy communications, YOLO on Raspberry, firmware libraries).  
-4. **Industry-style contribution rules** (Conventional Commits, PR with evidence, declaration of AI usage).
+4. **Industry-style contribution rules** (Conventional Commits, PR with evidence, AI usage declaration).
 
 ### Areas for Improvement (what often separates “doing” from “winning”)
-1. **Work traceability**: the repo shows 0 Issues → lacks a “playable” backlog (tasks, responsibilities, dates, risks).  
+1. **Work traceability**: the repo shows 0 Issues → lacks a “playable” backlog (tasks, responsible parties, dates, risks).  
 2. **Testing evidence with results**: `testing/` is declared, but there is no clearly accessible index/test table.  
 3. **TDP readiness**: for high scores, often missing (or not one click away): electrical diagram/power tree, schematics/PCB, official BOM, CAD with measurements, physical location of sensors, and performance metrics.
 
@@ -94,11 +94,11 @@ Code with relevant signals:
 
 **Concrete recommendation (action):**
 - Activate a minimum flow:
-  - 1 Issue per feature (e.g.: “Fix ToF units”, “Non-blocking FSM”, “Testing gaps table”).
+  - 1 Issue per feature (e.g., “Fix ToF units”, “Non-blocking FSM”, “Testing gaps table”).
   - labels: `bug`, `enhancement`, `docs`, `hardware`, `testing`, `competition`.
   - milestones: “Roboliga / Regional / National / World”.
 
-> Winning teams are not differentiated by “ideas”: they are differentiated by having a system that makes ideas reach the track and remain stable.
+> Winning teams are not differentiated by “ideas”: they are differentiated by having a system that makes ideas reach the field and remain stable.
 
 ---
 
@@ -110,7 +110,7 @@ Code with relevant signals:
 - **Dependencies** and libraries listed (reduces judge questions).
 
 #### 2.2 What is missing (or not visible/1 click away)
-For TDP and typical rubrics, it is missing to consolidate in one place:
+For TDP and typical rubrics, it is necessary to consolidate in one place:
 
 **Hardware**
 - Block diagram of the robot (high level).
@@ -127,7 +127,7 @@ For TDP and typical rubrics, it is missing to consolidate in one place:
 **Testing**
 - Test table + results (success %, time, failure modes).
 - Videos/internal links by feature.
-- Logs (even if CSV) by run to compare improvements.
+- Logs (even if CSV) per run to compare improvements.
 
 ---
 
@@ -149,7 +149,7 @@ In C/C++, this compares **pointers**, not content. It is a classic bug that may 
 ✅ Recommendation:
 - replace with `strcmp(id, "FL")==0` or, better, use `enum MotorID`.
 
-**(B) Units mm vs cm**
+**(B) mm vs cm units**
 In `src/main.cpp`, readings `readRangeContinuousMillimeters()` (mm) are used, but constants commented in cm.
 If units are mixed, control becomes erratic (over-correction or slowness).
 
@@ -187,7 +187,7 @@ Without numbers, AI often feels “magical” until the competition day when it 
 - The repo structure includes `testing/`, but no `testing/README.md` was found to act as an index.
 - In `CONTRIBUTING.md`, evidence in PR is required (very good).
 
-**Minimum recommendation (high return):**
+**Minimum recommendation (high yield):**
 Create `testing/README.md` with a simple table:
 
 | Feature | Setup | Metric | Result | Evidence | Date |
@@ -232,7 +232,7 @@ And within `testing/`:
 
 ### Sprint 1 — Stability (avoid losing rounds due to bugs)
 - Fix strings / units / non-blocking FSM.
-- RPi↔Teensy communication watchdog.
+- Communication watchdog RPi↔Teensy.
 - Minimum logging (build + parameters + result).
 
 ### Sprint 2 — Track Coverage (rules)
@@ -244,7 +244,7 @@ And within `testing/`:
 - Reduction of false positives in vision.
 
 ### Sprint 4 — Final Documentation (TDP)
-- Consolidate hardware + software + testing into a TDP that “is easy to read”.
+- Consolidate hardware + software + testing into a TDP that “is readable”.
 
 ---
 
