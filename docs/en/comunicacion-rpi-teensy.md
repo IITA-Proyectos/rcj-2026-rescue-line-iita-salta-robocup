@@ -26,7 +26,7 @@ The Raspberry sends a frame of 8 bytes, always in the same order:
 ```
 
 Meaning:
-- `speed`: 0 to 100. On Teensy it is interpreted as a percentage (see `serialEvent5`).
+- `speed`: 0 to 100. On Teensy, it is interpreted as a percentage (see `serialEvent5`).
 - `angle`: 0 to 180. Teensy converts it to `steer` in the range [-1, 1] with `(angle - 90) / 90`.
 - `green_state`: high-level command (see table).
 - `silver_line`: 0 or 1, indicates whether a silver line was detected in line mode.
@@ -44,8 +44,8 @@ These values come from `Main.py` and are used in `main.cpp`:
 | 6 | Centered silver ball | Executes silver collection routine. |
 | 7 | Centered black ball | Executes black collection routine. |
 | 8 | Centered red zone | Deposits in red zone. |
-| 9 | Green zone detected | Deposits in green zone. |
-| 10 | Red line (in line) | On Raspberry, 10 is sent, but Teensy does not use 10 directly; it detects it as a visual event and follows its line logic. |
+| 9 | Detected green zone | Deposits in green zone. |
+| 10 | Red line (in line) | In Raspberry, 10 is sent, but Teensy does not use 10 directly; it detects it as a visual event and follows its line logic. |
 
 Notes:
 - In rescue, `green_state` comes from YOLO detection.
@@ -57,7 +57,7 @@ The Teensy also sends bytes to change the state of the Raspberry program:
 
 | Byte | When it is sent | Effect on Raspberry |
 |---|---|---|
-| `0xF9` (249) | When `startUp` ends | Changes from `waiting` to `line`. |
+| `0xF9` (249) | When `startUp` is finished | Changes from `waiting` to `line`. |
 | `0xF8` (248) | When it has collected enough balls | Changes from `rescue` to `deposit`. |
 | `0xFF` (255) | When the switch is turned off or canceled | Changes to `waiting`. |
 
@@ -71,9 +71,9 @@ The `Main.py` operates by states:
 - `deposit green`: extra stage when detecting green zone.
 
 Main transitions:
-- `waiting` -> `line` when `0xF9` arrives.
+- `waiting` -> `line` when `0xF9` is received.
 - `line` -> `rescue` when a silver line is detected (`silver_line = 1`).
-- `rescue` -> `deposit` when `0xF8` arrives.
-- Any state -> `waiting` when `0xFF` arrives.
+- `rescue` -> `deposit` when `0xF8` is received.
+- Any state -> `waiting` when `0xFF` is received.
 
 If the protocol or the order of the bytes is modified, both `Main.py` and `main.cpp` need to be updated.
