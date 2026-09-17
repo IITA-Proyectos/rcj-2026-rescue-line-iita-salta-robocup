@@ -1,6 +1,4 @@
-/*
-  drivebase.cpp - Library for controlling motors.
-*/
+// drivebase.cpp - Moto y DriveBase (ver drivebase.h).
 #include <Arduino.h>
 #include <string.h>
 #include "drivebase.h"
@@ -45,9 +43,7 @@ double Moto::setSpeed(int dir, double rpm)
 
 #if FIX_LAZO_MOTOR
 
-    // --- 1. El sentido es SIEMPRE el pedido. Sin toggle (defecto c) ----------
-    //     Al invertir, el esfuerzo acumulado yendo para el otro lado no vale
-    //     nada: se descarta el integrador para que no reme en contra.
+    // 1. El sentido es siempre el pedido; al invertir se descarta el integrador.
     if (dir != _dir)
     {
         _motoPID.Reset();
@@ -55,18 +51,12 @@ double Moto::setSpeed(int dir, double rpm)
     }
     _dir = dir;
 
-    // --- 2. Feedforward: el piso de esfuerzo sale del COMANDO, no de la
-    //        medicion. Es lo que sostiene a la rueda que el encoder no sabe
-    //        leer (defectos a y b).
-    // CONSIGNA ~0 = APAGAR YA. Sin esto, PID::Reset() pone en cero el acumulador
-    // pero NO _pwmVal (es *myOutput, y Reset no lo toca), y Compute() solo corre
-    // cada SampleTime: durante hasta 20 ms se seguiria aplicando la correccion
-    // anterior. O sea que pedirle al robot que PARE lo dejaba andando un rato con
-    // el esfuerzo viejo. Hallazgo de Codex, verificado en PID.cpp.
+    // Consigna ~0 = apagar ya. PID::Reset() no toca _pwmVal y Compute() corre cada 20 ms: sin
+    // limpiarlo a mano se seguiria aplicando la correccion anterior.
     if (rpm <= MOTO_RPM_MIN)
     {
         _motoPID.Reset();
-        _pwmVal = 0;              // la correccion vieja no sobrevive al frenado
+        _pwmVal = 0;
         _pwmTotal = 0;
         _dir = dir;
         if (_envVirgen) { _pwmMin = _pwmMax = 0; _rpmMin = _rpmMax = _realrpm; _envVirgen = false; }
@@ -78,35 +68,27 @@ double Moto::setSpeed(int dir, double rpm)
         return _realrpm;
     }
 
+    // 2. Feedforward: el esfuerzo base sale del comando, no de la medicion.
     double ff = MOTO_KS + MOTO_KV * rpm;
 
-    // --- 3. ANTI-WINDUP CON FEEDFORWARD. El integrador se acota al rango que
-    //        REALMENTE mueve la salida: de ahi para abajo o para arriba ya no
-    //        cambia nada y solo acumula deuda que despues hay que remontar.
-    //        El limite inferior ES el piso: con consigna viva el integrador no
-    //        puede apagar el motor por mas que la medicion diga lo que diga.
-    //        Sin esto el fix funciona DENTRO de la curva y deja la rueda
-    //        dormida al salir, que es la misma falla con otra cara.
+    // 3. Anti-windup: el integrador se acota a [ff*PISO - ff, 255 - ff], asi el total no baja de
+    //    ff*PISO con consigna viva (no puede apagar el motor) ni pasa de 255.
     _motoPID.SetOutputLimits(ff * MOTO_PISO - ff, 255.0 - ff);
 
-    // --- 4. El integrador corrige; ya no manda solo ---------------------------
+    // 4. El PID (solo integral) corrige sobre el feedforward.
     _motoPID.Compute();
     _pwmTotal = constrain(ff + _pwmVal, 0.0, 255.0);
 
-    // --- 5. PISO ABSOLUTO, aparte del anti-windup y a proposito: el limite del
-    //        integrador es una cuestion de CONTROL y esto es una cuestion del
-    //        ACTUADOR (por debajo de cierto PWM el FIT0441 suelta la rueda).
-    //        Mezclarlos fue el error de la version anterior: el piso quedaba
-    //        atado a la consigna y se desvanecia justo cuando la consigna era
-    //        chica, o sea en la curva cerrada.
+    // 5. Piso absoluto del actuador, aparte del anti-windup: por debajo de MOTO_PWM_ANTICOAST el
+    //    FIT0441 suelta la rueda, y el piso proporcional se desvanece con consigna chica.
     if (_pwmTotal < MOTO_PWM_ANTICOAST) _pwmTotal = MOTO_PWM_ANTICOAST;
 
-#else   // ---------------- lazo historico, el que compitio ---------------------
+#else   // lazo historico (FIX_LAZO_MOTOR=0)
 
     if (_pwmVal < 10)
     {
         _dir = !_dir;
-        dirToggles++;   // DIAGNOSTICO: solo cuenta, no altera nada
+        dirToggles++;
     }
     else
         _dir = dir;
@@ -115,9 +97,7 @@ double Moto::setSpeed(int dir, double rpm)
 
 #endif
 
-    // ENVOLVENTE: cada actualizacion del control entra aca, sin importar desde
-    // donde se llamo (loop, runTime, runAngle). Es el unico punto por el que
-    // pasan TODAS, asi que es donde el min/max queda completo.
+    // Envolvente min/max para la telemetria: todas las llamadas de control pasan por aca.
     if (_envVirgen)
     {
         _pwmMin = _pwmMax = _pwmTotal;
@@ -168,18 +148,9 @@ void Moto::updatePulse()
             pulseCount ++;
         }
     }
-    /*
-    Serial.print("Motor "); 
-        Serial.print(id); 
-        Serial.print(": ");
-        Serial.println(pulseCount);
-    */
-    
 }
 
-// La telemetria llama a esto DESPUES de mandar el frame: el min/max es POR
-// VENTANA, no acumulado desde el arranque (si no, a los diez segundos el
-// minimo de PWM es 0 para siempre y el dato deja de decir nada).
+// La telemetria lo llama despues de cada frame: min/max por ventana, no acumulado.
 void Moto::resetEnvolvente()
 {
     _envVirgen = true;
@@ -207,7 +178,7 @@ void DriveBase::steer(double speed, int direction, double rotation)
     _speed = constrain(speed, 0, 159);
     _rotation = constrain(rotation, -1, 1);
     _direction = direction;
-    if (rotation >= 0)  // turn left, set right wheels as base speed
+    if (rotation >= 0)  // gira a la izquierda: el lado derecho va a velocidad base
     {
         _rightspeed = _speed;
         _rightdir = _direction;
@@ -220,12 +191,8 @@ void DriveBase::steer(double speed, int direction, double rotation)
         }
         _fl->setSpeed(_leftdir, _leftspeed);
         _bl->setSpeed(_leftdir, _leftspeed);
-        // analogWrite(35, 255 - _bl->getPWM());
-        // digitalWrite(34, _leftdir);
         _fr->setSpeed(!_rightdir, _rightspeed);
         _br->setSpeed(!_rightdir, _rightspeed);
-        // analogWrite(30, 255 - _br->getPWM());
-        // digitalWrite(28, !_rightdir);
     }
     else
     {
@@ -240,34 +207,14 @@ void DriveBase::steer(double speed, int direction, double rotation)
         }
         _fl->setSpeed(_leftdir, _leftspeed);
         _bl->setSpeed(_leftdir, _leftspeed);
-        // analogWrite(35, 255 - _bl->getPWM());
-        // digitalWrite(34, _leftdir);
         _fr->setSpeed(!_rightdir, _rightspeed);
         _br->setSpeed(!_rightdir, _rightspeed);
-        // analogWrite(30, 255 - _br->getPWM());
-        // digitalWrite(28, !_rightdir);
     }
 }
 
-// ============================================================================
-//  steerAxleBias - RECONSTRUIDA desde el desensamblado del firmware.elf del
-//  2026-08-15 21:04 (simbolo DriveBase::steerAxleBias(double,int,double,
-//  double,double) en 0x55e8). La fuente original se perdio al revertir este
-//  archivo el 16-ago y nunca llego a un commit, pero main.cpp la seguia
-//  llamando: por eso el arbol dejo de compilar.
-//
-//  Es steer() con un solo agregado: la consigna de RPM de cada EJE se
-//  multiplica por su escala. Con frontScale < rearScale el eje delantero pide
-//  menos vueltas que el trasero, que es como se intento emular el pivote sobre
-//  el eje delantero que daban las omni.
-//
-//  OJO AL EFECTO REAL (no estaba documentado en ningun lado): bajarle la
-//  consigna a un eje NO lo hace girar mas despacio contra el piso -lo obliga
-//  la geometria del chasis rigido-. Lo que consigue es que la RPM medida
-//  supere a la pedida, y como el PID solo ve magnitudes, le baja el PWM hasta
-//  cero. Con frontScale = 0.55 el eje delantero queda practicamente sin par.
-//  Medir con el banco antes de darla por buena.
-// ============================================================================
+// steerAxleBias: steer() con la consigna de RPM de cada eje multiplicada por su escala.
+// Ojo: bajarle la consigna a un eje no lo frena contra el piso (chasis rigido); el PID ve la RPM
+// medida por encima de la pedida y le baja el PWM hasta dejarlo sin par. Sin validar en banco.
 void DriveBase::steerAxleBias(double speed, int direction, double rotation,
                               double frontScale, double rearScale)
 {
@@ -276,7 +223,7 @@ void DriveBase::steerAxleBias(double speed, int direction, double rotation,
     frontScale = constrain(frontScale, 0, 1);
     rearScale = constrain(rearScale, 0, 1);
     _direction = direction;
-    if (rotation >= 0)  // turn left, set right wheels as base speed
+    if (rotation >= 0)  // gira a la izquierda: el lado derecho va a velocidad base
     {
         _rightspeed = _speed;
         _rightdir = _direction;
@@ -300,54 +247,26 @@ void DriveBase::steerAxleBias(double speed, int direction, double rotation,
             _rightspeed *= -1;
         }
     }
-    // mismo orden de llamadas que el binario: fl, bl, fr, br
+    // mismo orden de llamadas que steer(): fl, bl, fr, br
     _fl->setSpeed(_leftdir, _leftspeed * frontScale);
     _bl->setSpeed(_leftdir, _leftspeed * rearScale);
     _fr->setSpeed(!_rightdir, _rightspeed * frontScale);
     _br->setSpeed(!_rightdir, _rightspeed * rearScale);
 }
 
-// ============================================================================
-//  steerFrenoDelantero - frena la DELANTERA INTERNA y gira con las otras tres.
-//
-//  Es steer() con UN solo cambio: la consigna de la rueda delantera del lado
-//  interno se multiplica por `frenoInterna`. Las otras tres quedan igual, byte
-//  por byte. Con frenoInterna = 1.0 esta funcion ES steer(), y eso sirve de
-//  CONTROL NEGATIVO: si con 1.0 el robot se comporta distinto, el bug esta
-//  aca adentro y no en la idea.
-//
-//  El razonamiento fisico completo esta en drivebase.h. Resumen: con 4 fijas
-//  la posicion LONGITUDINAL del centro de giro no se puede imponer por
-//  consigna -FL y BL comparten x, asi que comparten velocidad de rodadura-;
-//  se corre por DINAMICA, al cambiar donde estan las fuerzas de friccion. Por
-//  eso `frenoInterna` se BARRE en vez de calcularse.
-//
-//  QUE ESPERAR DE CADA VALOR. NADA DE ESTO ESTA MEDIDO TODAVIA:
-//     1.0  identico a steer()                        (control negativo)
-//     0.5  la delantera interna arrastra menos
-//     0.0  quieta: aporta friccion pura adelante
-//    -1.0  reversa activa: maximo momento adelante, y maximo scrub
-//
-//  DOS COSAS AL LEER EL CSV, para no confundirlas con hallazgos:
-//   * con consigna baja se dispara el `if (_pwmVal < 10) _dir = !_dir` de
-//     setSpeed, y analizar_diagnostico.py lo reporta como [C] SENTIDO
-//     INDEFINIDO. En la delantera interna eso es ESPERADO aca, no un bug.
-//   * el `enc` de esa rueda deja de ser confiable: el signo se infiere del
-//     comando y el comando esta oscilando. Para el avance del centro, usar
-//     las otras tres ruedas.
-// ============================================================================
+// steerFrenoDelantero: ver drivebase.h. Con frenoInterna = kFrenoComoSteer reparte igual que
+// steer() (control negativo).
 void DriveBase::steerFrenoDelantero(double speed, int direction,
                                     double rotation, double frenoInterna)
 {
     _speed = constrain(speed, 0, 159);
     _rotation = constrain(rotation, -1, 1);
-    // NO se acota a [-1,1] a secas: kFrenoComoSteer (9.0) es el centinela
-    // del control negativo. Se acota solo el rango util.
+    // kFrenoComoSteer (9.0) es el centinela: queda fuera del constrain, que acota el rango util.
     if (frenoInterna < kFrenoComoSteer)
         frenoInterna = constrain(frenoInterna, -1, 1);
     _direction = direction;
 
-    // Identico a steer() hasta aca: quien es la interna y a que velocidad va.
+    // Igual que steer(): quien es la interna y a que velocidad va.
     if (rotation >= 0)  // gira a la izquierda: la INTERNA es la izquierda
     {
         _rightspeed = _speed;
@@ -373,30 +292,9 @@ void DriveBase::steerFrenoDelantero(double speed, int direction,
         }
     }
 
-    // LA DELANTERA INTERNA. `frenoInterna` es su velocidad como fraccion de
-    // `speed`, CON SIGNO RESPECTO DE LA MARCHA -no respecto de la velocidad
-    // que le tocaria-:
-    //     +1.0  adelante a velocidad completa
-    //      0.0  quieta
-    //     -1.0  REVERSA a velocidad completa
-    //
-    // OJO, Y ES EL ERROR QUE TENIA LA PRIMERA VERSION: multiplicar por
-    // `_leftspeed` no sirve, porque cuando rot > 0,5 esa variable YA es la
-    // magnitud de una reversa (drivebase le dio vuelta el `_dir`). Un factor
-    // -1 sobre eso devolvia la rueda a MARCHA ADELANTE en vez de meterle mas
-    // reversa, o sea lo contrario de lo que dice el nombre. Y con rot = 0,5
-    // exacto `_leftspeed` vale 0, asi que NINGUN factor tenia efecto.
-    //
-    // POR QUE IMPORTA EL SIGNO Y NO LA MAGNITUD (con vel 40, rot 0,5):
-    //     las 4 iguales por lado ....... R = 10,45 cm
-    //     traseras al 50 % ............. R = 10,45 cm   (el factor se cancela)
-    //     delantera interna QUIETA ..... R = 10,45 cm   (tampoco la mueve)
-    //     delantera interna EN REVERSA . R =  3,48 cm   <- lo unico que cierra
-    // Cerrar el radio necesita AUMENTAR la diferencia entre lados, y para eso
-    // hace falta signo opuesto, no velocidad cero.
-    //
-    // CONTROL NEGATIVO: pasar frenoInterna = kFrenoComoSteer reproduce steer()
-    // exactamente, sea cual sea `rotation`.
+    // Delantera interna: frenoInterna es fraccion de `speed` con signo respecto de la marcha
+    // (+1 adelante, 0 quieta, -1 reversa), no de _leftspeed, que con rot > 0,5 ya es una reversa.
+    // Solo la reversa cierra el radio (vel 40, rot 0,5: R = 3,48 cm; quieta o como steer(): 10,45).
     double vFrontInt, dirBase;
     int dirFrontInt;
     if (frenoInterna >= kFrenoComoSteer)
@@ -416,8 +314,7 @@ void DriveBase::steerFrenoDelantero(double speed, int direction,
     }
     (void)dirBase;
 
-    // Mismo orden de llamadas que steer(): fl, bl, fr, br. Y el lado derecho
-    // va negado, igual que alli, porque el montaje esta espejado.
+    // Mismo orden de llamadas que steer(): fl, bl, fr, br; lado derecho negado (montaje espejado).
     if (rotation >= 0)                     // interna = izquierda -> se frena FL
     {
         _fl->setSpeed(dirFrontInt, vFrontInt);
@@ -434,25 +331,8 @@ void DriveBase::steerFrenoDelantero(double speed, int direction,
     }
 }
 
-// ============================================================================
-//  steerSuma - reparto por SUMA/RESTA (la ley de Airborne 2025).
-//
-//  El razonamiento completo esta en drivebase.h. Resumen: la velocidad del
-//  CENTRO no cambia con el giro, a diferencia de steer(), donde v_centro =
-//  vel*(1-rot) y se hace cero en rot = 1.
-//
-//      v_izq = base * (1 + u)      v_der = base * (1 - u)
-//      v_centro = base             R = b_eff / (2*u)
-//
-//  MISMO ORDEN DE LLAMADAS que steer() -fl, bl, fr, br- y el lado derecho va
-//  negado igual que alli, porque el montaje esta espejado. Con u = 0 esto es
-//  marcha recta exacta.
-//
-//  SATURACION: el lado externo pide base*(1+u), y setSpeed no puede pasar de
-//  159. Con base 40 y u 1,5 son 100: hay margen. Con base 90 y u 1,0 son 180 y
-//  SATURA, y ahi el radio real se abre respecto del pedido. Por eso el radio
-//  hay que verificarlo con la IMU y no darlo por hecho.
-// ============================================================================
+// steerSuma: ver drivebase.h. Mismo orden fl, bl, fr, br y lado derecho negado que steer().
+// Cada lado satura en 159: saturado, el radio real se abre respecto del pedido.
 void DriveBase::steerSuma(double base, int direction, double u)
 {
     _speed = constrain(base, 0, 159);
@@ -478,37 +358,21 @@ void DriveBase::steerSuma(double base, int direction, double u)
     _br->setSpeed(!_rightdir, _rightspeed);
 }
 
-// ============================================================================
-//  steerRadius - pedir un RADIO, no una rotacion adimensional.
-//
-//  No reimplementa nada: convierte el radio a `rotation` y delega en steer(),
-//  que es el codigo que lleva meses andando. Si esta funcion nunca se llama,
-//  el robot se comporta EXACTAMENTE igual que antes.
-//
-//  DE DONDE SALE LA FORMULA
-//      v_centro = vel * (1 - rot)          drivebase.cpp:212-215
-//      omega    = 2 * vel * rot / b_eff
-//      R        = v_centro / omega = b_eff * (1 - rot) / (2 * rot)
-//  y despejando rot:
-//      rot = b_eff / (2*R + b_eff)
-//
-//  Notar que `vel` se cancela: el RADIO no depende de la velocidad. Ese es el
-//  punto y es la razon por la que subir LINE_PIVOT_SPEED no abre una curva
-//  cerrada -sube omega y v en la misma proporcion-.
-// ============================================================================
+// steerRadius: convierte el radio a `rotation` y delega en steer().
+// R = b_eff*(1-rot)/(2*rot)  =>  rot = b_eff/(2*R + b_eff); la velocidad se cancela.
 void DriveBase::steerRadius(double speed, int direction, double radius_cm,
                             int sign)
 {
     double rot;
     if (radius_cm <= 0.0)
     {
-        rot = 1.0;                 // girar en el lugar: lo de hoy, sin cambios
+        rot = 1.0;                 // girar en el lugar
     }
     else
     {
         rot = DRIVE_ANCHO_VIA_EFECTIVO /
               (2.0 * radius_cm + DRIVE_ANCHO_VIA_EFECTIVO);
-        if (rot > 1.0) rot = 1.0;  // no puede pasar (R>0), pero es gratis
+        if (rot > 1.0) rot = 1.0;  // no pasa con R > 0; defensivo
         if (rot < 0.0) rot = 0.0;
     }
     steer(speed, direction, sign >= 0 ? rot : -rot);

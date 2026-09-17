@@ -133,7 +133,7 @@ void Claw::sortRight(bool concurrent)
 
 void Claw::sortCenter(bool concurrent)
 {
-    _sortDFServo->setAngle(130); // Si mecánicamente queda mejor, probá 135
+    _sortDFServo->setAngle(130);
 
     if (!concurrent)
         _lastAction = millis();
