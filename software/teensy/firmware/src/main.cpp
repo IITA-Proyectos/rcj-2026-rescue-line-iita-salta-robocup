@@ -1789,9 +1789,10 @@ const unsigned long STUCK_SAMPLE_MS = 100;   // cada cuanto mido las ruedas
 const unsigned long STUCK_TIME_MS   = 3000;  // 3 s con una rueda parada = atascado
 const unsigned long ATASCO_GRACE_MS = 8000;  // no disparar los primeros 8 s tras arrancar (ponerlo en pista)
 
-// --- Traccion en pendiente: pisar las traseras cuando el pitch esta inclinado ---
+// --- Traccion en pendiente: las cuatro ruedas comparten una base alta, sin perder
+//     el reparto izquierda/derecha que pide la Raspberry para seguir la linea. ---
 const float  PITCH_RAMPA       = 12.0;  // pitch (grados) desde el cual considero "pendiente" (llano ~±5, rampa ~23)
-const double POTENCIA_TRASERAS = 80;   // potencia (rpm objetivo, 0-159) para las traseras en pendiente
+const double POTENCIA_TRASERAS = 80;   // base de rampa (rpm objetivo, 0-159): 4 ruedas recto; se reparte al doblar
 
 // --- Estado de rampa Teensy -> Raspberry para ROI dinamico -----------------
 // No toca el detector mecanico de rampa ni la traccion. Es un aviso rapido
@@ -3025,12 +3026,14 @@ void loop()
                         robot.steer(vel * LINE_RECTA_FACTOR, FORWARD,
                                     signoCmd > 0 ? rot : -rot);
 
-                    // Pendiente (pitch > PITCH_RAMPA): traseras a POTENCIA_TRASERAS (80 de 159, no
-                    // a full); br va con direccion invertida, como en steer().
+                    // Pendiente: la base de las CUATRO ruedas pasa a 80 rpm. No se las deja fijas:
+                    // robot.steer conserva el angulo que mando la Pi, asi el lado interno baja
+                    // (o invierte en un pivote) y el robot sigue pudiendo seguir la linea.
+                    // En recta, rot=0 y las cuatro reciben 80 rpm.
                     if (pitch > PITCH_RAMPA)
                     {
-                        bl.setSpeed(FORWARD,  POTENCIA_TRASERAS);   // trasera izquierda
-                        br.setSpeed(!FORWARD, POTENCIA_TRASERAS);   // trasera derecha
+                        robot.steer(POTENCIA_TRASERAS, FORWARD,
+                                    signoCmd > 0 ? rot : -rot);
                     }
 
                     break;
