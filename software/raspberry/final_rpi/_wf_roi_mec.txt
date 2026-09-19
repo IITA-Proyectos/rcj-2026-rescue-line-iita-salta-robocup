@@ -1,0 +1,23 @@
+
+================================================================================================================
+  DIAGNOSTICO DE MECANISMO   -   ROI forzado CONSTANTE en cada altura
+  shell pedida: 54 a 88 px geodesicos    LOOKAHEAD = 70
+================================================================================================================
+  FLOOR_TOP     filas     disp %     shell ok shell fallback  fallback% sin alcance
+  35               85      93.96        11244            822       6.8%        785
+  45               75      91.78        11241            838       6.9%        801
+  55               65      88.46        11151            936       7.7%        884
+  65               55      85.07        10773           1328      11.0%       1220
+
+  DE DONDE SALEN LOS FRAMES SIN AUTORIDAD (autonomos + controles)
+  motivo                                 ft=35     ft=45     ft=55     ft=65
+  ahead_bridge_path / REACQ_PENDING          4         4         4         2
+  ahead_path / REACQ_PENDING                78        56        41        26
+  ahead_path|continuidad / REACQ_PENDING         0         0         0         2
+  near_branch_lock_path / REACQ_PENDING         2         2         1         1
+  near_branch_lock_path|low_proj / REACQ_PENDING         1         1         2         2
+  near_path / REACQ_PENDING                 95        76        67        72
+  near_path|low_proj / REACQ_PENDING        16        18        17        18
+  sin_componente / NO_TARGET               643       985      1472      1952
+  TOTAL                                    839      1142      1604      2075
+================================================================================================================

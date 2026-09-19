@@ -27,6 +27,7 @@ Cada ensayo se anota con ID secuencial `T-XXX`, categoria entre corchetes y resu
 | ID | Fecha | Titulo | Resultado |
 |---|---|---|---|
 | T-002 | 2026-05-23 | FPS real y transicion de estados desde systemd | PASS |
+| T-009 | 2026-08-31 | Codos tomados con maniobra de recuperacion de linea | PASS |
 
 ### `[PERF]` - Performance evaluation (TDP T15)
 
@@ -34,6 +35,7 @@ Cada ensayo se anota con ID secuencial `T-XXX`, categoria entre corchetes y resu
 |---|---|---|---|
 | T-001 | 2026-05-23 | Medicion fisica inicial con robot completo | PASS/PARTIAL |
 | T-002 | 2026-05-23 | FPS real y transicion de estados desde systemd | PASS |
+| T-009 | 2026-08-31 | Codos tomados con maniobra de recuperacion de linea | PASS |
 
 ---
 
@@ -499,6 +501,67 @@ Parametros clave extraidos del firmware:
 **Accion.**
 - Conservar el video como evidencia para el TDP, poster o entrevista tecnica.
 - Si queda tiempo, repetir el full course 3-5 veces para convertir la evidencia de video en una tasa estadistica.
+
+---
+
+### T-009 - 2026-08-31 - `[SW][PERF]` Codos tomados con la maniobra de recuperacion de linea
+
+**Tester:** Benjamin Villagran
+**Robot rev:** `collab/nuevo-code`, firmware `diagnostico_fix` + los siete flags de linea
+**Pista / banco:** pista, codos de 90 grados
+**Issue/PR relacionado:** cierra el pendiente "los flags no viven en ningun archivo del repo" del 30-ago
+
+**Objetivo.** Verificar que el robot toma los codos y que, cuando igual pierde la
+linea, la maniobra de recuperacion -retroceder + pivote dirigido por CAMINO- la
+recupera en vez de irse de la pista.
+
+**Setup.**
+
+- Raspberry: `software/raspberry/EN_EL_ROBOT/main.py`, lanzado con
+  `RECUP=1 RETROCEDER=1 RECUP_CAMINO=1 python3 -u main.py`.
+  Resto en default: `PLANNER=0`, `CTRL=atan2`, `ROI=60`, sin recorte de ROI.
+- Teensy: `software/teensy/firmware/src/main.cpp`, compilado con
+  `PLATFORMIO_BUILD_FLAGS=-D LINE_STEER_GAIN=1.0 -D LINE_ROT_EXP=0.85 -D LINE_PIVOTE_ENTRA=1.01 -D LINE_RECTA_FACTOR=0.8 -D LINE_FRENO_DELANTERO=1 -D LINE_FRENO_STEER=0.70 -D LINE_FRENO_VEL=55`
+  sobre `pio run -e diagnostico_fix`.
+- Los dos lados van juntos: la Pi manda `green_state = 4` y el rumbo de CAMINO,
+  el firmware ejecuta retroceso y pivote.
+
+**Procedimiento.**
+
+1. Flashear el firmware con los siete flags.
+2. Lanzar `main.py` con las tres variables de recuperacion.
+3. Verificar en el arranque `[RECUP-CAMINO] CAMINO+MONO shadow encendido`.
+4. Correr la pista con codos.
+
+**Resultado.**
+
+| Metrica | Esperado | Obtenido | OK |
+|---|---|---|---|
+| Codos de 90 grados | tomarlos sin salirse | los toma | PASS |
+| Perdida de linea | recuperar con retroceso + pivote dirigido | la maniobra recupera | PASS |
+| Build del firmware con los flags | compila | SUCCESS, 6,4 s, FLASH 75 212 B, RAM1 variables 19 040 B | PASS |
+| Cadena CAMINO en `EN_EL_ROBOT/` | `CaminoHeading()` instancia | OK, `estado='SIN_DATO'` antes del primer frame | PASS |
+
+**Evidencia.**
+
+- Reporte directo del tester tras la corrida: "con estos 2 codigos funcionaron
+  los codos por fin con la maniobra de recuperacion".
+- Codigo congelado en el repo, byte por byte, en este commit.
+- Config y mecanismo: [`docs/es/2026-08-31-config-codos-recuperacion.md`](../docs/es/2026-08-31-config-codos-recuperacion.md).
+
+**Conclusion.** Primera config que junta las dos cosas: codo tomado y linea
+perdida recuperada. Queda congelada en el repo -antes vivia solo en dos lineas
+de consola y en un `src/main.cpp` sin commitear-.
+
+**Limitacion honesta.** Es una sesion de prueba con observacion directa, sin
+conteo de intentos ni video cuadro por cuadro. No hay todavia una tasa
+"N de M codos" ni un numero de recuperaciones exitosas sobre disparos de GS=4.
+Eso es lo que falta para convertir esto en evidencia estadistica de TDP.
+
+**Accion.**
+
+- Proxima ventana de robot: contar codos y disparos de GS=4 para sacar la tasa.
+- No tocar los flags ni los dos archivos hasta tener esa linea base medida.
 
 ---
 

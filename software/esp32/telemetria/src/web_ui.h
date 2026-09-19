@@ -52,6 +52,7 @@ const char INDEX_HTML[] PROGMEM = R"HTMLDOC(
   .card.c-us h2::before{background:#22d3a6}
   .card.c-tof h2::before{background:#f39c12}
   .card.c-imu h2::before{background:#3ea6ff}
+  .card.c-ramp h2::before{background:#f1c40f}
   .card.c-enc h2::before{background:#00d2d3}
   .card.c-fsm h2::before{background:#ff9f43}
   .card.c-io h2::before{background:#ee5253}
@@ -216,6 +217,7 @@ const char INDEX_HTML[] PROGMEM = R"HTMLDOC(
         <div class="kv"><span class="k">C</span><span class="v" id="cal-c">0</span></div>
         <div class="kv"><span class="k">B-G</span><span class="v" id="cal-bg">0</span></div>
         <div class="kv"><span class="k">detectado</span><span class="v" id="cal-d">—</span></div>
+        <div class="kv"><span class="k">usa el control</span><span class="v" id="cal-dc">—</span></div>
       </div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px">
@@ -265,6 +267,15 @@ const char INDEX_HTML[] PROGMEM = R"HTMLDOC(
     <div class="tags"><span class="tag">roll: <b id="imu-rol">0</b>°</span><span class="tag">centrar ref: <b id="imu-cen">0</b>°</span></div>
   </section>
 
+  <!-- RAMPA / ANTIATASCO DEL PALILLO -->
+  <section class="card c-ramp">
+    <h2>Rampa / antiatasco de palillo</h2>
+    <div class="kv"><span class="k">rampa validada</span><span class="v" id="rmp-det">—</span></div>
+    <div class="kv"><span class="k">aviso de ROI a la Pi</span><span class="v" id="rmp-roi">—</span></div>
+    <div class="kv"><span class="k">palillo</span><span class="v" id="rmp-pal">—</span></div>
+    <div class="tags"><span class="tag">tiempo: <b id="rmp-ms">—</b></span><span class="tag">dispara: <b>pitch ≥14° + rueda frenada</b></span></div>
+  </section>
+
   <!-- ENCODERS -->
   <section class="card c-enc">
     <h2>Encoders / Ruedas</h2>
@@ -274,6 +285,28 @@ const char INDEX_HTML[] PROGMEM = R"HTMLDOC(
       <div class="kv"><span class="k">FR</span><span class="v" id="enc-fr">0</span></div>
       <div class="kv"><span class="k">BL</span><span class="v" id="enc-bl">0</span></div>
       <div class="kv"><span class="k">BR</span><span class="v" id="enc-br">0</span></div>
+    </div>
+  </section>
+
+  <!-- TRACCION / DIAGNOSTICO DE CURVAS -->
+  <section class="card c-trac span2">
+    <h2>Traccion &mdash; diagnostico de curvas</h2>
+    <div class="kv"><span class="k">DriveBase</span><span class="v" id="trac-drv">-</span></div>
+    <div class="kv"><span class="k">Rama del case 7</span><span class="v" id="trac-ram">-</span></div>
+    <div class="kv"><span class="k">loop (ms / pico)</span><span class="v" id="trac-loop">-</span></div>
+    <div class="kv"><span class="k">giro REAL (gyro z/y/x)</span><span class="v" id="trac-gyr">-</span></div>
+    <div class="kv"><span class="k">edad del comando RPi</span><span class="v" id="trac-rxage">-</span></div>
+    <table id="trac-tab" style="width:100%;margin-top:10px;border-collapse:collapse;font-family:monospace;font-size:12px">
+      <tr style="color:#7d8ea0;text-align:right">
+        <th style="text-align:left">rueda</th><th>sentido</th><th>consigna</th><th>medida</th><th>rpm max</th><th>PWM</th><th>pwm min</th><th>togg/frame</th><th style="text-align:left">&nbsp;</th></tr>
+    </table>
+    <div style="margin-top:8px;color:#7d8ea0;font-size:11px;line-height:1.5">
+      <b>COLAPSO</b> = se le piden vueltas a la rueda y el PWM cayo casi a cero.
+      Es la firma de la rueda interna arrastrada: el encoder no informa sentido, el PID
+      compara magnitudes, ve un numero sano y le corta el esfuerzo. El FIT0441 a PWM
+      bajo hace COAST (medido en banco 8-ago), asi que la rueda queda suelta.<br>
+      <b>togg</b> subiendo = el pin de direccion esta oscilando por
+      <code>if (_pwmVal &lt; 10) _dir = !_dir</code>, no quieto.
     </div>
   </section>
 
@@ -425,7 +458,7 @@ function render(d){
   { const rr=ratios(c);
     set("cal-r",c.r??0); set("cal-g",c.g??0); set("cal-b",c.b??0); set("cal-c",c.c??0);
     set("cal-rc",rr.rc.toFixed(3)); set("cal-rg",rr.rg.toFixed(3)); set("cal-rb",rr.rb.toFixed(3)); set("cal-bg",rr.bg);
-    set("cal-d",c.d||"—");
+    set("cal-d",c.d||"—"); set("cal-dc",c.dc||"—");
     const cs=$("cal-swatch"); cs.style.background=cc; cs.textContent=c.d||"—";
     cs.style.color=(c.d==="Blanco"||c.d==="Plateado")?"#101418":"#fff";
   }
@@ -441,6 +474,18 @@ function render(d){
   set("imu-rol",Math.round(im.rol??0)); set("imu-cen",Math.round(im.cen??0));
   const nd=$("needle"); if(nd) nd.setAttribute("transform",`rotate(${im.yaw??0} 52 52)`);
   pitchBar("bar-pit",im.pit??0);
+  // Rampa / palillo: estado REAL del detector de Teensy, no inferido desde la UI.
+  { const rm=d.rmp||{};
+    const RAMP={"-1":"BAJANDO",0:"LLANO",1:"SUBIENDO",2:"COSTADO"};
+    const ROI={"-1":"BAJANDO",0:"LLANO",1:"SUBIENDO"};
+    const pal=Number(rm.pal??0), ms=Number(rm.ms??0);
+    set("rmp-det",RAMP[rm.det]??"—"); set("rmp-roi",ROI[rm.roi]??"—");
+    let texto="NORMAL", tiempo="—", color="#c7d2dc";
+    if(pal===1){ texto="RUEDA TRABADA · CONTANDO"; tiempo=(ms/1000).toFixed(1)+" / 1.0 s"; color="#f1c40f"; }
+    else if(pal===2){ texto="EMPUJANDO · 4 RUEDAS"; tiempo=(ms/1000).toFixed(1)+" / 1.5 s"; color="#e74c3c"; }
+    set("rmp-pal",texto); set("rmp-ms",tiempo);
+    const pe=$("rmp-pal"); if(pe) pe.style.color=color;
+  }
   // Encoders
   const e=d.enc||{};
   const now=performance.now();
@@ -452,6 +497,59 @@ function render(d){
   }
   encPrev={...e}; encPrevT=now;
   set("enc-fl",e.fl??0); set("enc-fr",e.fr??0); set("enc-bl",e.bl??0); set("enc-br",e.br??0);
+  // Traccion / diagnostico de curvas
+  (function(){
+    const dr=d.drv||{}, di=d.dir||{}, st=d.set||{}, pw=d.pwm||{}, rp=d.rpm||{}, tg=d.tog||{}, lp=d.loop||{};
+    set("trac-drv","rot "+(dr.rot??0).toFixed(3)+"  izq "+(dr.ls??0)+"  der "+(dr.rs??0)+"  dir "+(dr.dir===1?"BACK":"FWD"));
+    const RAM={"-1":"giro programado (no linetrack)",0:"recto",1:"curva",2:"curva dura",3:"pivot",9:"atasco",15:"empuje palillo · 4 ruedas"};
+    set("trac-ram",RAM[dr.ram]??"-");
+    const pico=lp.max??0;
+    const le=$("trac-loop"); if(le){ le.textContent=(lp.ms??0)+" / "+pico;
+      le.style.color = pico>50 ? "#e74c3c" : pico>20 ? "#f1c40f" : "#c7d2dc"; }
+    const gy=d.gyr||{};
+    set("trac-gyr",(gy.z??0).toFixed(1)+" / "+(gy.y??0).toFixed(1)+" / "+(gy.x??0).toFixed(1)+"  deg/s");
+    const age=d.rxage??-1;
+    const ae=$("trac-rxage");
+    if(ae){ ae.textContent = age<0 ? "nunca llego" : age+" ms";
+      ae.style.color = (age<0||age>300) ? "#e74c3c" : age>150 ? "#f1c40f" : "#c7d2dc"; }
+    const t=$("trac-tab"); if(!t) return;
+    while(t.rows.length>1) t.deleteRow(1);
+    for(const w of ["fl","fr","bl","br"]){
+      // fr/br reciben !rightdir en DriveBase::steer: su _dir esta espejado
+      const derecha = (w==="fr"||w==="br");
+      // ausente NO es 0: si el frame no trae `dir` (firmware viejo), afirmar un
+      // sentido concreto para las cuatro ruedas es peor que no decir nada.
+      const dv = di[w];
+      const adelante = (dv===undefined||dv===null) ? null : (derecha ? dv===1 : dv===0);
+      const cons=st[w]??0, med=rp[w]??0, pwm=pw[w]??0, tog=tg[w]??0;
+      const pn=(d.pmin||{})[w]??pwm, rx=(d.rmax||{})[w]??med;
+      // FIRMA DEL COLAPSO: la rueda MIDE bastante mas de lo que se le PIDIO y
+      // ademas el esfuerzo se desplomo. Eso es exactamente lo que pasa cuando la
+      // arrastran: el encoder no informa sentido, el PID compara |consigna| con
+      // |medida|, ve la medida por encima y baja el PWM hasta soltarla.
+      // Ojo: se pide cons>=1 para no marcar una rueda que simplemente viene
+      // frenando por inercia despues de un detener() (ahi cons=0 y es correcto).
+      // Se evalua sobre la ENVOLVENTE de los 100 ms, no sobre el instante: el
+      // desplome dura decenas de ms y una foto cada 100 ms se lo pierde.
+      const colapso = cons>=1 && rx > cons+8 && pn < 30;
+      const r=t.insertRow(-1);
+      r.style.textAlign="right";
+      if(colapso) r.style.background="#3a1414";
+      const cel=(v,izq)=>{const c=r.insertCell(-1); c.textContent=v; if(izq)c.style.textAlign="left"; return c;};
+      cel(w.toUpperCase(),true);
+      const cs=cel(adelante===null ? "--" : (adelante?"ADEL":"REV"));
+      cs.style.color = adelante===null ? "#5a6b7d" : (adelante ? "#c7d2dc" : "#f39c12");
+      cel(cons); cel(med);
+      const cr=cel(rx); if(rx > cons+8) cr.style.color="#f39c12";
+      const cp=cel(pwm); if(colapso) cp.style.color="#e74c3c";
+      const cn=cel(pn); if(pn<30) cn.style.color="#e74c3c";
+      const dtog = (togPrev[w]===undefined) ? null : tog - togPrev[w];
+      togPrev[w] = tog;
+      const ct=cel(dtog===null ? "--" : ("+"+dtog));
+      if(dtog>0) ct.style.color = dtog>20 ? "#e74c3c" : "#f1c40f";
+      cel(colapso?"COLAPSO":"",true).style.color="#e74c3c";
+    }
+  })();
   // FSM
   const f=d.fsm||{};
   const rb=$("fsm-rut"); rb.textContent=f.rut||"—"; rb.className="badge "+(f.rut||"linea");
@@ -487,7 +585,7 @@ function render(d){
 // Una vez que llega el PRIMER frame real, NUNCA se vuelve a mostrar mock: un
 // corte real muestra "SIN SEÑAL" con el último dato real congelado, no datos falsos.
 let frames=0, lastFpsT=performance.now();
-let lastReal=0, everReal=false, demo=false;
+let lastReal=0, everReal=false, demo=false, ultimoT=null, resetTeensy=false, togPrev={};
 function updateStatus(){
   const now=performance.now();
   const alive = everReal && (now-lastReal) < 1500;
@@ -506,7 +604,20 @@ async function tick(){
     const res=await fetch("/data",{cache:"no-store"});
     const d=await res.json();
     if(d && d.t!==undefined){
-      demo=false; everReal=true; lastReal=performance.now();
+      // 'vivo' se decide por la FRESCURA del dato, no por el exito del fetch:
+      // /data devuelve 200 con el ultimo frame para siempre aunque el UART este
+      // muerto. d.t es el millis() del Teensy, asi que si no cambia, no hay dato
+      // nuevo por mas que el HTTP responda.
+      demo=false;
+      if(ultimoT===null || d.t!==ultimoT){
+        if(ultimoT!==null && d.t<ultimoT){
+          // el reloj del Teensy retrocedio: se reseteo. Los contadores
+          // acumulados (tog, enc, grn) volvieron a cero de golpe; leer esa caida
+          // como 'mejoro' seria exactamente la conclusion opuesta.
+          resetTeensy=true; togPrev={};
+        }
+        ultimoT=d.t; everReal=true; lastReal=performance.now();
+      }
       render(d); frames++; updateStatus(); return;
     }
     throw 0;
@@ -539,6 +650,7 @@ function mock(){
     rpi:{speed:Math.round(45+35*s), steer:+(s2*0.8).toFixed(3), green:[0,0,0,1,2,3,7][Math.floor((mt*0.3)%7)], silver:s3>0.9?1:0,
       rxb:Math.floor(mt*230), rxf:Math.floor(mt*40), st:Math.floor((mt)%4)},
     col:{d:["Blanco","Negro","Verde","Rojo","Plateado","Desconocido"][Math.floor((mt*0.4)%6)],
+      dc:["Blanco","Negro","Verde","Rojo","Plateado","Desconocido"][Math.floor((mt*0.4)%6)],
       r:Math.round(400+300*s), g:Math.round(600+300*s2), b:Math.round(600+250*s3), c:Math.round(1800+800*s), ok:1},
     us:{f:Math.round(60+50*s), l:Math.round(45+40*s2), r:Math.round(45+40*s3)},
     tof:{l:Math.round(500+400*s2), r:Math.round(500+400*s3)},
@@ -552,7 +664,40 @@ function mock(){
     grn:{ rx:[0,Math.floor(mt*0.35),Math.floor(mt*0.22),Math.floor(mt*0.12)],
           act:[0,Math.floor(mt*0.22),Math.floor(mt*0.16),Math.floor(mt*0.08)],
           kill:[0,Math.floor(mt*0.12),Math.floor(mt*0.06),Math.floor(mt*0.04)],
-          lt:[1,2,3][Math.floor(mt)%3], age:Math.floor((mt*90)%2600), lrc:[0,1,2,3][Math.floor(mt)%4] }};
+          lt:[1,2,3][Math.floor(mt)%3], age:Math.floor((mt*90)%2600), lrc:[0,1,2,3][Math.floor(mt)%4] },
+    // --- traccion: reproduce el fallo real para poder ver el panel sin robot ---
+    // rot > 0.5 obliga a la rueda interna a ir en REVERSA con una consigna chica.
+    // Ahi el PID (que solo ve magnitudes) le baja el PWM y aparece el COLAPSO.
+    ...(function(){
+      const rot=+(s2*0.8).toFixed(3), V=45, izqInterna=rot>0;
+      const vInt=Math.abs(Math.round(V*(1-2*Math.abs(rot)))), vExt=V;
+      const invierte=Math.abs(rot)>0.5;
+      const pwmInt = invierte ? Math.max(0,Math.round(18-30*(Math.abs(rot)-0.5))) : 60;
+      const pwmExt = 90;
+      const li=izqInterna, dIzq= (li&&invierte)?1:0, dDer=(!li&&invierte)?0:1;
+      const togAcum=Math.floor(mt*12);
+      const setI=vInt, setE=vExt;
+      return {
+        dir:{fl:dIzq, bl:dIzq, fr:dDer, br:dDer},
+        set:{fl:li?setI:setE, bl:li?setI:setE, fr:li?setE:setI, br:li?setE:setI},
+        pwm:{fl:li?pwmInt:pwmExt, bl:li?pwmInt:pwmExt, fr:li?pwmExt:pwmInt, br:li?pwmExt:pwmInt},
+        rpm:{fl:li?Math.round(vExt*0.7):vExt, bl:li?Math.round(vExt*0.7):vExt,
+             fr:li?vExt:Math.round(vExt*0.7), br:li?vExt:Math.round(vExt*0.7)},
+        tog:{fl:li&&invierte?togAcum:0, bl:li&&invierte?togAcum:0,
+             fr:!li&&invierte?togAcum:0, br:!li&&invierte?togAcum:0},
+        drv:{rot:rot, ls:li?vInt:vExt, rs:li?vExt:vInt, dir:0,
+             ram:Math.abs(rot)>0.92?3:Math.abs(rot)>0.35?2:Math.abs(rot)>0.08?1:0},
+        pmin:{fl:li?Math.max(0,pwmInt-14):pwmExt-6, bl:li?Math.max(0,pwmInt-14):pwmExt-6,
+              fr:li?pwmExt-6:Math.max(0,pwmInt-14), br:li?pwmExt-6:Math.max(0,pwmInt-14)},
+        pmax:{fl:li?pwmInt+9:pwmExt+8, bl:li?pwmInt+9:pwmExt+8,
+              fr:li?pwmExt+8:pwmInt+9, br:li?pwmExt+8:pwmInt+9},
+        rmin:{fl:li?18:vExt-6, bl:li?18:vExt-6, fr:li?vExt-6:18, br:li?vExt-6:18},
+        rmax:{fl:li?38:vExt+4, bl:li?38:vExt+4, fr:li?vExt+4:38, br:li?vExt+4:38},
+        gyr:{x:+(2*s3).toFixed(1), y:+(3*s).toFixed(1), z:+(rot*14).toFixed(1)},
+        rxage:Math.round(40+60*Math.abs(s3)),
+        loop:{ms:2+Math.round(2*Math.abs(s)), max:8+Math.round(40*Math.abs(s3))}
+      };
+    })()};
 }
 
 // ---------- calibración de color ----------

@@ -8,6 +8,56 @@ import sys
 import os
 import threading
 import queue
+# Registro por frame del lado de la vision. Apagado salvo que exista la
+# variable de entorno TLM_VISION; sin ella no abre archivo ni cuesta nada.
+#
+# EL IMPORT VA PROTEGIDO, y no es paranoia. telemetria_vision.py promete en su
+# docstring que NUNCA levanta una excepcion hacia el lazo de vision, y sus
+# METODOS lo cumplen. Pero el import no estaba cubierto: lo que corre en la
+# Raspberry es un archivo suelto del Desktop, asi que alcanzaba con copiar
+# Main.py y olvidarse de copiar telemetria_vision.py al lado para que la VISION
+# NO ARRANCARA. Un registro no puede voltear una corrida: si no esta, se usa un
+# objeto nulo y el robot corre igual, sin telemetria de vision y sin enterarse.
+try:
+    from telemetria_vision import tlmv
+except Exception as _e:                      # ImportError, y tambien cualquier otra
+    print("[TLM-VISION] no se pudo importar (%s): sigo SIN registro de vision" % _e)
+
+    class _TlmvNulo(object):
+        activa = False
+
+        def frame(self, **k):
+            pass
+
+        def cerrar(self):
+            pass
+
+    tlmv = _TlmvNulo()
+
+# Vision de linea nueva. MISMO CONTRATO que telemetria_vision: apagada salvo que
+# exista la variable de entorno VISION_LINEA, import protegido, y si algo falla
+# se apaga sola y se sigue con la vision vieja. Sin la variable no importa nada
+# pesado y no cuesta un microsegundo.
+#     VISION_LINEA=camino python3 Main.py    candidata + CAMINO + MONO
+#     VISION_LINEA=v1     python3 Main.py    POI sobre contorno
+#     python3 Main.py                        vision vieja, sin cambios
+try:
+    import vision_linea
+except Exception as _e:
+    print("[VISION-LINEA] no se pudo importar (%s): sigo con la vision vieja" % _e)
+
+    class _VisionNula(object):
+        ACTIVA = False
+
+        @staticmethod
+        def angulo(_f):
+            return None
+
+        @staticmethod
+        def ultimo():
+            return {}
+
+    vision_linea = _VisionNula()
 
 HEADLESS = os.environ.get("DISPLAY") is None
 DEBUG_VIEW = os.environ.get("DEBUG_VIEW") == "1"
@@ -37,6 +87,8 @@ TEENSY_STOP = b'\xff'
 TEENSY_RESCATE = b'\xf1'     # 241 = iniciar modo rescate
 TEENSY_EVACUACION = b'\xf7'  # 247 = termino rescate, iniciar evacuacion
 SERIAL_TIMEOUT_S = 0.05
+# `flush()` en el hot path: ver send_frame(). Por defecto NO se llama.
+SERIAL_FLUSH = os.environ.get("SERIAL_FLUSH") == "1"
 FRAME_NONE_RETRY_SLEEP_S = 0.01
 FRAME_NONE_RESTART_THRESHOLD = 30
 TELEMETRY_INTERVAL_S = 5.0
@@ -58,6 +110,8 @@ record = True
 noise_blob_threshold = 16
 min_square_size = 550
 min_line_size = 50000
+line_lost_search_speed = 12
+line_lost_search_angle = 65
 fixed_angle_value = 0
 fixed_angle_active = False
 fixed_angle_start_time = 0
@@ -108,7 +162,17 @@ def send_frame(speed, angle, green_state, silver_line_flag):
         SYNC_SILVER_LINE, clamp_byte(int(bool(silver_line_flag))),
     ])
     bytes_written = ser.write(output)
-    ser.flush()
+    # ser.flush() BLOQUEA hasta que los 8 bytes salieron del buffer del SO:
+    # 8*10/115200 = 0,694 ms por trama, y a 80 Hz eso es 55,6 ms por segundo,
+    # el 5,6 % del tiempo del lazo de vision. Y NADIE espera esa garantia: no
+    # hay ACK, la Teensy no contesta esta trama, y el SO igual la manda. Lo
+    # unico que cambia es que el lazo deja de quedarse mirando como sale.
+    #
+    # Se deja detras de una variable de entorno por si el sabado aparece algun
+    # sintoma raro de serie y hay que descartar esto rapido:
+    #     SERIAL_FLUSH=1 python3 Main.py    -> vuelve el comportamiento viejo
+    if SERIAL_FLUSH:
+        ser.flush()
     #print(f"[TX] bytes_written={bytes_written} raw={output.hex()} speed={speed} angle={angle} gs={green_state} sl={silver_line_flag}")
 
     frames_sent += 1
@@ -138,8 +202,27 @@ def restart_video_stream():
     vs = WebcamVideoStream(src=0).start()
     return vs
 
+# Ultimo (seq, edad_ms) que entrego la camara. Globales a proposito: el lazo
+# llama a read_frame_with_recovery en varios lados y la telemetria los lee
+# despues, sin cambiar la firma de la funcion ni el flujo.
+CAM_SEQ = 0
+CAM_EDAD_MS = 0.0
+CAM_REPETIDOS = 0     # veces que se proceso DOS veces el mismo frame
+CAM_SALTEADOS = 0     # frames que la camara entrego y el lazo nunca vio
+
+
 def read_frame_with_recovery(none_count, context):
-    frame = vs.read()
+    global CAM_SEQ, CAM_EDAD_MS, CAM_REPETIDOS, CAM_SALTEADOS
+    try:
+        frame, seq, edad = vs.read_meta()
+        if seq == CAM_SEQ:
+            CAM_REPETIDOS += 1        # el lazo corrio mas rapido que la camara
+        elif seq > CAM_SEQ + 1:
+            CAM_SALTEADOS += seq - CAM_SEQ - 1
+        CAM_SEQ, CAM_EDAD_MS = seq, edad
+    except AttributeError:
+        # un WebcamVideoStream viejo sin read_meta: el lazo sigue igual
+        frame = vs.read()
     if frame is not None:
         return frame, 0
 
@@ -762,7 +845,10 @@ def main():
         line_none_count = 0
         line_t0 = time.time()
         line_frames = 0
+        last_line_angle = 0
+        last_line_search_dir = 1
         while estado == 'linea':
+            tlm_t_frame = time.monotonic()   # TLM: para medir proc_ms
             frame, line_none_count = read_frame_with_recovery(line_none_count, "linea")
             if frame is None:
                 continue
@@ -795,10 +881,52 @@ def main():
             silver_mask[:75, :] = 0
 
             green_state = 0
+            black_sum = np.sum(black_mask)
             x_resultant = np.mean(x_black)
             y_resultant = np.mean(y_black)
             angle = (math.atan2(y_resultant, x_resultant) / math.pi * 180) - 90
             speed = 40
+            # TLM: el angulo TAL COMO salio del atan2, antes de cualquier
+            # override. Y si la mascara quedo vacia, atan2(0,0)-90 da -90:
+            # un angulo que NO significa nada y que igual se usa mas abajo
+            # para elegir hacia donde buscar la linea.
+            tlm_ang_crudo = angle
+            tlm_degenerado = 1 if (x_resultant == 0 and y_resultant == 0) else 0
+            tlm_perdida = 0
+
+            # VISION NUEVA. Devuelve None si no opina -o si esta apagada-, y en
+            # ese caso se conserva el angulo de arriba. El resto del lazo
+            # -verde, plateado, rojo- no se toca: sigue usando frame_resized y
+            # sus propias mascaras.
+            _ang_nuevo = vision_linea.angulo(frame_resized)
+            if _ang_nuevo is not None:
+                angle = _ang_nuevo
+            # QUIEN ESTA MANEJANDO. Sin esto, si el robot hace algo raro no se
+            # puede saber si el comando salio de la vision nueva, de la vieja o
+            # de la busqueda de linea perdida: `angle` es la misma variable en
+            # los tres casos. La metrica de replay "sin autoridad = 839" NO
+            # equivale a "839 frames sin comando": en produccion muchos de esos
+            # frames llevan una orden de la vision VIEJA.
+            #   0 vision vieja (la nueva esta apagada)
+            #   1 vision nueva
+            #   2 la nueva no opino -> vieja
+            #   3 la nueva no opino y no hay linea -> busqueda   (se fija abajo)
+            #   4 la nueva se apago sola por fallos -> vieja
+            if _ang_nuevo is not None:
+                tlm_ctrl = 1
+            elif not getattr(vision_linea, "ACTIVA", False):
+                tlm_ctrl = 4 if getattr(vision_linea, "_fallos", 0) else 0
+            else:
+                tlm_ctrl = 2
+
+            # ANTICIPACION DE CURVA. La Teensy ya frena con absSteer, pero frena
+            # tarde: absSteer sube cuando la curva ya esta encima. Esto mide la
+            # curvatura del camino visible y manda un speed menor ANTES de
+            # entrar, para llegar a la curva ya frenado.
+            # Devuelve None si no opina; ahi queda el speed de siempre.
+            _vel_nueva = vision_linea.velocidad(speed)
+            if _vel_nueva is not None:
+                speed = _vel_nueva
 
             if np.sum(green_mask) > min_square_size * 255:
                 green_pixels = np.amax(green_mask, axis=0)
@@ -839,8 +967,27 @@ def main():
                 greenSquare = False
                 green_state = 0
 
-            if np.sum(black_mask) < min_line_size:
-                angle = 0
+            # ACOPLE ENTRE LAS DOS VISIONES. `black_sum >= min_line_size` es la
+            # decision de "hay linea" de la vision VIEJA, y no sabe nada de la
+            # nueva. Medido sobre 13.900 frames: en el 9,6 % la vision nueva
+            # TIENE target valido y esta condicion declara linea perdida, y la
+            # busqueda pisa el angulo bueno.
+            # Y es justo donde la nueva mas vale: sigue lineas finas o lejanas,
+            # que son las que tienen pocos pixeles negros.
+            # Si la nueva opino, la linea NO esta perdida.
+            if black_sum >= min_line_size or _ang_nuevo is not None:
+                last_line_angle = angle
+                if abs(angle) > 8:
+                    last_line_search_dir = 1 if angle > 0 else -1
+            else:
+                if abs(angle) > 8:
+                    last_line_search_dir = 1 if angle > 0 else -1
+                elif abs(last_line_angle) > 8:
+                    last_line_search_dir = 1 if last_line_angle > 0 else -1
+                angle = last_line_search_dir * line_lost_search_angle
+                speed = line_lost_search_speed
+                tlm_perdida = 1
+                tlm_ctrl = 3
 
             silver_contours, _ = cv2.findContours(silver_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             silver_line = False
@@ -881,6 +1028,36 @@ def main():
                 green_state = 10
 
             output = send_frame(speed, round(angle), green_state, silver_line)
+            # TLM: una linea por frame. `i` = frames_sent, que es la MISMA
+            # cuenta que el Teensy graba como `rxf`: esa es la clave con la
+            # que se cruzan los dos registros.
+            tlmv.frame(i=frames_sent,
+                       proc_ms=int((time.monotonic() - tlm_t_frame) * 1000),
+                       estado=0,
+                       black_sum=int(black_sum),
+                       valida=1 if black_sum >= min_line_size else 0,
+                       degenerado=tlm_degenerado,
+                       xr=int(x_resultant * 1000),
+                       yr=int(y_resultant * 1000),
+                       ang_crudo=int(round(tlm_ang_crudo)),
+                       ang_env=int(round(angle)),
+                       vel_env=int(speed),
+                       perdida=tlm_perdida,
+                       dir_busq=int(last_line_search_dir),
+                       green=int(green_state),
+                       silver=1 if silver_line else 0,
+                       rojo_bandas=int(red_bands),
+                       fps=0,
+                       # Las cinco etapas del target, las razones de cada
+                       # guard y los dos terminos de la ley de steer. Es un
+                       # dict; telemetria_vision lo traduce a enteros. Con la
+                       # vision vieja viene vacio y todos los campos van en 0.
+                       ctrl_source=tlm_ctrl,
+                       cam_seq=CAM_SEQ,
+                       cam_edad=int(CAM_EDAD_MS * 10),
+                       cam_rep=CAM_REPETIDOS,
+                       cam_salt=CAM_SALTEADOS,
+                       vision=vision_linea.ultimo())
             line_frames += 1
             if time.time() - line_t0 >= 30:
                 print(f"[LINE-FPS] avg={line_frames / (time.time() - line_t0):.2f}")

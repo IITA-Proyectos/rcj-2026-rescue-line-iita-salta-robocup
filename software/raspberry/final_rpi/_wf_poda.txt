@@ -1,0 +1,69 @@
+
+============================================================================================================
+  PODA PREVIA - podar el ESQUELETO antes de Dijkstra, y volver a
+  correr maxy -> start -> Dijkstra -> shell sobre el esqueleto podado.
+  Tres reglas RELATIVAS, ningun umbral en pixeles.
+  PODA-R  argmax en cada bifurcacion, enraizado en start
+  PODA-D  lo mismo sin raiz = diametro del esqueleto
+  PODA-C  ramita colgante con L < k * DT[bifurcacion]  (banda de k)
+============================================================================================================
+
+  FIDELIDAD sobre 14722 frames con path: 0 discrepancias de target/heading, 0 de start   OK
+
+  BASELINE  disp 93.78 %  sin_aut 864  huecos 276  saltos 247  inversiones 392  suav 1.91   (42 s)
+
+  variante               disp %  sin_aut   huecos saltos>24 inversiones     suav   controles
+  --------------------------------------------------------------------------------------------------------
+  BASE                    +0.00       +0       +0        +0          +0    +0.00   hist 100/100  lineal 73/73  smax +89 OK
+  CAMINO                  +0.17      -24      -12       -12         +23    +0.06   hist 100/100  lineal 73/73  smax +89 OK
+  PODA-R                  +0.08      -11       -8        -8          -2    +0.00   hist 100/100  lineal 73/73  smax +89 OK
+       poda aplicada 12071/14714 frames, degenerada 0, quita 27.8 % de los px, mueve start en 7473 frames, sin resultado 0   (46 s)
+  PODA-D                  +0.01       -2       -2        +0         +13    +0.00   hist 100/100  lineal 73/73  smax +89 OK
+       poda aplicada 12065/14720 frames, degenerada 0, quita 11.6 % de los px, mueve start en 876 frames, sin resultado 0   (47 s)
+  PODA-C k=0.5            -0.01       +1       +1        +1          +0    +0.00   hist 100/100  lineal 73/73  smax +89 OK
+       poda aplicada 12065/14722 frames, degenerada 0, quita 0.2 % de los px, mueve start en 23 frames, sin resultado 0   (48 s)
+  PODA-C k=1.0            -0.02       +3       +3        +4          +2    +0.00   hist 100/100  lineal 73/73  smax +89 OK
+       poda aplicada 12065/14722 frames, degenerada 0, quita 1.1 % de los px, mueve start en 53 frames, sin resultado 0   (48 s)
+  PODA-C k=1.5            +0.01       -1       +1        +2          +6    +0.00   hist 100/100  lineal 73/73  smax +89 OK
+       poda aplicada 12065/14722 frames, degenerada 0, quita 6.0 % de los px, mueve start en 496 frames, sin resultado 0   (46 s)
+  PODA-C k=2.0            -0.07      +10       +2        +3         -11    +0.23   hist 100/100  lineal 73/73  smax +89 OK
+       poda aplicada 12059/14712 frames, degenerada 6, quita 13.1 % de los px, mueve start en 2668 frames, sin resultado 0   (44 s)
+  PODA-C k=3.0            -0.09      +12       +4        +5          -8    +0.45   hist 100/100  lineal 73/73  smax +89 OK
+       poda aplicada 12014/14712 frames, degenerada 51, quita 20.9 % de los px, mueve start en 4157 frames, sin resultado 0   (46 s)
+  CAMINO+MONO             +0.18      -25      -11       -11          -3    -0.68   hist 100/100  lineal 73/73  smax +89 OK
+  PODA-R+MONO             +0.07      -10       -8        -8         -26    -0.68   hist 100/100  lineal 73/73  smax +89 OK
+       poda aplicada 12068/14714 frames, degenerada 0, quita 27.8 % de los px, mueve start en 7477 frames, sin resultado 0   (47 s)
+  PODA-D+MONO             -0.07      +10       +5        +7         -13    -0.68   hist 100/100  lineal 73/73  smax +89 OK
+       poda aplicada 12068/14708 frames, degenerada 0, quita 11.6 % de los px, mueve start en 875 frames, sin resultado 0   (50 s)
+  PODA-C1.5+MONO          -0.04       +5       +4        +5         -20    -0.68   hist 100/100  lineal 73/73  smax +89 OK
+       poda aplicada 12068/14712 frames, degenerada 0, quita 6.0 % de los px, mueve start en 496 frames, sin resultado 0   (52 s)
+  PODA-C1.5+CAM+MONO      +0.19      -27      -10       -11          +7    -0.45   hist 100/100  lineal 73/73  smax +89 OK
+       poda aplicada 12066/14738 frames, degenerada 0, quita 6.0 % de los px, mueve start en 496 frames, sin resultado 0   (50 s)
+  PODA-D  skPodado        -0.08      +11      +11       +11         +17    +0.00   hist 100/100  lineal 73/73  smax +89 OK
+       poda aplicada 12065/14720 frames, degenerada 0, quita 11.6 % de los px, mueve start en 876 frames, sin resultado 0   (55 s)
+  PODA-C1.5 skPodado      -0.05       +7       +9        +9          +9    +0.00   hist 100/100  lineal 73/73  smax +89 OK
+       poda aplicada 12065/14722 frames, degenerada 0, quita 6.0 % de los px, mueve start en 496 frames, sin resultado 0   (53 s)
+
+  DELTAS CONTRA CAMINO (la pregunta: la poda da algo que
+  restringir candidatos no da?)
+  variante               disp %  sin_aut   huecos saltos>24 inversiones     suav
+  ------------------------------------------------------------------------------------
+  PODA-R                  -0.09      +13       +4        +4         -25    -0.06
+  PODA-D                  -0.16      +22      +10       +12         -10    -0.06
+  PODA-C k=0.5            -0.18      +25      +13       +13         -23    -0.06
+  PODA-C k=1.0            -0.19      +27      +15       +16         -21    -0.06
+  PODA-C k=1.5            -0.17      +23      +13       +14         -17    -0.06
+  PODA-C k=2.0            -0.24      +34      +14       +15         -34    +0.17
+  PODA-C k=3.0            -0.26      +36      +16       +17         -31    +0.39
+  CAMINO+MONO             +0.01       -1       +1        +1         -26    -0.73
+  PODA-R+MONO             -0.10      +14       +4        +4         -49    -0.73
+  PODA-D+MONO             -0.24      +34      +17       +19         -36    -0.73
+  PODA-C1.5+MONO          -0.21      +29      +16       +17         -43    -0.73
+  PODA-C1.5+CAM+MONO      +0.02       -3       +2        +1         -16    -0.51
+  PODA-D  skPodado        -0.25      +35      +23       +23          -6    -0.06
+  PODA-C1.5 skPodado      -0.22      +31      +21       +21         -14    -0.06
+
+  CRITERIO PREREGISTRADO: la poda aporta solo si mejora contra
+  CAMINO sin empeorar disponibilidad, huecos ni saltos, y sin
+  romper ningun control positivo.
+============================================================================================================

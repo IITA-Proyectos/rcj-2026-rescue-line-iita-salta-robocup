@@ -22,3 +22,64 @@ venv/
 *.swo
 *~
 .idea/
+
+# derivados del banco shadow: se regeneran con shadow.py
+software/raspberry/final_rpi/shadow_*.avi
+software/raspberry/final_rpi/shadow_*.csv
+software/raspberry/final_rpi/comparacion_*.avi
+software/raspberry/final_rpi/centrado_*.avi
+software/raspberry/final_rpi/CONTROL_POSITIVO_*.avi
+software/raspberry/final_rpi/CASO_FALLA_*.avi
+
+# derivados del banco de instrumentacion: se regeneran con trazar.py
+software/raspberry/final_rpi/traza_*.csv
+software/raspberry/final_rpi/groundtruth_video_4.avi
+software/raspberry/final_rpi/groundtruth_video_4.csv
+software/raspberry/final_rpi/memoria_perdida.csv
+software/raspberry/final_rpi/huecos_clasificados.csv
+software/raspberry/final_rpi/salto_raw.csv
+software/raspberry/final_rpi/memoria_perdida.csv
+software/raspberry/final_rpi/topologia.csv
+software/raspberry/final_rpi/candidata_v1rc.avi
+software/raspberry/final_rpi/candidata_v1rc.png
+software/raspberry/final_rpi/h9_gate_triggers.csv
+
+# registro visual: se regenera con registro_visual.py
+software/raspberry/final_rpi/REGISTRO_V1RC.mp4
+software/raspberry/final_rpi/CLIP_*.mp4
+software/raspberry/final_rpi/bench_runtime_pi*.json
+software/raspberry/final_rpi/bench_runtime_pi*.csv
+software/raspberry/final_rpi/bench_runtime_pi*.txt
+software/raspberry/final_rpi/medicion_eje.json
+software/raspberry/final_rpi/eje_*.png
+software/raspberry/final_rpi/shadow_pi_*.csv
+software/raspberry/final_rpi/shadow_pi_*.avi
+software/raspberry/final_rpi/REGISTRO_H10.mp4
+software/raspberry/final_rpi/retro_guard_interv.csv
+
+# paquetes de contexto para IA externa: se regeneran
+contexto_para_ia_*.md
+software/raspberry/final_rpi/REGISTRO_V1_vs_CAND.mp4
+software/raspberry/final_rpi/REGISTRO_MONO.mp4
+software/raspberry/final_rpi/CLIP_MONO_tramos.mp4
+software/raspberry/final_rpi/REGISTRO_COMPLETO.mp4
+
+# caches de los bancos: se regeneran con --extraer / --forzar y pesan
+software/raspberry/final_rpi/_sep_cache.pkl
+software/raspberry/final_rpi/_yaw_cache.pkl
+software/raspberry/final_rpi/_tlm_test.csv
+
+# derivados de leyes.py: se regeneran, y uno pesa 40 MB
+software/raspberry/final_rpi/leyes_*.avi
+software/raspberry/final_rpi/_*.pkl
+software/raspberry/final_rpi/_*.png
+
+# Videos generados por los renderizadores. NO van al repo: el registro
+# completo pesa 271 MB y en este repo ya se arrastraron 60 MB de .avi a la
+# historia una vez (commit 7642693), y sacarlos de ahi es caro.
+# Se regeneran con: python software/raspberry/final_rpi/registro_cadena.py
+*.mkv
+*.mov
+
+# los renderizadores generan mp4 grandes (el registro completo son 271 MB)
+*.mp4
