@@ -1952,6 +1952,33 @@ void steerRampaTraseras(double speed, int direction, double rotation, double min
 }
 #endif
 
+// Mezclador exclusivo de subida: todas las ruedas avanzan siempre. La correccion
+// de linea no frena ni invierte el lado interno; acelera el lado externo desde
+// 40 hasta 80 rpm. Es menos agresivo que DriveBase::steer(), pero no corta la
+// traccion cuando la camara pide una correccion grande en la rampa.
+void steerRampaCuatroAdelante(double rotation)
+{
+    rotation = constrain(rotation, -1.0, 1.0);
+    const double base = POTENCIA_TRASERAS;
+    const double extra = base * fabs(rotation);
+    double ls = base;
+    double rs = base;
+    if (rotation >= 0) rs = min(159.0, base + extra);  // giro a izquierda: derecha exterior
+    else               ls = min(159.0, base + extra);  // giro a derecha: izquierda exterior
+
+    robot._speed = base;
+    robot._rotation = rotation;
+    robot._direction = FORWARD;
+    robot._leftspeed = ls;
+    robot._rightspeed = rs;
+    robot._leftdir = FORWARD;
+    robot._rightdir = FORWARD;
+    fl.setSpeed(FORWARD,  ls);
+    bl.setSpeed(FORWARD,  ls);
+    fr.setSpeed(!FORWARD, rs);  // motores derechos espejados
+    br.setSpeed(!FORWARD, rs);
+}
+
 void recuperarAtasco()
 {
     DBG_PRINTLN("[ATASCO] rueda clavada -> retro + avance brusco");
@@ -3026,14 +3053,12 @@ void loop()
                         robot.steer(vel * LINE_RECTA_FACTOR, FORWARD,
                                     signoCmd > 0 ? rot : -rot);
 
-                    // Pendiente: la base de las CUATRO ruedas pasa a 40 rpm. No se las deja fijas:
-                    // robot.steer conserva el angulo que mando la Pi, asi el lado interno baja
-                    // (o invierte en un pivote) y el robot sigue pudiendo seguir la linea.
-                    // En recta, rot=0 y las cuatro reciben 40 rpm.
+                    // Pendiente: las cuatro ruedas quedan SIEMPRE hacia adelante, con 40 rpm
+                    // minimo. El lado exterior acelera segun el angulo de la Pi, sin invertir
+                    // ni anular la rueda interna; en recta las cuatro reciben 40 rpm.
                     if (pitch > PITCH_RAMPA)
                     {
-                        robot.steer(POTENCIA_TRASERAS, FORWARD,
-                                    signoCmd > 0 ? rot : -rot);
+                        steerRampaCuatroAdelante(signoCmd > 0 ? rot : -rot);
                     }
 
                     break;
