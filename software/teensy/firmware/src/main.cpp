@@ -256,6 +256,10 @@ static const unsigned long WATCHDOG_CONFIRMA_MS = 300;
 #define TEENSY_ACK_GAP_TIMEOUT   240      // 0xF0  se acabo el margen del gap
 #define TEENSY_ACK_RESCATE_APDS  241      // 0xF1  el APDS confirmo plateado
 #define TEENSY_ACK_PIVOTE_DONE   237      // 0xED  termino el pivote de recuperacion (COMPLETAR_GIRO en la Pi)
+// Estado de pendiente para que la Raspberry ajuste SOLO el ROI del control de linea.
+#define TEENSY_RAMPA_SUBE        242      // 0xF2  subiendo: Pi usa ROI de 30 px (corte Y=90)
+#define TEENSY_RAMPA_BAJA        243      // 0xF3  bajando: Pi vuelve al ROI normal
+#define TEENSY_RAMPA_LLANO       244      // 0xF4  llano: Pi usa ROI normal
 
 // Antes de entrar a rescate, el APDS mira SOLO la ultima recuperacion FISICA.
 // Si fue lateral reciente: deshace LA MITAD del giro real, en sentido contrario.
@@ -335,7 +339,7 @@ static void resetGapState();
 // Globales de diagnóstico fuera de todo #if: las leen la telemetría JSON y el CSV de diagnostico.h.
 // Rama del último movimiento (solo telemetría/CSV): -1 primitiva de maniobra, 0 recto, 1 curva,
 // 2 curva dura, 3 pivote (no aparece con LINE_FRENO_STEER=0.70), 7 curva cerrada, 9 atasco,
-// 13 pivote de recuperación, 14 retroceso de recuperación.
+// 13 pivote de recuperación, 14 retroceso de recuperación, 15 empuje del palillo (rampa.h).
 int g_line_branch = 0;
 
 // millis() de la última trama completa de la Pi (0 = nunca). La usa el watchdog.
@@ -581,6 +585,7 @@ void notifyOptionalSensorWarning()
 
 // Registrador CSV de 200 Hz (activo en `competencia`). Va acá y no arriba porque lee globales
 // declaradas más arriba.
+#include "rampa.h"   // detector de rampa y atasco en el palillo: lo alimenta diagnostico.h
 #include "diagnostico.h"
 
 void serviceMotionBackgroundTasks()
@@ -1788,6 +1793,73 @@ const unsigned long ATASCO_GRACE_MS = 8000;  // no disparar los primeros 8 s tra
 const float  PITCH_RAMPA       = 12.0;  // pitch (grados) desde el cual considero "pendiente" (llano ~±5, rampa ~23)
 const double POTENCIA_TRASERAS = 80;   // potencia (rpm objetivo, 0-159) para las traseras en pendiente
 
+// --- Estado de rampa Teensy -> Raspberry para ROI dinamico -----------------
+// No toca el detector mecanico de rampa ni la traccion. Es un aviso rapido
+// exclusivo para vision: filtra cabeceos cortos antes de cambiar el ROI.
+const float         ROI_RAMPA_ENTRA_GRADOS = 14.0f;
+const float         ROI_RAMPA_SALE_GRADOS  = 8.0f;
+const unsigned long ROI_RAMPA_CONFIRMA_MS  = 200UL;
+const unsigned long ROI_RAMPA_REENVIO_MS   = 500UL;
+
+static int8_t       g_roi_rampa_estado = 0;       // +1 sube, -1 baja, 0 llano
+static int8_t       g_roi_rampa_candidato = 0;
+static unsigned long g_roi_rampa_candidato_desde = 0;
+static int8_t       g_roi_rampa_ultimo_enviado = 99;
+static unsigned long g_roi_rampa_ultimo_envio = 0;
+
+void actualizarEstadoRampaPi()
+{
+    const unsigned long now = millis();
+    int8_t candidato = g_roi_rampa_estado;
+
+    // Histeresis: entrar exige +/-14 grados; para volver a llano hay que caer
+    // dentro de +/-8 grados. Asi no oscila cerca del borde de la rampa.
+    if (g_roi_rampa_estado == 0)
+    {
+        if (pitch >= ROI_RAMPA_ENTRA_GRADOS) candidato = 1;
+        else if (pitch <= -ROI_RAMPA_ENTRA_GRADOS) candidato = -1;
+        else candidato = 0;
+    }
+    else if (g_roi_rampa_estado > 0)
+    {
+        if (pitch <= -ROI_RAMPA_ENTRA_GRADOS) candidato = -1;
+        else if (pitch <= ROI_RAMPA_SALE_GRADOS) candidato = 0;
+        else candidato = 1;
+    }
+    else
+    {
+        if (pitch >= ROI_RAMPA_ENTRA_GRADOS) candidato = 1;
+        else if (pitch >= -ROI_RAMPA_SALE_GRADOS) candidato = 0;
+        else candidato = -1;
+    }
+
+    if (candidato != g_roi_rampa_candidato)
+    {
+        g_roi_rampa_candidato = candidato;
+        g_roi_rampa_candidato_desde = now;
+    }
+
+    // Todo cambio debe sostenerse 200 ms: evita que un cabeceo corto cambie el ROI.
+    if (g_roi_rampa_candidato != g_roi_rampa_estado &&
+        (now - g_roi_rampa_candidato_desde) >= ROI_RAMPA_CONFIRMA_MS)
+    {
+        g_roi_rampa_estado = g_roi_rampa_candidato;
+    }
+
+    // Enviar al cambiar y revalidar cada 500 ms por si la Pi se reinicio o perdio un byte.
+    if (g_roi_rampa_estado != g_roi_rampa_ultimo_enviado ||
+        (now - g_roi_rampa_ultimo_envio) >= ROI_RAMPA_REENVIO_MS)
+    {
+        uint8_t dato = TEENSY_RAMPA_LLANO;
+        if (g_roi_rampa_estado > 0) dato = TEENSY_RAMPA_SUBE;
+        else if (g_roi_rampa_estado < 0) dato = TEENSY_RAMPA_BAJA;
+
+        Serial5.write(dato);
+        g_roi_rampa_ultimo_enviado = g_roi_rampa_estado;
+        g_roi_rampa_ultimo_envio = now;
+    }
+}
+
 bool chequearAtasco(int comandoVel)
 {
 
@@ -1830,6 +1902,54 @@ bool chequearAtasco(int comandoVel)
 
     return (now - stuck_since >= STUCK_TIME_MS);
 }
+
+#if RAMPA_ACTIVA
+// Empuje del palillo (ver rampa.h): la cuenta de DriveBase::steer() con el giro acotado a
+// PALILLO_ROT_MAX -ninguna rueda va marcha atras- y UNA sola orden por trasera con consigna
+// max(steer, minTrasera). Con dos ordenes por vuelta (steer y despues el refuerzo) la trasera de
+// adentro de una curva de mas de ~40 grados recibe atras y adelante, se le borra el PID y queda
+// clavada: por eso el palillo no pasaba. Es la opcion 4 del 16-sep, que paso el palillo con las 4
+// ruedas; ahora solo corre mientras dura el empuje y las traseras suben de a poco.
+#ifndef PALILLO_ROT_MAX
+#define PALILLO_ROT_MAX    0.40    // interna a (1 - 2*0,40) = 20 % hacia adelante
+#endif
+#ifndef PALILLO_RPM_POR_S
+#define PALILLO_RPM_POR_S  90.0    // de ~36 a 80 rpm en ~0,5 s: sin el tiron de la opcion 4
+#endif
+
+void steerRampaTraseras(double speed, int direction, double rotation, double minTrasera)
+{
+    robot._speed = constrain(speed, 0, 159);
+    robot._rotation = constrain(rotation, -1, 1);
+    robot._direction = direction;
+    double ls, rs;
+    int ld, rd;
+    if (rotation >= 0)   // gira a la izquierda: la base es la derecha
+    {
+        rs = robot._speed;
+        rd = direction;
+        ld = direction;
+        ls = robot._speed - (2 * rotation * robot._speed);
+        if (ls < 0) { ld = !ld; ls = -ls; }
+    }
+    else
+    {
+        ls = robot._speed;
+        ld = direction;
+        rd = direction;
+        rs = robot._speed + (2 * rotation * robot._speed);
+        if (rs < 0) { rd = !rd; rs = -rs; }
+    }
+    robot._leftspeed = ls;
+    robot._rightspeed = rs;
+    robot._leftdir = ld;
+    robot._rightdir = rd;
+    fl.setSpeed(ld, ls);
+    bl.setSpeed(ld, (ld == FORWARD) ? max(ls, minTrasera) : ls);
+    fr.setSpeed(!rd, rs);    // lado derecho espejado, igual que steer()
+    br.setSpeed(!rd, (rd == FORWARD) ? max(rs, minTrasera) : rs);
+}
+#endif
 
 void recuperarAtasco()
 {
@@ -1907,6 +2027,13 @@ void enviarTelemetria()
 
 #define TSAT(v) (int)constrain(sanef(v), -9999.0f, 99999.0f)
     static unsigned long tlm_trunc = 0;   // frames descartados por no entrar en buf
+    // Estado explicito del antiatasco de palillo. `ms` es el tiempo que lleva
+    // verificando una rueda trabada (pal=1) o empujando con cuatro ruedas (pal=2).
+    const unsigned long t_now = millis();
+    const unsigned long pal_ms = (g_palillo == 1 && g_palilloCuentaDesdeMs)
+        ? (t_now - g_palilloCuentaDesdeMs)
+        : (g_palillo == 2 && g_palilloDesdeMs ? (t_now - g_palilloDesdeMs) : 0UL);
+
     static char buf[1664];   // frame v3 ~1400 B; si crece, agrandar tambien TLM_LINE_MAX en la ESP32
     int n = snprintf(
         buf, sizeof(buf),
@@ -1916,6 +2043,7 @@ void enviarTelemetria()
         "\"us\":{\"f\":%d,\"l\":%d,\"r\":%d},"
         "\"tof\":{\"l\":%d,\"r\":%d},"
         "\"imu\":{\"yaw\":%.1f,\"pit\":%.1f,\"rol\":%.1f,\"cen\":%.1f},"
+        "\"rmp\":{\"det\":%d,\"roi\":%d,\"pal\":%d,\"ms\":%lu},"
         "\"enc\":{\"fl\":%ld,\"fr\":%ld,\"bl\":%ld,\"br\":%ld},"
         // raw = flancos crudos del encoder, sin signo (no dependen de _dir).
         "\"raw\":{\"fl\":%lu,\"fr\":%lu,\"bl\":%lu,\"br\":%lu},"
@@ -1939,7 +2067,7 @@ void enviarTelemetria()
         "\"io\":{\"sw\":%d,\"fcl\":%d,\"fcr\":%d,\"rel\":%d,\"buz\":%d,\"led\":%d},"
         "\"claw\":{\"busy\":%d},"
         "\"grn\":{\"rx\":[%lu,%lu,%lu,%lu],\"act\":[%lu,%lu,%lu,%lu],\"kill\":[%lu,%lu,%lu,%lu],\"lt\":%d,\"age\":%ld,\"lrc\":%d}}\n",
-        millis(), hdrOn ? HDR_JSON : "",
+        t_now, hdrOn ? HDR_JSON : "",
         (int)speed, steer, green_state, silver_line, serial_bytes_rx, serial_frames_rx, serial5state,
         // d  = lo que el sensor ve AHORA (se refresca con cada muestra) -> para CALIBRAR.
         // dc = lo que esta usando el control (solo se asigna en las rutinas de marcha).
@@ -1948,6 +2076,7 @@ void enviarTelemetria()
         front_distance, left_distance, right_distance,
         distance_left_tof, distance_right_tof,
         t_yaw, t_pit, t_rol, t_cen,
+        g_rampa_estado, (int)g_roi_rampa_estado, g_palillo, pal_ms,
         (long)fl.pulseCount, (long)fr.pulseCount, (long)bl.pulseCount, (long)br.pulseCount,
         (unsigned long)fl.pulsesRaw, (unsigned long)fr.pulsesRaw,
         (unsigned long)bl.pulsesRaw, (unsigned long)br.pulsesRaw,
@@ -2788,6 +2917,9 @@ void loop()
                     g_recup_signo = 0;
                
                     {int velocidadAjustada = ajustarVelocidadPorPendiente(VELOCIDAD_BASE_LINEA);
+                     // ajustarVelocidadPorPendiente() acaba de refrescar `pitch`: avisar a la Pi
+                     // si estamos subiendo/bajando para que cambie SOLO el ROI angular.
+                     actualizarEstadoRampaPi();
 
                      if (chequearAtasco(velocidadAjustada)) {   // obstaculo alto: no avanza -> recupero
                          g_line_branch = 9;
@@ -2862,6 +2994,21 @@ void loop()
                     // Signo de la trama actual, sin memoria. steerCmd == 0 da -1: inofensivo
                     // porque rot = 0.
                     const int signoCmd = (steerCmd > 0) ? 1 : -1;
+#if RAMPA_ACTIVA
+                    // Palillo (rampa.h): SOLO si quedo atascado subiendo. Si no, no entra y todo
+                    // sigue exactamente como a las 19:00. Sin el refuerzo de abajo: las traseras ya
+                    // llevan su orden unica.
+                    if (palilloEmpuje(pitch > PITCH_RAMPA))
+                    {
+                        g_line_branch = 15;
+                        const double base = vel * LINE_RECTA_FACTOR;
+                        const double minTrasera = min((double)POTENCIA_TRASERAS,
+                            base + PALILLO_RPM_POR_S * (millis() - g_palilloDesdeMs) / 1000.0);
+                        const double rotR = (rot > PALILLO_ROT_MAX) ? PALILLO_ROT_MAX : rot;
+                        steerRampaTraseras(base, FORWARD, signoCmd > 0 ? rotR : -rotR, minTrasera);
+                        break;
+                    }
+#endif
                     // Curva cerrada (absSteer >= LINE_FRENO_STEER): velocidad fija
                     // LINE_FRENO_VEL. Con LINE_FRENO_FACTOR = kFrenoComoSteer reparte igual que
                     // steer(): no frena ninguna rueda.

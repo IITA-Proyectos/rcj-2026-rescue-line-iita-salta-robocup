@@ -5,7 +5,7 @@
 // Uso: pio run -t upload; python tools/registrar_diagnostico.py COM7 x.csv;
 //      python tools/analizar_diagnostico.py x.csv
 // No es autosuficiente: lee globales de main.cpp (bno, robot, fl/fr/bl/br, speed, g_rx_steer,
-// g_last_rx_ms, serial_frames_rx, g_line_branch) y macros MOTO_*/LINE_*, asi que se incluye en el
+// g_last_rx_ms, serial_frames_rx, g_line_branch), macros MOTO_*/LINE_* y rampa.h, asi que se incluye en el
 // medio de main.cpp, despues de declararlas. Movido arriba no compila.
 // 200 Hz porque el PID corre a 50 Hz y el desplome de PWM dura decenas de ms.
 // Interfaz: DIAG_SETUP() al principio de setup(); DIAG_TICK() en los lazos.
@@ -53,6 +53,9 @@ struct DiagMuestra {
     uint32_t raw[4];      // flancos CRUDOS: movimiento fisico sin suposiciones
     int16_t  yaw, pit;    // x10
     int16_t  gx, gy, gz;  // velocidad angular REAL x10
+    int16_t  rol;         // orientation.z x10: inclinacion de COSTADO
+    int8_t   rampa;       // g_rampa_estado (rampa.h): 0 llano, 1 sube, -1 baja, 2 costado
+    int8_t   pal;         // g_palillo (rampa.h): 0 nada, 1 rueda trabada, 2 empujando
     uint32_t drop;        // perdidas acumuladas al momento de la muestra (no al drenar)
 };
 
@@ -68,7 +71,7 @@ unsigned long diagDrop = 0;
 static uint32_t diagUltimaUs = 0;
 // Cache de la IMU refrescada a 50 Hz desde el lazo: el I2C (~2 ms) no puede ir en el ISR.
 // El BNO055 actualiza a 100 Hz, asi que no se pierde informacion.
-static int16_t diagYaw = 0, diagPit = 0, diagGx = 0, diagGy = 0, diagGz = 0;
+static int16_t diagYaw = 0, diagPit = 0, diagGx = 0, diagGy = 0, diagGz = 0, diagRol = 0;
 
 static inline int16_t diagSat(double v)
 {
@@ -87,6 +90,11 @@ void diagRefrescarImu()
     bno.getEvent(&ev);
     diagYaw = diagSat(ev.orientation.x * 10.0);
     diagPit = diagSat(ev.orientation.y * 10.0);
+    diagRol = diagSat(ev.orientation.z * 10.0);
+    // Detector de rampa (rampa.h): usa esta misma lectura, sin I2C extra.
+    rampaActualizar(ev.orientation.y, ev.orientation.z, ev.orientation.x,
+                    ((float)fl.pulseCount + (float)fr.pulseCount +
+                     (float)bl.pulseCount + (float)br.pulseCount) / 4.0f, ult);
     imu::Vector<3> g = bno.getVector(Adafruit_BNO055::VECTOR_GYROSCOPE);
     diagGx = diagSat(g.x() * 10.0);
     diagGy = diagSat(g.y() * 10.0);
@@ -132,6 +140,7 @@ void diagMuestrear()
     }
     m.yaw = diagYaw; m.pit = diagPit;
     m.gx = diagGx; m.gy = diagGy; m.gz = diagGz;
+    m.rol = diagRol; m.rampa = (int8_t)g_rampa_estado; m.pal = (int8_t)g_palillo;
     m.drop = diagDrop + diagDropIsr;
     diagCabeza = sig;
 }
@@ -164,14 +173,14 @@ void diagDrenar()
             "%u,%d,%d,%u,%ld,%lu,%lu,"
             "%u,%d,%d,%u,%ld,%lu,%lu,"
             "%u,%d,%d,%u,%ld,%lu,%lu,"
-            "%d,%d,%d,%d,%d\n",
+            "%d,%d,%d,%d,%d,%d,%d,%d\n",
             (unsigned long)m.us, m.dt, (unsigned long)m.drop, m.rxsteer, m.rxspeed, m.rxage,
             (unsigned long)m.rxf, m.rot, m.ls, m.rs, m.ddir, m.ram,
             m.dir[0], m.set[0], m.rpm[0], m.pwm[0], (long)m.enc[0], (unsigned long)m.tog[0], (unsigned long)m.raw[0],
             m.dir[1], m.set[1], m.rpm[1], m.pwm[1], (long)m.enc[1], (unsigned long)m.tog[1], (unsigned long)m.raw[1],
             m.dir[2], m.set[2], m.rpm[2], m.pwm[2], (long)m.enc[2], (unsigned long)m.tog[2], (unsigned long)m.raw[2],
             m.dir[3], m.set[3], m.rpm[3], m.pwm[3], (long)m.enc[3], (unsigned long)m.tog[3], (unsigned long)m.raw[3],
-            m.yaw, m.pit, m.gx, m.gy, m.gz);
+            m.yaw, m.pit, m.gx, m.gy, m.gz, m.rol, m.rampa, m.pal);
         if (n > 0 && n < (int)sizeof(l)) DIAG_OUT.write((const uint8_t *)l, n);
         else diagDrop++;   // no entro: se cuenta como perdida
         diagCola = (uint16_t)((diagCola + 1) % DIAG_RING);
@@ -191,7 +200,7 @@ static const char *DIAG_CABECERA =
     "fr_dir,fr_set,fr_rpm,fr_pwm,fr_enc,fr_tog,fr_raw,"
     "bl_dir,bl_set,bl_rpm,bl_pwm,bl_enc,bl_tog,bl_raw,"
     "br_dir,br_set,br_rpm,br_pwm,br_enc,br_tog,br_raw,"
-    "yaw,pit,gx,gy,gz";
+    "yaw,pit,gx,gy,gz,rol,rampa,pal";
 
 // Procedencia: todos los flags que cambian comportamiento, con cada cabecera, para que dos CSV
 // grabados con binarios distintos no parezcan comparables.

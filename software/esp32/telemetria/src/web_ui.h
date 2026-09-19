@@ -52,6 +52,7 @@ const char INDEX_HTML[] PROGMEM = R"HTMLDOC(
   .card.c-us h2::before{background:#22d3a6}
   .card.c-tof h2::before{background:#f39c12}
   .card.c-imu h2::before{background:#3ea6ff}
+  .card.c-ramp h2::before{background:#f1c40f}
   .card.c-enc h2::before{background:#00d2d3}
   .card.c-fsm h2::before{background:#ff9f43}
   .card.c-io h2::before{background:#ee5253}
@@ -266,6 +267,15 @@ const char INDEX_HTML[] PROGMEM = R"HTMLDOC(
     <div class="tags"><span class="tag">roll: <b id="imu-rol">0</b>°</span><span class="tag">centrar ref: <b id="imu-cen">0</b>°</span></div>
   </section>
 
+  <!-- RAMPA / ANTIATASCO DEL PALILLO -->
+  <section class="card c-ramp">
+    <h2>Rampa / antiatasco de palillo</h2>
+    <div class="kv"><span class="k">rampa validada</span><span class="v" id="rmp-det">—</span></div>
+    <div class="kv"><span class="k">aviso de ROI a la Pi</span><span class="v" id="rmp-roi">—</span></div>
+    <div class="kv"><span class="k">palillo</span><span class="v" id="rmp-pal">—</span></div>
+    <div class="tags"><span class="tag">tiempo: <b id="rmp-ms">—</b></span><span class="tag">dispara: <b>pitch ≥14° + rueda frenada</b></span></div>
+  </section>
+
   <!-- ENCODERS -->
   <section class="card c-enc">
     <h2>Encoders / Ruedas</h2>
@@ -464,6 +474,18 @@ function render(d){
   set("imu-rol",Math.round(im.rol??0)); set("imu-cen",Math.round(im.cen??0));
   const nd=$("needle"); if(nd) nd.setAttribute("transform",`rotate(${im.yaw??0} 52 52)`);
   pitchBar("bar-pit",im.pit??0);
+  // Rampa / palillo: estado REAL del detector de Teensy, no inferido desde la UI.
+  { const rm=d.rmp||{};
+    const RAMP={"-1":"BAJANDO",0:"LLANO",1:"SUBIENDO",2:"COSTADO"};
+    const ROI={"-1":"BAJANDO",0:"LLANO",1:"SUBIENDO"};
+    const pal=Number(rm.pal??0), ms=Number(rm.ms??0);
+    set("rmp-det",RAMP[rm.det]??"—"); set("rmp-roi",ROI[rm.roi]??"—");
+    let texto="NORMAL", tiempo="—", color="#c7d2dc";
+    if(pal===1){ texto="RUEDA TRABADA · CONTANDO"; tiempo=(ms/1000).toFixed(1)+" / 1.0 s"; color="#f1c40f"; }
+    else if(pal===2){ texto="EMPUJANDO · 4 RUEDAS"; tiempo=(ms/1000).toFixed(1)+" / 1.5 s"; color="#e74c3c"; }
+    set("rmp-pal",texto); set("rmp-ms",tiempo);
+    const pe=$("rmp-pal"); if(pe) pe.style.color=color;
+  }
   // Encoders
   const e=d.enc||{};
   const now=performance.now();
@@ -479,7 +501,7 @@ function render(d){
   (function(){
     const dr=d.drv||{}, di=d.dir||{}, st=d.set||{}, pw=d.pwm||{}, rp=d.rpm||{}, tg=d.tog||{}, lp=d.loop||{};
     set("trac-drv","rot "+(dr.rot??0).toFixed(3)+"  izq "+(dr.ls??0)+"  der "+(dr.rs??0)+"  dir "+(dr.dir===1?"BACK":"FWD"));
-    const RAM={"-1":"giro programado (no linetrack)",0:"recto",1:"curva",2:"curva dura",3:"pivot",9:"atasco"};
+    const RAM={"-1":"giro programado (no linetrack)",0:"recto",1:"curva",2:"curva dura",3:"pivot",9:"atasco",15:"empuje palillo · 4 ruedas"};
     set("trac-ram",RAM[dr.ram]??"-");
     const pico=lp.max??0;
     const le=$("trac-loop"); if(le){ le.textContent=(lp.ms??0)+" / "+pico;
