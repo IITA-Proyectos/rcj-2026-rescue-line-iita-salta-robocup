@@ -1793,6 +1793,8 @@ const unsigned long ATASCO_GRACE_MS = 8000;  // no disparar los primeros 8 s tra
 //     el reparto izquierda/derecha que pide la Raspberry para seguir la linea. ---
 const float  PITCH_RAMPA       = 12.0;  // pitch (grados) desde el cual considero "pendiente" (llano ~±5, rampa ~23)
 const double POTENCIA_TRASERAS = 40;   // base de rampa (rpm objetivo, 0-159): 4 ruedas recto; se reparte al doblar
+const double RAMPA_EXTERIOR_MAX_RPM = 50;   // correccion suave: evita patinar en la subida
+const double RAMPA_GIRO_MUERTO      = 0.20; // ignora el temblor pequeno del angulo de camara
 
 // --- Estado de rampa Teensy -> Raspberry para ROI dinamico -----------------
 // No toca el detector mecanico de rampa ni la traccion. Es un aviso rapido
@@ -1952,15 +1954,18 @@ void steerRampaTraseras(double speed, int direction, double rotation, double min
 }
 #endif
 
-// Mezclador exclusivo de subida: todas las ruedas avanzan siempre. La correccion
-// de linea no frena ni invierte el lado interno; acelera el lado externo desde
-// 40 hasta 80 rpm. Es menos agresivo que DriveBase::steer(), pero no corta la
-// traccion cuando la camara pide una correccion grande en la rampa.
+// Mezclador exclusivo de subida: todas las ruedas avanzan siempre a 40 rpm.
+// La correccion de linea solo actua fuera de la zona muerta y acelera suavemente
+// el lado externo hasta 50 rpm; nunca frena ni invierte el interno. Asi no se
+// convierte el temblor de la camara en patinaje sobre la rampa.
 void steerRampaCuatroAdelante(double rotation)
 {
     rotation = constrain(rotation, -1.0, 1.0);
     const double base = POTENCIA_TRASERAS;
-    const double extra = base * fabs(rotation);
+    const double giro = fabs(rotation);
+    const double extra = (giro <= RAMPA_GIRO_MUERTO) ? 0.0 :
+        (RAMPA_EXTERIOR_MAX_RPM - base) *
+        (giro - RAMPA_GIRO_MUERTO) / (1.0 - RAMPA_GIRO_MUERTO);
     double ls = base;
     double rs = base;
     if (rotation >= 0) rs = min(159.0, base + extra);  // giro a izquierda: derecha exterior
@@ -3053,9 +3058,9 @@ void loop()
                         robot.steer(vel * LINE_RECTA_FACTOR, FORWARD,
                                     signoCmd > 0 ? rot : -rot);
 
-                    // Pendiente: las cuatro ruedas quedan SIEMPRE hacia adelante, con 40 rpm
-                    // minimo. El lado exterior acelera segun el angulo de la Pi, sin invertir
-                    // ni anular la rueda interna; en recta las cuatro reciben 40 rpm.
+                    // Pendiente: las cuatro ruedas quedan SIEMPRE hacia adelante y a 40 rpm.
+                    // Solo una curva clara sube suavemente el lado exterior hasta 50 rpm;
+                    // nunca invierte ni anula la rueda interna.
                     if (pitch > PITCH_RAMPA)
                     {
                         steerRampaCuatroAdelante(signoCmd > 0 ? rot : -rot);
