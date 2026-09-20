@@ -1803,7 +1803,7 @@ const float         ROI_RAMPA_ENTRA_GRADOS = 14.0f;
 const float         ROI_RAMPA_SALE_GRADOS  = 8.0f;
 const unsigned long ROI_RAMPA_CONFIRMA_MS  = 200UL;
 const unsigned long ROI_RAMPA_REENVIO_MS   = 500UL;
-const unsigned long BLOQUEO_POST_RAMPA_MS  = 2000UL;  // no recuperar al volver de pendiente a llano
+const unsigned long BLOQUEO_POST_RAMPA_MS  = 10000UL; // no recuperar durante 10 s al volver de pendiente a llano
 
 static int8_t       g_roi_rampa_estado = 0;       // +1 sube, -1 baja, 0 llano
 static int8_t       g_roi_rampa_candidato = 0;
@@ -1851,7 +1851,7 @@ void actualizarEstadoRampaPi()
         const int8_t estadoAnterior = g_roi_rampa_estado;
         g_roi_rampa_estado = g_roi_rampa_candidato;
         // Tras terminar una subida o bajada, el chasis se acomoda y los encoders
-        // pueden parecer trabados. Durante 2 s no se permite la maniobra general.
+        // pueden parecer trabados. Durante 10 s no se permite la maniobra general.
         if (estadoAnterior != 0 && g_roi_rampa_estado == 0)
             g_bloqueo_post_rampa_hasta = now + BLOQUEO_POST_RAMPA_MS;
     }
@@ -1905,7 +1905,7 @@ bool chequearAtasco(int comandoVel)
     // En subida nunca entra la recuperacion general (retroceso + avance): un cabeceo puede hacer
     // que el pitch instantaneo baje de 12 aunque seguimos en rampa. Mientras cualquiera de los
     // detectores de rampa este activo, la unica recuperacion permitida es el pulso recto del
-    // palillo de 1 s. Al salir de una pendiente tambien se espera 2 s antes de
+    // palillo de 1 s. Al salir de una pendiente tambien se espera 10 s antes de
     // permitir recuperar: evita una maniobra por el cabeceo de la transicion.
     const bool bloqueoPostRampa = g_bloqueo_post_rampa_hasta != 0 &&
         (long)(g_bloqueo_post_rampa_hasta - now) > 0;
