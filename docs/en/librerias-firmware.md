@@ -18,7 +18,7 @@ This document summarizes **the libraries that the current code actually uses** a
 | `ultralytics` (YOLO) | Object detection in rescue mode. An ONNX model is used. | `rpi/final_rpi/Main.py`
 | `onnxruntime` | Execution backend for `.onnx` models on ARM. | `rpi/final_rpi/Main.py`
 | `threading`, `queue` | Threads and queues to separate capture, inference, and control. | `rpi/final_rpi/Main.py`
-| `math`, `time`, `os`, `sys` | Calculations, timing, thread and system configuration. | `rpi/final_rpi/Main.py`
+| `math`, `time`, `os`, `sys` | Calculations, timing, thread configuration, and system. | `rpi/final_rpi/Main.py`
 
 Important notes:
 - The MOSSE tracker requires **OpenCV contrib** (`opencv-contrib-python`).
@@ -29,15 +29,15 @@ Important notes:
 
 | Library | Purpose | File |
 |---|---|---|
-| `Arduino.h`, `Wire.h` | Arduino base and I2C. | `src/main.cpp`
+| `Arduino.h`, `Wire.h` | Base Arduino and I2C. | `src/main.cpp`
 | `drivebase.h` | Motor control and robot kinematics (custom to the team). | `src/main.cpp`
 | `PID.h` | PID control in movement. | `src/main.cpp`
 | `elapsedMillis.h` | Timers without `delay`. | `src/main.cpp`
 | `Adafruit_BNO055` and `Adafruit_Sensor` | IMU for yaw/pitch and turn corrections. | `src/main.cpp`
 | `Adafruit_APDS9960` | Color sensor. | `src/main.cpp`
-| `NewPing` | Ultrasonic sensors (left, front, right). | `src/main.cpp`
-| `VL53L0X` | Side ToF sensors. | `src/main.cpp`
-| `Servo` | Control of the claw servos. | `src/main.cpp`
+| `NewPing` | Ultrasonics (left, front, right). | `src/main.cpp`
+| `VL53L0X` | Lateral ToF sensors. | `src/main.cpp`
+| `Servo` | Control of claw servos. | `src/main.cpp`
 | `claw.h` | Logic of the claw mechanism (custom to the team). | `src/main.cpp`
 | `Adafruit_I2CDevice` | I2C support for Adafruit devices. | `src/main.cpp`
 
