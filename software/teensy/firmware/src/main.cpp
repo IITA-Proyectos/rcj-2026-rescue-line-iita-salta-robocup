@@ -323,6 +323,9 @@ static SilverRecKind g_silver_rec_kind = SILVER_REC_NONE;
 static int g_silver_rec_pivot_sign = 0;       // signo FISICO usado por robot.steer()
 static float g_silver_rec_actual_deg = 0.0f;  // yaw realmente recorrido, no objetivo teorico
 static unsigned long g_silver_rec_ms = 0;
+// Una correccion de entrada completada a la izquierda ya deja el rumbo elegido.
+// Se consume una sola vez en case 2, antes de los giros decididos por ultrasonidos.
+static bool g_silver_entrada_directa_izq = false;
 
 static long gapPulsosDesdeInicio();
 static void resetGapState();
@@ -1674,6 +1677,7 @@ float calcularDiferenciaAngulo(float anguloActual, float anguloObjetivo)
 // SILVER_REC_UNDO_FACTOR del yaw que giro de verdad, en sentido contrario.
 void corregirEntradaPlateadoDesdeRecovery()
 {
+    g_silver_entrada_directa_izq = false;
     const unsigned long ahora = millis();
     const unsigned long edad = g_silver_rec_ms ? (ahora - g_silver_rec_ms)
                                                : 0xFFFFFFFFUL;
@@ -1695,6 +1699,7 @@ void corregirEntradaPlateadoDesdeRecovery()
     const int signoCorreccion = -g_silver_rec_pivot_sign;
     const float yaw0 = leer_yaw();
     const unsigned long t0 = millis();
+    bool correccionCompletada = false;
 
     robot.steer(0, FORWARD, 0);
     while (digitalRead(SWITCH) == 0)
@@ -1705,7 +1710,10 @@ void corregirEntradaPlateadoDesdeRecovery()
 
         const float girado = fabs(calcularDiferenciaAngulo(yaw0, leer_yaw()));
         if (girado >= objetivo)
+        {
+            correccionCompletada = true;
             break;
+        }
         if ((millis() - t0) >= SILVER_REC_UNDO_MAX_MS)
             break;
 
@@ -1714,6 +1722,10 @@ void corregirEntradaPlateadoDesdeRecovery()
     }
 
     robot.steer(0, FORWARD, 0);
+
+    // DriveBase::steer positivo = izquierda. Importa el sentido de ESTA
+    // correccion al detectar plateado, no el del pivote anterior (es el opuesto).
+    g_silver_entrada_directa_izq = correccionCompletada && signoCorreccion > 0;
 
     // Consumir la memoria: este plateado ya fue corregido.
     g_silver_rec_kind = SILVER_REC_NONE;
@@ -2371,6 +2383,7 @@ void loop()
         evacuacion_straight = false;
         silver_latch = false;
         action = 7;
+        g_silver_entrada_directa_izq = false;
         startUp = false;
         g_recup_signo = 0;
         g_recup_rumbo_camino_rx = 0.0;
@@ -2440,6 +2453,7 @@ void loop()
         g_silver_rec_pivot_sign = 0;
         g_silver_rec_actual_deg = 0.0f;
         g_silver_rec_ms = 0;
+        g_silver_entrada_directa_izq = false;
         claw.lift();
         claw.depositCenter();
         action = 7;
@@ -2725,6 +2739,19 @@ void loop()
                     ball_counter=0;
                     veces_deposit = 0;
                     depositando=false;
+                    if (g_silver_entrada_directa_izq)
+                    {
+                        g_silver_entrada_directa_izq = false;
+                        angulo_rescate = fmod(leer_yaw(), 360.0f);
+                        if (angulo_rescate < 0) angulo_rescate += 360.0f;
+                        // No se ha medido una pared en esta entrada: borrar datos viejos.
+                        pared = "";
+                        lado_plateado = "";
+                        DBG_PRINTLN("[PLATEADO] alineado izquierda: entrada recta sin escaneo");
+                        runTime(30, FORWARD, 0, 2000);
+                        robot.steer(0, FORWARD, 0);
+                        break;  // omite ambos escaneos y los giros de +/-20 y +/-45
+                    }
                     runTime(30, FORWARD, 0,800);
                     runTime(0, FORWARD, 0, 1000);
                     leer_ultrasonidos();
