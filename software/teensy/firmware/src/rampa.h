@@ -112,13 +112,13 @@ void rampaActualizar(float pitch, float rol, float yaw, float avanceTicks, unsig
 // vuelve todo a como estaba. Si sigue trabado, hace falta otro PALILLO_TRABADA_MS para repetirlo.
 // Se ajustan sin editar, p. ej.: set PLATFORMIO_BUILD_FLAGS=-D PALILLO_TRABADA_MS=700
 #ifndef PALILLO_TRABADA_MS
-#define PALILLO_TRABADA_MS  500UL
+#define PALILLO_TRABADA_MS  300UL
 #endif
 #ifndef PALILLO_YAW_MAX
 #define PALILLO_YAW_MAX     6.0f
 #endif
 #ifndef PALILLO_EMPUJE_MS
-#define PALILLO_EMPUJE_MS   3000UL
+#define PALILLO_EMPUJE_MS   1000UL
 #endif
 
 int g_palillo = 0;                      // columna `pal` del CSV: 0 nada, 1 rueda trabada, 2 empujando
