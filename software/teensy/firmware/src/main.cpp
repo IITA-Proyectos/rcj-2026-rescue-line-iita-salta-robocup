@@ -1794,7 +1794,7 @@ const unsigned long ATASCO_GRACE_MS = 8000;  // no disparar los primeros 8 s tra
 const float  PITCH_RAMPA       = 12.0;  // pitch (grados) desde el cual considero "pendiente" (llano ~±5, rampa ~23)
 const double POTENCIA_TRASERAS = 40;   // base de rampa (rpm objetivo, 0-159): 4 ruedas recto; se reparte al doblar
 const double RAMPA_EXTERIOR_MAX_RPM = 50;   // correccion suave: evita patinar en la subida
-const double RAMPA_GIRO_MUERTO      = 0.20; // ignora el temblor pequeno del angulo de camara
+const double RAMPA_GIRO_MUERTO      = 0.75; // solo una curva fuerte vence la subida recta
 
 // --- Estado de rampa Teensy -> Raspberry para ROI dinamico -----------------
 // No toca el detector mecanico de rampa ni la traccion. Es un aviso rapido
@@ -1966,10 +1966,11 @@ void steerRampaTraseras(double speed, int direction, double rotation, double min
 }
 #endif
 
-// Mezclador exclusivo de subida: todas las ruedas avanzan siempre a 40 rpm.
-// La correccion de linea solo actua fuera de la zona muerta y acelera suavemente
-// el lado externo hasta 50 rpm; nunca frena ni invierte el interno. Asi no se
-// convierte el temblor de la camara en patinaje sobre la rampa.
+// Mezclador exclusivo de subida: normalmente las cuatro ruedas avanzan a 40 rpm.
+// Solo una curva fuerte de la Pi supera la zona muerta y acelera suavemente el
+// lado externo hasta 50 rpm; el interno nunca baja de 40 ni invierte. Asi el
+// robot sube recto aun con las curvitas de la camara y conserva una correccion
+// de emergencia para una curva real.
 void steerRampaCuatroAdelante(double rotation)
 {
     rotation = constrain(rotation, -1.0, 1.0);
@@ -2950,13 +2951,13 @@ void loop()
                     // Gira siempre: no re-chequear el verde despues de avanzar (a los 800 ms el
                     // cuadrado ya salio de camara). Angulo negativo = izquierda; si la camara se
                     // espeja, invertir signos de case 5 y 6.
-                    runAngle(35, FORWARD, -60);
+                    runAngle(35, FORWARD, -50);
                     break;
                 case 5:
                     runTime(20, FORWARD, 0, 800);
                     serialEvent5();
                     telemGreenResultado(2, green_state);   // solo cuenta, no decide
-                    runAngle(25, FORWARD, 60);   // POSITIVO = derecha. Ver el case 6.
+                    runAngle(25, FORWARD, 50);   // POSITIVO = derecha. Ver el case 6.
                     break;
                 case 7: // seguimiento de linea
                     g_recup_signo = 0;
@@ -3069,10 +3070,13 @@ void loop()
                         robot.steer(vel * LINE_RECTA_FACTOR, FORWARD,
                                     signoCmd > 0 ? rot : -rot);
 
-                    // Pendiente: las cuatro ruedas quedan SIEMPRE hacia adelante y a 40 rpm.
-                    // Solo una curva clara sube suavemente el lado exterior hasta 50 rpm;
-                    // nunca invierte ni anula la rueda interna.
-                    if (pitch > PITCH_RAMPA)
+                    // Rampa: cuatro ruedas rectas a 40 rpm. Se mantiene durante toda la
+                    // pendiente con la histeresis de los detectores, aunque el cabeceo haga
+                    // caer momentaneamente el pitch instantaneo. Solo una curva fuerte puede
+                    // acelerar el lado exterior; la interna nunca se frena ni invierte.
+                    const bool traccionRampa = pitch > PITCH_RAMPA ||
+                        g_rampa_estado == 1 || g_roi_rampa_estado == 1;
+                    if (traccionRampa)
                     {
                         steerRampaCuatroAdelante(signoCmd > 0 ? rot : -rot);
                     }
@@ -3127,7 +3131,7 @@ void loop()
                     telemGreenResultado(3, green_state);   // TELEMETRIA: giro o matado por re-chequeo
                     if (green_state == 3)
                     {
-                        runAngle(30, FORWARD, 180);
+                        runAngle(30, FORWARD, 210);
                         runTime(30, FORWARD, 0, 500);
                     }
                     action = 7;
@@ -3156,7 +3160,7 @@ void loop()
                 nonBlockingDelay(1400);
                 claw.sortRight();
                 nonBlockingDelay(1000);
-                runDistance(30,FORWARD,9);
+                runDistance(30,FORWARD,5);
                 runTime(0,FORWARD,0,1000);
                 claw.close();
                 nonBlockingDelay(1000);
@@ -3184,7 +3188,7 @@ void loop()
                 nonBlockingDelay(1400);
                 claw.depositCenter();
                 nonBlockingDelay(1000);
-                runDistance(20,FORWARD,8);
+                runDistance(20,FORWARD,5);
                 runTime(0,FORWARD,0,1000);
                 claw.close();
                 nonBlockingDelay(1000);
