@@ -257,7 +257,7 @@ static const unsigned long WATCHDOG_CONFIRMA_MS = 300;
 #define TEENSY_ACK_RESCATE_APDS  241      // 0xF1  el APDS confirmo plateado
 #define TEENSY_ACK_PIVOTE_DONE   237      // 0xED  termino el pivote de recuperacion (COMPLETAR_GIRO en la Pi)
 // Estado de pendiente para que la Raspberry ajuste SOLO el ROI del control de linea.
-#define TEENSY_RAMPA_SUBE        242      // 0xF2  subiendo: Pi usa ROI de 30 px (corte Y=90)
+#define TEENSY_RAMPA_SUBE        242      // 0xF2  subiendo: Pi usa corte superior ROI=100
 #define TEENSY_RAMPA_BAJA        243      // 0xF3  bajando: Pi vuelve al ROI normal
 #define TEENSY_RAMPA_LLANO       244      // 0xF4  llano: Pi usa ROI normal
 

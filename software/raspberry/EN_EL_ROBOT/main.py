@@ -32,8 +32,12 @@ K_LEJOS      = float(os.environ.get("K_LEJOS", "40"))
 RECUP_ANG    = float(os.environ.get("RECUP_ANG", "75"))
 SATURA_DESDE = float(os.environ.get("SATURA_DESDE", "70"))
 AREA_MIN_LINEA = float(os.environ.get("AREA_MIN", "200"))   # px; ver _solo_mi_linea
-ROI_ABAJO    = int(os.environ.get("ROI_ABAJO", "120"))   # 120 = sin recorte abajo
-ROI_ARRIBA   = int(os.environ.get("ROI_ARRIBA", "60"))    # 60 = como hoy
+ROI_ABAJO           = int(os.environ.get("ROI_ABAJO", "120"))  # 120 = sin recorte abajo
+# La Teensy avisa la pendiente por Serial5: en llano se conserva el ROI normal
+# y durante la subida se corta hasta la fila 100 para calcular el heading.
+ROI_ARRIBA_NORMAL   = int(os.environ.get("ROI_ARRIBA", "60"))
+ROI_ARRIBA_SUBIDA   = int(os.environ.get("ROI_RAMPA_SUBE", "100"))
+ROI_ARRIBA          = ROI_ARRIBA_NORMAL
 
 _ult_lado = 0.0        # +1 la linea estaba a la derecha, -1 a la izquierda
 _frames_sin = 0        # cuantos frames seguidos sin verla
@@ -217,8 +221,9 @@ if RECUP_CAMINO:
         _camino_shadow = None
         print("[RECUP-CAMINO] no se pudo cargar (%s): recovery queda sin giro dirigido" % _e)
 
-print("[PARCHE] ROI=%s CTRL=%s RECUP=%s PLANNER=%s RECUP_CAMINO=%s" %
-      (ROI_MODO, CTRL, RECUP, _MODO, int(bool(_camino_shadow))))
+print("[PARCHE] ROI=%s CTRL=%s RECUP=%s PLANNER=%s RECUP_CAMINO=%s ROI_ARRIBA=%s ROI_RAMPA_SUBE=%s" %
+      (ROI_MODO, CTRL, RECUP, _MODO, int(bool(_camino_shadow)),
+       ROI_ARRIBA_NORMAL, ROI_ARRIBA_SUBIDA))
 
 _video = None
 _video_n = 0
@@ -312,6 +317,9 @@ TEENSY_BOOT = b'\xfa'
 TEENSY_READY = b'\xf9'
 TEENSY_RESCATE_DONE = b'\xf8'
 TEENSY_STOP = b'\xff'
+TEENSY_RAMPA_SUBE = b'\xf2'
+TEENSY_RAMPA_BAJA = b'\xf3'
+TEENSY_RAMPA_LLANO = b'\xf4'
 TEENSY_RESCATE = False    # 241 = iniciar modo rescate
 TEENSY_EVACUACION = b'\xf7'  # 247 = termino rescate, iniciar evacuacion
 SERIAL_TIMEOUT_S = 0.05
@@ -434,7 +442,7 @@ def read_frame_with_recovery(none_count, context):
     return None, none_count
 
 def handle_control_byte(data, context="serial"):
-    global estado
+    global estado, ROI_ARRIBA
 
     if not data:
         return None
@@ -447,6 +455,21 @@ def handle_control_byte(data, context="serial"):
     if data == TEENSY_STOP:
         estado = 'esperando'
         return 'stop'
+
+    # La Teensy reenvia este estado cada 500 ms. Solo registrar cuando el ROI
+    # cambia para no inundar el log durante toda la rampa.
+    if data == TEENSY_RAMPA_SUBE:
+        if ROI_ARRIBA != ROI_ARRIBA_SUBIDA:
+            ROI_ARRIBA = ROI_ARRIBA_SUBIDA
+            print(f"[ROI-RAMPA] {context}: subida -> ROI_ARRIBA={ROI_ARRIBA}")
+        return 'rampa_sube'
+
+    if data in (TEENSY_RAMPA_BAJA, TEENSY_RAMPA_LLANO):
+        if ROI_ARRIBA != ROI_ARRIBA_NORMAL:
+            ROI_ARRIBA = ROI_ARRIBA_NORMAL
+            estado_rampa = 'bajada' if data == TEENSY_RAMPA_BAJA else 'llano'
+            print(f"[ROI-RAMPA] {context}: {estado_rampa} -> ROI_ARRIBA={ROI_ARRIBA}")
+        return 'rampa_baja' if data == TEENSY_RAMPA_BAJA else 'rampa_llano'
 
     if data == TEENSY_READY:
         if estado in ('esperando', 'evacuacion'):
@@ -1511,4 +1534,3 @@ if __name__ == "__main__":
             stop_teensy_safely("excepcion global")
             estado = 'esperando'
             time.sleep(1.0)
-
