@@ -1895,9 +1895,11 @@ bool chequearAtasco(int comandoVel)
             stuck_since = now;
     }
 
-    // En pendiente no se dispara: retroceder rampa abajo es peligroso (ahi actua el refuerzo de
-    // traseras del case 7).
-    if (pitch > PITCH_RAMPA)
+    // En subida nunca entra la recuperacion general (retroceso + avance): un cabeceo puede hacer
+    // que el pitch instantaneo baje de 12 aunque seguimos en rampa. Mientras cualquiera de los
+    // detectores de rampa este activo, la unica recuperacion permitida es el pulso recto del
+    // palillo de 300 ms.
+    if (pitch > PITCH_RAMPA || g_rampa_estado == 1 || g_roi_rampa_estado == 1)
     {
         stuck_since = now;
         return false;
@@ -3034,11 +3036,10 @@ void loop()
                     if (palilloEmpuje(pitch > PITCH_RAMPA))
                     {
                         g_line_branch = 15;
-                        const double base = vel * LINE_RECTA_FACTOR;
-                        const double minTrasera = min((double)POTENCIA_TRASERAS,
-                            base + PALILLO_RPM_POR_S * (millis() - g_palilloDesdeMs) / 1000.0);
-                        const double rotR = (rot > PALILLO_ROT_MAX) ? PALILLO_ROT_MAX : rot;
-                        steerRampaTraseras(base, FORWARD, signoCmd > 0 ? rotR : -rotR, minTrasera);
+                        // Recuperacion de palillo: un unico pulso recto y lento. No se usa el
+                        // angulo de la Pi: las cuatro ruedas van a 40 rpm hacia adelante durante
+                        // 300 ms, sin reversa ni maniobra general de atasco en plena subida.
+                        runTime(40, FORWARD, 0, PALILLO_EMPUJE_MS);
                         break;
                     }
 #endif
