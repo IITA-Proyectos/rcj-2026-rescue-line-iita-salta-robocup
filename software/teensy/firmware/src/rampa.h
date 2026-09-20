@@ -118,7 +118,7 @@ void rampaActualizar(float pitch, float rol, float yaw, float avanceTicks, unsig
 #define PALILLO_YAW_MAX     6.0f
 #endif
 #ifndef PALILLO_EMPUJE_MS
-#define PALILLO_EMPUJE_MS   300UL
+#define PALILLO_EMPUJE_MS   3000UL
 #endif
 
 int g_palillo = 0;                      // columna `pal` del CSV: 0 nada, 1 rueda trabada, 2 empujando
