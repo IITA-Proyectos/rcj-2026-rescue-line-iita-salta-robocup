@@ -3148,7 +3148,6 @@ void loop()
            digitalWrite(LED_BUILTIN, LOW);
             serialEvent5();
             robot.steer(speed, FORWARD, steer);
-            digitalWrite(0,LOW);
 
             if (green_state == 6) // Recoleccion Pelota negra
             {
