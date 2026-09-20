@@ -112,7 +112,7 @@ void rampaActualizar(float pitch, float rol, float yaw, float avanceTicks, unsig
 // vuelve todo a como estaba. Si sigue trabado, hace falta otro PALILLO_TRABADA_MS para repetirlo.
 // Se ajustan sin editar, p. ej.: set PLATFORMIO_BUILD_FLAGS=-D PALILLO_TRABADA_MS=700
 #ifndef PALILLO_TRABADA_MS
-#define PALILLO_TRABADA_MS  1000UL
+#define PALILLO_TRABADA_MS  500UL
 #endif
 #ifndef PALILLO_YAW_MAX
 #define PALILLO_YAW_MAX     6.0f

@@ -481,8 +481,8 @@ function render(d){
     const pal=Number(rm.pal??0), ms=Number(rm.ms??0);
     set("rmp-det",RAMP[rm.det]??"—"); set("rmp-roi",ROI[rm.roi]??"—");
     let texto="NORMAL", tiempo="—", color="#c7d2dc";
-    if(pal===1){ texto="RUEDA TRABADA · CONTANDO"; tiempo=(ms/1000).toFixed(1)+" / 1.0 s"; color="#f1c40f"; }
-    else if(pal===2){ texto="EMPUJANDO · 4 RUEDAS"; tiempo=(ms/1000).toFixed(1)+" / 1.5 s"; color="#e74c3c"; }
+    if(pal===1){ texto="RUEDA TRABADA · CONTANDO"; tiempo=(ms/1000).toFixed(1)+" / 0.5 s"; color="#f1c40f"; }
+    else if(pal===2){ texto="EMPUJANDO · 4 RUEDAS"; tiempo=(ms/1000).toFixed(1)+" / 0.3 s"; color="#e74c3c"; }
     set("rmp-pal",texto); set("rmp-ms",tiempo);
     const pe=$("rmp-pal"); if(pe) pe.style.color=color;
   }
