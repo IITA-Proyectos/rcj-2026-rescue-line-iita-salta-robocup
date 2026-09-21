@@ -41,16 +41,18 @@ Disparar subagentes (`Agent` con `subagent_type=Explore`) en paralelo, **uno por
 - **`rpi-vision-auditor`** sobre `software/raspberry/`
 - **`rpi-teensy-comms-auditor`** sobre la frontera Python ↔ C++ (busca el protocolo serial en ambos lados)
 
-Cada subagente debe devolver un **JSON o markdown estructurado** con findings:
+Cada subagente debe devolver un **markdown estructurado** con observaciones bajo el framing **TEMA A ANALIZAR** (NO "bug a fixear"):
 
 ```yaml
-- titulo: "Encoders sin volatile en drivebase.h"
-  prioridad: P0
+- titulo: "[TEMA] Encoders en drivebase.h se modifican desde ISR sin volatile"
   archivo: software/teensy/firmware/lib/drivebase/drivebase.h:23
-  causa: "Variables modificadas en ISR sin volatile → optimizador puede cachear"
-  fix_propuesto: "Declarar volatile las 4 variables de conteo"
-  test_plan: "Compilar, subir, mover el robot 1m y verificar que el contador refleja"
-  riesgo: "Bajo — cambio de keyword, no afecta lógica"
+  que_observamos: "Variables pulseCount modificadas en ISR y leídas en runDistance sin volatile."
+  por_que_flagueamos: "Patrón clásico de bug donde el optimizador cachea el valor → while no termina."
+  riesgo_no_cambiar: "Medio — depende de optimizaciones del compilador. Manifestable en escenarios edge con vibración."
+  riesgo_cambiar: "Bajo — agregar keyword `volatile`, no toca lógica. Rollback: revertir commit."
+  fix_propuesto: "volatile long pulseCount; en drivebase.h"
+  estimacion_tiempo: "Aplicar 10 min + compilar 5 min + banco 20 min + pista 30 min = ~65 min"
+  pregunta_equipo: "¿Era intencional? ¿Conviene meterlo antes del próximo ensayo o esperar?"
   ya_en_audit_plan: true
 ```
 
@@ -70,17 +72,19 @@ Cada subagente debe devolver un **JSON o markdown estructurado** con findings:
 
 ## Reglas para los Issues que abrís
 
-- **Título en español, conciso, accionable**: "Agregar `volatile` a contadores de encoder en `drivebase.h`" (no "Bug en encoders").
-- **Cuerpo** sigue la plantilla `audit-finding.yml` siempre.
-- **Reproducción** concreta, no vaga: pasos numerados, valores esperados, comando exacto si aplica.
-- **Test plan** validable en banco con material que el equipo tiene.
-- **Riesgo del fix** explícito (alto/medio/bajo) con justificación.
-- Si no estás seguro de la severidad, **bajá la prioridad** — mejor falso negativo que falso positivo (los alumnos no quieren ruido).
+- **Título en español, prefijo `[TEMA]`** — neutro, no acusatorio. "Variables encoder sin volatile en drivebase.h" (no "Bug en encoders" ni "Fix urgente").
+- **Cuerpo** sigue la plantilla `audit-finding.yml` con los **6 campos obligatorios**: qué observamos, por qué flagueamos, riesgo de no cambiar, riesgo de cambiar, fix propuesto, estimación de tiempo, pregunta para el equipo.
+- **Estimación de tiempo realista** — incluí compilar, subir, banco, pista, anotar en TEST_LOG. NO solo "tipear el cambio".
+- **Pregunta concreta al equipo** al final — se debe poder responder con sí/no o con una decisión clara.
+- **Tono neutro**: "observamos que..." no "este código está mal". Los alumnos llevan meses afinando — respetá su trabajo.
+- Si no estás seguro de la severidad, **bajá la prioridad** o no asignes prioridad. Mejor falso negativo que falso positivo (los alumnos no quieren ruido).
 
 ## Anti-patterns (NO hagas esto)
 
-- ❌ Abrir Issue por "code smell" sin impacto real en competencia.
-- ❌ Proponer refactor masivo sin issue de discusión previo.
+- ❌ Abrir Issue como "BUG: ..." o "FIX: ..." en imperativo. Es un TEMA A ANALIZAR.
+- ❌ Saltearte el campo de riesgo o de tiempo "porque parece obvio". Siempre van.
+- ❌ Estimar tiempo solo por el typing. **Incluí test en banco y pista.**
+- ❌ Proponer refactor masivo sin tema de discusión previo.
 - ❌ Escribir el fix vos. **Vos auditás, los alumnos implementan.**
 - ❌ Dar por hecho que el código es malo — preguntá al coach si dudás de la intención.
 - ❌ Mergear nada. Las skills sólo abren Issues y proponen, NO hacen push a `main`.
@@ -92,18 +96,21 @@ Después de correr la auditoría, devolvé este formato exacto:
 ```markdown
 ## Auditoría YYYY-MM-DD
 
-**Findings nuevos:** X (P0: A · P1: B · P2: C)
-**Findings ya conocidos (skip):** Y
+**Temas nuevos abiertos:** X (riesgo-no-cambiar Alto: A · Medio: B · Bajo: C)
+**Temas ya conocidos (skip):** Y
 **Subsistemas auditados:** firmware-teensy, rpi-vision, comms
 
-### Top P0
-1. [#NN] Título corto — `archivo:linea`
+### Top temas con riesgo Alto de no cambiar
+1. [#NN] Título corto — `archivo:linea` — tiempo estimado: Z min
 2. ...
 
 ### Issues abiertos
 - https://github.com/IITA-Proyectos/.../issues/NN
 - ...
 
-### Recomendación de orden de fix
-(top 3 priorizados por riesgo de competencia × esfuerzo)
+### Sugerencia de orden (NO directiva)
+Top 3 priorizados por *(riesgo-no-cambiar / tiempo)*. **El equipo decide.**
+Para cada uno: una línea con "qué se gana" y "qué se arriesga".
 ```
+
+**Recordá:** sos asesor, no jefe de proyecto. Las decisiones las toma el coach con los alumnos.

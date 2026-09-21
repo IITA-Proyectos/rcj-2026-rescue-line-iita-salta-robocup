@@ -1,48 +1,44 @@
-name: 🔍 Finding de auditoría
-description: Bug o mejora detectada en revisión técnica (manual o por IA). Usar para todo lo que toque firmware, visión o comms.
-title: "[Pxx] <título corto y accionable>"
-labels: ["type/bug"]
+name: 🔍 Tema a analizar (auditoría)
+description: Observación detectada en revisión técnica (manual o por IA) que el equipo debe ANALIZAR — no es directiva de fix. Incluye riesgo de no cambiar, riesgo de cambiar y estimación de tiempo.
+title: "[TEMA] <descripción neutra>"
+labels: ["type/research"]
 projects: []
 assignees: []
 body:
   - type: markdown
     attributes:
       value: |
-        Plantilla estándar IITA RCJ 2026. Antes de abrir, verificá que **no esté ya** en `AUDIT-ACTION-PLAN.md` ni en los issues abiertos con label `priority/high|medium|low`.
+        ## 📌 Filosofía: TEMA A ANALIZAR, no directiva de fix
 
-        **IMPORTANTE:** Después de crear el issue, agregale los labels:
-        - **Prioridad** → `priority/high` (P0), `priority/medium` (P1), `priority/low` (P2)
-        - **Subsistema** → `subsystem/control` (Teensy/PID/motores), `subsystem/vision` (RPi/YOLO), `subsystem/comms` (serial), `subsystem/power`, `subsystem/mechanics`
-        - **Tipo** → `type/bug` (default), `type/feature`, `type/docs`, `type/hardware`, `type/research`
+        El equipo lleva meses afinando el robot. Lo que parece un bug puede ser un **workaround intencional** o algo conocido que ya decidieron no priorizar. Esta plantilla **fuerza la conversación** con riesgo y tiempo en vez de obedecer ciegamente al auditor.
 
-  - type: dropdown
-    id: prioridad
+        **Antes de abrir, verificá** que no esté ya en `AUDIT-ACTION-PLAN.md` ni en otro Issue.
+
+        Después de crear el Issue, agregale:
+        - **Prioridad** → `priority/high` (P0), `priority/medium` (P1), `priority/low` (P2) — opcional, sólo orientativo.
+        - **Subsistema** → `subsystem/control` (Teensy/PID/motores), `subsystem/vision` (RPi/YOLO), `subsystem/comms` (serial), `subsystem/power`, `subsystem/mechanics`.
+        - **Tipo** → `type/research` por default (es un tema), `type/bug`, `type/feature`, `type/docs`, `type/hardware`.
+
+  - type: textarea
+    id: que_observamos
     attributes:
-      label: Prioridad
-      description: |
-        - **P0** — Riesgo de no completar una corrida (robot se cuelga, se va de la pista, no arranca).
-        - **P1** — Pérdida significativa de puntaje o comportamiento errático intermitente.
-        - **P2** — Robustez / mantenibilidad. No bloquea competencia.
-      options:
-        - "P0 — Bloquea corrida"
-        - "P1 — Pérdida de puntaje"
-        - "P2 — Robustez / deuda"
-      default: 1
+      label: 1. Qué observamos
+      description: Descripción factual y neutra de lo que vemos en el código/comportamiento. Sin juicios.
+      placeholder: |
+        En `software/teensy/firmware/lib/drivebase/drivebase.h:23`, las variables
+        `pulseCount` se modifican desde ISRs y se leen desde `runDistance()`.
     validations:
       required: true
 
-  - type: dropdown
-    id: subsistema
+  - type: textarea
+    id: por_que_flagueamos
     attributes:
-      label: Subsistema afectado
-      multiple: true
-      options:
-        - "teensy (firmware C++)"
-        - "rpi (visión Python)"
-        - "comms (protocolo serial)"
-        - "build / CI"
-        - "hardware"
-        - "docs"
+      label: 2. Por qué lo flagueamos
+      description: Lo que parece preocupante. Hipótesis, no certeza.
+      placeholder: |
+        Si el optimizador del compilador cachea el valor en registro (variables
+        no `volatile`), el while podría no ver actualizaciones de la ISR y no
+        terminar nunca. Patrón clásico de bug en firmware Arduino/Teensy.
     validations:
       required: true
 
@@ -50,7 +46,7 @@ body:
     id: ubicacion
     attributes:
       label: Ubicación
-      description: Archivo(s) y línea(s) afectadas. Una por línea.
+      description: Archivo(s) y línea(s). Una por línea.
       placeholder: |
         software/teensy/firmware/lib/drivebase/drivebase.h:23
         software/teensy/firmware/lib/drivebase/drivebase.cpp:45
@@ -58,86 +54,115 @@ body:
     validations:
       required: true
 
-  - type: textarea
-    id: causa
+  - type: dropdown
+    id: riesgo_no_hacer
     attributes:
-      label: Causa
-      description: Qué hace el código y por qué eso es un bug. Sé específico — no "está mal" sino "el optimizador puede cachear el valor del registro porque la variable no es volatile".
+      label: 3. Riesgo de NO cambiar nada
+      description: |
+        ¿Qué pasa en competencia si lo dejamos así?
+        - **Alto** — afecta el robot en cada corrida o en escenarios típicos.
+        - **Medio** — afecta sólo en escenarios edge (sensor flojo, ruido, etc.).
+        - **Bajo** — deuda técnica, sin impacto visible en competencia.
+      options:
+        - Alto — afecta cada corrida o escenario típico
+        - Medio — afecta en escenarios edge
+        - Bajo — deuda técnica sin impacto inmediato
     validations:
       required: true
 
   - type: textarea
-    id: reproduccion
+    id: riesgo_no_hacer_detalle
     attributes:
-      label: Reproducción
-      description: Pasos numerados que reproducen el síntoma observable. Si es un bug de runtime, qué se vería.
+      label: Riesgo de no cambiar — detalle
+      description: Escenario concreto donde se manifestaría el problema y consecuencia esperada.
       placeholder: |
-        1. Subir el firmware actual al Teensy.
-        2. Comandar `runDistance(1000)` desde la Pi.
-        3. Observar: el robot avanza más allá de 1 m sin detenerse (~1.5 m).
+        Si en plena corrida un encoder da una lectura espuria que coincide con
+        el target, el robot puede seguir avanzando ignorando el "stop". Probabilidad
+        baja en banco, sube con vibración de pista.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: riesgo_cambiar
+    attributes:
+      label: 4. Riesgo de cambiarlo (introducir regresión)
+      description: |
+        - **Alto** — toca lógica nueva, cambia comportamiento de un subsistema, requiere refactor de varias funciones.
+        - **Medio** — cambio acotado pero no trivial; requiere test cuidadoso en banco.
+        - **Bajo** — cambio puntual de keyword/constante, sin tocar lógica.
+      options:
+        - Alto — refactor o cambio de comportamiento
+        - Medio — cambio acotado, requiere test cuidadoso
+        - Bajo — cambio puntual sin tocar lógica
+    validations:
+      required: true
+
+  - type: textarea
+    id: riesgo_cambiar_detalle
+    attributes:
+      label: Riesgo de cambiar — detalle
+      description: Qué se podría romper, qué subsistemas se tocan, plan de rollback.
+      placeholder: |
+        El cambio es agregar `volatile` a 4 variables. No cambia lógica.
+        Rollback: revertir commit. Riesgo bajo de regresión.
     validations:
       required: true
 
   - type: textarea
     id: fix_propuesto
     attributes:
-      label: Fix propuesto
-      description: Qué cambio resuelve la causa raíz. Snippet o descripción concreta. Si hay alternativas, listalas con tradeoff.
+      label: Fix propuesto (si se decide hacerlo)
+      description: Snippet o descripción concreta del cambio. Si hay alternativas, listalas con tradeoff.
       render: markdown
     validations:
       required: true
 
   - type: textarea
-    id: test_plan
+    id: estimacion_tiempo
     attributes:
-      label: Plan de test (en banco)
-      description: Cómo el equipo verifica que el fix funciona ANTES de mergear. Tiene que ser ejecutable con el material que tienen.
-      placeholder: |
-        1. Aplicar el fix.
-        2. `pio run` debe compilar sin warnings nuevos.
-        3. Subir al Teensy.
-        4. Comandar `runDistance(1000)` y medir distancia con cinta — esperado 100 cm ± 5 cm.
-        5. Repetir 3 veces, todas dentro de tolerancia.
-        6. Anotar resultado en `testing/TEST_LOG.md`.
-    validations:
-      required: true
-
-  - type: dropdown
-    id: riesgo
-    attributes:
-      label: Riesgo del fix
+      label: 5. Estimación de tiempo
       description: |
-        - **Bajo** — cambio puntual de keyword o constante, no toca lógica.
-        - **Medio** — refactor de una función, requiere test cuidadoso.
-        - **Alto** — cambia comportamiento de un subsistema o rompe API entre módulos.
-      options:
-        - Bajo
-        - Medio
-        - Alto
+        Desglose realista. **Incluí todo** — no sólo el typing.
+      placeholder: |
+        - Aplicar el fix: 10 min
+        - Compilar y subir al Teensy: 5 min
+        - Probar en banco (3 corridas runDistance): 20 min
+        - Probar en pista (2 corridas completas): 30 min
+        - Anotar en TEST_LOG.md: 5 min
+        - **Total: ~70 min**
     validations:
       required: true
 
   - type: textarea
-    id: rollback
+    id: pregunta_equipo
     attributes:
-      label: Plan de rollback
-      description: Si el fix rompe algo en banco, cómo se revierte. Para fixes simples basta "revertir commit".
+      label: 6. Pregunta concreta para el equipo
+      description: |
+        Una sola pregunta que el equipo tiene que responder antes de decidir si tomar el tema.
+      placeholder: |
+        ¿Era intencional dejar `pulseCount` sin volatile? ¿O nunca se notó?
+        Y si lo arreglamos, ¿lo metemos antes del próximo ensayo en pista o
+        esperamos a una ventana sin presión de fechas?
+    validations:
+      required: true
 
   - type: input
     id: fuente
     attributes:
       label: Fuente del finding
-      description: ¿Quién/qué lo detectó? (auditoría manual, skill `teensy-firmware-auditor`, alumno X, etc.)
+      description: ¿Quién/qué lo detectó?
       placeholder: "skill: teensy-firmware-auditor (corrida 2026-05-09)"
 
   - type: checkboxes
     id: previo
     attributes:
-      label: Previo a abrir el issue
+      label: Previo a abrir el tema
       options:
-        - label: Verifiqué que el bug no está ya en `AUDIT-ACTION-PLAN.md`.
+        - label: Verifiqué que no está ya en `AUDIT-ACTION-PLAN.md`.
           required: true
-        - label: Busqué issues abiertos con `gh issue list --label priority/high --label priority/medium --label priority/low --state all` y no hay duplicado.
+        - label: Busqué con `gh issue list --state all` y no hay duplicado.
           required: true
-        - label: El test plan es ejecutable con el material del equipo.
+        - label: La estimación de tiempo incluye banco/pista, no solo "tipear el cambio".
+          required: true
+        - label: La pregunta para el equipo es concreta — se puede responder con sí/no o con una decisión.
           required: true
