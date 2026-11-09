@@ -1,0 +1,351 @@
+{
+  "passed": false,
+  "color_passed": true,
+  "decisions_passed": false,
+  "color_errors": [],
+  "decision_errors": [
+    "Escena muestra_20261104_124651_718443.png: esperaba 3, da 0; cuadro aislado: falta contexto real para confirmar el doble",
+    "Entrada sin secuencia suficiente: muestra_20261104_124814_747813.png",
+    "Escena muestra_20261104_124814_747813.png: esperaba 1, da 0",
+    "Entrada sin secuencia suficiente: muestra_20261104_124954_560354.png",
+    "Escena muestra_20261104_124954_560354.png: esperaba 0, da 3",
+    "Entrada sin secuencia suficiente: muestra_20261104_124958_225485.png"
+  ],
+  "errors": [
+    "Escena muestra_20261104_124651_718443.png: esperaba 3, da 0; cuadro aislado: falta contexto real para confirmar el doble",
+    "Entrada sin secuencia suficiente: muestra_20261104_124814_747813.png",
+    "Escena muestra_20261104_124814_747813.png: esperaba 1, da 0",
+    "Entrada sin secuencia suficiente: muestra_20261104_124954_560354.png",
+    "Escena muestra_20261104_124954_560354.png: esperaba 0, da 3",
+    "Entrada sin secuencia suficiente: muestra_20261104_124958_225485.png"
+  ],
+  "samples": [
+    {
+      "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\cambios\\calibrador_verdes_express_20261102\\ensayo_pc\\muestra_20261104_124630_125219.png",
+      "kind": "green",
+      "fractions": [
+        0.0,
+        0.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\cambios\\calibrador_verdes_express_20261102\\ensayo_pc\\muestra_20261104_124642_318757.png",
+      "kind": "green",
+      "fractions": [
+        0.0,
+        0.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\cambios\\calibrador_verdes_express_20261102\\ensayo_pc\\muestra_20261104_124646_244947.png",
+      "kind": "green",
+      "fractions": [
+        0.07912087912087912,
+        0.2989010989010989,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\cambios\\calibrador_verdes_express_20261102\\ensayo_pc\\muestra_20261104_124651_718443.png",
+      "expected": 3,
+      "before": 0,
+      "after": 0,
+      "context_frames": 0,
+      "future_frames": 0,
+      "assessment": "frame",
+      "independent_frame": false
+    },
+    {
+      "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\cambios\\calibrador_verdes_express_20261102\\ensayo_pc\\muestra_20261104_124713_564389.png",
+      "kind": "green",
+      "fractions": [
+        0.058315334773218146,
+        0.27213822894168466,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\cambios\\calibrador_verdes_express_20261102\\ensayo_pc\\muestra_20261104_124718_922010.png",
+      "kind": "green",
+      "fractions": [
+        0.0,
+        0.02252252252252252,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\cambios\\calibrador_verdes_express_20261102\\ensayo_pc\\muestra_20261104_124726_170648.png",
+      "kind": "green",
+      "fractions": [
+        0.0,
+        0.05297157622739018,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\cambios\\calibrador_verdes_express_20261102\\ensayo_pc\\muestra_20261104_124729_317306.png",
+      "kind": "green",
+      "fractions": [
+        0.03560830860534125,
+        0.24925816023738873,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\cambios\\calibrador_verdes_express_20261102\\ensayo_pc\\muestra_20261104_124735_526637.png",
+      "kind": "green",
+      "fractions": [
+        0.0,
+        0.12773722627737227,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\cambios\\calibrador_verdes_express_20261102\\ensayo_pc\\muestra_20261104_124738_801459.png",
+      "kind": "green",
+      "fractions": [
+        0.0,
+        0.0,
+        0.9976303317535545,
+        0.9976303317535545
+      ]
+    },
+    {
+      "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\cambios\\calibrador_verdes_express_20261102\\ensayo_pc\\muestra_20261104_124742_938247.png",
+      "kind": "green",
+      "fractions": [
+        0.0016666666666666668,
+        0.04666666666666667,
+        0.9566666666666667,
+        0.9566666666666667
+      ]
+    },
+    {
+      "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\cambios\\calibrador_verdes_express_20261102\\ensayo_pc\\muestra_20261104_124748_977535.png",
+      "kind": "green",
+      "fractions": [
+        0.0,
+        0.00902061855670103,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\cambios\\calibrador_verdes_express_20261102\\ensayo_pc\\muestra_20261104_124752_858399.png",
+      "kind": "green",
+      "fractions": [
+        0.0015698587127158557,
+        0.08006279434850863,
+        0.9952904238618524,
+        0.9952904238618524
+      ]
+    },
+    {
+      "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\cambios\\calibrador_verdes_express_20261102\\ensayo_pc\\muestra_20261104_124756_837876.png",
+      "kind": "green",
+      "fractions": [
+        0.04275534441805225,
+        0.24465558194774348,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\cambios\\calibrador_verdes_express_20261102\\ensayo_pc\\muestra_20261104_124800_187117.png",
+      "kind": "green",
+      "fractions": [
+        0.0,
+        0.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\cambios\\calibrador_verdes_express_20261102\\ensayo_pc\\muestra_20261104_124814_747813.png",
+      "expected": 1,
+      "before": 0,
+      "after": 0,
+      "context_frames": 0,
+      "future_frames": 0,
+      "assessment": "entry",
+      "independent_frame": true
+    },
+    {
+      "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\cambios\\calibrador_verdes_express_20261102\\ensayo_pc\\muestra_20261104_124814_873081.png",
+      "kind": "negative",
+      "fractions": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\cambios\\calibrador_verdes_express_20261102\\ensayo_pc\\muestra_20261104_124817_311246.png",
+      "kind": "negative",
+      "fractions": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\cambios\\calibrador_verdes_express_20261102\\ensayo_pc\\muestra_20261104_124819_316124.png",
+      "kind": "negative",
+      "fractions": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\cambios\\calibrador_verdes_express_20261102\\ensayo_pc\\muestra_20261104_124831_701420.png",
+      "kind": "negative",
+      "fractions": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\cambios\\calibrador_verdes_express_20261102\\ensayo_pc\\muestra_20261104_124849_781485.png",
+      "kind": "negative",
+      "fractions": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\cambios\\calibrador_verdes_express_20261102\\ensayo_pc\\muestra_20261104_124855_988043.png",
+      "kind": "negative",
+      "fractions": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\cambios\\calibrador_verdes_express_20261102\\ensayo_pc\\muestra_20261104_124900_153502.png",
+      "kind": "negative",
+      "fractions": [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\cambios\\calibrador_verdes_express_20261102\\ensayo_pc\\muestra_20261104_124954_560354.png",
+      "expected": 0,
+      "before": 3,
+      "after": 3,
+      "context_frames": 0,
+      "future_frames": 0,
+      "assessment": "entry",
+      "independent_frame": false
+    },
+    {
+      "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\cambios\\calibrador_verdes_express_20261102\\ensayo_pc\\muestra_20261104_124958_225485.png",
+      "expected": 3,
+      "before": 3,
+      "after": 3,
+      "context_frames": 3,
+      "future_frames": 0,
+      "assessment": "entry",
+      "independent_frame": false
+    },
+    {
+      "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\cambios\\calibrador_verdes_express_20261102\\protecciones\\f_009970.png",
+      "expected": 1,
+      "before": 1,
+      "after": 1,
+      "context_frames": 0,
+      "future_frames": 0,
+      "assessment": "frame",
+      "independent_frame": true
+    },
+    {
+      "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\cambios\\calibrador_verdes_express_20261102\\protecciones\\f_009971.png",
+      "expected": 1,
+      "before": 1,
+      "after": 1,
+      "context_frames": 0,
+      "future_frames": 0,
+      "assessment": "frame",
+      "independent_frame": true
+    },
+    {
+      "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\cambios\\calibrador_verdes_express_20261102\\protecciones\\f_009972.png",
+      "expected": 1,
+      "before": 1,
+      "after": 1,
+      "context_frames": 0,
+      "future_frames": 0,
+      "assessment": "frame",
+      "independent_frame": true
+    },
+    {
+      "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\cambios\\calibrador_verdes_express_20261102\\protecciones\\reservada_114747_001133.png",
+      "expected": 1,
+      "before": 1,
+      "after": 1,
+      "context_frames": 26,
+      "future_frames": 0,
+      "assessment": "frame",
+      "independent_frame": true
+    },
+    {
+      "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\cambios\\calibrador_verdes_express_20261102\\protecciones\\reservada_114747_004047.png",
+      "expected": 2,
+      "before": 2,
+      "after": 2,
+      "context_frames": 26,
+      "future_frames": 0,
+      "assessment": "frame",
+      "independent_frame": true
+    },
+    {
+      "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\cambios\\calibrador_verdes_express_20261102\\protecciones\\reservada_114747_003408.png",
+      "expected": 3,
+      "before": 3,
+      "after": 3,
+      "context_frames": 26,
+      "future_frames": 0,
+      "assessment": "frame",
+      "independent_frame": true
+    },
+    {
+      "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\cambios\\calibrador_verdes_express_20261102\\protecciones\\reservada_114747_001000.png",
+      "expected": 0,
+      "before": 0,
+      "after": 0,
+      "context_frames": 26,
+      "future_frames": 0,
+      "assessment": "frame",
+      "independent_frame": true
+    }
+  ],
+  "independent_states": [
+    0,
+    1,
+    2,
+    3
+  ],
+  "scope": "Verdes por cuadro o contexto real disponible; no valida rampa, maniobras ni recepcion Teensy. Imagenes diferentes no garantizan corridas independientes."
+}

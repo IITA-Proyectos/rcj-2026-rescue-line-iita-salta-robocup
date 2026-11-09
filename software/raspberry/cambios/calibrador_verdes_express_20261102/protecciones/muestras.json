@@ -1,0 +1,475 @@
+[
+  {
+    "image": "f_009970.png",
+    "kind": "scene",
+    "expected": 1,
+    "protected": true,
+    "note": "Confirmacion usuario: izquierda; no contar el verde arriba de la transversal"
+  },
+  {
+    "image": "f_009971.png",
+    "kind": "scene",
+    "expected": 1,
+    "protected": true,
+    "note": "Confirmacion usuario: izquierda; no contar el verde arriba de la transversal"
+  },
+  {
+    "image": "f_009972.png",
+    "kind": "scene",
+    "expected": 1,
+    "protected": true,
+    "note": "Confirmacion usuario: izquierda; no contar el verde arriba de la transversal"
+  },
+  {
+    "image": "reservada_114747_001133.png",
+    "kind": "scene",
+    "expected": 1,
+    "holdout": true,
+    "note": "Revision visual asistente: corrida distinta, no usada para ajustar colores",
+    "context": [
+      {
+        "image": "contexto_114747/1133/f_001108.png",
+        "t": 52.824
+      },
+      {
+        "image": "contexto_114747/1133/f_001109.png",
+        "t": 52.864
+      },
+      {
+        "image": "contexto_114747/1133/f_001110.png",
+        "t": 52.904
+      },
+      {
+        "image": "contexto_114747/1133/f_001111.png",
+        "t": 52.948
+      },
+      {
+        "image": "contexto_114747/1133/f_001112.png",
+        "t": 52.997
+      },
+      {
+        "image": "contexto_114747/1133/f_001113.png",
+        "t": 53.044
+      },
+      {
+        "image": "contexto_114747/1133/f_001114.png",
+        "t": 53.092
+      },
+      {
+        "image": "contexto_114747/1133/f_001115.png",
+        "t": 53.14
+      },
+      {
+        "image": "contexto_114747/1133/f_001116.png",
+        "t": 53.184
+      },
+      {
+        "image": "contexto_114747/1133/f_001117.png",
+        "t": 53.228
+      },
+      {
+        "image": "contexto_114747/1133/f_001118.png",
+        "t": 53.273
+      },
+      {
+        "image": "contexto_114747/1133/f_001119.png",
+        "t": 53.312
+      },
+      {
+        "image": "contexto_114747/1133/f_001120.png",
+        "t": 53.352
+      },
+      {
+        "image": "contexto_114747/1133/f_001121.png",
+        "t": 53.392
+      },
+      {
+        "image": "contexto_114747/1133/f_001122.png",
+        "t": 53.432
+      },
+      {
+        "image": "contexto_114747/1133/f_001123.png",
+        "t": 53.472
+      },
+      {
+        "image": "contexto_114747/1133/f_001124.png",
+        "t": 53.512
+      },
+      {
+        "image": "contexto_114747/1133/f_001125.png",
+        "t": 53.556
+      },
+      {
+        "image": "contexto_114747/1133/f_001126.png",
+        "t": 53.6
+      },
+      {
+        "image": "contexto_114747/1133/f_001127.png",
+        "t": 53.644
+      },
+      {
+        "image": "contexto_114747/1133/f_001128.png",
+        "t": 53.689
+      },
+      {
+        "image": "contexto_114747/1133/f_001129.png",
+        "t": 53.736
+      },
+      {
+        "image": "contexto_114747/1133/f_001130.png",
+        "t": 53.78
+      },
+      {
+        "image": "contexto_114747/1133/f_001131.png",
+        "t": 53.828
+      },
+      {
+        "image": "contexto_114747/1133/f_001132.png",
+        "t": 53.873
+      },
+      {
+        "image": "contexto_114747/1133/f_001133.png",
+        "t": 53.919
+      }
+    ]
+  },
+  {
+    "image": "reservada_114747_004047.png",
+    "kind": "scene",
+    "expected": 2,
+    "holdout": true,
+    "note": "Revision visual asistente: corrida distinta, no usada para ajustar colores",
+    "context": [
+      {
+        "image": "contexto_114747/4047/f_004022.png",
+        "t": 173.577
+      },
+      {
+        "image": "contexto_114747/4047/f_004023.png",
+        "t": 173.614
+      },
+      {
+        "image": "contexto_114747/4047/f_004024.png",
+        "t": 173.657
+      },
+      {
+        "image": "contexto_114747/4047/f_004025.png",
+        "t": 173.697
+      },
+      {
+        "image": "contexto_114747/4047/f_004026.png",
+        "t": 173.735
+      },
+      {
+        "image": "contexto_114747/4047/f_004027.png",
+        "t": 173.774
+      },
+      {
+        "image": "contexto_114747/4047/f_004028.png",
+        "t": 173.814
+      },
+      {
+        "image": "contexto_114747/4047/f_004029.png",
+        "t": 173.854
+      },
+      {
+        "image": "contexto_114747/4047/f_004030.png",
+        "t": 173.897
+      },
+      {
+        "image": "contexto_114747/4047/f_004031.png",
+        "t": 173.937
+      },
+      {
+        "image": "contexto_114747/4047/f_004032.png",
+        "t": 173.977
+      },
+      {
+        "image": "contexto_114747/4047/f_004033.png",
+        "t": 174.017
+      },
+      {
+        "image": "contexto_114747/4047/f_004034.png",
+        "t": 174.057
+      },
+      {
+        "image": "contexto_114747/4047/f_004035.png",
+        "t": 174.097
+      },
+      {
+        "image": "contexto_114747/4047/f_004036.png",
+        "t": 174.137
+      },
+      {
+        "image": "contexto_114747/4047/f_004037.png",
+        "t": 174.177
+      },
+      {
+        "image": "contexto_114747/4047/f_004038.png",
+        "t": 174.217
+      },
+      {
+        "image": "contexto_114747/4047/f_004039.png",
+        "t": 174.257
+      },
+      {
+        "image": "contexto_114747/4047/f_004040.png",
+        "t": 174.295
+      },
+      {
+        "image": "contexto_114747/4047/f_004041.png",
+        "t": 174.334
+      },
+      {
+        "image": "contexto_114747/4047/f_004042.png",
+        "t": 174.377
+      },
+      {
+        "image": "contexto_114747/4047/f_004043.png",
+        "t": 174.417
+      },
+      {
+        "image": "contexto_114747/4047/f_004044.png",
+        "t": 174.457
+      },
+      {
+        "image": "contexto_114747/4047/f_004045.png",
+        "t": 174.497
+      },
+      {
+        "image": "contexto_114747/4047/f_004046.png",
+        "t": 174.537
+      },
+      {
+        "image": "contexto_114747/4047/f_004047.png",
+        "t": 174.578
+      }
+    ]
+  },
+  {
+    "image": "reservada_114747_003408.png",
+    "kind": "scene",
+    "expected": 3,
+    "holdout": true,
+    "note": "Revision visual asistente: corrida distinta, no usada para ajustar colores",
+    "context": [
+      {
+        "image": "contexto_114747/3408/f_003383.png",
+        "t": 149.353
+      },
+      {
+        "image": "contexto_114747/3408/f_003384.png",
+        "t": 149.393
+      },
+      {
+        "image": "contexto_114747/3408/f_003385.png",
+        "t": 149.433
+      },
+      {
+        "image": "contexto_114747/3408/f_003386.png",
+        "t": 149.473
+      },
+      {
+        "image": "contexto_114747/3408/f_003387.png",
+        "t": 149.513
+      },
+      {
+        "image": "contexto_114747/3408/f_003388.png",
+        "t": 149.549
+      },
+      {
+        "image": "contexto_114747/3408/f_003389.png",
+        "t": 149.589
+      },
+      {
+        "image": "contexto_114747/3408/f_003390.png",
+        "t": 149.629
+      },
+      {
+        "image": "contexto_114747/3408/f_003391.png",
+        "t": 149.665
+      },
+      {
+        "image": "contexto_114747/3408/f_003392.png",
+        "t": 149.705
+      },
+      {
+        "image": "contexto_114747/3408/f_003393.png",
+        "t": 149.741
+      },
+      {
+        "image": "contexto_114747/3408/f_003394.png",
+        "t": 149.781
+      },
+      {
+        "image": "contexto_114747/3408/f_003395.png",
+        "t": 149.821
+      },
+      {
+        "image": "contexto_114747/3408/f_003396.png",
+        "t": 149.861
+      },
+      {
+        "image": "contexto_114747/3408/f_003397.png",
+        "t": 149.901
+      },
+      {
+        "image": "contexto_114747/3408/f_003398.png",
+        "t": 149.941
+      },
+      {
+        "image": "contexto_114747/3408/f_003399.png",
+        "t": 149.981
+      },
+      {
+        "image": "contexto_114747/3408/f_003400.png",
+        "t": 150.025
+      },
+      {
+        "image": "contexto_114747/3408/f_003401.png",
+        "t": 150.07
+      },
+      {
+        "image": "contexto_114747/3408/f_003402.png",
+        "t": 150.109
+      },
+      {
+        "image": "contexto_114747/3408/f_003403.png",
+        "t": 150.153
+      },
+      {
+        "image": "contexto_114747/3408/f_003404.png",
+        "t": 150.193
+      },
+      {
+        "image": "contexto_114747/3408/f_003405.png",
+        "t": 150.233
+      },
+      {
+        "image": "contexto_114747/3408/f_003406.png",
+        "t": 150.278
+      },
+      {
+        "image": "contexto_114747/3408/f_003407.png",
+        "t": 150.318
+      },
+      {
+        "image": "contexto_114747/3408/f_003408.png",
+        "t": 150.358
+      }
+    ]
+  },
+  {
+    "image": "reservada_114747_001000.png",
+    "kind": "scene",
+    "expected": 0,
+    "holdout": true,
+    "note": "Revision visual asistente: corrida distinta, no usada para ajustar colores",
+    "context": [
+      {
+        "image": "contexto_114747/1000/f_000975.png",
+        "t": 47.598
+      },
+      {
+        "image": "contexto_114747/1000/f_000976.png",
+        "t": 47.635
+      },
+      {
+        "image": "contexto_114747/1000/f_000977.png",
+        "t": 47.666
+      },
+      {
+        "image": "contexto_114747/1000/f_000978.png",
+        "t": 47.698
+      },
+      {
+        "image": "contexto_114747/1000/f_000979.png",
+        "t": 47.733
+      },
+      {
+        "image": "contexto_114747/1000/f_000980.png",
+        "t": 47.765
+      },
+      {
+        "image": "contexto_114747/1000/f_000981.png",
+        "t": 47.798
+      },
+      {
+        "image": "contexto_114747/1000/f_000982.png",
+        "t": 47.83
+      },
+      {
+        "image": "contexto_114747/1000/f_000983.png",
+        "t": 47.862
+      },
+      {
+        "image": "contexto_114747/1000/f_000984.png",
+        "t": 47.894
+      },
+      {
+        "image": "contexto_114747/1000/f_000985.png",
+        "t": 47.929
+      },
+      {
+        "image": "contexto_114747/1000/f_000986.png",
+        "t": 47.961
+      },
+      {
+        "image": "contexto_114747/1000/f_000987.png",
+        "t": 47.995
+      },
+      {
+        "image": "contexto_114747/1000/f_000988.png",
+        "t": 48.029
+      },
+      {
+        "image": "contexto_114747/1000/f_000989.png",
+        "t": 48.062
+      },
+      {
+        "image": "contexto_114747/1000/f_000990.png",
+        "t": 48.094
+      },
+      {
+        "image": "contexto_114747/1000/f_000991.png",
+        "t": 48.126
+      },
+      {
+        "image": "contexto_114747/1000/f_000992.png",
+        "t": 48.159
+      },
+      {
+        "image": "contexto_114747/1000/f_000993.png",
+        "t": 48.194
+      },
+      {
+        "image": "contexto_114747/1000/f_000994.png",
+        "t": 48.226
+      },
+      {
+        "image": "contexto_114747/1000/f_000995.png",
+        "t": 48.258
+      },
+      {
+        "image": "contexto_114747/1000/f_000996.png",
+        "t": 48.292
+      },
+      {
+        "image": "contexto_114747/1000/f_000997.png",
+        "t": 48.328
+      },
+      {
+        "image": "contexto_114747/1000/f_000998.png",
+        "t": 48.362
+      },
+      {
+        "image": "contexto_114747/1000/f_000999.png",
+        "t": 48.399
+      },
+      {
+        "image": "contexto_114747/1000/f_001000.png",
+        "t": 48.439
+      }
+    ]
+  }
+]

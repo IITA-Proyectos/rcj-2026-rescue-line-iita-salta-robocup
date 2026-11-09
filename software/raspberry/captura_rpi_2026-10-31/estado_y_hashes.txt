@@ -1,0 +1,149 @@
+Oct 31 18:23:09 iita systemd[1]: Started iita-robot.service - IITA RCJ Rescue Line robot main process.
+Oct 31 18:23:13 iita python3[910]: [SERVICE] Flags de competencia cargados para corrida 1031_1823:
+Oct 31 18:23:13 iita python3[910]:   [SERVICE] Video ->
+Oct 31 18:23:13 iita python3[910]:   [SERVICE] Log   -> /home/iita/pista_1031_1823.log
+Oct 31 18:23:13 iita python3[910]:   [SERVICE] Crudo ->
+Oct 31 18:23:13 iita python3[910]: [V6.6] V6.6-FIELD-TERM-HARD-REV3-SIDE25-POSTMAG-PISO SHADOW=1 AUTH=1 SAFE_NO_LINE=1 SIDE_SHADOW=1 SIDE_AUTH=1 LATCH=1 TERM_PISO=1
+Oct 31 18:23:13 iita python3[910]: [CG] COMPLETAR_GIRO=1 ang=85 ventana=0.80 max=0.45 desarma=2
+Oct 31 18:23:17 iita python3[910]: [RECUP-CAMINO] CAMINO+MONO shadow encendido (solo heading)
+Oct 31 18:23:17 iita python3[910]: [PERDIDA] arbitro CURVA/RECTA/AMBIGUA cargado
+Oct 31 18:23:17 iita python3[910]: [PARCHE] ROI=60 CTRL=atan2 RECUP=True PLANNER=0 RECUP_CAMINO=1
+Oct 31 18:23:17 iita python3[910]: 640.0 480.0
+Oct 31 18:23:17 iita python3[910]: 160 120
+Oct 31 18:23:18 iita python3[910]: Usando ai_edge_litert.interpreter
+Oct 31 18:23:18 iita python3[910]: INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+Oct 31 18:23:19 iita python3[910]: TFLite input: {'name': 'images', 'index': 0, 'shape': array([  1, 256, 256,   3], dtype=int32), 'shape_signature': array([  1, 256, 256,   3], dtype=int32), 'dtype': <class 'numpy.float32'>, 'quantization': (0.0, 0), 'quantization_parameters': {'scales': array([], dtype=float32), 'zero_points': array([], dtype=int32), 'quantized_dimension': 0, 'block_size': 0}, 'sparsity_parameters': {}}
+Oct 31 18:23:19 iita python3[910]: TFLite output: {'name': 'Identity', 'index': 490, 'shape': array([  1, 300,   6], dtype=int32), 'shape_signature': array([  1, 300,   6], dtype=int32), 'dtype': <class 'numpy.float32'>, 'quantization': (0.0, 0), 'quantization_parameters': {'scales': array([], dtype=float32), 'zero_points': array([], dtype=int32), 'quantized_dimension': 0, 'block_size': 0}, 'sparsity_parameters': {}}
+Oct 31 18:23:19 iita python3[910]: TFLite input: {'name': 'images', 'index': 0, 'shape': array([  1, 256, 256,   3], dtype=int32), 'shape_signature': array([  1, 256, 256,   3], dtype=int32), 'dtype': <class 'numpy.float32'>, 'quantization': (0.0, 0), 'quantization_parameters': {'scales': array([], dtype=float32), 'zero_points': array([], dtype=int32), 'quantized_dimension': 0, 'block_size': 0}, 'sparsity_parameters': {}}
+Oct 31 18:23:19 iita python3[910]: TFLite output: {'name': 'Identity', 'index': 490, 'shape': array([  1, 300,   6], dtype=int32), 'shape_signature': array([  1, 300,   6], dtype=int32), 'dtype': <class 'numpy.float32'>, 'quantization': (0.0, 0), 'quantization_parameters': {'scales': array([], dtype=float32), 'zero_points': array([], dtype=int32), 'quantized_dimension': 0, 'block_size': 0}, 'sparsity_parameters': {}}
+Oct 31 18:23:19 iita python3[910]: Realizando warmup del modelo TFLite...
+Oct 31 18:23:19 iita python3[910]: Warmup completado.
+Oct 31 18:53:22 iita python3[910]: [TLM] frames_sent=1 estado=linea
+Oct 31 18:53:23 iita python3[910]: [ROI-RAMPA] linea: Teensy SUBE -> angulo modo cresta +RECTA +SINRECUP
+Oct 31 18:53:27 iita python3[910]: [TLM] frames_sent=223 estado=linea
+Oct 31 18:53:28 iita python3[910]: [ROI-RAMPA] linea: Teensy LLANO -> angulo normal
+Oct 31 18:53:31 iita python3[910]: [ROI-RAMPA] linea: Teensy SUBE -> angulo modo cresta +RECTA +SINRECUP
+Oct 31 18:53:32 iita python3[910]: [TLM] frames_sent=459 estado=linea
+Oct 31 18:53:34 iita python3[910]: [ROI-RAMPA] linea: Teensy LLANO -> angulo normal
+Oct 31 18:53:37 iita python3[910]: [TLM] frames_sent=696 estado=linea
+Oct 31 18:53:38 iita python3[910]: [TERM-HARD] snapshot strong=True advance=31 last_ymin=108 side_recent=0 n=20 s4k=50 bb=0.0 | hoy=True piso=False (la punta no bajo desde arriba)
+Oct 31 18:53:38 iita python3[910]: [PERDIDA] disparo; intencion previa=LATERAL lado=-1 edad=0.3224000950000061 source=ESTABLE
+Oct 31 18:53:38 iita python3[910]: [PERDIDA] linea: retroceso terminado (0xEF), analizando pose nueva
+Oct 31 18:53:38 iita python3[910]: [TERM-HARD] advance=31 last_ymin=108 side_recent=0 n=20 | V65=V6.4 lateral ESTABLE + colapso falso +/-90 post-retro | VETO_APLICADO
+Oct 31 18:53:38 iita python3[910]: [PERDIDA] RECTA -> busqueda GAP/camara; APDS vigila colores
+Oct 31 18:53:39 iita python3[910]: [GAP] linea: origen superado por encoder (0xEE)
+Oct 31 18:53:40 iita python3[910]: [GAP] linea negra conectada recuperada -> control normal
+Oct 31 18:53:41 iita python3[910]: [TERM-HARD] snapshot strong=False advance=15 last_ymin=111 side_recent=0 n=20 s4k=78 bb=0.0 | hoy=False piso=False (la punta no bajo desde arriba)
+Oct 31 18:53:41 iita python3[910]: [PERDIDA] disparo; intencion previa=LATERAL lado=-1 edad=1.5687488529999882 source=ESTABLE
+Oct 31 18:53:42 iita python3[910]: [PERDIDA] linea: retroceso terminado (0xEF), analizando pose nueva
+Oct 31 18:53:42 iita python3[910]: [TLM] frames_sent=985 estado=linea
+Oct 31 18:53:43 iita python3[910]: [PERDIDA] AMBIGUA sin resolver -> busqueda GAP derecho (AMBIGUA_GAP)
+Oct 31 18:53:43 iita python3[910]: [GAP] linea: origen superado por encoder (0xEE)
+Oct 31 18:53:44 iita python3[910]: [GAP] linea negra conectada recuperada -> control normal
+Oct 31 18:53:44 iita python3[910]: [ROI-RAMPA] linea: Teensy BAJA -> angulo como subiendo +SINRECUP
+Oct 31 18:53:47 iita python3[910]: [TLM] frames_sent=1220 estado=linea
+Oct 31 18:53:49 iita python3[910]: [ROI-RAMPA] linea: Teensy LLANO -> angulo normal
+Oct 31 18:53:51 iita python3[910]: [ROI-RAMPA] linea: Teensy BAJA -> angulo como subiendo +SINRECUP
+Oct 31 18:53:52 iita python3[910]: [LINE-FPS] avg=47.84
+Oct 31 18:53:52 iita python3[910]: [TLM] frames_sent=1453 estado=linea
+Oct 31 18:53:53 iita python3[910]: [ROI-RAMPA] linea: Teensy LLANO -> angulo normal
+Oct 31 18:53:53 iita python3[910]: cambiando estado
+Oct 31 19:06:24 iita python3[910]: [TLM] frames_sent=1516 estado=linea
+Oct 31 19:06:24 iita python3[910]: cambiando estado
+Oct 31 19:15:07 iita python3[910]: [TLM] frames_sent=1528 estado=linea
+Oct 31 19:15:12 iita python3[910]: [TLM] frames_sent=1784 estado=linea
+Oct 31 19:15:12 iita python3[910]: cambiando estado
+Oct 31 19:15:50 iita systemd[1]: Stopping iita-robot.service - IITA RCJ Rescue Line robot main process...
+Oct 31 19:15:50 iita systemd[1]: iita-robot.service: Deactivated successfully.
+Oct 31 19:15:50 iita systemd[1]: Stopped iita-robot.service - IITA RCJ Rescue Line robot main process.
+Oct 31 19:15:50 iita systemd[1]: iita-robot.service: Consumed 7min 25.586s CPU time.
+enabled
+-rw-rw-r-- 1 iita iita  79M Oct 12 12:11 /home/iita/pista_1012_1207.avi
+-rw-rw-r-- 1 iita iita  41K Oct 12 12:11 /home/iita/pista_1012_1207.log
+-rw-rw-r-- 1 iita iita 180M Oct 12 12:26 /home/iita/pista_1012_1213.avi
+-rw-rw-r-- 1 iita iita 123K Oct 12 12:26 /home/iita/pista_1012_1213.log
+-rw-rw-r-- 1 iita iita 178M Oct 12 14:21 /home/iita/pista_1012_1351.avi
+-rw-rw-r-- 1 iita iita 104K Oct 12 14:14 /home/iita/pista_1012_1351.log
+-rw-rw-r-- 1 iita iita 244M Oct 12 14:57 /home/iita/pista_1012_1422.avi
+-rw-rw-r-- 1 iita iita  32K Oct 12 15:00 /home/iita/pista_1012_1422.log
+-rw-rw-r-- 1 iita iita 153M Oct 17 18:40 /home/iita/pista_1017_1827.avi
+-rw-rw-r-- 1 iita iita  24K Oct 17 18:40 /home/iita/pista_1017_1827.log
+-rw-rw-r-- 1 iita iita    0 Oct 17 22:40 /home/iita/pista_1017_2210.avi
+-rw-rw-r-- 1 iita iita 3.5K Oct 17 22:40 /home/iita/pista_1017_2210.log
+-rw-r--r-- 1 iita iita 2.2K Oct 24 19:23 /home/iita/pista_1024_1923.log
+-rw-r--r-- 1 iita iita  29K Oct 24 20:32 /home/iita/pista_1024_1930.log
+-rw-rw-r-- 1 iita iita 4.6K Oct 24 20:37 /home/iita/pista_1024_2035.log
+-rw-rw-r-- 1 iita iita 7.4K Oct 24 21:03 /home/iita/pista_1024_2100.log
+-rw-r--r-- 1 iita iita 4.3K Oct 24 21:04 /home/iita/pista_1024_2104.log
+-rw-r--r-- 1 iita iita 4.1K Oct 31 19:15 /home/iita/pista_1031_1823.log
+-rw-rw-r-- 1 iita iita 2.3K Oct 31 19:18 /home/iita/pista_1031_1918.log
+-rw-rw-r-- 1 iita iita 2.7K Oct 31 19:21 /home/iita/pista_1031_1919.log
+-rw-rw-r-- 1 iita iita 5.4K Oct 31 19:23 /home/iita/pista_1031_1921.log
+-rw-rw-r-- 1 iita iita 2.4K Oct 31 19:24 /home/iita/pista_1031_1923.log
+-rw-rw-r-- 1 iita iita  11K Oct 31 19:45 /home/iita/pista_1031_1928.log
+-rw-rw-r-- 1 iita iita  39M Oct 24 21:03 /home/iita/pista_.avi
+-rw-rw-r-- 1 iita iita 3.7K Oct 31 19:24 /home/iita/pista_.log
+f15c26befd917f741c9265ac4dc653306db6b062af70035e54efe180fea8b1d7  /home/iita/Desktop/ab_v2_v3_v4.py
+84e312fcb68d1f830bde53b8b4490a1a6dfca223f6f3f5e09f1bcaaf1915e8ed  /home/iita/Desktop/airborne_v1_adaptado.py
+9eb6483ef98102ab7240b186d9af9f74d00270c7948455c75f14a751b76cbc97  /home/iita/Desktop/analizar_luz.py
+32c97963b37eed172350e975c13d8d63c81e10db5f7b838164bcc423101fd51b  /home/iita/Desktop/aplicar_recorte.py
+b135e0e5c40f6da3355135d65cc5e5abc37a61a6dc055bf955c8c876339db54d  /home/iita/Desktop/aplicar_retardo.py
+16c6166b3b2cbecfa3872bbf467d1f4d660332413300de7486fa484da2f5a4fc  /home/iita/Desktop/auprueba (1).py
+48b15eba21ba0761525fe2f16e0dd612bd727cfa594f80a3773d89dec7cf5b0a  /home/iita/Desktop/bench_cadena_rpi.py
+b24d55fb499b5f525fdcfb21a84e005ddcdcd61472fb6aad42f2409cbb21879b  /home/iita/Desktop/calibrador_verde.py
+5d05eea105492e7945a37056a18250f544aa48b4653703e10c12136fc8a0ab25  /home/iita/Desktop/calibrador_verde_v2_antes_factor_1012_1349.py
+918aa4084d6c3c7631a9b33417ed624fec015243fd510a75dbd6c84840305533  /home/iita/Desktop/calibrador_verde_v2.py
+c5817312dbb00d76fed1aac60dc4061469ec1155afb565a5d5efa94a926d0a0b  /home/iita/Desktop/calibrar_verde_multi.py
+2eeab6439cc7d36bec9a51b97b11a91c2b21f6c7da794b68b550277813320a5f  /home/iita/Desktop/camino_heading.py
+19743f039f9e023283378b7df5cc92c78d44b2f7940253881fa973f73ce48366  /home/iita/Desktop/camino_loss_arbiter.py
+25ee33c689e5081fd834fbe5116e4538624e4edb7f47227c5cfb943ca498728e  /home/iita/Desktop/camino_principal.py
+b60842d015ca8606d547f87d757dcc1313c21733437cb2cc9bba0830b219b64a  /home/iita/Desktop/camino_principal_robot.py
+3b6a1d17a3ebd332b2ac05d80fb8e377362666b1e4146b38564868e3ef68ceae  /home/iita/Desktop/camthreader.py
+ef3a07d23dcb2a2ba21feee61701e98824f8c29aa5457956b3b5603a14a3efde  /home/iita/Desktop/captura_luz_antes_factor_1012_1349.py
+2d70b25b301fb361d63f4e319d88f8cd785dab085f54110940ef93feb20f5a7a  /home/iita/Desktop/captura_luz.py
+34104015baa99be72ba445e0f07f04490b8f09b10f52c4738d6782723b08696e  /home/iita/Desktop/capturar_tablero.py
+65ea3ad88e90536a291d42e5ef7a7fcd0ea057d6ec2f616bb3af2f5069377ccd  /home/iita/Desktop/codo_vivo.py
+6a300ee0645a20f4247540d5e4b3c75cd684008bf24dd9cae30d9fafb9c7761d  /home/iita/Desktop/completar_giro.py
+b2d1a56073e7fc49519db3f439f25bd06bece34ded55abe4d6a5d7fe53d794bb  /home/iita/Desktop/grabador_crudo.py
+a3d16330169bd79a7c344ac39071a5deca4137efc6bfbfeab004cf316607707f  /home/iita/Desktop/ley_steer.py
+76187609b0cebaacdbab14ccd92348e8fb561ebbbe2b7ea219fdfcde5beb0c04  /home/iita/Desktop/main_100ms.py
+f04ff06de36dad9f2941f0dca0b3cc484e87044e5a77199e73396ac83c378e2d  /home/iita/Desktop/main_1012_1122.py
+6d069ba558d83fab341e1a80c854a2a9aaac702c3ff09453a1be5702a8ee8534  /home/iita/Desktop/main_antes_camara_doble_1012_1349.py
+008a473f982defbf32760d1d749fe6d8bcf3fd7cc63d12418a1c00dd4da55cd0  /home/iita/Desktop/main_antes_fix_verde.py
+008a473f982defbf32760d1d749fe6d8bcf3fd7cc63d12418a1c00dd4da55cd0  /home/iita/Desktop/main_antes_fix_verde_.py
+9b4f59dc4d9bef3a84cc6be9ad7ddab8d04a8d66d83640f6958b0723e6c734ed  /home/iita/Desktop/main_antes_grabar_crudo_1012_121307.py
+9d081a1d8f4b5e2f4f40f0679f05d14b3530ba9a1bb3175ebac748af8269dcf5  /home/iita/Desktop/main_antes_obstaculo_1012_1421.py
+973a4146074b91eb0199581dbb25b49ed3c63c4ef14911b6d75fda7fb33547ce  /home/iita/Desktop/main_antes_palillos_1017_2205.py
+973a4146074b91eb0199581dbb25b49ed3c63c4ef14911b6d75fda7fb33547ce  /home/iita/Desktop/main_antes_service_defaults_.py
+3b1c41c247d6d1701ef069bedac0d7f4021039656d01c8f4556179f6583c629a  /home/iita/Desktop/main_cadena.py
+f1a4e32be7a78f40cf9f4eac519561a9198cd74413890599537de5d6b5cb020c  /home/iita/Desktop/main_conDelay.py
+d41ffec6ac4820d2e9a0f1d59ce446d43b7d160e0b2804e25d1182718cdb8339  /home/iita/Desktop/main_original_sin_palillos.py
+2a0bfd8b95b2f41f3cb1f576fa772dff551a6f492aa058fac51920323d73448e  /home/iita/Desktop/main.py
+22d061ff9b9f6309a84a49365ed2d4b4c6a47c3c1adf69575f37bbc39a9fcab9  /home/iita/Desktop/mainrpi (2) (1).py
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /home/iita/Desktop/mainrpi.py
+27242ed58306e8eccd2d8c5ad0f90ad35dcd91066bce80bd66060b67d80fe4f2  /home/iita/Desktop/mainsaucedo (1).py
+c4684f99b8f9d058711045b08cd6cd91e596fc39919757579aa1a1a6a1dc6f31  /home/iita/Desktop/medir_camara.py
+8bb8a2c8e658e34949f5d520fb6278e6a3c66bcfef4c57416d15d554643d9fcd  /home/iita/Desktop/medir_costo_registro.py
+e2e6b12d0edebac8091759d486e604f50c962a5d286976190d935c9143c83868  /home/iita/Desktop/medir_latencia.py
+6b1965dfa757d39cb31d5974bb00ada81cce3a5c2dbf9a7e6bde6219640af8ac  /home/iita/Desktop/medir_wb.py
+d57d8cbd511810a0f8d123fe6b8fbb92017147b1e294cb72438d90d314198328  /home/iita/Desktop/mian saucedo corregido (1).py
+a6fbdb6e3d52592c3354da2cb26debd6a5e811d7136e1347b45a77b36b4cdd80  /home/iita/Desktop/nuevo_code_v2.py
+cd2c4df04a7a6da652a972e48c7441e4876884f8c387a89e37604698f5ab162e  /home/iita/Desktop/nuevo_code_v3.py
+2d974d5fc230bd73bc3d32157e672e85355e8dda79907b1644babb50cde68a1a  /home/iita/Desktop/nuevo_code_v4.py
+9e085d088c7e662cdd950cc580ea1ff86c40e8071ff29d26d4adedfbf1d5c829  /home/iita/Desktop/parche_cadena.py
+a3b8c5367ee1f84a55c8b44ccb702aa8cb62d225e25350225adc13c5a6dbf3b1  /home/iita/Desktop/parche_calibrador_factor.py
+918ee7a351dec7a10bbce520799dccf100dc5703f0dcfa90a0cebbd7df328c3f  /home/iita/Desktop/parche_calibrador.py
+9deca79ed27b58822261f8c45f5edbb97a2d52c3dc1cedcf94227ec9bc923543  /home/iita/Desktop/parche_camara_doble.py
+e6bf90c704e7d94206d83c5e0688dd33ecaca026aca4d56596dcdd6c685caae2  /home/iita/Desktop/parche_corte_abajo.py
+635d46ea06898accc40772533914dbc6ed53dfae68f642081428c12f06e6a611  /home/iita/Desktop/parche_grabar_crudo.py
+b8d969dbdf37235ed375d35ee89c2c264d1561991a017c93fe59f365c648925a  /home/iita/Desktop/parche_obstaculo.py
+bf839c87212db151a8b122ea4eeac1df1090f211f712e491bfbed67b73b4b08b  /home/iita/Desktop/parche_palillos_recta.py
+7d707e08043a5506490e8f63eb6f51654153f62663e3682064a1731f1ef5ae74  /home/iita/Desktop/parche_planner.py
+0979359a1d5cd3af2655027fb70be16223cfbc18f1de6466083eb02da21c2e4c  /home/iita/Desktop/probar_planner.py
+9a6bb0487e79892f02a9312653d4a48baa7ebc0ad6da2adf923cbe2fa35514fe  /home/iita/Desktop/retardo.py
+015eefb797814fe95818d909bed4021df944f385b3cf537a346d69967b5882e3  /home/iita/Desktop/seguidor_linea.py
+5d468a738d373eac4927dcc1f48634a96cb35c514de45ce9cc9e68759a713864  /home/iita/Desktop/terminal_local_guard.py
+ede403b1ad2a7494b925efeacf667e3bbe3646189fb8acaa4d2b0bc4a74ae0f9  /home/iita/Desktop/trazador.py
+820ae02da39af45a8e740c48cf40546c7e38f521b4279e36ae76ede9df4ffe23  /home/iita/Desktop/vision_linea.py
+64023f0d6fd40b7c22664460cb9c80b49bbe93686583e861a9518d3ec91e27a1  /home/iita/Desktop/run_robot.sh
+b246c8d1646909025b7a68521c44cd8d6ee852f8c83c52042bde396acf9edc37  /etc/systemd/system/iita-robot.service

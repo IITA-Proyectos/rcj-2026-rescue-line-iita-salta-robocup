@@ -1,0 +1,70 @@
+{
+  "model_name": "silver_detector",
+  "model_created_at_sydney": "2026-06-25T21:22:45+10:00",
+  "model_created_display": "25 June 2026, 09:22:45 PM AEST",
+  "training_session_started_at_sydney": "2026-06-25T21:09:48+10:00",
+  "timezone": "Australia/Sydney",
+  "model_timestamp_tag": "20260625_212245_AEST",
+  "timestamped_torchscript_filename": "silver_detector_20260625_212245_AEST.ts",
+  "stable_torchscript_alias": "silver_detector.ts",
+  "backbone": "shufflenet_v2_x1_0",
+  "img_size": 96,
+  "crop_mode": "none",
+  "augmentation": "none",
+  "mean": [
+    0.485,
+    0.456,
+    0.406
+  ],
+  "std": [
+    0.229,
+    0.224,
+    0.225
+  ],
+  "class_map": {
+    "no_silver": 0,
+    "silver": 1
+  },
+  "silver_subtypes_are_one_class": true,
+  "recommended_threshold": 0.02,
+  "recommended_streak": 2,
+  "target_precision": 0.98,
+  "split_method": "consecutive_filename_blocks",
+  "torchscript_max_output_difference": 0.0,
+  "validation_metrics": {
+    "threshold": 0.02,
+    "accuracy": 1.0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "fpr": 0.0,
+    "tp": 48,
+    "fp": 0,
+    "tn": 96,
+    "fn": 0,
+    "meets_target_precision": true
+  },
+  "test_frame_metrics": {
+    "threshold": 0.02,
+    "accuracy": 1.0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "fpr": 0.0,
+    "tp": 48,
+    "fp": 0,
+    "tn": 94,
+    "fn": 0,
+    "loss": 1.9114123576182978e-05,
+    "average_precision": 1.0,
+    "roc_auc": 1.0
+  },
+  "test_sequence_metrics": {
+    "streak": 2,
+    "false_trigger_events": 0,
+    "true_trigger_events": 4,
+    "positive_segments": 4,
+    "hit_positive_segments": 4,
+    "positive_segment_hit_rate": 1.0
+  }
+}

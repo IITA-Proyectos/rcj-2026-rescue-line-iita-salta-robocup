@@ -1,0 +1,282 @@
+[
+  {
+    "sample": 0,
+    "label": "silver",
+    "split": "fit",
+    "synthetic_gain": 0.6,
+    "accepted_fraction": 0.44166666666666665
+  },
+  {
+    "sample": 0,
+    "label": "silver",
+    "split": "fit",
+    "synthetic_gain": 0.8,
+    "accepted_fraction": 0.9833333333333333
+  },
+  {
+    "sample": 0,
+    "label": "silver",
+    "split": "fit",
+    "synthetic_gain": 1.0,
+    "accepted_fraction": 1.0
+  },
+  {
+    "sample": 0,
+    "label": "silver",
+    "split": "fit",
+    "synthetic_gain": 1.2,
+    "accepted_fraction": 0.8
+  },
+  {
+    "sample": 0,
+    "label": "silver",
+    "split": "fit",
+    "synthetic_gain": 1.4,
+    "accepted_fraction": 0.5583333333333333
+  },
+  {
+    "sample": 1,
+    "label": "silver",
+    "split": "fit",
+    "synthetic_gain": 0.6,
+    "accepted_fraction": 0.03333333333333333
+  },
+  {
+    "sample": 1,
+    "label": "silver",
+    "split": "fit",
+    "synthetic_gain": 0.8,
+    "accepted_fraction": 0.7416666666666667
+  },
+  {
+    "sample": 1,
+    "label": "silver",
+    "split": "fit",
+    "synthetic_gain": 1.0,
+    "accepted_fraction": 0.9833333333333333
+  },
+  {
+    "sample": 1,
+    "label": "silver",
+    "split": "fit",
+    "synthetic_gain": 1.2,
+    "accepted_fraction": 1.0
+  },
+  {
+    "sample": 1,
+    "label": "silver",
+    "split": "fit",
+    "synthetic_gain": 1.4,
+    "accepted_fraction": 0.9666666666666667
+  },
+  {
+    "sample": 2,
+    "label": "silver",
+    "split": "test",
+    "synthetic_gain": 0.6,
+    "accepted_fraction": 0.55
+  },
+  {
+    "sample": 2,
+    "label": "silver",
+    "split": "test",
+    "synthetic_gain": 0.8,
+    "accepted_fraction": 1.0
+  },
+  {
+    "sample": 2,
+    "label": "silver",
+    "split": "test",
+    "synthetic_gain": 1.0,
+    "accepted_fraction": 1.0
+  },
+  {
+    "sample": 2,
+    "label": "silver",
+    "split": "test",
+    "synthetic_gain": 1.2,
+    "accepted_fraction": 1.0
+  },
+  {
+    "sample": 2,
+    "label": "silver",
+    "split": "test",
+    "synthetic_gain": 1.4,
+    "accepted_fraction": 0.4625
+  },
+  {
+    "sample": 3,
+    "label": "silver",
+    "split": "test",
+    "synthetic_gain": 0.6,
+    "accepted_fraction": 0.3416666666666667
+  },
+  {
+    "sample": 3,
+    "label": "silver",
+    "split": "test",
+    "synthetic_gain": 0.8,
+    "accepted_fraction": 1.0
+  },
+  {
+    "sample": 3,
+    "label": "silver",
+    "split": "test",
+    "synthetic_gain": 1.0,
+    "accepted_fraction": 1.0
+  },
+  {
+    "sample": 3,
+    "label": "silver",
+    "split": "test",
+    "synthetic_gain": 1.2,
+    "accepted_fraction": 0.9833333333333333
+  },
+  {
+    "sample": 3,
+    "label": "silver",
+    "split": "test",
+    "synthetic_gain": 1.4,
+    "accepted_fraction": 0.65
+  },
+  {
+    "sample": 4,
+    "label": "negative",
+    "split": "test",
+    "synthetic_gain": 0.6,
+    "accepted_fraction": 0.0
+  },
+  {
+    "sample": 4,
+    "label": "negative",
+    "split": "test",
+    "synthetic_gain": 0.8,
+    "accepted_fraction": 0.0
+  },
+  {
+    "sample": 4,
+    "label": "negative",
+    "split": "test",
+    "synthetic_gain": 1.0,
+    "accepted_fraction": 0.0
+  },
+  {
+    "sample": 4,
+    "label": "negative",
+    "split": "test",
+    "synthetic_gain": 1.2,
+    "accepted_fraction": 0.0
+  },
+  {
+    "sample": 4,
+    "label": "negative",
+    "split": "test",
+    "synthetic_gain": 1.4,
+    "accepted_fraction": 0.0
+  },
+  {
+    "sample": 5,
+    "label": "negative",
+    "split": "test",
+    "synthetic_gain": 0.6,
+    "accepted_fraction": 0.0
+  },
+  {
+    "sample": 5,
+    "label": "negative",
+    "split": "test",
+    "synthetic_gain": 0.8,
+    "accepted_fraction": 0.0
+  },
+  {
+    "sample": 5,
+    "label": "negative",
+    "split": "test",
+    "synthetic_gain": 1.0,
+    "accepted_fraction": 0.0
+  },
+  {
+    "sample": 5,
+    "label": "negative",
+    "split": "test",
+    "synthetic_gain": 1.2,
+    "accepted_fraction": 0.0
+  },
+  {
+    "sample": 5,
+    "label": "negative",
+    "split": "test",
+    "synthetic_gain": 1.4,
+    "accepted_fraction": 0.0
+  },
+  {
+    "sample": 6,
+    "label": "negative",
+    "split": "test",
+    "synthetic_gain": 0.6,
+    "accepted_fraction": 1.0
+  },
+  {
+    "sample": 6,
+    "label": "negative",
+    "split": "test",
+    "synthetic_gain": 0.8,
+    "accepted_fraction": 1.0
+  },
+  {
+    "sample": 6,
+    "label": "negative",
+    "split": "test",
+    "synthetic_gain": 1.0,
+    "accepted_fraction": 0.0
+  },
+  {
+    "sample": 6,
+    "label": "negative",
+    "split": "test",
+    "synthetic_gain": 1.2,
+    "accepted_fraction": 0.0
+  },
+  {
+    "sample": 6,
+    "label": "negative",
+    "split": "test",
+    "synthetic_gain": 1.4,
+    "accepted_fraction": 0.0
+  },
+  {
+    "sample": 7,
+    "label": "negative",
+    "split": "test",
+    "synthetic_gain": 0.6,
+    "accepted_fraction": 0.9
+  },
+  {
+    "sample": 7,
+    "label": "negative",
+    "split": "test",
+    "synthetic_gain": 0.8,
+    "accepted_fraction": 0.075
+  },
+  {
+    "sample": 7,
+    "label": "negative",
+    "split": "test",
+    "synthetic_gain": 1.0,
+    "accepted_fraction": 0.0
+  },
+  {
+    "sample": 7,
+    "label": "negative",
+    "split": "test",
+    "synthetic_gain": 1.2,
+    "accepted_fraction": 0.0
+  },
+  {
+    "sample": 7,
+    "label": "negative",
+    "split": "test",
+    "synthetic_gain": 1.4,
+    "accepted_fraction": 0.0
+  }
+]

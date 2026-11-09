@@ -1,0 +1,387 @@
+[
+  {
+    "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\cambios\\calibrador_verdes_express_20261102\\ensayo_video_14_20261104_125503\\muestra_20261104_125520_345522.png",
+    "kind": "green",
+    "frame_key": "39d150814943bd8bf08edc8dcfb634d700b626ca3023b61b194f37d455407b48",
+    "source": {
+      "video": "C:\\Users\\villa\\Downloads\\video_14 (1).avi",
+      "frame": 44,
+      "seconds": 2.2,
+      "rotate": true
+    },
+    "roi": [
+      1,
+      71,
+      35,
+      30
+    ],
+    "polygon": [
+      [
+        35,
+        71
+      ],
+      [
+        23,
+        100
+      ],
+      [
+        2,
+        96
+      ],
+      [
+        1,
+        73
+      ]
+    ]
+  },
+  {
+    "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\cambios\\calibrador_verdes_express_20261102\\ensayo_video_14_20261104_125503\\muestra_20261104_125544_692825.png",
+    "kind": "green",
+    "frame_key": "09cd172c312f4aea26cafceaffd1608f7666eb0630822075202d52f90f208654",
+    "source": {
+      "video": "C:\\Users\\villa\\Downloads\\video_14 (1).avi",
+      "frame": 156,
+      "seconds": 7.8,
+      "rotate": true
+    },
+    "roi": [
+      150,
+      81,
+      10,
+      8
+    ],
+    "polygon": [
+      [
+        150,
+        81
+      ],
+      [
+        158,
+        81
+      ],
+      [
+        159,
+        88
+      ],
+      [
+        155,
+        87
+      ]
+    ]
+  },
+  {
+    "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\cambios\\calibrador_verdes_express_20261102\\ensayo_video_14_20261104_125503\\muestra_20261104_125559_143016.png",
+    "kind": "green",
+    "frame_key": "60828da2f637f66e00cd1da4ff83f2da7cf53b6c998b22590de5bbf5d14a38e4",
+    "source": {
+      "video": "C:\\Users\\villa\\Downloads\\video_14 (1).avi",
+      "frame": 169,
+      "seconds": 8.45,
+      "rotate": true
+    },
+    "roi": [
+      83,
+      66,
+      67,
+      44
+    ],
+    "polygon": [
+      [
+        149,
+        82
+      ],
+      [
+        128,
+        109
+      ],
+      [
+        83,
+        78
+      ],
+      [
+        106,
+        66
+      ]
+    ]
+  },
+  {
+    "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\cambios\\calibrador_verdes_express_20261102\\ensayo_video_14_20261104_125503\\muestra_20261104_125605_454657.png",
+    "kind": "green",
+    "frame_key": "fb3be892b7133165539c2ebaf676cb666a84a22fa9b8d0784292a70b7fa012f6",
+    "source": {
+      "video": "C:\\Users\\villa\\Downloads\\video_14 (1).avi",
+      "frame": 171,
+      "seconds": 8.55,
+      "rotate": true
+    },
+    "roi": [
+      80,
+      65,
+      59,
+      40
+    ],
+    "polygon": [
+      [
+        138,
+        80
+      ],
+      [
+        119,
+        104
+      ],
+      [
+        80,
+        77
+      ],
+      [
+        98,
+        65
+      ]
+    ]
+  },
+  {
+    "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\cambios\\calibrador_verdes_express_20261102\\ensayo_video_14_20261104_125503\\muestra_20261104_125609_451619.png",
+    "kind": "green",
+    "frame_key": "6e920b559830c5e59763145e0aecdee92dfce3ea834807f2233f1a6a90836ea2",
+    "source": {
+      "video": "C:\\Users\\villa\\Downloads\\video_14 (1).avi",
+      "frame": 173,
+      "seconds": 8.65,
+      "rotate": true
+    },
+    "roi": [
+      72,
+      61,
+      46,
+      35
+    ],
+    "polygon": [
+      [
+        117,
+        73
+      ],
+      [
+        99,
+        95
+      ],
+      [
+        72,
+        78
+      ],
+      [
+        82,
+        61
+      ]
+    ]
+  },
+  {
+    "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\cambios\\calibrador_verdes_express_20261102\\ensayo_video_14_20261104_125503\\muestra_20261104_125707_921239.png",
+    "kind": "negative",
+    "frame_key": "27a41a84144bfb99ff2baec52367809e4c79c1d73f2ebb9105cb54ad6a09a628",
+    "source": {
+      "video": "C:\\Users\\villa\\Downloads\\video_14 (1).avi",
+      "frame": 237,
+      "seconds": 11.85,
+      "rotate": true
+    },
+    "roi": [
+      104,
+      45,
+      47,
+      52
+    ],
+    "polygon": [
+      [
+        137,
+        45
+      ],
+      [
+        150,
+        86
+      ],
+      [
+        120,
+        96
+      ],
+      [
+        104,
+        47
+      ]
+    ]
+  },
+  {
+    "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\cambios\\calibrador_verdes_express_20261102\\ensayo_video_14_20261104_125503\\muestra_20261104_125711_133220.png",
+    "kind": "negative",
+    "frame_key": "27a41a84144bfb99ff2baec52367809e4c79c1d73f2ebb9105cb54ad6a09a628",
+    "source": {
+      "video": "C:\\Users\\villa\\Downloads\\video_14 (1).avi",
+      "frame": 237,
+      "seconds": 11.85,
+      "rotate": true
+    },
+    "roi": [
+      62,
+      42,
+      34,
+      71
+    ],
+    "polygon": [
+      [
+        64,
+        42
+      ],
+      [
+        79,
+        44
+      ],
+      [
+        95,
+        112
+      ],
+      [
+        62,
+        108
+      ]
+    ]
+  },
+  {
+    "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\cambios\\calibrador_verdes_express_20261102\\ensayo_video_14_20261104_125503\\muestra_20261104_125717_193774.png",
+    "kind": "negative",
+    "frame_key": "2c15832a8fb13044bb8c9df9c5837988ac723bd1d78d6b83822b32c8393bd11b",
+    "source": {
+      "video": "C:\\Users\\villa\\Downloads\\video_14 (1).avi",
+      "frame": 269,
+      "seconds": 13.45,
+      "rotate": true
+    },
+    "roi": [
+      13,
+      40,
+      110,
+      10
+    ],
+    "polygon": [
+      [
+        120,
+        40
+      ],
+      [
+        122,
+        49
+      ],
+      [
+        13,
+        49
+      ],
+      [
+        13,
+        45
+      ]
+    ]
+  },
+  {
+    "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\cambios\\calibrador_verdes_express_20261102\\ensayo_video_14_20261104_125503\\muestra_20261104_125722_151288.png",
+    "kind": "negative",
+    "frame_key": "2c15832a8fb13044bb8c9df9c5837988ac723bd1d78d6b83822b32c8393bd11b",
+    "source": {
+      "video": "C:\\Users\\villa\\Downloads\\video_14 (1).avi",
+      "frame": 269,
+      "seconds": 13.45,
+      "rotate": true
+    },
+    "roi": [
+      22,
+      30,
+      124,
+      11
+    ],
+    "polygon": [
+      [
+        145,
+        40
+      ],
+      [
+        24,
+        39
+      ],
+      [
+        22,
+        31
+      ],
+      [
+        138,
+        30
+      ]
+    ]
+  },
+  {
+    "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\cambios\\calibrador_verdes_express_20261102\\ensayo_video_14_20261104_125503\\muestra_20261104_125726_148824.png",
+    "kind": "negative",
+    "frame_key": "2c15832a8fb13044bb8c9df9c5837988ac723bd1d78d6b83822b32c8393bd11b",
+    "source": {
+      "video": "C:\\Users\\villa\\Downloads\\video_14 (1).avi",
+      "frame": 269,
+      "seconds": 13.45,
+      "rotate": true
+    },
+    "roi": [
+      92,
+      58,
+      66,
+      60
+    ],
+    "polygon": [
+      [
+        155,
+        59
+      ],
+      [
+        157,
+        117
+      ],
+      [
+        115,
+        116
+      ],
+      [
+        92,
+        58
+      ]
+    ]
+  },
+  {
+    "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\cambios\\calibrador_verdes_express_20261102\\ensayo_video_14_20261104_125503\\muestra_20261104_125732_077889.png",
+    "kind": "negative",
+    "frame_key": "2c15832a8fb13044bb8c9df9c5837988ac723bd1d78d6b83822b32c8393bd11b",
+    "source": {
+      "video": "C:\\Users\\villa\\Downloads\\video_14 (1).avi",
+      "frame": 269,
+      "seconds": 13.45,
+      "rotate": true
+    },
+    "roi": [
+      2,
+      63,
+      39,
+      56
+    ],
+    "polygon": [
+      [
+        21,
+        67
+      ],
+      [
+        40,
+        63
+      ],
+      [
+        30,
+        116
+      ],
+      [
+        2,
+        118
+      ]
+    ]
+  }
+]

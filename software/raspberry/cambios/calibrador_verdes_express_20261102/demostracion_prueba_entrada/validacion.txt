@@ -1,0 +1,3 @@
+COLOR: OK
+DECISIONES: OK
+Area minima y tiempos sin cambiar. Un borrador no se instala.

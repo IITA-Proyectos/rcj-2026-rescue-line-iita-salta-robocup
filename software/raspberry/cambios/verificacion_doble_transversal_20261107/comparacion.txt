@@ -1,0 +1,10 @@
+cuadros comparados: 156316 | tramos con diferencias: 4
+  1249_000002    primer cuadro distinto n=1651: D centroide -23.7 gs2 | E centroide -23.7 gs3 | robot centroide gs2  (1 de 1764 distintos)
+  1249_016202    primer cuadro distinto n=17706: D centroide -45.6 gs2 | E centroide -45.6 gs3 | robot centroide gs2  (1 de 1621 distintos)
+  1953_001758    primer cuadro distinto n=1850: D centroide -38.2 gs2 | E centroide -38.2 gs3 | robot centroide gs0  (2 de 239 distintos)
+  1953_006589    primer cuadro distinto n=6949: D centroide -20.3 gs2 | E centroide -20.3 gs3 | robot centroide gs0  (1 de 690 distintos)
+
+eventos en el log  D: {'plateado RECTA': 10, 'cresta armada': 17, 'cresta tope': 11, 'cresta conecta': 6, 'bajada recupera': 6} 
+                   E: {'plateado RECTA': 10, 'cresta armada': 17, 'cresta tope': 11, 'cresta conecta': 6, 'bajada recupera': 6}
+
+etiqueta igual a la del robot (D): 0718 93%, 0719 90%, 1031 91%, 1111 96%, 1147 81%, 1238 89%, 1249 74%, 1354 92%, 1409 73%, 1953 92%, 2103 92%, 2136 97%, 2211 94%

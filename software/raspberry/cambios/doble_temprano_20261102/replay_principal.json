@@ -1,0 +1,56 @@
+{
+  "frames": 24341,
+  "changed": 13,
+  "groups": [
+    {
+      "start": 1649,
+      "end": 1651,
+      "frames": 3,
+      "transitions": [
+        "2->3"
+      ]
+    },
+    {
+      "start": 6641,
+      "end": 6643,
+      "frames": 3,
+      "transitions": [
+        "2->0",
+        "2->3"
+      ]
+    },
+    {
+      "start": 9971,
+      "end": 9971,
+      "frames": 1,
+      "transitions": [
+        "1->0"
+      ]
+    },
+    {
+      "start": 11568,
+      "end": 11568,
+      "frames": 1,
+      "transitions": [
+        "2->0"
+      ]
+    },
+    {
+      "start": 12785,
+      "end": 12787,
+      "frames": 3,
+      "transitions": [
+        "2->3"
+      ]
+    },
+    {
+      "start": 18843,
+      "end": 18844,
+      "frames": 2,
+      "transitions": [
+        "2->3"
+      ]
+    }
+  ],
+  "scope": "Replay con tiempos CSV y estado temporal de doble; sin simular maniobras, bloqueos main ni Teensy"
+}

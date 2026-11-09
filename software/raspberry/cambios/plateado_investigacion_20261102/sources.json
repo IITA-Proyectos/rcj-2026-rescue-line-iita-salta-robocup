@@ -1,0 +1,8 @@
+{
+  "fusion_detector": "https://github.com/BlanketOmelette/FusionZero-Robocup-2026/blob/HEAD/1_robot/behaviours/silver_detector.py",
+  "fusion_camera": "https://github.com/BlanketOmelette/FusionZero-Robocup-2026/blob/HEAD/1_robot/hardware/camera.py",
+  "fusion_metadata": "https://github.com/BlanketOmelette/FusionZero-Robocup-2026/blob/HEAD/2_assets/models/silver/silver_detector_meta.json",
+  "fusion_capture": "https://github.com/BlanketOmelette/FusionZero-Robocup-2026/blob/HEAD/1_robot/tools/capture_silver_dataset.py",
+  "international_sensor": "https://github.com/D-uality/FusionZero-Robocup-International/blob/HEAD/1_international/hardware/silver_sensor.py",
+  "international_detector": "https://github.com/D-uality/FusionZero-Robocup-International/blob/HEAD/1_international/behaviours/silver_detection.py"
+}

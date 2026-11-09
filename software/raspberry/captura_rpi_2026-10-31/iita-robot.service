@@ -1,0 +1,15 @@
+[Unit]
+Description=IITA RCJ Rescue Line robot main process
+After=network.target
+
+[Service]
+Type=simple
+User=iita
+WorkingDirectory=/home/iita/Desktop
+ExecStart=/usr/bin/python3 /home/iita/Desktop/main.py
+Restart=always
+RestartSec=2
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

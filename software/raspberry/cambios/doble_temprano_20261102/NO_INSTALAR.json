@@ -1,0 +1,7 @@
+{
+  "enabled_for_control": false,
+  "status": "RECHAZADO_POR_REGRESION",
+  "case": "9971 cambia izquierda correcta 1 a espera 0",
+  "ground_truth": "Confirmacion del usuario: izquierda correcta en esta entrada",
+  "note": "La presencia de dos manchas no distingue por si sola un doble valido de verdes de ramas distintas. El replay numerico anterior no es aprobacion."
+}

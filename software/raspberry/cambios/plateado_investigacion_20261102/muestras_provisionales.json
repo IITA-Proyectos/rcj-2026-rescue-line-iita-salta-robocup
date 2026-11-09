@@ -1,0 +1,90 @@
+[
+  {
+    "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\corridas\\20261101_124912\\crudo_doble_dato_20261101_124912\\1101_124926\\f_005020.png",
+    "label": "silver",
+    "roi": [
+      10,
+      67,
+      20,
+      6
+    ],
+    "split": "fit"
+  },
+  {
+    "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\corridas\\20261101_124912\\crudo_doble_dato_20261101_124912\\1101_124926\\f_015320.png",
+    "label": "silver",
+    "roi": [
+      10,
+      60,
+      20,
+      6
+    ],
+    "split": "fit"
+  },
+  {
+    "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\corridas\\20261101_124912\\crudo_doble_dato_20261101_124912\\1101_124926\\f_009165.png",
+    "label": "silver",
+    "roi": [
+      10,
+      56,
+      20,
+      4
+    ],
+    "split": "test"
+  },
+  {
+    "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\corridas\\20261101_124912\\crudo_doble_dato_20261101_124912\\1101_124926\\f_009340.png",
+    "label": "silver",
+    "roi": [
+      10,
+      85,
+      20,
+      6
+    ],
+    "split": "test"
+  },
+  {
+    "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\corridas\\20261101_124912\\crudo_doble_dato_20261101_124912\\1101_124926\\f_015320.png",
+    "label": "negative",
+    "roi": [
+      5,
+      100,
+      20,
+      10
+    ],
+    "split": "test"
+  },
+  {
+    "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\corridas\\20261101_124912\\crudo_doble_dato_20261101_124912\\1101_124926\\f_015320.png",
+    "label": "negative",
+    "roi": [
+      80,
+      100,
+      8,
+      10
+    ],
+    "split": "test"
+  },
+  {
+    "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\corridas\\20261101_124912\\crudo_doble_dato_20261101_124912\\1101_124926\\f_000840.png",
+    "label": "negative",
+    "roi": [
+      10,
+      105,
+      20,
+      10
+    ],
+    "split": "test"
+  },
+  {
+    "image": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\corridas\\20261101_124912\\crudo_doble_dato_20261101_124912\\1101_124926\\f_012886.png",
+    "label": "negative",
+    "roi": [
+      5,
+      60,
+      20,
+      8
+    ],
+    "split": "test"
+  }
+]

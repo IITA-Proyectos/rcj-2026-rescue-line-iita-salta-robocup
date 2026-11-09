@@ -1,0 +1,61 @@
+{
+  "referencia": {
+    "path": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\corridas\\20261101_124912\\main.py",
+    "main_sha256": "66170c4620d1d30108ef71ec6cd2e1905f74dfc72673397bf8f3af63bc7d9397",
+    "green_block_sha256": "bb2f99ff7f47221bdd339a0e13164a2dfacd938af4cd81271a3a76a880fe883c",
+    "constants": {
+      "min_square_size": 200,
+      "lower_black": [
+        0,
+        0,
+        0
+      ],
+      "upper_black": [
+        90,
+        90,
+        90
+      ],
+      "lower_green": [
+        120,
+        90,
+        110
+      ],
+      "upper_green": [
+        198,
+        109,
+        134
+      ]
+    }
+  },
+  "claude_local": {
+    "path": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\cambios\\cresta_bajada_20261101\\main.py",
+    "main_sha256": "e91869114a80507fc92aea627b96e624c22715a3ca9d3c5425fdf11346d2ee81",
+    "green_block_sha256": "bb2f99ff7f47221bdd339a0e13164a2dfacd938af4cd81271a3a76a880fe883c",
+    "constants": {
+      "min_square_size": 200,
+      "lower_black": [
+        0,
+        0,
+        0
+      ],
+      "upper_black": [
+        90,
+        90,
+        90
+      ],
+      "lower_green": [
+        120,
+        90,
+        110
+      ],
+      "upper_green": [
+        198,
+        109,
+        134
+      ]
+    }
+  },
+  "same_green_block": true,
+  "same_constants": true,
+  "scope": "Comparacion estatica local del bloque visual de verdes. No valida rampa/plateado ni confirma version final o instalada en Pi."
+}

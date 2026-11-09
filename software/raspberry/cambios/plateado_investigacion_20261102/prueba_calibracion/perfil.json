@@ -1,0 +1,18 @@
+{
+  "version": "SILVER-LAB-CALIBRATION-1",
+  "enabled_for_control": false,
+  "color_space": "OpenCV LAB uint8",
+  "lower": [
+    59,
+    117,
+    123
+  ],
+  "upper": [
+    137,
+    137,
+    140
+  ],
+  "fit_pixels": 240,
+  "scope": "Solo mascara auxiliar; no identifica material por si sola",
+  "manifest": "C:\\Users\\villa\\rcj-2026-rescue-line-iita-salta-robocup-priority-fixes\\software\\raspberry\\cambios\\plateado_investigacion_20261102\\muestras_provisionales.json"
+}

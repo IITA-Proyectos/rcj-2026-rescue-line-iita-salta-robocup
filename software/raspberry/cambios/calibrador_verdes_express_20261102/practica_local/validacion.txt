@@ -1,0 +1,4 @@
+COLOR: OK
+DECISIONES: PENDIENTES
+Area minima y tiempos sin cambiar. Un borrador no se instala.
+Escena muestra_20261102_085529_642029.png: esperaba 3, da 0

@@ -1,0 +1,74 @@
+[
+  {
+    "n": 1184,
+    "recorded_green_state": 1,
+    "visual_state": 1,
+    "image": "f_001184.png"
+  },
+  {
+    "n": 2357,
+    "recorded_green_state": 1,
+    "visual_state": 1,
+    "image": "f_002357.png"
+  },
+  {
+    "n": 1650,
+    "recorded_green_state": 0,
+    "visual_state": 0,
+    "image": "f_001650.png"
+  },
+  {
+    "n": 1651,
+    "recorded_green_state": 2,
+    "visual_state": 2,
+    "image": "f_001651.png"
+  },
+  {
+    "n": 1652,
+    "recorded_green_state": 3,
+    "visual_state": 3,
+    "image": "f_001652.png"
+  },
+  {
+    "n": 2150,
+    "recorded_green_state": 3,
+    "visual_state": 3,
+    "image": "f_002150.png"
+  },
+  {
+    "n": 3399,
+    "recorded_green_state": 2,
+    "visual_state": 2,
+    "image": "f_003399.png"
+  },
+  {
+    "n": 6644,
+    "recorded_green_state": 3,
+    "visual_state": 3,
+    "image": "f_006644.png"
+  },
+  {
+    "n": 7598,
+    "recorded_green_state": 2,
+    "visual_state": 2,
+    "image": "f_007598.png"
+  },
+  {
+    "n": 9165,
+    "recorded_green_state": 0,
+    "visual_state": 0,
+    "image": "f_009165.png"
+  },
+  {
+    "n": 12886,
+    "recorded_green_state": 0,
+    "visual_state": 0,
+    "image": "f_012886.png"
+  },
+  {
+    "n": 15320,
+    "recorded_green_state": 0,
+    "visual_state": 0,
+    "image": "f_015320.png"
+  }
+]

@@ -1,0 +1,9 @@
+COLOR: OK
+DECISIONES: PENDIENTES
+Area minima y tiempos sin cambiar. Un borrador no se instala.
+Escena muestra_20261104_124651_718443.png: esperaba 3, da 0; cuadro aislado: falta contexto real para confirmar el doble
+Entrada sin secuencia suficiente: muestra_20261104_124814_747813.png
+Escena muestra_20261104_124814_747813.png: esperaba 1, da 0
+Entrada sin secuencia suficiente: muestra_20261104_124954_560354.png
+Escena muestra_20261104_124954_560354.png: esperaba 0, da 3
+Entrada sin secuencia suficiente: muestra_20261104_124958_225485.png

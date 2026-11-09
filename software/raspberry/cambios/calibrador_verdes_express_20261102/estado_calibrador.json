@@ -1,0 +1,13 @@
+{
+  "version": "VERDES-EXPRESS-2",
+  "user_samples": 36,
+  "green_samples": 14,
+  "negative_samples": 11,
+  "scene_samples": 11,
+  "calibrator_tests_passed": 29,
+  "reforcement_tests_passed": 12,
+  "hardware_validated": false,
+  "robot_changed": false,
+  "practice_profile_approved": false,
+  "entry_demo_approved_offline": true
+}

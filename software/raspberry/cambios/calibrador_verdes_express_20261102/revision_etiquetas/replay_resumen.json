@@ -1,0 +1,10 @@
+{
+  "frames": 1903,
+  "changes": 123,
+  "old_nonzero": 488,
+  "candidate_nonzero": 605,
+  "new_when_old_zero": 117,
+  "lost_when_old_nonzero": 0,
+  "different_sides": 6,
+  "scope": "Comparacion visual por cuadro sin estado temporal; registro no es etiqueta de verdad"
+}
