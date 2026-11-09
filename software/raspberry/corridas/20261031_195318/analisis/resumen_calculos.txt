@@ -1,0 +1,109 @@
+FRAMES 7927 CSV 80289 time 0.031 379.035 csvtime 432.435 drops 5408
+GAPS    n       t    gap
+   2   9.306  9.275
+1161  59.346  3.676
+1345  69.334  2.651
+1758  88.126  2.675
+1997  99.423  2.697
+2870 135.115  1.653
+3118 146.200  1.662
+3149 154.159  6.740
+3793 181.216  1.974
+3827 185.020  2.657
+4264 209.496  7.753
+4565 224.058  2.659
+4775 234.827  2.653
+4936 243.615  2.652
+5426 274.567 11.825
+6589 322.945  1.631
+7279 352.678  3.634
+7407 359.042  1.344
+GS {0: 7007, 4: 680, 18: 138, 2: 48, 1: 27, 3: 27}
+EVENTS [{"kind": "verde", "n": 1444, "end": 1444, "t": 73.53, "duration": 0.0, "gs": 1, "angle": -1.7, "maxgreen": 1119}, {"kind": "verde", "n": 1693, "end": 1706, "t": 83.21, "duration": 0.5090000000000003, "gs": 2, "angle": -13.8, "maxgreen": 2664}, {"kind": "verde", "n": 1853, "end": 1861, "t": 91.887, "duration": 0.31099999999999284, "gs": 3, "angle": -26.4, "maxgreen": 2187}, {"kind": "verde", "n": 2070, "end": 2076, "t": 102.278, "duration": 0.23599999999999, "gs": 1, "angle": 3.3, "maxgreen": 1706}, {"kind": "verde", "n": 2502, "end": 2508, "t": 119.63, "duration": 0.2680000000000007, "gs": 2, "angle": 9.2, "maxgreen": 1725}, {"kind": "verde", "n": 2579, "end": 2586, "t": 122.536, "duration": 0.269999999999996, "gs": 2, "angle": 17.1, "maxgreen": 1411}, {"kind": "verde", "n": 2676, "end": 2683, "t": 126.258, "duration": 0.2810000000000059, "gs": 2, "angle": -1.8, "maxgreen": 1544}, {"kind": "verde", "n": 2908, "end": 2916, "t": 136.674, "duration": 0.3199999999999932, "gs": 2, "angle": 3.4, "maxgreen": 1504}, {"kind": "verde", "n": 6698, "end": 6698, "t": 327.29, "duration": 0.0, "gs": 1, "angle": 0.6, "maxgreen": 601}, {"kind": "verde", "n": 6952, "end": 6961, "t": 337.15, "duration": 0.3520000000000323, "gs": 3, "angle": -30.1, "maxgreen": 2425}, {"kind": "verde", "n": 6963, "end": 6967, "t": 337.574, "duration": 0.13700000000000045, "gs": 1, "angle": -62.7, "maxgreen": 1701}, {"kind": "verde", "n": 7123, "end": 7130, "t": 343.187, "duration": 0.27899999999999636, "gs": 1, "angle": 2.9, "maxgreen": 1500}, {"kind": "verde", "n": 7602, "end": 7603, "t": 366.718, "duration": 0.03999999999996362, "gs": 2, "angle": 9.5, "maxgreen": 704}, {"kind": "verde", "n": 7605, "end": 7606, "t": 366.838, "duration": 0.03999999999996362, "gs": 2, "angle": 8.6, "maxgreen": 1165}, {"kind": "verde", "n": 7682, "end": 7687, "t": 369.746, "duration": 0.20400000000000773, "gs": 2, "angle": 25.2, "maxgreen": 1402}, {"kind": "verde", "n": 7778, "end": 7782, "t": 373.408, "duration": 0.15899999999999181, "gs": 2, "angle": 0.2, "maxgreen": 1355}, {"kind": "recup", "n": 434, "end": 467, "t": 26.5, "duration": 1.3129999999999988, "gs": 4, "angle": 0.0, "maxgreen": 0}, {"kind": "recup", "n": 941, "end": 954, "t": 46.827, "duration": 0.49900000000000233, "gs": 4, "angle": 0.0, "maxgreen": 0}, {"kind": "recup", "n": 2413, "end": 2447, "t": 116.098, "duration": 1.3400000000000034, "gs": 4, "angle": 0.0, "maxgreen": 0}, {"kind": "recup", "n": 2793, "end": 2828, "t": 130.732, "duration": 1.3300000000000125, "gs": 4, "angle": 0.0, "maxgreen": 0}, {"kind": "recup", "n": 3025, "end": 3060, "t": 141.116, "duration": 1.3269999999999982, "gs": 4, "angle": 0.0, "maxgreen": 0}, {"kind": "recup", "n": 3315, "end": 3349, "t": 160.596, "duration": 1.3449999999999989, "gs": 4, "angle": 0.0, "maxgreen": 0}, {"kind": "recup", "n": 3613, "end": 3647, "t": 172.12, "duration": 1.3269999999999982, "gs": 4, "angle": 0.0, "maxgreen": 0}, {"kind": "recup", "n": 3740, "end": 3773, "t": 177.099, "duration": 1.3480000000000132, "gs": 4, "angle": 0.0, "maxgreen": 0}, {"kind": "recup", "n": 4060, "end": 4094, "t": 194.008, "duration": 1.3269999999999982, "gs": 4, "angle": 0.0, "maxgreen": 0}, {"kind": "recup", "n": 4196, "end": 4229, "t": 199.261, "duration": 1.318000000000012, "gs": 4, "angle": 0.0, "maxgreen": 0}, {"kind": "recup", "n": 4332, "end": 4365, "t": 212.219, "duration": 1.3470000000000084, "gs": 4, "angle": 0.0, "maxgreen": 0}, {"kind": "recup", "n": 4517, "end": 4550, "t": 219.577, "duration": 1.318000000000012, "gs": 4, "angle": 0.0, "maxgreen": 0}, {"kind": "recup", "n": 4647, "end": 4682, "t": 227.233, "duration": 1.336999999999989, "gs": 4, "angle": 0.0, "maxgreen": 0}, {"kind": "recup", "n": 4889, "end": 4904, "t": 239.245, "duration": 0.5910000000000082, "gs": 4, "angle": 0.0, "maxgreen": 0}, {"kind": "recup", "n": 4990, "end": 5023, "t": 245.732, "duration": 1.313999999999993, "gs": 4, "angle": 0.0, "maxgreen": 0}, {"kind": "recup", "n": 5261, "end": 5275, "t": 256.426, "duration": 0.5970000000000368, "gs": 4, "angle": 0.0, "maxgreen": 0}, {"kind": "recup", "n": 5362, "end": 5397, "t": 260.464, "duration": 1.3170000000000073, "gs": 4, "angle": 0.0, "maxgreen": 0}, {"kind": "recup", "n": 5877, "end": 5911, "t": 292.467, "duration": 1.3340000000000032, "gs": 4, "angle": 0.0, "maxgreen": 0}, {"kind": "recup", "n": 6383, "end": 6396, "t": 312.7, "duration": 0.4900000000000091, "gs": 4, "angle": 0.0, "maxgreen": 0}, {"kind": "recup", "n": 7410, "end": 7440, "t": 359.162, "duration": 1.3330000000000268, "gs": 4, "angle": 0.0, "maxgreen": 0}, {"kind": "recup", "n": 7515, "end": 7550, "t": 363.314, "duration": 1.3319999999999936, "gs": 4, "angle": 0.0, "maxgreen": 0}, {"kind": "recup", "n": 7897, "end": 7927, "t": 377.877, "duration": 1.1580000000000155, "gs": 4, "angle": 0.0, "maxgreen": 0}, {"kind": "gap", "n": 955, "end": 998, "t": 47.368, "duration": 1.5219999999999985, "gs": 18, "angle": 0.0, "maxgreen": 0}, {"kind": "gap", "n": 4905, "end": 4935, "t": 239.888, "duration": 1.0749999999999886, "gs": 18, "angle": 0.0, "maxgreen": 0}, {"kind": "gap", "n": 5276, "end": 5294, "t": 257.063, "duration": 0.6970000000000027, "gs": 18, "angle": 0.0, "maxgreen": 0}, {"kind": "gap", "n": 6397, "end": 6440, "t": 313.246, "duration": 1.5160000000000196, "gs": 18, "angle": 0.0, "maxgreen": 0}]
+ALIGN [(np.float64(6.719156572454015), np.float64(50.34999999999373)), (np.float64(61.19665021683865), np.float64(50.324999999993736)), (np.float64(66.51220919054028), np.float64(50.37499999999372)), (np.float64(76.8568437693606), np.float64(50.399999999993724)), (np.float64(80.9477878185819), np.float64(50.29999999999373))]
+VERDE_REASONS {'aceptado': 102, 'area': 75, 'negro_encima': 73}
+PIVOTS [{"n": 449, "t": 27.155, "duration": 0.75, "rxangle": -55.0, "yaw": 40.6, "after": "<StringArray>\n['recup-cooldown-recto', 'centroide']\nLength: 2, dtype: str"}, {"n": 2429, "t": 116.75, "duration": 0.8, "rxangle": 72.0, "yaw": -44.5, "after": "<StringArray>\n['centroide', 'recup-cooldown-recto']\nLength: 2, dtype: str"}, {"n": 2808, "t": 131.38, "duration": 0.795, "rxangle": -69.9, "yaw": 43.6, "after": "<StringArray>\n['recup-cooldown-recto']\nLength: 1, dtype: str"}, {"n": 3040, "t": 141.77, "duration": 0.775, "rxangle": -72.0, "yaw": 43.5, "after": "<StringArray>\n['recup-cooldown-recto', 'centroide']\nLength: 2, dtype: str"}, {"n": 3328, "t": 161.12, "duration": 0.86, "rxangle": 69.9, "yaw": -45.0, "after": "<StringArray>\n['recup-cooldown-recto', 'centroide']\nLength: 2, dtype: str"}, {"n": 3629, "t": 172.775, "duration": 0.75, "rxangle": -63.0, "yaw": 41.7, "after": "<StringArray>\n['centroide', 'recup-completa-giro']\nLength: 2, dtype: str"}, {"n": 3753, "t": 177.625, "duration": 0.87, "rxangle": 68.9, "yaw": -45.0, "after": "<StringArray>\n['recup-CURVA', 'centroide']\nLength: 2, dtype: str"}, {"n": 4076, "t": 194.66, "duration": 0.78, "rxangle": -66.0, "yaw": 42.2, "after": "<StringArray>\n['recup-completa-giro', 'centroide']\nLength: 2, dtype: str"}, {"n": 4209, "t": 199.785, "duration": 0.835, "rxangle": 66.0, "yaw": -44.5, "after": "<StringArray>\n['recup-CURVA', 'recup-cooldown-recto']\nLength: 2, dtype: str"}, {"n": 4347, "t": 212.875, "duration": 0.81, "rxangle": -77.9, "yaw": 45.7, "after": "<StringArray>\n['centroide', 'recup-cooldown-recto']\nLength: 2, dtype: str"}, {"n": 4532, "t": 220.225, "duration": 0.765, "rxangle": 77.9, "yaw": -45.5, "after": "<StringArray>\n['recup-cooldown-recto']\nLength: 1, dtype: str"}, {"n": 4664, "t": 227.885, "duration": 0.735, "rxangle": -42.9, "yaw": 40.7, "after": "<StringArray>\n['recup-completa-giro', 'centroide']\nLength: 2, dtype: str"}, {"n": 5006, "t": 246.385, "duration": 0.79, "rxangle": 68.0, "yaw": -43.5, "after": "<StringArray>\n['recup-completa-giro', 'centroide']\nLength: 2, dtype: str"}, {"n": 5378, "t": 261.115, "duration": 0.845, "rxangle": -90.0, "yaw": 47.3, "after": "<StringArray>\n['recup-cooldown-recto']\nLength: 1, dtype: str"}, {"n": 5892, "t": 293.115, "duration": 0.8, "rxangle": -72.0, "yaw": 43.8, "after": "<StringArray>\n['recup-cooldown-recto', 'centroide']\nLength: 2, dtype: str"}, {"n": 7423, "t": 359.81, "duration": 0.82, "rxangle": 73.0, "yaw": -43.9, "after": "<StringArray>\n['recup-cooldown-recto', 'recup-completa-giro', 'centroide']\nLength: 3, dtype: str"}, {"n": 7531, "t": 363.965, "duration": 0.785, "rxangle": 73.0, "yaw": -43.7, "after": "<StringArray>\n['recup-cooldown-recto', 'centroide']\nLength: 2, dtype: str"}, {"n": 7913, "t": 378.53, "duration": 3.555, "rxangle": -77.0, "yaw": -67.0, "after": "<StringArray>\n[]\nLength: 0, dtype: str"}]
+REJECT 270   n    g  density       reason
+273  141 0.058974         area
+274  785 0.000000 negro_encima
+275 1470 0.000521 negro_encima
+276 2186 0.000521 negro_encima
+277 2223 0.000000 negro_encima
+278 1976 0.000000 negro_encima
+279 1660 0.000000 negro_encima
+280 1260 0.000000 negro_encima
+281  797 0.000000 negro_encima
+282  797 0.000000 negro_encima
+283  439 0.000000         area
+284  161 0.000000         area
+REJECT 1137    n    g  density       reason
+1137  152 0.316667         area
+1139  467 0.050641         area
+1140  690 0.042105 negro_encima
+1141  866 0.029167 negro_encima
+1142 1192 0.010714 negro_encima
+1143 1233 0.008485 negro_encima
+1144 1018 0.002469 negro_encima
+1145  999 0.001258 negro_encima
+1146  907 0.000629 negro_encima
+1147  827 0.000000 negro_encima
+1148  678 0.000000 negro_encima
+1149  219 0.000000         area
+REJECT 1572    n    g  density       reason
+1572  147 0.064957         area
+1573  325 0.010000         area
+1574  558 0.009877         area
+1575 1193 0.001493 negro_encima
+1576 1601 0.000000 negro_encima
+1577 2345 0.000000 negro_encima
+1578 3123 0.001075 negro_encima
+1579 3073 0.000000 negro_encima
+1580 2840 0.000000 negro_encima
+1581 2619 0.000000 negro_encima
+1582 2386 0.000000 negro_encima
+1583 2059 0.000000 negro_encima
+1584 2059 0.000000 negro_encima
+1585 1244 0.000000 negro_encima
+1586 1244 0.000000 negro_encima
+1587  887 0.000000 negro_encima
+1588  602 0.000000 negro_encima
+1589  314 0.000000         area
+REJECT 5715    n    g  density       reason
+5715  529 0.000000         area
+5716 1663 0.002116 negro_encima
+5717 2193 0.000000 negro_encima
+5718 2194 0.000000 negro_encima
+5719 1922 0.000000 negro_encima
+5720 1580 0.000000 negro_encima
+5721 1231 0.000000 negro_encima
+5722  732 0.000000 negro_encima
+5723  329 0.000000         area
+REJECT 6574    n    g  density       reason
+6574  734 0.005263 negro_encima
+6575 1033 0.004444 negro_encima
+6576 1390 0.013542 negro_encima
+6577 1274 0.013757 negro_encima
+6578 1061 0.007345 negro_encima
+6579  980 0.008187 negro_encima
+6580  856 0.001258 negro_encima
+6581  606 0.000000 negro_encima
+6582  337 0.000000         area
+6583  115 0.000000         area
+REJECT 6829    n    g  density       reason
+6829  128 0.017391         area
+6830  247 0.002174         area
+6831  870 0.000000 negro_encima
+6832 1218 0.000529 negro_encima
+6833 1639 0.000000 negro_encima
+6834 2244 0.000000 negro_encima
+6835 2908 0.000000 negro_encima
+6836 3227 0.000694 negro_encima
+6837 3006 0.000000 negro_encima
+6838 2692 0.000000 negro_encima
+6839 2203 0.000000 negro_encima
+6840 1753 0.000000 negro_encima
+6841 1410 0.000000 negro_encima
+6842 1057 0.000000 negro_encima
+6843  648 0.000000 negro_encima
+6844  648 0.000000 negro_encima
+6845  316 0.000000         area

@@ -1,0 +1,5 @@
+Contraste de decisiones registradas: OK
+Corrida nueva: 34 episodios; cambia [27, 28, 30, 31]; otros 30 conservados.
+GAP correctos 29/32: conservados. Decisiones de curva 2/3/26/33: conservadas.
+Corrida anterior: 22 episodios; 0 cambios adicionales.
+Esta comprobacion no es una simulacion fisica ni una reproduccion integral del lazo de vision.
