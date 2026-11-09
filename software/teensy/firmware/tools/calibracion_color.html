@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Calibracion APDS9960</title>
+<style>
+  :root { --bg:#f5f5f2; --fg:#1d1d1b; --card:#fff; --line:#d8d8d2; --ok:#1f7a3a; --bad:#b3261e; --acc:#2456a6; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#17181a; --fg:#e8e8e4; --card:#222326; --line:#3a3b3f; --ok:#5cc47e; --bad:#ff7b72; --acc:#7aa7ff; } }
+  body { background:var(--bg); color:var(--fg); font:15px/1.4 system-ui, sans-serif; margin:0; padding:16px; max-width:1000px; margin:auto; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:12px 14px; margin:12px 0; }
+  button { font:inherit; padding:8px 14px; border-radius:6px; border:1px solid var(--line); background:var(--card); color:var(--fg); cursor:pointer; }
+  button.pri { background:var(--acc); color:#fff; border-color:var(--acc); }
+  button:disabled { opacity:.45; cursor:default; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .colores { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:12px; }
+  table { border-collapse:collapse; width:100%; font:13px ui-monospace, monospace; }
+  td, th { padding:3px 6px; border-bottom:1px solid var(--line); text-align:right; }
+  th:first-child, td:first-child { text-align:left; }
+  .ok { color:var(--ok); } .bad { color:var(--bad); }
+  .vivo { font-size:28px; font-weight:700; }
+  pre { font:12px ui-monospace, monospace; max-height:140px; overflow:auto; margin:0; white-space:pre-wrap; }
+  .muted { opacity:.7; font-size:13px; }
+</style>
+</head>
+<body>
+<h1>Calibracion rapida del APDS9960</h1>
+<div class="muted">Robot con el switch APAGADO y el USB de la Teensy conectado. Chrome o Edge. Cerrar el monitor de PlatformIO antes de conectar.</div>
+
+<div class="card row">
+  <button id="bCon" class="pri">Conectar</button>
+  <span id="estado">desconectado</span>
+  <span style="flex:1"></span>
+  <button id="bVivo" disabled>Probar en vivo</button>
+  <button id="bFab" disabled>Valores de fabrica</button>
+</div>
+
+<div class="card">
+  <div>Lectura en vivo (con los umbrales <b>propuestos</b>): <span id="vivo" class="vivo">—</span></div>
+  <div id="vivoRaw" class="muted"></div>
+</div>
+
+<div class="colores" id="colores"></div>
+
+<div class="card">
+  <div class="row"><b style="flex:1">Calibracion propuesta</b>
+    <button id="bAplicar" class="pri" disabled>Guardar en el robot</button></div>
+  <div id="validacion" style="margin:8px 0"></div>
+  <table id="tCfg"><thead><tr><th>umbral</th><th>en el robot</th><th>propuesto</th></tr></thead><tbody></tbody></table>
+</div>
+
+<div class="card"><b>Consola</b><pre id="log"></pre></div>
+
+<script>
+const N_MUESTRAS = 10;      // muestras por color
+const LECT_POR_MUESTRA = 5; // lecturas crudas promediadas en cada muestra
+const COLORES = [
+  { id:'pl', nombre:'Plateado', ayuda:'Distintos puntos de la cinta plateada, con la peor luz.' },
+  { id:'bl', nombre:'Blanco',   ayuda:'Piso blanco, incluido cerca del plateado y en sombra.' },
+  { id:'ro', nombre:'Rojo',     ayuda:'Linea roja del final (si no hay, dejar vacio).' },
+];
+const CLAVES = ['pl_c_min','pl_rc_min','pl_rc_max','pl_rg_min','pl_rg_max','pl_rb_min','pl_rb_max','pl_bg_max',
+                'bl_c_min','bl_rc_min','bl_rc_max','ro_c_min','ro_c_max','ro_rc_min','ro_rg_min','ro_rb_min'];
+const ENTEROS = new Set(['pl_c_min','pl_bg_max','bl_c_min','ro_c_min','ro_c_max']);
+
+let port, writer, robotCfg = null, propuesta = null, ocupado = false, vivo = false;
+const muestras = { pl:[], bl:[], ro:[] };
+let esperaS = null;   // {lect:[], resolve}
+const $ = id => document.getElementById(id);
+const log = t => { const l=$('log'); l.textContent += t + '\n'; l.scrollTop = l.scrollHeight; };
+
+// --- serial ---------------------------------------------------------------
+$('bCon').onclick = async () => {
+  if (!('serial' in navigator)) { alert('Este navegador no tiene Web Serial. Usar Chrome o Edge.'); return; }
+  try {
+    port = await navigator.serial.requestPort({ filters:[{ usbVendorId:0x16C0 }] });
+    await port.open({ baudRate:115200 });
+  } catch (e) { log('ERR ' + e.message); return; }
+  writer = port.writable.getWriter();
+  $('estado').textContent = 'conectado';
+  $('bCon').disabled = true; $('bVivo').disabled = false; $('bFab').disabled = false;
+  leer();
+  await enviar('CAL?');
+};
+
+async function leer() {
+  const dec = new TextDecoderStream();
+  port.readable.pipeTo(dec.writable);
+  const rd = dec.readable.getReader();
+  let buf = '';
+  while (true) {
+    const { value, done } = await rd.read();
+    if (done) break;
+    buf += value;
+    let i;
+    while ((i = buf.indexOf('\n')) >= 0) { linea(buf.slice(0, i).trim()); buf = buf.slice(i + 1); }
+  }
+}
+
+function linea(l) {
+  if (!l.startsWith('#CAL')) return;            // el CSV de diagnostico se ignora
+  const p = l.split(/\s+/);
+  if (p[1] === 'S' && esperaS) { esperaS.lect.push(p.slice(2, 6).map(Number)); return; }
+  if (p[1] === 'SFIN' && esperaS) { const e = esperaS; esperaS = null; e.resolve(e.lect); return; }
+  log(l);
+  if (p[1] === 'CFG') {
+    robotCfg = {};
+    for (let i = 2; i + 1 < p.length; i += 2) robotCfg[p[i]] = Number(p[i + 1]);
+    recalcular();
+  }
+  if (p[1] === 'ERR' && esperaS) { const e = esperaS; esperaS = null; e.resolve(null); }
+}
+
+const enviar = async t => writer.write(new TextEncoder().encode(t + '\n'));
+function leerCrudo(n) {
+  return new Promise(res => {
+    esperaS = { lect:[], resolve:res };
+    enviar('CALS ' + n);
+    setTimeout(() => { if (esperaS) { esperaS = null; res(null); } }, 3000);
+  });
+}
+
+// --- muestras ---------------------------------------------------------------
+function promedio(lect) {
+  const s = [0,0,0,0];
+  lect.forEach(v => v.forEach((x, k) => s[k] += x));
+  return s.map(x => x / lect.length);
+}
+const ratios = ([r,g,b,c]) => ({ r,g,b,c, rc:c?r/c:0, rg:g?r/g:0, rb:b?r/b:0, bg:b-g });
+
+function dibujarColores() {
+  $('colores').innerHTML = '';
+  for (const col of COLORES) {
+    const m = muestras[col.id];
+    const d = document.createElement('div');
+    d.className = 'card';
+    d.innerHTML = `<div class="row"><b style="flex:1">${col.nombre} (${m.length}/${N_MUESTRAS})</b>
+      <button data-a="tomar" ${!port || m.length >= N_MUESTRAS ? 'disabled' : ''} class="pri">Tomar muestra</button>
+      <button data-a="borrar" ${m.length ? '' : 'disabled'}>Borrar</button></div>
+      <div class="muted">${col.ayuda}</div>
+      <table><tr><th>#</th><th>C</th><th>R/C</th><th>R/G</th><th>R/B</th><th>B-G</th></tr>
+      ${m.map((s, i) => `<tr><td>${i+1}</td><td>${s.c.toFixed(0)}</td><td>${s.rc.toFixed(3)}</td>
+        <td>${s.rg.toFixed(3)}</td><td>${s.rb.toFixed(3)}</td><td>${s.bg.toFixed(0)}</td></tr>`).join('')}</table>`;
+    d.querySelector('[data-a=tomar]').onclick = () => tomar(col.id);
+    d.querySelector('[data-a=borrar]').onclick = () => { muestras[col.id] = []; recalcular(); };
+    $('colores').appendChild(d);
+  }
+}
+
+async function tomar(id) {
+  if (ocupado) return;
+  ocupado = true;
+  const lect = await leerCrudo(LECT_POR_MUESTRA);
+  ocupado = false;
+  if (!lect || !lect.length) { log('No llegaron lecturas (switch apagado?)'); return; }
+  muestras[id].push(ratios(promedio(lect)));
+  recalcular();
+}
+
+// --- decision ----------------------------------------------------------------
+const stats = (m, k) => {
+  const v = m.map(s => s[k]);
+  const mean = v.reduce((a, b) => a + b, 0) / v.length;
+  const sd = Math.sqrt(v.reduce((a, b) => a + (b - mean) ** 2, 0) / v.length);
+  return { min:Math.min(...v), max:Math.max(...v), mean, sd };
+};
+// Banda = [min, max] de las 10 muestras ensanchada por 2 desvios (con un piso), para que una lectura
+// un poco peor que las medidas no se escape.
+const banda = (m, k, piso) => { const s = stats(m, k); const e = Math.max(piso, 2 * s.sd); return [s.min - e, s.max + e]; };
+
+function proponer() {
+  if (!robotCfg) return null;
+  const p = { ...robotCfg };
+  const pl = muestras.pl, bl = muestras.bl, ro = muestras.ro;
+  if (pl.length >= 3) {
+    [p.pl_rc_min, p.pl_rc_max] = banda(pl, 'rc', 0.006);
+    [p.pl_rg_min, p.pl_rg_max] = banda(pl, 'rg', 0.015);
+    [p.pl_rb_min, p.pl_rb_max] = banda(pl, 'rb', 0.015);
+    p.pl_c_min = Math.round(stats(pl, 'c').min * 0.75);
+    p.pl_bg_max = Math.round(Math.max(...pl.map(s => Math.abs(s.bg))) * 1.5 + 5);
+  }
+  if (bl.length >= 3) {
+    const [lo, hi] = banda(bl, 'rc', 0.008);
+    p.bl_rc_min = lo; p.bl_rc_max = hi;
+    p.bl_c_min = Math.round(stats(bl, 'c').min * 0.6);
+  }
+  // Frontera blanco/plateado: es la que causo rescates falsos. Si las bandas se pisan, se corta en el
+  // punto medio entre el blanco mas alto y el plateado mas bajo medidos.
+  if (pl.length >= 3 && bl.length >= 3) {
+    const bMax = stats(bl, 'rc').max, pMin = stats(pl, 'rc').min;
+    if (p.bl_rc_max > p.pl_rc_min || bMax < pMin) {
+      const f = (bMax + pMin) / 2;
+      if (bMax < pMin) { p.bl_rc_max = Math.min(p.bl_rc_max, f); p.pl_rc_min = Math.max(p.pl_rc_min, f); }
+    }
+    p.bl_rc_max = Math.min(p.bl_rc_max, p.pl_rc_min);
+  }
+  if (ro.length >= 3) {
+    p.ro_c_min = Math.round(stats(ro, 'c').min * 0.75);
+    p.ro_c_max = Math.round(stats(ro, 'c').max * 1.3);
+    p.ro_rc_min = banda(ro, 'rc', 0.01)[0];
+    p.ro_rg_min = banda(ro, 'rg', 0.05)[0];
+    p.ro_rb_min = banda(ro, 'rb', 0.05)[0];
+  }
+  for (const k of CLAVES) p[k] = ENTEROS.has(k) ? Math.round(p[k]) : Math.round(p[k] * 10000) / 10000;
+  return p;
+}
+
+// Copia de classify_color() de main.cpp (solo la parte calibrable).
+function clasificar(s, k) {
+  if (s.c >= k.ro_c_min && s.c <= k.ro_c_max && s.rc >= k.ro_rc_min && s.rg >= k.ro_rg_min && s.rb >= k.ro_rb_min) return 'Rojo';
+  if (s.c >= k.pl_c_min && s.rc >= k.pl_rc_min && s.rc <= k.pl_rc_max && s.rg >= k.pl_rg_min && s.rg <= k.pl_rg_max &&
+      s.rb >= k.pl_rb_min && s.rb <= k.pl_rb_max && Math.abs(s.bg) <= k.pl_bg_max) return 'Plateado';
+  if (s.c >= k.bl_c_min && s.rc >= k.bl_rc_min && s.rc < k.bl_rc_max) return 'Blanco';
+  return 'otro (Negro/Verde)';
+}
+
+function recalcular() {
+  dibujarColores();
+  propuesta = proponer();
+  const tb = $('tCfg').querySelector('tbody');
+  tb.innerHTML = '';
+  if (!propuesta) return;
+  for (const k of CLAVES) {
+    const cambia = Math.abs(propuesta[k] - robotCfg[k]) > 1e-6;
+    tb.innerHTML += `<tr><td>${k}</td><td>${robotCfg[k]}</td><td class="${cambia ? 'ok' : ''}">${propuesta[k]}</td></tr>`;
+  }
+  // Validacion: cada muestra tiene que dar su propio color con la propuesta.
+  let total = 0, bien = 0, errores = [];
+  for (const col of COLORES) for (const [i, s] of muestras[col.id].entries()) {
+    total++;
+    const d = clasificar(s, propuesta);
+    if (d === col.nombre) bien++; else errores.push(`${col.nombre} #${i+1} -> ${d}`);
+  }
+  const hay = muestras.pl.length >= 3 || muestras.bl.length >= 3 || muestras.ro.length >= 3;
+  $('validacion').innerHTML = !total ? 'Tomar muestras (minimo 3 por color, ideal 10).' :
+    `<span class="${errores.length ? 'bad' : 'ok'}">${bien}/${total} muestras se clasifican bien con la propuesta.</span>` +
+    (errores.length ? `<div class="bad">${errores.join('<br>')}</div><div>No guardar: separar mejor las muestras o borrar la que esta mal tomada.</div>` : '') +
+    (muestras.pl.length && !muestras.bl.length ? '<div class="bad">Falta Blanco: sin el no se puede verificar que el piso no de plateado.</div>' : '');
+  $('bAplicar').disabled = !hay || errores.length > 0 || (muestras.pl.length >= 3 && muestras.bl.length < 3);
+}
+
+$('bAplicar').onclick = async () => {
+  if (!confirm('Guardar estos umbrales en la EEPROM de la Teensy?')) return;
+  for (const k of CLAVES) if (Math.abs(propuesta[k] - robotCfg[k]) > 1e-6) {
+    await enviar(`CALSET ${k} ${propuesta[k]}`);
+    await new Promise(r => setTimeout(r, 30));
+  }
+  await enviar('CALSAVE');
+  await new Promise(r => setTimeout(r, 100));
+  await enviar('CAL?');   // releer lo que quedo de verdad en el robot
+};
+
+$('bFab').onclick = async () => { if (confirm('Volver a los umbrales de fabrica?')) await enviar('CALDEF'); };
+
+$('bVivo').onclick = async () => {
+  vivo = !vivo;
+  $('bVivo').textContent = vivo ? 'Parar' : 'Probar en vivo';
+  while (vivo) {
+    if (!ocupado) {
+      ocupado = true;
+      const lect = await leerCrudo(3);
+      ocupado = false;
+      if (lect && lect.length && propuesta) {
+        const s = ratios(promedio(lect));
+        $('vivo').textContent = clasificar(s, propuesta);
+        $('vivoRaw').textContent = `C ${s.c.toFixed(0)}  R/C ${s.rc.toFixed(3)}  R/G ${s.rg.toFixed(3)}  R/B ${s.rb.toFixed(3)}  B-G ${s.bg.toFixed(0)}`;
+      }
+    }
+    await new Promise(r => setTimeout(r, 150));
+  }
+};
+
+dibujarColores();
+</script>
+</body>
+</html>

@@ -222,12 +222,12 @@ static const unsigned long WATCHDOG_CONFIRMA_MS = 300;
 // ----------------------------------------------------------------------------
 #define LINEA_PERDIDA_GS          4       // el codigo que manda la Raspberry
 #define RECUP_VEL                25       // rpm, despacio: se esta yendo a ciegas
-#define RECUP_MS                400       // retroceso: gana campo visual antes de decidir el lado
+#define RECUP_MS                550       // retroceso: gana campo visual antes de decidir el lado
 #define RECUP_STEER_MIN          0.10     // 9 grados de CAMINO: debajo no se elige lado
 #define RECUP_GIRO_VEL           35       // velocidad del pivote de busqueda
 #define RECUP_PIVOTE_ROT         1.00     // giro sobre el eje: no consume zona mientras se orienta
 #define RECUP_GIRO_BASE_GRADOS   28.0f    // grados base del pivote de recuperación
-#define RECUP_GIRO_CAMINO_K      0.22f    // grados extra por grado de rumbo CAMINO
+#define RECUP_GIRO_CAMINO_K      0.15f    // grados extra por grado de rumbo CAMINO
 #define RECUP_GIRO_DER_EXTRA_GRADOS 0.0f  // extra al pivotar a la DERECHA (signo < 0); 0 = simétrico
 #define RECUP_GIRO_MIN_GRADOS    35.0f    // nunca corregir menos que esto
 #define RECUP_GIRO_MAX_GRADOS    58.0f    // evita los pivotes exagerados de 70-90 deg
@@ -260,6 +260,17 @@ static const unsigned long WATCHDOG_CONFIRMA_MS = 300;
 #define TEENSY_RAMPA_SUBE        242      // 0xF2  subiendo: Pi usa ROI de 30 px (corte Y=90)
 #define TEENSY_RAMPA_BAJA        243      // 0xF3  bajando: Pi vuelve al ROI normal
 #define TEENSY_RAMPA_LLANO       244      // 0xF4  llano: Pi usa ROI normal
+// OBSTACULO (12-oct). Durante el esquive la Pi pierde la cinta, pide la recuperacion (GS=4) y se queda
+// esperando el 0xEF; al volver a la cinta la Teensy la ejecutaba (crudo 1012_135700: retrocede, pivotea
+// y se va de la pista). Ahora avisa: 0xF5 al empezar el esquive, 0xF6 al terminarlo (dos veces, por si
+// se pierde uno), y tira las tramas que quedaron en el buffer durante el esquive. Con OBST_SIN_RECUP=1
+// la Pi no dispara la recuperacion en ese tiempo. Sin esa variable la Pi ignora los dos bytes.
+// 0 = como antes.
+#ifndef OBSTACULO_AVISA_PI
+#define OBSTACULO_AVISA_PI       1
+#endif
+#define TEENSY_OBST_INICIO       245      // 0xF5  empieza el esquive del obstaculo
+#define TEENSY_OBST_FIN          246      // 0xF6  termino el esquive: volvio a la cinta
 
 // Antes de entrar a rescate, el APDS mira SOLO la ultima recuperacion FISICA.
 // Si fue lateral reciente: deshace LA MITAD del giro real, en sentido contrario.
@@ -268,12 +279,37 @@ static const unsigned long WATCHDOG_CONFIRMA_MS = 300;
 #define SILVER_REC_UNDO_FACTOR     0.50f
 #define SILVER_REC_UNDO_VEL        25
 #define SILVER_REC_UNDO_MAX_MS     1400UL
+// 27-sep: si NO hubo NINGUNA recuperacion en los ultimos SILVER_REC_MEMORY_MS (hasta hoy no giraba),
+// gira PLATEADO_SIN_RECUP_GIRO_GRADOS a la DERECHA antes de entrar a rescate: el APDS esta a la
+// derecha del robot. Con recuperacion (lateral, chica o por GAP), todo como siempre. 0 = no gira.
+#ifndef PLATEADO_SIN_RECUP_GIRO_GRADOS
+#define PLATEADO_SIN_RECUP_GIRO_GRADOS 30     // entero: lo compara el preprocesador
+#endif
 
 // SALIDA DE EVACUACION POR EL NEGRO: al ver la cinta negra gira NEGRO_SALIDA_GIRO_GRADOS
 // hacia el lado contrario a la última pared vista por los ultrasonidos (< _PARED_MAX_CM,
 // memoria de _MEMORIA_MS). En la salida la pared se abre, así que la lectura instantánea no
 // sirve. 0 = sale recto.
-#define NEGRO_SALIDA_GIRO          1
+// 27-sep: el giro segun la pared salia para el lado equivocado con la pared a la derecha. Ahora
+// NO gira: al pisar el negro retrocede NEGRO_SALIDA_RETRO_MS derecho para que la camara vuelva a
+// ver la linea de la salida, y sigue como siempre (vuelve al estado de linea).
+// Lo de antes: -D NEGRO_SALIDA_GIRO=1 -D NEGRO_SALIDA_RETRO_MS=0
+#ifndef NEGRO_SALIDA_GIRO
+#define NEGRO_SALIDA_GIRO          0
+#endif
+#ifndef NEGRO_SALIDA_RETRO_MS
+#define NEGRO_SALIDA_RETRO_MS      1000UL
+#endif
+#ifndef NEGRO_SALIDA_RETRO_VEL
+#define NEGRO_SALIDA_RETRO_VEL     30
+#endif
+// Despues de salir por el negro, NEGRO_SALIDA_SIN_RECUP_MS sin maniobra de recuperacion: si la Pi
+// avisa linea perdida (GS=4), se sigue en modo linea con el angulo que manda la Pi. 0 = como antes.
+// OJO: la Pi, al mandar GS=4, espera el ACK del retroceso (0xEF) y mientras tanto manda angulo 0:
+// en esa ventana el robot puede ir derecho aunque la linea vuelva a aparecer.
+#ifndef NEGRO_SALIDA_SIN_RECUP_MS
+#define NEGRO_SALIDA_SIN_RECUP_MS  5000UL    // 27-sep: 5 s, lo que se probo en pista (antes 10 s)
+#endif
 #define NEGRO_SALIDA_GIRO_GRADOS   30.0
 #define NEGRO_SALIDA_PARED_MAX_CM  60
 #define NEGRO_SALIDA_MEMORIA_MS    5000UL
@@ -281,6 +317,9 @@ static const unsigned long WATCHDOG_CONFIRMA_MS = 300;
 
 // Memoria de pared en evacuacion: -1 izquierda, +1 derecha, 0 nunca vio pared.
 static int g_evac_pared_lado = 0;
+#if NEGRO_SALIDA_SIN_RECUP_MS > 0
+static unsigned long g_salida_evac_ms = 0;   // millis() de la ultima salida por el negro (0 = ninguna)
+#endif
 static unsigned long g_evac_pared_ms = 0;
 
 // ############################################################################
@@ -452,7 +491,7 @@ Claw claw(&lift, &left, &right, &sort, &deposit);
 #define LED_ROJO 30
 #define SWITCH 32
 #define FCL 40
-#define FCR 41
+#define FCR 26
 bool rescateAvisado = false;
 Adafruit_BNO055 bno = Adafruit_BNO055(55, 0x28);
 Moto bl(29, 28, 27, "BL"); // pwm, dir, enc
@@ -967,8 +1006,11 @@ void reset_color_history()
     last_color_sample_ms = 0;
     last_color_detected = "Desconocido";
 }
+#include "calibracion_color.h"   // umbrales de classify_color() calibrables por USB
+
 String classify_color(uint16_t r, uint16_t g, uint16_t b, uint16_t c)
 {
+    const CalColor &k = g_cal_color;
     float ratio_rc = c > 0 ? static_cast<float>(r) / static_cast<float>(c) : 0.0f;
     float ratio_rg = g > 0 ? static_cast<float>(r) / static_cast<float>(g) : 0.0f;
     float ratio_rb = b > 0 ? static_cast<float>(r) / static_cast<float>(b) : 0.0f;
@@ -996,32 +1038,32 @@ String classify_color(uint16_t r, uint16_t g, uint16_t b, uint16_t c)
     // Rojo medido con el APDS montado: C 371..817, R/C 0.30..0.50, R/G 1.14..1.98, R/B 0.92..1.80.
     bool esRojo =
         (
-            c >= 340 && c <= 900 &&
-            ratio_rc >= 0.295f &&
-            ratio_rg >= 1.10f &&
-            ratio_rb >= 0.90f
+            c >= k.ro_c_min && c <= k.ro_c_max &&
+            ratio_rc >= k.ro_rc_min &&
+            ratio_rg >= k.ro_rg_min &&
+            ratio_rb >= k.ro_rb_min
         );
 
     // Plateado medido: R/C 0.247..0.260, R/G 0.64..0.67, R/B 0.63..0.68, |B-G| <= ~17.
     // Rango estrecho a proposito: con R/C >= 0.240 hubo rescates falsos.
     bool esPlateado =
         (
-            c >= 1500 &&
-            ratio_rc >= 0.245f &&
-            ratio_rc <= 0.268f &&
-            ratio_rg >= 0.645f &&
-            ratio_rg <= 0.700f &&
-            ratio_rb >= 0.615f &&
-            ratio_rb <= 0.700f &&
-            abs(diff_bg) <= 30
+            c >= k.pl_c_min &&
+            ratio_rc >= k.pl_rc_min &&
+            ratio_rc <= k.pl_rc_max &&
+            ratio_rg >= k.pl_rg_min &&
+            ratio_rg <= k.pl_rg_max &&
+            ratio_rb >= k.pl_rb_min &&
+            ratio_rb <= k.pl_rb_max &&
+            abs(diff_bg) <= k.pl_bg_max
         );
 
     // Blanco medido R/C 0.219..0.235. La banda 0.235..0.245 tambien cae en Blanco (con c >= 430).
     bool esBlanco =
         (
-            c >= 430 &&
-            ratio_rc >= 0.195f &&
-            ratio_rc < 0.245f
+            c >= k.bl_c_min &&
+            ratio_rc >= k.bl_rc_min &&
+            ratio_rc < k.bl_rc_max
         );
 
     if (esRojo)
@@ -1499,6 +1541,10 @@ void accionNegro() {
         runAngle(30, FORWARD, -NEGRO_SALIDA_GIRO_GRADOS);   // pared der -> izquierda
     robot.steer(0, FORWARD, 0);
 #endif
+#if NEGRO_SALIDA_RETRO_MS > 0
+    runTime(NEGRO_SALIDA_RETRO_VEL, BACKWARD, 0, NEGRO_SALIDA_RETRO_MS);   // en vez del giro
+    robot.steer(0, FORWARD, 0);
+#endif
     Serial5.write(249);
     reset_color_history();
     digitalWrite(RELAY, LOW);
@@ -1525,6 +1571,9 @@ void accionNegro() {
     taskDone = true;
 
     rutina = "linea";
+#if NEGRO_SALIDA_SIN_RECUP_MS > 0
+    g_salida_evac_ms = millis();   // arranca la ventana sin maniobra de recuperacion
+#endif
 }
 
 void accionPlateado() {
@@ -1678,12 +1727,17 @@ void corregirEntradaPlateadoDesdeRecovery()
     const unsigned long edad = g_silver_rec_ms ? (ahora - g_silver_rec_ms)
                                                : 0xFFFFFFFFUL;
 
-    // Sin recuperacion lateral reciente, o giro < 5 grados: ya venia orientado, no gira.
+    // Sin recuperacion lateral reciente, o giro < 5 grados: ya venia orientado.
     if (g_silver_rec_kind != SILVER_REC_LATERAL ||
         g_silver_rec_pivot_sign == 0 ||
         g_silver_rec_actual_deg < 5.0f ||
         edad > SILVER_REC_MEMORY_MS)
     {
+#if PLATEADO_SIN_RECUP_GIRO_GRADOS > 0
+        // Solo si no hubo NINGUNA recuperacion reciente. runAngle: POSITIVO = derecha.
+        if (g_silver_rec_kind == SILVER_REC_NONE || edad > SILVER_REC_MEMORY_MS)
+            runAngle(SILVER_REC_UNDO_VEL, FORWARD, PLATEADO_SIN_RECUP_GIRO_GRADOS);
+#endif
         robot.steer(0, FORWARD, 0);
         return;
     }
@@ -1760,7 +1814,7 @@ void maniobraEsquive()
     if (!retrocederHastaFinales(20))
         return;
 
-    runAngle(30, FORWARD, -90);
+    runAngle(30, FORWARD, -85);
 }
 
 
@@ -1792,6 +1846,61 @@ const unsigned long ATASCO_GRACE_MS = 8000;  // no disparar los primeros 8 s tra
 // --- Traccion en pendiente: pisar las traseras cuando el pitch esta inclinado ---
 const float  PITCH_RAMPA       = 12.0;  // pitch (grados) desde el cual considero "pendiente" (llano ~±5, rampa ~23)
 const double POTENCIA_TRASERAS = 80;   // potencia (rpm objetivo, 0-159) para las traseras en pendiente
+
+// --- Doble verde detectado subiendo (3-oct) ---
+// El case 14 giraba 180 EN EL LUGAR sobre la pendiente (avance 500 ms + giro + retroceso 300 ms) y el
+// robot se caia (rampa_recta_1.avi 0:15, rampa_corta_1.avi 1:05). Con DOBLE_VERDE_SUBIDA_MODO 1,
+// subiendo primero sigue DERECHO cuesta arriba hasta que el pitch baja de DOBLE_VERDE_PLANO_PITCH
+// (tope DOBLE_VERDE_SUBIDA_MAX_MS), avanza DOBLE_VERDE_PLANO_EXTRA_MS para quedar entero arriba, y
+// recien ahi hace el 180 como en el llano. 0 = como antes. En el llano no cambia nada.
+#ifndef DOBLE_VERDE_SUBIDA_MODO
+#define DOBLE_VERDE_SUBIDA_MODO      1
+#endif
+#ifndef DOBLE_VERDE_PLANO_PITCH
+#define DOBLE_VERDE_PLANO_PITCH      8.0f
+#endif
+#ifndef DOBLE_VERDE_SUBIDA_MAX_MS
+#define DOBLE_VERDE_SUBIDA_MAX_MS    2000UL
+#endif
+#ifndef DOBLE_VERDE_PLANO_EXTRA_MS
+#define DOBLE_VERDE_PLANO_EXTRA_MS   300UL
+#endif
+#ifndef DOBLE_VERDE_SUBIDA_VEL
+#define DOBLE_VERDE_SUBIDA_VEL       36     // = 45 x LINE_RECTA_FACTOR: lo que anda derecho en la pendiente
+#endif
+
+#if DOBLE_VERDE_SUBIDA_MODO == 1
+// Derecho cuesta arriba con el mismo empuje que el case 7 en pendiente (traseras a POTENCIA_TRASERAS)
+// hasta que el pitch baja de DOBLE_VERDE_PLANO_PITCH. true = llego al llano. false = se apago el
+// switch o se cumplio el tope sin llegar (el case 14 sigue entonces con la secuencia vieja).
+bool avanzarHastaPlano()
+{
+    g_line_branch = 21;   // en el CSV (columna ram): doble verde subiendo, avanzando hasta el llano
+    PRIM("avanzarHastaPlano");
+    const unsigned long t0 = millis();
+    while ((millis() - t0) < DOBLE_VERDE_SUBIDA_MAX_MS)
+    {
+        robot.steer(DOBLE_VERDE_SUBIDA_VEL, FORWARD, 0);
+        if (leer_pitch() > PITCH_RAMPA)
+        {
+            bl.setSpeed(FORWARD,  POTENCIA_TRASERAS);
+            br.setSpeed(!FORWARD, POTENCIA_TRASERAS);
+        }
+        serviceMotionBackgroundTasks();
+        if (Serial5.available() > 0)
+            (void)Serial5.read();   // como runTime: la maniobra no obedece tramas nuevas
+        if (digitalRead(32) == 1)
+        {
+            Serial5.clear();
+            Serial5.write(255);
+            return false;
+        }
+        if (pitch < DOBLE_VERDE_PLANO_PITCH)
+            return true;
+    }
+    return false;
+}
+#endif
 
 // --- Estado de rampa Teensy -> Raspberry para ROI dinamico -----------------
 // No toca el detector mecanico de rampa ni la traccion. Es un aviso rapido
@@ -2205,6 +2314,7 @@ void setup()
         apds.enableColor(true);
         apds.enableProximity(true);
     }
+    cal_color_cargar();   // umbrales de color guardados por tools/calibracion_color.html
 
     Wire1.begin();
     Wire2.begin();
@@ -2302,6 +2412,7 @@ bool retrocederHastaFinales(int velocidad)
 void loop()
 {
     DIAG_TICK();
+    cal_color_servicio();   // comandos CAL por USB (solo con el switch apagado)
     // Periodo del loop en ms y su pico (lo publica y resetea la telemetria).
     {
         static unsigned long _lastLoopUs = 0;
@@ -2335,6 +2446,9 @@ void loop()
         g_gap_retro_pulsos = 0;
         resetGapState();
         rojo_ignorar_hasta = 0;
+#if NEGRO_SALIDA_SIN_RECUP_MS > 0
+        g_salida_evac_ms = 0;
+#endif
         g_evac_pared_lado = 0;
         g_evac_pared_ms = 0;
         taskDone = true;
@@ -2349,6 +2463,7 @@ void loop()
             robot.steer(0, 0, 0);
                     digitalWrite(RELAY,LOW);
             claw.lift();
+            
             get_color_fast();
             serialEvent5();
             centrar = leer_yaw();            
@@ -2536,6 +2651,15 @@ void loop()
                 {
                     g_recup_gs0_desde = 0;
 
+#if NEGRO_SALIDA_SIN_RECUP_MS > 0
+                    if (g_salida_evac_ms != 0 &&
+                        millis() - g_salida_evac_ms < NEGRO_SALIDA_SIN_RECUP_MS)
+                    {
+                        // Recien salio de evacuacion: sin maniobra de recuperacion (panel NEGRO_SALIDA_*).
+                        action = 7;
+                    }
+                    else
+#endif
                     if (g_recup_episodio_activo)
                     {
                         // MISMA perdida: continuar la recuperacion, no re-disparar.
@@ -2600,7 +2724,7 @@ void loop()
                     g_recup_rumbo_camino_rx_ms = 0;
                     action = 14;
                 }
-                if (front_distance != 0 && front_distance < 2)
+                if (front_distance != 0 && front_distance < 7)
                 {
                 get_color_fast();
 #if PLATEADO_TEENSY
@@ -2629,6 +2753,9 @@ void loop()
                 switch (action)
                 {
                 case 1:
+#if OBSTACULO_AVISA_PI
+                    Serial5.write(TEENSY_OBST_INICIO);   // la Pi deja de pedir la recuperacion
+#endif
                     digitalWrite(BUZZER, HIGH);
                     delay(100);
                     digitalWrite(BUZZER, LOW);
@@ -2647,7 +2774,7 @@ void loop()
                                 robot.steer(77, FORWARD, -0.38);
                                 if (get_color_fast() == "Negro")
                                 {
-                                    runAngle(70, FORWARD, -90);
+                                    runAngle(70, FORWARD, -50);
                                     break;
                                 }
                             }
@@ -2661,12 +2788,18 @@ void loop()
                                 robot.steer(77, FORWARD, 0.38);
                                 if (get_color_fast() == "Negro")
                                 {
-                                    runAngle(70, FORWARD, 90);
+                                    runAngle(70, FORWARD, 50);
                                     break;
                                 }
                             }
                         }
-                   
+#if OBSTACULO_AVISA_PI
+                    // Lo que llego durante el esquive es viejo (de antes de volver a la cinta): no se obedece.
+                    Serial5.clear();
+                    Serial5.write(TEENSY_OBST_FIN);
+                    Serial5.write(TEENSY_OBST_FIN);
+#endif
+
                     break;
                 case 2:
                     digitalWrite(BUZZER, HIGH);
@@ -2679,10 +2812,12 @@ void loop()
                     ball_counter=0;
                     veces_deposit = 0;
                     depositando=false;
-                    runTime(30, FORWARD, 0,800);
+                    runTime(30, BACKWARD, 0,1000);
                     runTime(0, FORWARD, 0, 1000);
+                    runAngle(30,FORWARD,-20);
+                    runTime(30,FORWARD,0,5000);
                     leer_ultrasonidos();
-                    if(left_distance>right_distance){
+                /*    if(left_distance>right_distance){
                         runAngle(30,FORWARD,-20);
                     }
                     if(right_distance>left_distance){
@@ -2717,7 +2852,7 @@ void loop()
                         runTime(30,FORWARD,0,3000);
                         pared="right";
                         lado_plateado="izquierda";
-                    }
+                    }*/
                     runTime(0,FORWARD,0,3000);
                     break;
                 case 4:   // LINEA PERDIDA: UN SOLO RETROCESO -> REANALIZA -> PIVOTE
@@ -2899,19 +3034,24 @@ void loop()
                         serialEvent5();
                     break;
                 case 6:
-                    runTime(20, FORWARD, 0, 800);
                     serialEvent5();
-                    telemGreenResultado(1, green_state);   // solo cuenta, no decide
-                    // Gira siempre: no re-chequear el verde despues de avanzar (a los 800 ms el
-                    // cuadrado ya salio de camara). Angulo negativo = izquierda; si la camara se
-                    // espeja, invertir signos de case 5 y 6.
-                    runAngle(35, FORWARD, -60);
+                    telemGreenResultado(1, green_state);
+                    if (green_state == 1 && digitalRead(32) == 0)
+                    {
+                        runTime(20, FORWARD, 0, 800);
+                        if (digitalRead(32) == 0)
+                            runAngle(35, FORWARD, -39   );
+                    }
                     break;
                 case 5:
-                    runTime(20, FORWARD, 0, 800);
                     serialEvent5();
-                    telemGreenResultado(2, green_state);   // solo cuenta, no decide
-                    runAngle(25, FORWARD, 60);   // POSITIVO = derecha. Ver el case 6.
+                    telemGreenResultado(2, green_state);
+                    if (green_state == 2 && digitalRead(32) == 0)
+                    {
+                        runTime(20, FORWARD, 0, 800);
+                        if (digitalRead(32) == 0)
+                            runAngle(25, FORWARD, 39);
+                    }
                     break;
                 case 7: // seguimiento de linea
                     g_recup_signo = 0;
@@ -3081,10 +3221,32 @@ void loop()
                 case 14: // Doble verde: media vuelta solo si el re-chequeo sigue viendo GS3.
                     serialEvent5();
                     telemGreenResultado(3, green_state);   // TELEMETRIA: giro o matado por re-chequeo
-                    if (green_state == 3)
+                    if (green_state == 3 && digitalRead(32) == 0)
                     {
-                        runAngle(30, FORWARD, 180);
-                        runTime(30, FORWARD, 0, 500);
+                        bool enSubida = leer_pitch() >= 14.0f;
+#if DOBLE_VERDE_SUBIDA_MODO == 1
+                        // Subiendo: el 180 se hace arriba, en el llano (ver DOBLE_VERDE_SUBIDA_MODO).
+                        // En la cresta el pitch ya viene bajando (8-14) aunque el aviso a la Pi siga en
+                        // SUBE (sale recien por debajo de 8): ese aviso tambien cuenta como subida.
+                        if (g_roi_rampa_estado == 1)
+                            enSubida = true;
+                        if (enSubida && avanzarHastaPlano())
+                        {
+                            runTime(30, FORWARD, 0, DOBLE_VERDE_PLANO_EXTRA_MS);
+                            enSubida = false;   // de aca en adelante, la secuencia del llano
+                        }
+#endif
+                        if (enSubida)
+                            runTime(30, FORWARD, 0, 500);
+                        if (digitalRead(32) == 0)
+                            runAngle(30, FORWARD, 180);
+                        if (digitalRead(32) == 0) {
+                            if (enSubida)
+                                runTime(30, BACKWARD, 0, 300);
+                            else
+                                runTime(30, BACKWARD, 0, 1000);
+                        }
+                        robot.steer(0, FORWARD, 0);
                     }
                     action = 7;
                     break;
@@ -3100,7 +3262,6 @@ void loop()
            digitalWrite(LED_BUILTIN, LOW);
             serialEvent5();
             robot.steer(speed, FORWARD, steer);
-            digitalWrite(0,LOW);
 
             if (green_state == 6) // Recoleccion Pelota negra
             {
@@ -3112,7 +3273,7 @@ void loop()
                 nonBlockingDelay(1400);
                 claw.sortRight();
                 nonBlockingDelay(1000);
-                runDistance(30,FORWARD,9);
+                runDistance(30,FORWARD,6);
                 runTime(0,FORWARD,0,1000);
                 claw.close();
                 nonBlockingDelay(1000);
@@ -3140,7 +3301,7 @@ void loop()
                 nonBlockingDelay(1400);
                 claw.depositCenter();
                 nonBlockingDelay(1000);
-                runDistance(20,FORWARD,8);
+                runDistance(20,FORWARD,6);
                 runTime(0,FORWARD,0,1000);
                 claw.close();
                 nonBlockingDelay(1000);
@@ -3280,7 +3441,7 @@ void loop()
                     {
                         DBG_PRINT("[EVAC] P3 BUSCAR left="); DBG_PRINT(left_distance);
                         DBG_PRINT(" front="); DBG_PRINTLN(front_distance);
-                        runDistance(30, FORWARD, 8);
+                        runDistance(30, FORWARD, 15);
                         runAngle(30, FORWARD, -90);
                         while (rutina == "evacuacion" && digitalRead(32) == 0)
                         {
@@ -3307,7 +3468,7 @@ void loop()
                     }
 
                     // P2: pared frontal a <= 18 cm: girar 90.
-                    if (front_distance != 0 && front_distance <= 18)
+                    if (front_distance != 0 && front_distance <= 11)
                     {
                         DBG_PRINT("[EVAC] P2 PARED front="); DBG_PRINTLN(front_distance);
                         runAngle(30, FORWARD, 90);
